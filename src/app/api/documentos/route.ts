@@ -3,7 +3,8 @@ import { dirname } from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { getAuthUser, podeVerTodosDocumentos } from '@/lib/auth'
+import { getAuthUser } from '@/lib/auth'
+import { documentosVisiveisWhere } from '@/lib/visibilidade'
 import { buildUploadPath, getUploadFullPath } from '@/lib/storage'
 import { extrairConteudo } from '@/lib/extracao'
 import { analisarDocumento, PROMPT_VERSION_ATUAL } from '@/lib/ia/analisar'
@@ -29,18 +30,19 @@ export async function GET(request: NextRequest) {
   const de = params.get('de')
   const ate = params.get('ate')
 
-  const where: Prisma.DocumentoWhereInput = {}
-  if (!podeVerTodosDocumentos(usuario.role)) {
-    where.uploadedById = usuario.id
-  }
-  if (tipo) where.tipo = tipo
-  if (status) where.status = status
-  if (busca) where.nomeArquivo = { contains: busca, mode: 'insensitive' }
+  const filtros: Prisma.DocumentoWhereInput = {}
+  if (tipo) filtros.tipo = tipo
+  if (status) filtros.status = status
+  if (busca) filtros.nomeArquivo = { contains: busca, mode: 'insensitive' }
   if (de || ate) {
-    where.createdAt = {
+    filtros.createdAt = {
       ...(de ? { gte: new Date(de) } : {}),
       ...(ate ? { lte: new Date(ate) } : {}),
     }
+  }
+
+  const where: Prisma.DocumentoWhereInput = {
+    AND: [await documentosVisiveisWhere(usuario), filtros],
   }
 
   const documentos = await prisma.documento.findMany({

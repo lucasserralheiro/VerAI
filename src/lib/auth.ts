@@ -52,15 +52,6 @@ export interface AuthUser {
   role: Role
 }
 
-/**
- * "responsavel" ainda não tem a regra real de visibilidade (depende do
- * módulo 6 — regras de notificação). Até lá é tratado como "admin": vê
- * todos os documentos.
- */
-export function podeVerTodosDocumentos(role: Role): boolean {
-  return role === 'admin' || role === 'responsavel'
-}
-
 export async function getAuthUser(request: NextRequest): Promise<AuthUser | null> {
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value
   if (!token) return null

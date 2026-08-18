@@ -3,7 +3,8 @@ import { dirname } from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
 import type { Analise, Documento } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { getAuthUser, podeVerTodosDocumentos } from '@/lib/auth'
+import { getAuthUser } from '@/lib/auth'
+import { podeVerDocumento } from '@/lib/visibilidade'
 import { buildRelatorioPath, getUploadFullPath } from '@/lib/storage'
 import { gerarRelatorioPdf } from '@/lib/pdf/gerarRelatorio'
 
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'documento não encontrado' }, { status: 404 })
   }
 
-  const podeVer = podeVerTodosDocumentos(usuario.role) || documento.uploadedById === usuario.id
+  const podeVer = await podeVerDocumento(usuario, documento)
   if (!podeVer) {
     return NextResponse.json({ error: 'acesso negado' }, { status: 403 })
   }

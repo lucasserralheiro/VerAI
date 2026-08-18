@@ -200,9 +200,18 @@ export default function DashboardPage() {
                   <a href={`/api/documentos/${doc.id}/original`} className="text-blue-600 hover:underline">
                     Baixar original
                   </a>
-                  <span className="text-muted-foreground" title="Módulo de relatório PDF ainda não implementado">
-                    Baixar relatório (em breve)
-                  </span>
+                  {doc.status === 'concluido' ? (
+                    <a
+                      href={`/api/documentos/${doc.id}/relatorio`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Baixar relatório
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground" title="Só disponível quando a análise concluir">
+                      Baixar relatório
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}

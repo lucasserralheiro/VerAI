@@ -217,6 +217,14 @@ export default function DocumentoDetalhePage({ params }: { params: Promise<{ id:
           >
             Baixar original
           </a>
+          {documento.status === 'concluido' && (
+            <a
+              href={`/api/documentos/${documento.id}/relatorio`}
+              className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
+            >
+              Baixar relatório
+            </a>
+          )}
           <button
             onClick={handleReprocessar}
             disabled={reprocessando}

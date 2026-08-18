@@ -1,12 +1,12 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { getAuthUser } from '@/lib/auth'
+import { getAuthUser, podeVerTodosDocumentos } from '@/lib/auth'
 import { buildUploadPath, getUploadFullPath } from '@/lib/storage'
 import { extrairConteudo } from '@/lib/extracao'
 import { analisarDocumento, PROMPT_VERSION_ATUAL } from '@/lib/ia/analisar'
-import { notImplemented } from '@/lib/not-implemented'
 
 const TIPOS_SUPORTADOS = ['xlsx', 'csv', 'pdf'] as const
 
@@ -15,8 +15,50 @@ function tipoDoArquivo(nomeArquivo: string): string | null {
   return extensao && (TIPOS_SUPORTADOS as readonly string[]).includes(extensao) ? extensao : null
 }
 
-export async function GET() {
-  return notImplemented()
+export async function GET(request: NextRequest) {
+  const usuario = await getAuthUser(request)
+  if (!usuario) {
+    return NextResponse.json({ error: 'não autenticado' }, { status: 401 })
+  }
+
+  const params = request.nextUrl.searchParams
+  const tipo = params.get('tipo')
+  const status = params.get('status')
+  const busca = params.get('busca')
+  const de = params.get('de')
+  const ate = params.get('ate')
+
+  const where: Prisma.DocumentoWhereInput = {}
+  if (!podeVerTodosDocumentos(usuario.role)) {
+    where.uploadedById = usuario.id
+  }
+  if (tipo) where.tipo = tipo
+  if (status) where.status = status
+  if (busca) where.nomeArquivo = { contains: busca, mode: 'insensitive' }
+  if (de || ate) {
+    where.createdAt = {
+      ...(de ? { gte: new Date(de) } : {}),
+      ...(ate ? { lte: new Date(ate) } : {}),
+    }
+  }
+
+  const documentos = await prisma.documento.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      nomeArquivo: true,
+      tipo: true,
+      status: true,
+      mensagemErro: true,
+      tamanhoBytes: true,
+      createdAt: true,
+      uploadedBy: { select: { nome: true } },
+      analise: { select: { id: true } },
+    },
+  })
+
+  return NextResponse.json(documentos)
 }
 
 export async function POST(request: NextRequest) {

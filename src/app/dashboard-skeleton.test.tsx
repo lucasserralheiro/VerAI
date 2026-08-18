@@ -1,16 +1,12 @@
 import { render, screen } from '@testing-library/react'
-import DashboardPage from './page'
 import DocumentoDetalhePage from './documentos/[id]/page'
 import NotificacoesPage from './notificacoes/page'
 import AdminUsuariosPage from './admin/usuarios/page'
 import AdminRegrasNotificacaoPage from './admin/regras-notificacao/page'
 
+// A listagem de documentos (`/`) saiu daqui — deixou de ser esqueleto no
+// módulo 4. As demais páginas abaixo continuam esqueleto.
 describe('páginas esqueleto do dashboard', () => {
-  it('renderiza a listagem de documentos', () => {
-    render(<DashboardPage />)
-    expect(screen.getByText('Documentos')).toBeInTheDocument()
-  })
-
   it('renderiza a página de detalhe do documento com o id da rota', async () => {
     const element = await DocumentoDetalhePage({ params: Promise.resolve({ id: 'doc-1' }) })
     render(element)

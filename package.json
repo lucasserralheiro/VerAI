@@ -7,10 +7,16 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "test": "jest --passWithNoTests"
+    "test": "jest --passWithNoTests",
+    "dev:db:up": "docker compose --env-file .env.development up -d",
+    "dev:db:down": "docker compose --env-file .env.development down",
+    "dev:migrate": "dotenv -e .env.development -- npx prisma migrate dev",
+    "dev:generate": "dotenv -e .env.development -- npx prisma generate",
+    "dev:studio": "dotenv -e .env.development -- npx prisma studio"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
+    "@prisma/client": "^6.19.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.32.0",
@@ -35,6 +41,7 @@
     "eslint-config-next": "15.5.23",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
+    "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5"

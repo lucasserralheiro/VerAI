@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id         String   @id @default(cuid())
+  nome       String
+  email      String   @unique
+  senhaHash  String
+  role       String   // uploader | responsavel | admin
+  createdAt  DateTime @default(now())
+  documentos Documento[]
+  acessos    AcessoDocumento[]
+}
+
+model Documento {
+  id              String    @id @default(cuid())
+  nomeArquivo     String
+  tipo            String    // xlsx, csv, pdf, docx
+  caminhoOriginal String
+  tamanhoBytes    Int
+  status          String    @default("processando") // processando | concluido | erro
+  mensagemErro    String?
+  uploadedById    String
+  uploadedBy      Usuario   @relation(fields: [uploadedById], references: [id])
+  createdAt       DateTime  @default(now())
+  analise         Analise?
+  acessos         AcessoDocumento[]
+}
+
+model Analise {
+  id                  String    @id @default(cuid())
+  documentoId         String    @unique
+  documento           Documento @relation(fields: [documentoId], references: [id])
+  resumo              String    @db.Text
+  pontosCriticos      Json
+  pontosPositivos     Json
+  metricasChave       Json?
+  promptVersion       String
+  caminhoRelatorioPdf String?
+  relatorioGeradoEm   DateTime?
+  createdAt           DateTime  @default(now())
+}
+
+model RegraNotificacao {
+  id            String @id @default(cuid())
+  criterioTipo  String // tipoDocumento | palavraChaveNome
+  criterioValor String
+  destinatarios Json
+}
+
+model Notificacao {
+  id           String   @id @default(cuid())
+  documentoId  String
+  destinatario String
+  canal        String   // email | dashboard
+  lida         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+model AcessoDocumento {
+  id          String    @id @default(cuid())
+  documentoId String
+  documento   Documento @relation(fields: [documentoId], references: [id])
+  usuarioId   String
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id])
+  acao        String    // visualizou | baixou_original | baixou_relatorio
+  createdAt   DateTime  @default(now())
+}

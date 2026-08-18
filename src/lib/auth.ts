@@ -24,6 +24,7 @@ export type Role = 'uploader' | 'responsavel' | 'admin'
 export interface SessaoPayload {
   id: string
   role: Role
+  [key: string]: unknown
 }
 
 export async function criarSessao(payload: SessaoPayload): Promise<string> {

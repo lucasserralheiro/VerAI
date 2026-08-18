@@ -31,6 +31,7 @@ model Documento {
   createdAt       DateTime  @default(now())
   analise         Analise?
   acessos         AcessoDocumento[]
+  notificacoes    Notificacao[]
 }
 
 model Analise {
@@ -55,12 +56,13 @@ model RegraNotificacao {
 }
 
 model Notificacao {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   documentoId  String
+  documento    Documento @relation(fields: [documentoId], references: [id])
   destinatario String
-  canal        String   // email | dashboard
-  lida         Boolean  @default(false)
-  createdAt    DateTime @default(now())
+  canal        String    // email | dashboard
+  lida         Boolean   @default(false)
+  createdAt    DateTime  @default(now())
 }
 
 model AcessoDocumento {

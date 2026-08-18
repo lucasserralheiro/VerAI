@@ -7,6 +7,7 @@ import { getAuthUser, podeVerTodosDocumentos } from '@/lib/auth'
 import { buildUploadPath, getUploadFullPath } from '@/lib/storage'
 import { extrairConteudo } from '@/lib/extracao'
 import { analisarDocumento, PROMPT_VERSION_ATUAL } from '@/lib/ia/analisar'
+import { dispararNotificacoes } from '@/lib/notificacao'
 
 const TIPOS_SUPORTADOS = ['xlsx', 'csv', 'pdf'] as const
 
@@ -132,6 +133,8 @@ export async function POST(request: NextRequest) {
       },
     })
   }
+
+  await dispararNotificacoes(documentoFinal)
 
   return NextResponse.json(documentoFinal, { status: 201 })
 }

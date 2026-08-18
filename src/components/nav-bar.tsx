@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -14,6 +15,15 @@ const LINKS = [
 export function NavBar() {
   const pathname = usePathname()
   const router = useRouter()
+  const [naoLidas, setNaoLidas] = useState(0)
+
+  useEffect(() => {
+    if (pathname === '/login') return
+    fetch('/api/notificacoes')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((lista: Array<{ lida: boolean }>) => setNaoLidas(lista.filter((n) => !n.lida).length))
+      .catch(() => {})
+  }, [pathname])
 
   if (pathname === '/login') {
     return null
@@ -38,6 +48,11 @@ export function NavBar() {
             )}
           >
             {link.label}
+            {link.href === '/notificacoes' && naoLidas > 0 && (
+              <span className="ml-1 rounded-full bg-red-600 px-1.5 py-0.5 text-xs text-white">
+                {naoLidas}
+              </span>
+            )}
           </Link>
         ))}
       </div>

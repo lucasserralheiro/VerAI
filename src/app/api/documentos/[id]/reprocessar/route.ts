@@ -5,6 +5,7 @@ import { getAuthUser } from '@/lib/auth'
 import { getUploadFullPath } from '@/lib/storage'
 import { extrairConteudo } from '@/lib/extracao'
 import { analisarDocumento, PROMPT_VERSION_ATUAL } from '@/lib/ia/analisar'
+import { dispararNotificacoes } from '@/lib/notificacao'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const usuario = await getAuthUser(request)
@@ -57,6 +58,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     })
   }
+
+  await dispararNotificacoes(documentoFinal)
 
   return NextResponse.json(documentoFinal)
 }

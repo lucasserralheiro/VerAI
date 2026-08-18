@@ -3,12 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser, podeVerTodosDocumentos } from '@/lib/auth'
 import { getUploadFullPath } from '@/lib/storage'
-
-const CONTENT_TYPES: Record<string, string> = {
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  csv: 'text/csv',
-  pdf: 'application/pdf',
-}
+import { lerPlanilhaPreview } from '@/lib/extracao'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const usuario = await getAuthUser(request)
@@ -27,19 +22,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'acesso negado' }, { status: 403 })
   }
 
-  const modoPreview = request.nextUrl.searchParams.get('modo') === 'preview'
-  const buffer = await readFile(getUploadFullPath(documento.caminhoOriginal))
-
-  if (!modoPreview) {
-    await prisma.acessoDocumento.create({
-      data: { documentoId: id, usuarioId: usuario.id, acao: 'baixou_original' },
-    })
+  if (documento.tipo !== 'xlsx' && documento.tipo !== 'csv') {
+    return NextResponse.json({ error: 'preview estruturado só existe para xlsx/csv' }, { status: 400 })
   }
 
-  return new NextResponse(buffer, {
-    headers: {
-      'Content-Type': CONTENT_TYPES[documento.tipo] ?? 'application/octet-stream',
-      'Content-Disposition': `${modoPreview ? 'inline' : 'attachment'}; filename="${documento.nomeArquivo}"`,
-    },
-  })
+  const buffer = await readFile(getUploadFullPath(documento.caminhoOriginal))
+  const preview = await lerPlanilhaPreview(buffer, documento.tipo)
+
+  return NextResponse.json(preview)
 }

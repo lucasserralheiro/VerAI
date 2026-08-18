@@ -3,7 +3,7 @@ import { Readable } from 'node:stream'
 
 const AMOSTRA_MAX_LINHAS = 30
 
-export async function extrairExcel(buffer: Buffer, tipo: 'xlsx' | 'csv'): Promise<string> {
+async function carregarPrimeiraPlanilha(buffer: Buffer, tipo: 'xlsx' | 'csv') {
   const workbook = new ExcelJS.Workbook()
 
   if (tipo === 'csv') {
@@ -14,7 +14,7 @@ export async function extrairExcel(buffer: Buffer, tipo: 'xlsx' | 'csv'): Promis
 
   const planilha = workbook.worksheets[0]
   if (!planilha || planilha.rowCount === 0) {
-    return 'Planilha vazia — nenhum dado encontrado.'
+    return null
   }
 
   const cabecalho = (planilha.getRow(1).values as unknown[]).slice(1).map((v) => String(v ?? ''))
@@ -22,6 +22,38 @@ export async function extrairExcel(buffer: Buffer, tipo: 'xlsx' | 'csv'): Promis
   for (let i = 2; i <= planilha.rowCount; i++) {
     linhas.push((planilha.getRow(i).values as unknown[]).slice(1))
   }
+
+  return { planilha, cabecalho, linhas }
+}
+
+export interface PreviewPlanilha {
+  cabecalho: string[]
+  linhas: string[][]
+  totalLinhas: number
+  truncado: boolean
+}
+
+export async function lerPlanilhaPreview(buffer: Buffer, tipo: 'xlsx' | 'csv'): Promise<PreviewPlanilha> {
+  const dados = await carregarPrimeiraPlanilha(buffer, tipo)
+  if (!dados) {
+    return { cabecalho: [], linhas: [], totalLinhas: 0, truncado: false }
+  }
+
+  const { cabecalho, linhas } = dados
+  return {
+    cabecalho,
+    linhas: linhas.slice(0, AMOSTRA_MAX_LINHAS).map((linha) => linha.map((v) => String(v ?? ''))),
+    totalLinhas: linhas.length,
+    truncado: linhas.length > AMOSTRA_MAX_LINHAS,
+  }
+}
+
+export async function extrairExcel(buffer: Buffer, tipo: 'xlsx' | 'csv'): Promise<string> {
+  const dados = await carregarPrimeiraPlanilha(buffer, tipo)
+  if (!dados) {
+    return 'Planilha vazia — nenhum dado encontrado.'
+  }
+  const { planilha, cabecalho, linhas } = dados
 
   const tipos = cabecalho.map((_, colIdx) => {
     const valor = linhas[0]?.[colIdx]

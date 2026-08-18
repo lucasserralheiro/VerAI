@@ -1,5 +1,7 @@
-import { extrairExcel } from './excel'
+import { extrairExcel, lerPlanilhaPreview, type PreviewPlanilha } from './excel'
 import { extrairPdf } from './pdf'
+
+export { lerPlanilhaPreview, type PreviewPlanilha }
 
 export async function extrairConteudo(buffer: Buffer, tipo: string): Promise<string> {
   switch (tipo) {

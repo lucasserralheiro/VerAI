@@ -1,17 +1,15 @@
 /**
  * @jest-environment node
  */
-import * as documentoDetalhe from '@/app/api/documentos/[id]/route'
 import * as documentoRelatorio from '@/app/api/documentos/[id]/relatorio/route'
 import * as notificacoes from '@/app/api/notificacoes/route'
 import * as adminUsuarios from '@/app/api/admin/usuarios/route'
 import * as adminRegras from '@/app/api/admin/regras-notificacao/route'
 
-// GET/POST /api/documentos, GET /api/documentos/[id]/original e
-// POST /api/documentos/[id]/reprocessar saíram da lista de stubs —
-// implementados nos módulos 3 (ingestão + extração) e 4 (listagem).
+// GET/POST /api/documentos, GET /api/documentos/[id], GET /api/documentos/[id]/original,
+// GET /api/documentos/[id]/preview e POST /api/documentos/[id]/reprocessar saíram da
+// lista de stubs — implementados nos módulos 3, 4 e 5.
 const rotas: Array<[string, () => Promise<Response>]> = [
-  ['GET /api/documentos/[id]', documentoDetalhe.GET],
   ['GET /api/documentos/[id]/relatorio', documentoRelatorio.GET],
   ['GET /api/notificacoes', notificacoes.GET],
   ['PATCH /api/notificacoes', notificacoes.PATCH],

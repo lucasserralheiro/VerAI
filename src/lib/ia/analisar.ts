@@ -2,6 +2,8 @@ import { generateObject } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { z } from 'zod'
 
+export const PROMPT_VERSION_ATUAL = 'v1'
+
 const schema = z.object({
   resumo: z.string(),
   pontosCriticos: z.array(

@@ -11,8 +11,16 @@ interface Documento {
   mensagemErro: string | null
   tamanhoBytes: number
   createdAt: string
+  competenciaAno: number
+  competenciaMes: number
   uploadedBy: { nome: string }
+  cliente: { id: string; nome: string }
   analise: { id: string } | null
+}
+
+interface Cliente {
+  id: string
+  nome: string
 }
 
 interface Filtros {
@@ -21,9 +29,10 @@ interface Filtros {
   busca: string
   de: string
   ate: string
+  clienteId: string
 }
 
-const FILTROS_VAZIOS: Filtros = { tipo: '', status: '', busca: '', de: '', ate: '' }
+const FILTROS_VAZIOS: Filtros = { tipo: '', status: '', busca: '', de: '', ate: '', clienteId: '' }
 
 const STATUS_BADGE: Record<string, string> = {
   concluido: 'bg-green-100 text-green-800',
@@ -38,15 +47,15 @@ function montarQuery(filtros: Filtros): string {
   if (filtros.busca) params.set('busca', filtros.busca)
   if (filtros.de) params.set('de', filtros.de)
   if (filtros.ate) params.set('ate', filtros.ate)
+  if (filtros.clienteId) params.set('clienteId', filtros.clienteId)
   return params.toString()
 }
 
 export default function DashboardPage() {
   const [documentos, setDocumentos] = useState<Documento[]>([])
+  const [clientes, setClientes] = useState<Cliente[]>([])
   const [carregando, setCarregando] = useState(true)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS)
-  const [enviando, setEnviando] = useState(false)
-  const [erroUpload, setErroUpload] = useState<string | null>(null)
 
   async function carregarDocumentos(filtrosAtuais: Filtros) {
     setCarregando(true)
@@ -60,6 +69,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     carregarDocumentos(FILTROS_VAZIOS)
+    fetch('/api/clientes')
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setClientes)
   }, [])
 
   function handleFiltrar(event: FormEvent) {
@@ -67,46 +79,35 @@ export default function DashboardPage() {
     carregarDocumentos(filtros)
   }
 
-  async function handleUpload(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setErroUpload(null)
-    const form = event.currentTarget
-    const input = form.elements.namedItem('arquivo') as HTMLInputElement
-    const arquivo = input.files?.[0]
-    if (!arquivo) return
-
-    setEnviando(true)
-    const formData = new FormData()
-    formData.set('arquivo', arquivo)
-
-    const response = await fetch('/api/documentos', { method: 'POST', body: formData })
-    setEnviando(false)
-
-    if (!response.ok) {
-      setErroUpload('Falha ao enviar o documento.')
-      return
-    }
-    form.reset()
-    carregarDocumentos(filtros)
-  }
-
   return (
     <main className="space-y-6 p-8">
-      <h1 className="text-xl font-semibold">Documentos</h1>
-
-      <form onSubmit={handleUpload} className="flex items-center gap-3">
-        <input type="file" name="arquivo" accept=".xlsx,.csv,.pdf" required className="text-sm" />
-        <button
-          type="submit"
-          disabled={enviando}
-          className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
-        >
-          {enviando ? 'Enviando...' : 'Enviar documento'}
-        </button>
-        {erroUpload && <span className="text-sm text-red-600">{erroUpload}</span>}
-      </form>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Documentos</h1>
+        <p className="text-sm text-muted-foreground">
+          Pra enviar um documento, entre no cliente e no mês em{' '}
+          <Link href="/clientes" className="text-blue-600 hover:underline">
+            Clientes
+          </Link>
+          .
+        </p>
+      </div>
 
       <form onSubmit={handleFiltrar} className="flex flex-wrap items-end gap-3 text-sm">
+        <label className="flex flex-col gap-1">
+          Cliente
+          <select
+            value={filtros.clienteId}
+            onChange={(e) => setFiltros({ ...filtros, clienteId: e.target.value })}
+            className="rounded border p-1"
+          >
+            <option value="">Todos</option>
+            {clientes.map((cliente) => (
+              <option key={cliente.id} value={cliente.id}>
+                {cliente.nome}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="flex flex-col gap-1">
           Tipo
           <select
@@ -174,6 +175,8 @@ export default function DashboardPage() {
           <thead>
             <tr className="border-b">
               <th className="py-2">Arquivo</th>
+              <th>Cliente</th>
+              <th>Competência</th>
               <th>Tipo</th>
               <th>Data</th>
               <th>Quem subiu</th>
@@ -185,6 +188,10 @@ export default function DashboardPage() {
             {documentos.map((doc) => (
               <tr key={doc.id} className="border-b">
                 <td className="py-2">{doc.nomeArquivo}</td>
+                <td>{doc.cliente.nome}</td>
+                <td>
+                  {String(doc.competenciaMes).padStart(2, '0')}/{doc.competenciaAno}
+                </td>
                 <td>{doc.tipo}</td>
                 <td>{new Date(doc.createdAt).toLocaleString('pt-BR')}</td>
                 <td>{doc.uploadedBy.nome}</td>
@@ -200,17 +207,10 @@ export default function DashboardPage() {
                   <a href={`/api/documentos/${doc.id}/original`} className="text-blue-600 hover:underline">
                     Baixar original
                   </a>
-                  {doc.status === 'concluido' ? (
-                    <a
-                      href={`/api/documentos/${doc.id}/relatorio`}
-                      className="text-blue-600 hover:underline"
-                    >
+                  {doc.status === 'concluido' && (
+                    <a href={`/api/documentos/${doc.id}/relatorio`} className="text-blue-600 hover:underline">
                       Baixar relatório
                     </a>
-                  ) : (
-                    <span className="text-muted-foreground" title="Só disponível quando a análise concluir">
-                      Baixar relatório
-                    </span>
                   )}
                 </td>
               </tr>

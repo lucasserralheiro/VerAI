@@ -12,6 +12,12 @@ export function buildRelatorioPath(documentoId: string, data: Date = new Date())
   return `${ano}/${mes}/${documentoId}/relatorio.pdf`
 }
 
+export function buildRelatorioConsolidadoPath(analiseConsolidadaId: string, data: Date = new Date()): string {
+  const ano = String(data.getFullYear())
+  const mes = String(data.getMonth() + 1).padStart(2, '0')
+  return `${ano}/${mes}/consolidadas/${analiseConsolidadaId}/relatorio.pdf`
+}
+
 export function getUploadFullPath(relativePath: string): string {
   const uploadDir = process.env.UPLOAD_DIR
   if (!uploadDir) throw new Error('UPLOAD_DIR não configurado')

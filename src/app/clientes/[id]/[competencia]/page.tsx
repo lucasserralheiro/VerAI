@@ -19,6 +19,20 @@ interface Cliente {
   nome: string
 }
 
+interface MetricaComparada {
+  label: string
+  valores: Array<{ documentoId: string; nomeArquivo: string; valorExibicao: string }>
+  divergencia: { diferencaPercentual: number | null } | null
+}
+
+interface AnaliseConsolidada {
+  id: string
+  resumo: string
+  metricasComparadas: MetricaComparada[]
+  createdAt: string
+  documentos: Array<{ id: string; nomeArquivo: string }>
+}
+
 const STATUS_BADGE: Record<string, string> = {
   concluido: 'bg-green-100 text-green-800',
   processando: 'bg-gray-100 text-gray-800',
@@ -34,19 +48,25 @@ export default function ClienteCompetenciaPage({
   const parsed = parseCompetencia(competencia)
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [documentos, setDocumentos] = useState<Documento[]>([])
+  const [analisesConsolidadas, setAnalisesConsolidadas] = useState<AnaliseConsolidada[]>([])
   const [carregando, setCarregando] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [erroUpload, setErroUpload] = useState<string | null>(null)
+  const [selecionados, setSelecionados] = useState<string[]>([])
+  const [gerandoConsolidada, setGerandoConsolidada] = useState(false)
+  const [erroConsolidada, setErroConsolidada] = useState<string | null>(null)
 
   async function carregar() {
     if (!parsed) return
     setCarregando(true)
-    const [clienteResponse, documentosResponse] = await Promise.all([
+    const [clienteResponse, documentosResponse, consolidadasResponse] = await Promise.all([
       fetch(`/api/clientes/${id}`),
       fetch(`/api/documentos?clienteId=${id}&competenciaAno=${parsed.ano}&competenciaMes=${parsed.mes}`),
+      fetch(`/api/clientes/${id}/competencias/${competencia}/analise-consolidada`),
     ])
     if (clienteResponse.ok) setCliente(await clienteResponse.json())
     if (documentosResponse.ok) setDocumentos(await documentosResponse.json())
+    if (consolidadasResponse.ok) setAnalisesConsolidadas(await consolidadasResponse.json())
     setCarregando(false)
   }
 
@@ -80,6 +100,28 @@ export default function ClienteCompetenciaPage({
       return
     }
     form.reset()
+    carregar()
+  }
+
+  function toggleSelecionado(docId: string) {
+    setSelecionados((atual) => (atual.includes(docId) ? atual.filter((x) => x !== docId) : [...atual, docId]))
+  }
+
+  async function handleGerarConsolidada() {
+    setErroConsolidada(null)
+    setGerandoConsolidada(true)
+    const response = await fetch(`/api/clientes/${id}/competencias/${competencia}/analise-consolidada`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentoIds: selecionados }),
+    })
+    setGerandoConsolidada(false)
+    if (!response.ok) {
+      const body = await response.json().catch(() => null)
+      setErroConsolidada(body?.error ?? 'Falha ao gerar a análise consolidada.')
+      return
+    }
+    setSelecionados([])
     carregar()
   }
 
@@ -119,46 +161,103 @@ export default function ClienteCompetenciaPage({
       ) : documentos.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum documento neste mês ainda.</p>
       ) : (
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2">Arquivo</th>
-              <th>Tipo</th>
-              <th>Enviado por</th>
-              <th>Quando</th>
-              <th>Status</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {documentos.map((doc) => (
-              <tr key={doc.id} className="border-b">
-                <td className="py-2">{doc.nomeArquivo}</td>
-                <td>{doc.tipo}</td>
-                <td>{doc.uploadedBy.nome}</td>
-                <td>{new Date(doc.createdAt).toLocaleString('pt-BR')}</td>
-                <td>
-                  <span className={`rounded px-2 py-0.5 text-xs ${STATUS_BADGE[doc.status] ?? ''}`}>
-                    {doc.status}
-                  </span>
-                </td>
-                <td className="space-x-3">
-                  <Link href={`/documentos/${doc.id}`} className="text-blue-600 hover:underline">
-                    Ver análise
-                  </Link>
-                  <a href={`/api/documentos/${doc.id}/original`} className="text-blue-600 hover:underline">
-                    Baixar original
-                  </a>
-                  {doc.status === 'concluido' && (
-                    <a href={`/api/documentos/${doc.id}/relatorio`} className="text-blue-600 hover:underline">
-                      Baixar relatório
-                    </a>
-                  )}
-                </td>
+        <>
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="py-2"></th>
+                <th>Arquivo</th>
+                <th>Tipo</th>
+                <th>Enviado por</th>
+                <th>Quando</th>
+                <th>Status</th>
+                <th>Ações</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {documentos.map((doc) => (
+                <tr key={doc.id} className="border-b">
+                  <td className="py-2">
+                    <input
+                      type="checkbox"
+                      disabled={doc.status !== 'concluido'}
+                      checked={selecionados.includes(doc.id)}
+                      onChange={() => toggleSelecionado(doc.id)}
+                    />
+                  </td>
+                  <td>{doc.nomeArquivo}</td>
+                  <td>{doc.tipo}</td>
+                  <td>{doc.uploadedBy.nome}</td>
+                  <td>{new Date(doc.createdAt).toLocaleString('pt-BR')}</td>
+                  <td>
+                    <span className={`rounded px-2 py-0.5 text-xs ${STATUS_BADGE[doc.status] ?? ''}`}>
+                      {doc.status}
+                    </span>
+                  </td>
+                  <td className="space-x-3">
+                    <Link href={`/documentos/${doc.id}`} className="text-blue-600 hover:underline">
+                      Ver análise
+                    </Link>
+                    <a href={`/api/documentos/${doc.id}/original`} className="text-blue-600 hover:underline">
+                      Baixar original
+                    </a>
+                    {doc.status === 'concluido' && (
+                      <a href={`/api/documentos/${doc.id}/relatorio`} className="text-blue-600 hover:underline">
+                        Baixar relatório
+                      </a>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleGerarConsolidada}
+              disabled={selecionados.length === 0 || gerandoConsolidada}
+              className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+            >
+              {gerandoConsolidada
+                ? 'Gerando...'
+                : `Gerar análise consolidada (${selecionados.length} selecionado(s))`}
+            </button>
+            {erroConsolidada && <span className="text-sm text-red-600">{erroConsolidada}</span>}
+          </div>
+        </>
+      )}
+
+      {analisesConsolidadas.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-medium">Análises consolidadas geradas</h2>
+          {analisesConsolidadas.map((analise) => (
+            <div key={analise.id} className="space-y-2 rounded border p-4 text-sm">
+              <p className="text-xs text-muted-foreground">
+                {analise.documentos.map((d) => d.nomeArquivo).join(', ')} —{' '}
+                {new Date(analise.createdAt).toLocaleString('pt-BR')}
+              </p>
+              <p>{analise.resumo}</p>
+              {analise.metricasComparadas.some((m) => m.divergencia) && (
+                <ul className="list-disc space-y-1 pl-5 text-xs text-red-700">
+                  {analise.metricasComparadas
+                    .filter((m) => m.divergencia)
+                    .map((m) => (
+                      <li key={m.label}>
+                        Divergência em &quot;{m.label}&quot;:{' '}
+                        {m.valores.map((v) => `${v.nomeArquivo} = ${v.valorExibicao}`).join(' vs. ')}
+                      </li>
+                    ))}
+                </ul>
+              )}
+              <a
+                href={`/api/analises-consolidadas/${analise.id}/relatorio`}
+                className="text-blue-600 hover:underline"
+              >
+                Baixar relatório consolidado
+              </a>
+            </div>
+          ))}
+        </section>
       )}
     </main>
   )

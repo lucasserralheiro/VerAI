@@ -22,8 +22,12 @@ async function regrasQueBatemComUsuario(email: string) {
 }
 
 export async function documentosVisiveisWhere(usuario: AuthUser): Promise<Prisma.DocumentoWhereInput> {
-  if (usuario.role === 'admin') return {}
-  if (usuario.role === 'uploader') return { uploadedById: usuario.id }
+  const idsClientes = await clienteIdsPermitidos(usuario)
+  const restricaoCliente: Prisma.DocumentoWhereInput =
+    idsClientes === null ? {} : { clienteId: { in: idsClientes } }
+
+  if (usuario.role === 'admin') return restricaoCliente
+  if (usuario.role === 'uploader') return { AND: [restricaoCliente, { uploadedById: usuario.id }] }
 
   const regras = await regrasQueBatemComUsuario(usuario.email)
   const tipos = regras.filter((r) => r.criterioTipo === 'tipoDocumento').map((r) => r.criterioValor)
@@ -34,10 +38,13 @@ export async function documentosVisiveisWhere(usuario: AuthUser): Promise<Prisma
   for (const palavra of palavras) {
     OR.push({ nomeArquivo: { contains: palavra, mode: 'insensitive' } })
   }
-  return { OR }
+  return { AND: [restricaoCliente, { OR }] }
 }
 
 export async function podeVerDocumento(usuario: AuthUser, documento: Documento): Promise<boolean> {
+  const idsClientes = await clienteIdsPermitidos(usuario)
+  if (idsClientes !== null && !idsClientes.includes(documento.clienteId)) return false
+
   if (usuario.role === 'admin' || documento.uploadedById === usuario.id) return true
   if (usuario.role === 'uploader') return false
 

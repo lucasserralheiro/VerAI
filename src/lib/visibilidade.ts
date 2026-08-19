@@ -2,6 +2,17 @@ import type { Documento, Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 import type { AuthUser } from './auth'
 
+async function clienteIdsPermitidos(usuario: AuthUser): Promise<string[] | null> {
+  // null = sem restrição (admin vê todos os clientes)
+  if (usuario.role === 'admin') return null
+
+  const registro = await prisma.usuario.findUnique({
+    where: { id: usuario.id },
+    select: { clientesPermitidos: { select: { id: true } } },
+  })
+  return (registro?.clientesPermitidos ?? []).map((c) => c.id)
+}
+
 async function regrasQueBatemComUsuario(email: string) {
   const regras = await prisma.regraNotificacao.findMany()
   return regras.filter((regra) => {
@@ -38,4 +49,14 @@ export async function podeVerDocumento(usuario: AuthUser, documento: Documento):
     }
     return false
   })
+}
+
+export async function clientesVisiveisWhere(usuario: AuthUser): Promise<Prisma.ClienteWhereInput> {
+  const ids = await clienteIdsPermitidos(usuario)
+  return ids === null ? {} : { id: { in: ids } }
+}
+
+export async function podeVerCliente(usuario: AuthUser, clienteId: string): Promise<boolean> {
+  const ids = await clienteIdsPermitidos(usuario)
+  return ids === null || ids.includes(clienteId)
 }

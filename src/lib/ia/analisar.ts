@@ -20,15 +20,43 @@ const schema = z.object({
   // usam saída estruturada em modo estrito, que exige todo campo em "required" —
   // mesmo quando pode ser vazio. Precisa vir null, não ausente.
   metricasChave: z.array(z.object({ label: z.string(), valor: z.string() })).nullable(),
+  recomendacoes: z.array(z.string()).nullable(),
 })
 
 function montarPrompt(conteudoExtraido: string): string {
   return [
-    'Você é um analista que revisa documentos internos e produz um relatório estruturado.',
-    'Com base no conteúdo extraído do documento abaixo, gere um resumo executivo,',
-    'os pontos críticos, os pontos positivos e, quando fizer sentido, métricas-chave.',
+    'Você é um analista sênior que revisa documentos internos e produz um relatório',
+    'estruturado, detalhado e acionável — não um resumo superficial.',
     '',
-    'Conteúdo extraído:',
+    'Regras pra cada seção:',
+    '',
+    '1. RESUMO: um parágrafo substancial (não uma frase). Cubra o que o documento é,',
+    '   o que ele mostra no geral e o contexto necessário pra alguém que não abriu',
+    '   o arquivo entender do que se trata.',
+    '',
+    '2. PONTOS CRÍTICOS: liste TODOS os problemas, riscos, inconsistências ou',
+    '   anomalias reais que você conseguir identificar nos dados — não invente só',
+    '   pra preencher, mas também não pare no primeiro óbvio. Seja específico:',
+    '   cite valores, linhas ou nomes concretos do documento, não generalidades.',
+    '   Classifique a severidade com critério (alto = risco real e imediato,',
+    '   medio = atenção mas não urgente, baixo = observação menor).',
+    '',
+    '3. PONTOS POSITIVOS: destaque o que está bem, com a mesma especificidade',
+    '   (números e nomes concretos, não elogios genéricos).',
+    '',
+    '4. MÉTRICAS-CHAVE: calcule e liste as métricas numéricas mais relevantes que',
+    '   dá pra derivar do conteúdo (totais, médias, proporções, contagens,',
+    '   comparações) — não repita as estatísticas óbvias se já vieram prontas no',
+    '   texto extraído, sintetize o que importa pra decisão.',
+    '',
+    '5. RECOMENDAÇÕES: pra cada ponto crítico relevante, uma recomendação prática',
+    '   do que fazer a respeito. Deve ser específica e executável, não genérica',
+    '   ("investigar mais a fundo" não vale — diga o quê investigar e por quê).',
+    '',
+    'Se o conteúdo for insuficiente pra alguma seção (ex: documento muito curto),',
+    'diga isso explicitamente em vez de inventar conteúdo.',
+    '',
+    'Conteúdo extraído do documento:',
     conteudoExtraido,
   ].join('\n')
 }

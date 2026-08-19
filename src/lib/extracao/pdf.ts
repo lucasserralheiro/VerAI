@@ -1,6 +1,6 @@
 import { extractText, getDocumentProxy } from 'unpdf'
 
-const TEXTO_MAX_CARACTERES = 15000
+const TEXTO_MAX_CARACTERES = 60000
 
 export async function extrairPdf(buffer: Buffer): Promise<string> {
   const pdf = await getDocumentProxy(new Uint8Array(buffer))

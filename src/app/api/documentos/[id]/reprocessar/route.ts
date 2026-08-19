@@ -35,6 +35,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         pontosCriticos: analise.pontosCriticos,
         pontosPositivos: analise.pontosPositivos,
         metricasChave: analise.metricasChave ?? undefined,
+        recomendacoes: analise.recomendacoes ?? undefined,
         promptVersion: analise.promptVersion,
       },
       update: {
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         pontosCriticos: analise.pontosCriticos,
         pontosPositivos: analise.pontosPositivos,
         metricasChave: analise.metricasChave ?? undefined,
+        recomendacoes: analise.recomendacoes ?? undefined,
         promptVersion: analise.promptVersion,
         caminhoRelatorioPdf: null,
         relatorioGeradoEm: null,

@@ -118,6 +118,7 @@ export async function POST(request: NextRequest) {
         pontosCriticos: analise.pontosCriticos,
         pontosPositivos: analise.pontosPositivos,
         metricasChave: analise.metricasChave ?? undefined,
+        recomendacoes: analise.recomendacoes ?? undefined,
         promptVersion: analise.promptVersion,
       },
     })

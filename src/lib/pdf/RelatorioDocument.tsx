@@ -21,6 +21,8 @@ const styles = StyleSheet.create({
   tabelaLinha: { flexDirection: 'row', borderBottom: '1px solid #ddd', paddingVertical: 4 },
   tabelaLabel: { width: '40%', fontWeight: 700 },
   tabelaValor: { width: '60%' },
+  bullet: { flexDirection: 'row', marginBottom: 4, alignItems: 'flex-start' },
+  bulletMarca: { color: LARANJA, marginRight: 6, fontWeight: 700 },
   rodape: { position: 'absolute', bottom: 30, left: 40, right: 40, fontSize: 8, color: '#999', textAlign: 'center' },
 })
 
@@ -39,6 +41,7 @@ export function RelatorioDocument({ documento, analise }: Props) {
   const pontosCriticos = analise.pontosCriticos as Array<{ texto: string; severidade: string }>
   const pontosPositivos = analise.pontosPositivos as Array<{ texto: string }>
   const metricasChave = (analise.metricasChave as Array<{ label: string; valor: string }> | null) ?? []
+  const recomendacoes = (analise.recomendacoes as string[] | null) ?? []
 
   return (
     <Document>
@@ -84,6 +87,18 @@ export function RelatorioDocument({ documento, analise }: Props) {
               <View key={i} style={styles.tabelaLinha}>
                 <Text style={styles.tabelaLabel}>{metrica.label}</Text>
                 <Text style={styles.tabelaValor}>{metrica.valor}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {recomendacoes.length > 0 && (
+          <View style={styles.secao}>
+            <Text style={styles.tituloSecao}>Recomendações</Text>
+            {recomendacoes.map((recomendacao, i) => (
+              <View key={i} style={styles.bullet}>
+                <Text style={styles.bulletMarca}>•</Text>
+                <Text>{recomendacao}</Text>
               </View>
             ))}
           </View>

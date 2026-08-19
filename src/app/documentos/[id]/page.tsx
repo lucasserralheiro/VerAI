@@ -21,6 +21,7 @@ interface Analise {
   pontosCriticos: PontoCritico[]
   pontosPositivos: PontoPositivo[]
   metricasChave: MetricaChave[] | null
+  recomendacoes: string[] | null
   promptVersion: string
 }
 
@@ -165,6 +166,19 @@ function AnaliseIA({ documento }: { documento: Documento }) {
               ))}
             </tbody>
           </table>
+        </section>
+      )}
+
+      {analise.recomendacoes && analise.recomendacoes.length > 0 && (
+        <section>
+          <h2 className="font-medium">Recomendações</h2>
+          <ul className="list-disc space-y-1 pl-5">
+            {analise.recomendacoes.map((recomendacao, i) => (
+              <li key={i} className="text-sm">
+                {recomendacao}
+              </li>
+            ))}
+          </ul>
         </section>
       )}
     </div>

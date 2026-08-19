@@ -42,6 +42,7 @@ model Analise {
   pontosCriticos      Json
   pontosPositivos     Json
   metricasChave       Json?
+  recomendacoes       Json?
   promptVersion       String
   caminhoRelatorioPdf String?
   relatorioGeradoEm   DateTime?

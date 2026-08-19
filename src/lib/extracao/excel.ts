@@ -1,7 +1,12 @@
 import ExcelJS from 'exceljs'
 import { Readable } from 'node:stream'
 
-const AMOSTRA_MAX_LINHAS = 30
+// Amostra que vai pro preview na tela (module 5) — limitado por performance do navegador.
+const PREVIEW_MAX_LINHAS = 30
+
+// Amostra que vai pro prompt da IA (module 1) — maior, pra análise mais completa.
+// As estatísticas básicas já cobrem 100% das linhas independente desse limite.
+const ANALISE_MAX_LINHAS = 300
 
 async function carregarPrimeiraPlanilha(buffer: Buffer, tipo: 'xlsx' | 'csv') {
   const workbook = new ExcelJS.Workbook()
@@ -42,9 +47,9 @@ export async function lerPlanilhaPreview(buffer: Buffer, tipo: 'xlsx' | 'csv'): 
   const { cabecalho, linhas } = dados
   return {
     cabecalho,
-    linhas: linhas.slice(0, AMOSTRA_MAX_LINHAS).map((linha) => linha.map((v) => String(v ?? ''))),
+    linhas: linhas.slice(0, PREVIEW_MAX_LINHAS).map((linha) => linha.map((v) => String(v ?? ''))),
     totalLinhas: linhas.length,
-    truncado: linhas.length > AMOSTRA_MAX_LINHAS,
+    truncado: linhas.length > PREVIEW_MAX_LINHAS,
   }
 }
 
@@ -77,14 +82,17 @@ export async function extrairExcel(buffer: Buffer, tipo: 'xlsx' | 'csv'): Promis
     })
     .filter((linha): linha is string => linha !== null)
 
-  const amostra = linhas.slice(0, AMOSTRA_MAX_LINHAS).map((linha) => linha.join(' | '))
+  const amostra = linhas.slice(0, ANALISE_MAX_LINHAS).map((linha) => linha.join(' | '))
+  const amostraTruncada = linhas.length > ANALISE_MAX_LINHAS
 
   return [
     `Planilha: ${planilha.name}`,
     `Linhas de dados: ${linhas.length}`,
     `Colunas (${cabecalho.length}): ${cabecalho.map((nome, i) => `${nome} (${tipos[i]})`).join(', ')}`,
     '',
-    `Amostra (até ${AMOSTRA_MAX_LINHAS} linhas):`,
+    amostraTruncada
+      ? `Amostra (${ANALISE_MAX_LINHAS} das ${linhas.length} linhas — estatísticas abaixo cobrem todas as linhas):`
+      : `Amostra (todas as ${linhas.length} linhas):`,
     cabecalho.join(' | '),
     ...amostra,
     '',

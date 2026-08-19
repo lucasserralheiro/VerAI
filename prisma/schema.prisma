@@ -26,6 +26,27 @@ model Cliente {
   usuariosPermitidos Usuario[]   @relation("UsuarioClientes")
   documentos         Documento[]
   analisesConsolidadas AnaliseConsolidada[]
+  analisesEvolucao  AnaliseEvolucao[]
+}
+
+model AnaliseEvolucao {
+  id                     String    @id @default(cuid())
+  clienteId              String
+  cliente                Cliente   @relation(fields: [clienteId], references: [id])
+  competenciaAtualAno    Int
+  competenciaAtualMes    Int
+  competenciaAnteriorAno Int
+  competenciaAnteriorMes Int
+  metricasComparadas     Json
+  resumo                 String    @db.Text
+  pontosAtencao          Json
+  melhorias              Json
+  promptVersion          String
+  caminhoRelatorioPdf    String?
+  relatorioGeradoEm      DateTime?
+  createdAt              DateTime  @default(now())
+
+  @@unique([clienteId, competenciaAtualAno, competenciaAtualMes])
 }
 
 model AnaliseConsolidada {

@@ -5,7 +5,12 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   const clientes = await prisma.cliente.findMany({
     orderBy: { nome: 'asc' },
-    select: { id: true, nome: true, createdAt: true },
+    select: {
+      id: true,
+      nome: true,
+      createdAt: true,
+      _count: { select: { documentos: true } },
+    },
   })
   return NextResponse.json(clientes)
 }

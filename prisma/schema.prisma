@@ -25,6 +25,28 @@ model Cliente {
   createdAt          DateTime    @default(now())
   usuariosPermitidos Usuario[]   @relation("UsuarioClientes")
   documentos         Documento[]
+  analisesConsolidadas AnaliseConsolidada[]
+}
+
+model AnaliseConsolidada {
+  id                  String      @id @default(cuid())
+  clienteId           String
+  cliente             Cliente     @relation(fields: [clienteId], references: [id])
+  competenciaAno      Int
+  competenciaMes      Int
+  documentos          Documento[] @relation("DocumentosDaConsolidada")
+  selecaoAssinatura   String
+  resumo              String      @db.Text
+  pontosCriticos      Json
+  pontosPositivos     Json
+  metricasComparadas  Json
+  recomendacoes       Json?
+  promptVersion       String
+  caminhoRelatorioPdf String?
+  relatorioGeradoEm   DateTime?
+  createdAt           DateTime    @default(now())
+
+  @@unique([clienteId, competenciaAno, competenciaMes, selecaoAssinatura])
 }
 
 model Documento {
@@ -45,6 +67,7 @@ model Documento {
   analise         Analise?
   acessos         AcessoDocumento[]
   notificacoes    Notificacao[]
+  analisesConsolidadas AnaliseConsolidada[] @relation("DocumentosDaConsolidada")
 
   @@index([clienteId, competenciaAno, competenciaMes])
 }

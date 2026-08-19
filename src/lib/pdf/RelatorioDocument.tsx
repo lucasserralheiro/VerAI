@@ -40,7 +40,8 @@ interface Props {
 export function RelatorioDocument({ documento, analise }: Props) {
   const pontosCriticos = analise.pontosCriticos as Array<{ texto: string; severidade: string }>
   const pontosPositivos = analise.pontosPositivos as Array<{ texto: string }>
-  const metricasChave = (analise.metricasChave as Array<{ label: string; valor: string }> | null) ?? []
+  const metricasChave =
+    (analise.metricasChave as Array<{ label: string; valorExibicao: string }> | null) ?? []
   const recomendacoes = (analise.recomendacoes as string[] | null) ?? []
 
   return (
@@ -86,7 +87,7 @@ export function RelatorioDocument({ documento, analise }: Props) {
             {metricasChave.map((metrica, i) => (
               <View key={i} style={styles.tabelaLinha}>
                 <Text style={styles.tabelaLabel}>{metrica.label}</Text>
-                <Text style={styles.tabelaValor}>{metrica.valor}</Text>
+                <Text style={styles.tabelaValor}>{metrica.valorExibicao}</Text>
               </View>
             ))}
           </View>

@@ -13,7 +13,9 @@ interface PontoPositivo {
 
 interface MetricaChave {
   label: string
-  valor: string
+  valorNumerico: number | null
+  unidade: string | null
+  valorExibicao: string
 }
 
 interface Analise {
@@ -161,7 +163,7 @@ function AnaliseIA({ documento }: { documento: Documento }) {
               {analise.metricasChave.map((metrica, i) => (
                 <tr key={i} className="border-b">
                   <td className="py-1 font-medium">{metrica.label}</td>
-                  <td className="py-1">{metrica.valor}</td>
+                  <td className="py-1">{metrica.valorExibicao}</td>
                 </tr>
               ))}
             </tbody>

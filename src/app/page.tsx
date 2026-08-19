@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
+import { Search, Eye, Download, FileDown, Inbox, Loader2, ArrowRight, Trash2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 interface Documento {
   id: string
@@ -13,9 +15,15 @@ interface Documento {
   createdAt: string
   competenciaAno: number
   competenciaMes: number
+  uploadedById: string
   uploadedBy: { nome: string }
   cliente: { id: string; nome: string }
   analise: { id: string } | null
+}
+
+interface UsuarioLogado {
+  id: string
+  role: string
 }
 
 interface Cliente {
@@ -34,10 +42,16 @@ interface Filtros {
 
 const FILTROS_VAZIOS: Filtros = { tipo: '', status: '', busca: '', de: '', ate: '', clienteId: '' }
 
-const STATUS_BADGE: Record<string, string> = {
-  concluido: 'bg-green-100 text-green-800',
-  processando: 'bg-gray-100 text-gray-800',
-  erro: 'bg-red-100 text-red-800',
+const STATUS_BADGE: Record<string, 'success' | 'neutral' | 'critical'> = {
+  concluido: 'success',
+  processando: 'neutral',
+  erro: 'critical',
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  concluido: 'Concluído',
+  processando: 'Processando',
+  erro: 'Erro',
 }
 
 function montarQuery(filtros: Filtros): string {
@@ -51,9 +65,13 @@ function montarQuery(filtros: Filtros): string {
   return params.toString()
 }
 
+const CAMPO_CLASSE =
+  'rounded-lg border border-border-grey bg-white px-2.5 py-1.5 text-sm text-foreground outline-none transition-colors focus:border-orange focus:ring-3 focus:ring-orange/15'
+
 export default function DashboardPage() {
   const [documentos, setDocumentos] = useState<Documento[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
+  const [usuario, setUsuario] = useState<UsuarioLogado | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS)
 
@@ -72,6 +90,9 @@ export default function DashboardPage() {
     fetch('/api/clientes')
       .then((r) => (r.ok ? r.json() : []))
       .then(setClientes)
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setUsuario)
   }, [])
 
   function handleFiltrar(event: FormEvent) {
@@ -79,26 +100,43 @@ export default function DashboardPage() {
     carregarDocumentos(filtros)
   }
 
+  async function handleExcluir(doc: Documento) {
+    if (!confirm(`Excluir "${doc.nomeArquivo}"? Essa ação não pode ser desfeita.`)) return
+    const response = await fetch(`/api/documentos/${doc.id}`, { method: 'DELETE' })
+    if (!response.ok) {
+      const body = await response.json().catch(() => null)
+      alert(body?.error ?? 'Falha ao excluir documento.')
+      return
+    }
+    carregarDocumentos(filtros)
+  }
+
   return (
-    <main className="space-y-6 p-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Documentos</h1>
-        <p className="text-sm text-muted-foreground">
+    <main className="mx-auto max-w-7xl space-y-6 px-6 py-8 lg:px-8">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1">
+          <span className="text-xs font-semibold tracking-wide text-orange uppercase">Painel</span>
+          <h1 className="text-2xl font-bold text-navy">Documentos</h1>
+        </div>
+        <p className="text-sm text-mid-grey">
           Pra enviar um documento, entre no cliente e no mês em{' '}
-          <Link href="/clientes" className="text-blue-600 hover:underline">
-            Clientes
+          <Link href="/clientes" className="inline-flex items-center gap-0.5 font-medium text-navy hover:underline">
+            Clientes <ArrowRight className="size-3.5" strokeWidth={2.25} />
           </Link>
           .
         </p>
       </div>
 
-      <form onSubmit={handleFiltrar} className="flex flex-wrap items-end gap-3 text-sm">
-        <label className="flex flex-col gap-1">
-          Cliente
+      <form
+        onSubmit={handleFiltrar}
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-border-grey bg-white p-4 shadow-sm"
+      >
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs font-medium text-mid-grey">Cliente</span>
           <select
             value={filtros.clienteId}
             onChange={(e) => setFiltros({ ...filtros, clienteId: e.target.value })}
-            className="rounded border p-1"
+            className={CAMPO_CLASSE}
           >
             <option value="">Todos</option>
             {clientes.map((cliente) => (
@@ -108,12 +146,12 @@ export default function DashboardPage() {
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1">
-          Tipo
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs font-medium text-mid-grey">Tipo</span>
           <select
             value={filtros.tipo}
             onChange={(e) => setFiltros({ ...filtros, tipo: e.target.value })}
-            className="rounded border p-1"
+            className={CAMPO_CLASSE}
           >
             <option value="">Todos</option>
             <option value="xlsx">Excel</option>
@@ -122,12 +160,12 @@ export default function DashboardPage() {
             <option value="docx">Word</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1">
-          Status
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs font-medium text-mid-grey">Status</span>
           <select
             value={filtros.status}
             onChange={(e) => setFiltros({ ...filtros, status: e.target.value })}
-            className="rounded border p-1"
+            className={CAMPO_CLASSE}
           >
             <option value="">Todos</option>
             <option value="processando">Processando</option>
@@ -135,90 +173,128 @@ export default function DashboardPage() {
             <option value="erro">Erro</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1">
-          Busca (nome)
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs font-medium text-mid-grey">Busca (nome)</span>
           <input
             type="text"
             value={filtros.busca}
             onChange={(e) => setFiltros({ ...filtros, busca: e.target.value })}
-            className="rounded border p-1"
+            className={CAMPO_CLASSE}
           />
         </label>
-        <label className="flex flex-col gap-1">
-          De
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs font-medium text-mid-grey">De</span>
           <input
             type="date"
             value={filtros.de}
             onChange={(e) => setFiltros({ ...filtros, de: e.target.value })}
-            className="rounded border p-1"
+            className={CAMPO_CLASSE}
           />
         </label>
-        <label className="flex flex-col gap-1">
-          Até
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs font-medium text-mid-grey">Até</span>
           <input
             type="date"
             value={filtros.ate}
             onChange={(e) => setFiltros({ ...filtros, ate: e.target.value })}
-            className="rounded border p-1"
+            className={CAMPO_CLASSE}
           />
         </label>
-        <button type="submit" className="rounded border px-3 py-1.5">
+        <button
+          type="submit"
+          className="flex items-center gap-1.5 rounded-lg bg-orange px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-orange-dark"
+        >
+          <Search className="size-3.5" strokeWidth={2.25} />
           Filtrar
         </button>
       </form>
 
-      {carregando ? (
-        <p className="text-sm text-muted-foreground">Carregando...</p>
-      ) : documentos.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum documento encontrado.</p>
-      ) : (
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2">Arquivo</th>
-              <th>Cliente</th>
-              <th>Competência</th>
-              <th>Tipo</th>
-              <th>Data</th>
-              <th>Quem subiu</th>
-              <th>Status</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {documentos.map((doc) => (
-              <tr key={doc.id} className="border-b">
-                <td className="py-2">{doc.nomeArquivo}</td>
-                <td>{doc.cliente.nome}</td>
-                <td>
-                  {String(doc.competenciaMes).padStart(2, '0')}/{doc.competenciaAno}
-                </td>
-                <td>{doc.tipo}</td>
-                <td>{new Date(doc.createdAt).toLocaleString('pt-BR')}</td>
-                <td>{doc.uploadedBy.nome}</td>
-                <td>
-                  <span className={`rounded px-2 py-0.5 text-xs ${STATUS_BADGE[doc.status] ?? ''}`}>
-                    {doc.status}
-                  </span>
-                </td>
-                <td className="space-x-3">
-                  <Link href={`/documentos/${doc.id}`} className="text-blue-600 hover:underline">
-                    Ver análise
-                  </Link>
-                  <a href={`/api/documentos/${doc.id}/original`} className="text-blue-600 hover:underline">
-                    Baixar original
-                  </a>
-                  {doc.status === 'concluido' && (
-                    <a href={`/api/documentos/${doc.id}/relatorio`} className="text-blue-600 hover:underline">
-                      Baixar relatório
-                    </a>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <div className="overflow-hidden rounded-xl border border-border-grey shadow-sm">
+        {carregando ? (
+          <p className="flex items-center gap-2 bg-white p-6 text-sm text-mid-grey">
+            <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
+            Carregando...
+          </p>
+        ) : documentos.length === 0 ? (
+          <p className="flex items-center gap-2 bg-white p-6 text-sm text-mid-grey">
+            <Inbox className="size-4" strokeWidth={2} />
+            Nenhum documento encontrado.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="table-institucional">
+              <thead>
+                <tr>
+                  <th>Arquivo</th>
+                  <th>Cliente</th>
+                  <th>Competência</th>
+                  <th>Tipo</th>
+                  <th>Data</th>
+                  <th>Quem subiu</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {documentos.map((doc) => (
+                  <tr key={doc.id}>
+                    <td className="font-medium text-navy">{doc.nomeArquivo}</td>
+                    <td>{doc.cliente.nome}</td>
+                    <td>
+                      {String(doc.competenciaMes).padStart(2, '0')}/{doc.competenciaAno}
+                    </td>
+                    <td className="uppercase text-mid-grey">{doc.tipo}</td>
+                    <td className="text-mid-grey">{new Date(doc.createdAt).toLocaleString('pt-BR')}</td>
+                    <td className="text-mid-grey">{doc.uploadedBy.nome}</td>
+                    <td>
+                      <Badge variant={STATUS_BADGE[doc.status] ?? 'neutral'}>
+                        {STATUS_LABEL[doc.status] ?? doc.status}
+                      </Badge>
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          href={`/documentos/${doc.id}`}
+                          title="Ver análise"
+                          className="flex items-center gap-1 text-sm font-medium text-navy hover:underline"
+                        >
+                          <Eye className="size-3.5" strokeWidth={2.25} />
+                          Ver
+                        </Link>
+                        <a
+                          href={`/api/documentos/${doc.id}/original`}
+                          title="Baixar original"
+                          className="text-mid-grey transition-colors hover:text-navy"
+                        >
+                          <Download className="size-4" strokeWidth={2.25} />
+                        </a>
+                        {doc.status === 'concluido' && (
+                          <a
+                            href={`/api/documentos/${doc.id}/relatorio`}
+                            title="Baixar relatório"
+                            className="text-mid-grey transition-colors hover:text-navy"
+                          >
+                            <FileDown className="size-4" strokeWidth={2.25} />
+                          </a>
+                        )}
+                        {usuario && (usuario.role === 'admin' || usuario.id === doc.uploadedById) && (
+                          <button
+                            onClick={() => handleExcluir(doc)}
+                            title="Excluir"
+                            className="text-mid-grey transition-colors hover:text-red-crit"
+                          >
+                            <Trash2 className="size-4" strokeWidth={2.25} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </main>
   )
 }

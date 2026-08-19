@@ -2,7 +2,23 @@
 
 import { use, useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
+import {
+  Upload,
+  Eye,
+  Download,
+  FileDown,
+  Layers,
+  GitCompare,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
+  Trash2,
+} from 'lucide-react'
 import { nomeCompetencia, parseCompetencia } from '@/lib/competencia'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 interface Documento {
   id: string
@@ -10,8 +26,14 @@ interface Documento {
   tipo: string
   status: string
   createdAt: string
+  uploadedById: string
   uploadedBy: { nome: string }
   analise: { id: string } | null
+}
+
+interface UsuarioLogado {
+  id: string
+  role: string
 }
 
 interface Cliente {
@@ -61,10 +83,24 @@ const STATUS_EVOLUCAO_LABEL: Record<MetricaEvoluida['status'], string> = {
   baixa: 'Baixa',
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  concluido: 'bg-green-100 text-green-800',
-  processando: 'bg-gray-100 text-gray-800',
-  erro: 'bg-red-100 text-red-800',
+const STATUS_BADGE: Record<string, 'success' | 'neutral' | 'critical'> = {
+  concluido: 'success',
+  processando: 'neutral',
+  erro: 'critical',
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  concluido: 'Concluído',
+  processando: 'Processando',
+  erro: 'Erro',
+}
+
+function Card({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn('rounded-xl border border-border-grey bg-white p-4 shadow-sm', className)}>
+      {children}
+    </div>
+  )
 }
 
 export default function ClienteCompetenciaPage({
@@ -76,6 +112,7 @@ export default function ClienteCompetenciaPage({
   const parsed = parseCompetencia(competencia)
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [documentos, setDocumentos] = useState<Documento[]>([])
+  const [usuario, setUsuario] = useState<UsuarioLogado | null>(null)
   const [analisesConsolidadas, setAnalisesConsolidadas] = useState<AnaliseConsolidada[]>([])
   const [carregando, setCarregando] = useState(true)
   const [enviando, setEnviando] = useState(false)
@@ -108,6 +145,12 @@ export default function ClienteCompetenciaPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, competencia])
 
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setUsuario)
+  }, [])
+
   async function handleUpload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!parsed) return
@@ -133,6 +176,17 @@ export default function ClienteCompetenciaPage({
       return
     }
     form.reset()
+    carregar()
+  }
+
+  async function handleExcluirDocumento(doc: Documento) {
+    if (!confirm(`Excluir "${doc.nomeArquivo}"? Essa ação não pode ser desfeita.`)) return
+    const response = await fetch(`/api/documentos/${doc.id}`, { method: 'DELETE' })
+    if (!response.ok) {
+      const body = await response.json().catch(() => null)
+      alert(body?.error ?? 'Falha ao excluir documento.')
+      return
+    }
     carregar()
   }
 
@@ -175,188 +229,265 @@ export default function ClienteCompetenciaPage({
 
   if (!parsed) {
     return (
-      <main className="p-8">
-        <p className="text-sm text-red-600">Competência inválida na URL (esperado AAAA-MM).</p>
+      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+        <p className="flex items-center gap-2 rounded-xl bg-red-crit-light p-4 text-sm text-red-crit">
+          <AlertCircle className="size-4 shrink-0" strokeWidth={2.25} />
+          Competência inválida na URL (esperado AAAA-MM).
+        </p>
       </main>
     )
   }
 
   return (
-    <main className="space-y-6 p-8">
-      <div>
-        <p className="text-sm text-muted-foreground">
-          <Link href={`/clientes/${id}`} className="hover:underline">
-            {cliente?.nome ?? '...'}
-          </Link>
-        </p>
-        <h1 className="text-xl font-semibold">{nomeCompetencia(parsed.ano, parsed.mes)}</h1>
+    <main className="mx-auto max-w-7xl space-y-8 px-6 py-8 lg:px-8">
+      <div className="space-y-1">
+        <Link href={`/clientes/${id}`} className="text-xs font-semibold tracking-wide text-orange uppercase hover:underline">
+          {cliente?.nome ?? '...'}
+        </Link>
+        <h1 className="text-2xl font-bold text-navy capitalize">{nomeCompetencia(parsed.ano, parsed.mes)}</h1>
       </div>
 
-      <form onSubmit={handleUpload} className="flex items-center gap-3">
-        <input type="file" name="arquivo" accept=".xlsx,.csv,.pdf,.docx" required className="text-sm" />
-        <button
-          type="submit"
-          disabled={enviando}
-          className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
-        >
-          {enviando ? 'Enviando...' : 'Enviar documento'}
-        </button>
-        {erroUpload && <span className="text-sm text-red-600">{erroUpload}</span>}
-      </form>
+      <Card className="p-0">
+        <form onSubmit={handleUpload} className="flex flex-wrap items-center gap-3 p-4">
+          <label className="flex flex-1 items-center gap-2">
+            <Upload className="size-4 shrink-0 text-mid-grey" strokeWidth={2.25} />
+            <input type="file" name="arquivo" accept=".xlsx,.csv,.pdf,.docx" required className="text-sm" />
+          </label>
+          <button
+            type="submit"
+            disabled={enviando}
+            className="flex items-center gap-1.5 rounded-lg bg-orange px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-orange-dark disabled:opacity-50"
+          >
+            {enviando ? <Loader2 className="size-3.5 animate-spin" strokeWidth={2.25} /> : <Upload className="size-3.5" strokeWidth={2.25} />}
+            {enviando ? 'Enviando...' : 'Enviar documento'}
+          </button>
+          {erroUpload && (
+            <span className="flex items-center gap-1 text-sm text-red-crit">
+              <AlertCircle className="size-3.5 shrink-0" strokeWidth={2.25} />
+              {erroUpload}
+            </span>
+          )}
+        </form>
+      </Card>
 
       {carregando ? (
-        <p className="text-sm text-muted-foreground">Carregando...</p>
+        <p className="flex items-center gap-2 text-sm text-mid-grey">
+          <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
+          Carregando...
+        </p>
       ) : documentos.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum documento neste mês ainda.</p>
+        <p className="rounded-xl border border-border-grey bg-white p-6 text-sm text-mid-grey">
+          Nenhum documento neste mês ainda.
+        </p>
       ) : (
         <>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="py-2"></th>
-                <th>Arquivo</th>
-                <th>Tipo</th>
-                <th>Enviado por</th>
-                <th>Quando</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {documentos.map((doc) => (
-                <tr key={doc.id} className="border-b">
-                  <td className="py-2">
-                    <input
-                      type="checkbox"
-                      disabled={doc.status !== 'concluido'}
-                      checked={selecionados.includes(doc.id)}
-                      onChange={() => toggleSelecionado(doc.id)}
-                    />
-                  </td>
-                  <td>{doc.nomeArquivo}</td>
-                  <td>{doc.tipo}</td>
-                  <td>{doc.uploadedBy.nome}</td>
-                  <td>{new Date(doc.createdAt).toLocaleString('pt-BR')}</td>
-                  <td>
-                    <span className={`rounded px-2 py-0.5 text-xs ${STATUS_BADGE[doc.status] ?? ''}`}>
-                      {doc.status}
-                    </span>
-                  </td>
-                  <td className="space-x-3">
-                    <Link href={`/documentos/${doc.id}`} className="text-blue-600 hover:underline">
-                      Ver análise
-                    </Link>
-                    <a href={`/api/documentos/${doc.id}/original`} className="text-blue-600 hover:underline">
-                      Baixar original
-                    </a>
-                    {doc.status === 'concluido' && (
-                      <a href={`/api/documentos/${doc.id}/relatorio`} className="text-blue-600 hover:underline">
-                        Baixar relatório
-                      </a>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-hidden rounded-xl border border-border-grey shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="table-institucional">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Arquivo</th>
+                    <th>Tipo</th>
+                    <th>Enviado por</th>
+                    <th>Quando</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documentos.map((doc) => (
+                    <tr key={doc.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          disabled={doc.status !== 'concluido'}
+                          checked={selecionados.includes(doc.id)}
+                          onChange={() => toggleSelecionado(doc.id)}
+                          className="size-4 accent-orange"
+                        />
+                      </td>
+                      <td className="font-medium text-navy">{doc.nomeArquivo}</td>
+                      <td className="uppercase text-mid-grey">{doc.tipo}</td>
+                      <td className="text-mid-grey">{doc.uploadedBy.nome}</td>
+                      <td className="text-mid-grey">{new Date(doc.createdAt).toLocaleString('pt-BR')}</td>
+                      <td>
+                        <Badge variant={STATUS_BADGE[doc.status] ?? 'neutral'}>
+                          {STATUS_LABEL[doc.status] ?? doc.status}
+                        </Badge>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <Link href={`/documentos/${doc.id}`} title="Ver análise" className="flex items-center gap-1 text-sm font-medium text-navy hover:underline">
+                            <Eye className="size-3.5" strokeWidth={2.25} />
+                            Ver
+                          </Link>
+                          <a href={`/api/documentos/${doc.id}/original`} title="Baixar original" className="text-mid-grey transition-colors hover:text-navy">
+                            <Download className="size-4" strokeWidth={2.25} />
+                          </a>
+                          {doc.status === 'concluido' && (
+                            <a href={`/api/documentos/${doc.id}/relatorio`} title="Baixar relatório" className="text-mid-grey transition-colors hover:text-navy">
+                              <FileDown className="size-4" strokeWidth={2.25} />
+                            </a>
+                          )}
+                          {usuario && (usuario.role === 'admin' || usuario.id === doc.uploadedById) && (
+                            <button
+                              onClick={() => handleExcluirDocumento(doc)}
+                              title="Excluir"
+                              className="text-mid-grey transition-colors hover:text-red-crit"
+                            >
+                              <Trash2 className="size-4" strokeWidth={2.25} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           <div className="flex items-center gap-3">
             <button
               onClick={handleGerarConsolidada}
               disabled={selecionados.length === 0 || gerandoConsolidada}
-              className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-orange px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-orange-dark disabled:opacity-50"
             >
+              {gerandoConsolidada ? <Loader2 className="size-3.5 animate-spin" strokeWidth={2.25} /> : <Layers className="size-3.5" strokeWidth={2.25} />}
               {gerandoConsolidada
                 ? 'Gerando...'
                 : `Gerar análise consolidada (${selecionados.length} selecionado(s))`}
             </button>
-            {erroConsolidada && <span className="text-sm text-red-600">{erroConsolidada}</span>}
+            {erroConsolidada && (
+              <span className="flex items-center gap-1 text-sm text-red-crit">
+                <AlertCircle className="size-3.5 shrink-0" strokeWidth={2.25} />
+                {erroConsolidada}
+              </span>
+            )}
           </div>
         </>
       )}
 
       {analisesConsolidadas.length > 0 && (
         <section className="space-y-3">
-          <h2 className="font-medium">Análises consolidadas geradas</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-navy">
+            <Layers className="size-4.5 text-orange" strokeWidth={2.25} />
+            Análises consolidadas geradas
+          </h2>
           {analisesConsolidadas.map((analise) => (
-            <div key={analise.id} className="space-y-2 rounded border p-4 text-sm">
-              <p className="text-xs text-muted-foreground">
+            <Card key={analise.id} className="space-y-2 text-sm">
+              <p className="text-xs text-mid-grey">
                 {analise.documentos.map((d) => d.nomeArquivo).join(', ')} —{' '}
                 {new Date(analise.createdAt).toLocaleString('pt-BR')}
               </p>
               <p>{analise.resumo}</p>
               {analise.metricasComparadas.some((m) => m.divergencia) && (
-                <ul className="list-disc space-y-1 pl-5 text-xs text-red-700">
+                <ul className="space-y-1 rounded-lg bg-red-crit-light p-3 text-xs text-red-crit">
                   {analise.metricasComparadas
                     .filter((m) => m.divergencia)
                     .map((m) => (
-                      <li key={m.label}>
-                        Divergência em &quot;{m.label}&quot;:{' '}
-                        {m.valores.map((v) => `${v.nomeArquivo} = ${v.valorExibicao}`).join(' vs. ')}
+                      <li key={m.label} className="flex gap-1.5">
+                        <AlertTriangle className="size-3.5 shrink-0 translate-y-0.5" strokeWidth={2.25} />
+                        <span>
+                          Divergência em &quot;{m.label}&quot;:{' '}
+                          {m.valores.map((v) => `${v.nomeArquivo} = ${v.valorExibicao}`).join(' vs. ')}
+                        </span>
                       </li>
                     ))}
                 </ul>
               )}
               <a
                 href={`/api/analises-consolidadas/${analise.id}/relatorio`}
-                className="text-blue-600 hover:underline"
+                className="inline-flex items-center gap-1.5 font-medium text-navy hover:underline"
               >
+                <FileDown className="size-3.5" strokeWidth={2.25} />
                 Baixar relatório consolidado
               </a>
-            </div>
+            </Card>
           ))}
         </section>
       )}
 
       <section className="space-y-3">
-        <h2 className="font-medium">Evolução vs. mês anterior</h2>
+        <h2 className="flex items-center gap-2 text-base font-semibold text-navy">
+          <GitCompare className="size-4.5 text-orange" strokeWidth={2.25} />
+          Evolução vs. mês anterior
+        </h2>
         {!analiseEvolucao ? (
           <div className="flex items-center gap-3">
             <button
               onClick={handleGerarEvolucao}
               disabled={gerandoEvolucao}
-              className="rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-navy/25 bg-white px-3 py-1.5 text-sm font-medium text-navy transition-colors hover:border-navy hover:bg-navy/5 disabled:opacity-50"
             >
+              {gerandoEvolucao ? <Loader2 className="size-3.5 animate-spin" strokeWidth={2.25} /> : <GitCompare className="size-3.5" strokeWidth={2.25} />}
               {gerandoEvolucao ? 'Comparando...' : 'Comparar com mês anterior'}
             </button>
-            {erroEvolucao && <span className="text-sm text-red-600">{erroEvolucao}</span>}
+            {erroEvolucao && (
+              <span className="flex items-center gap-1 text-sm text-red-crit">
+                <AlertCircle className="size-3.5 shrink-0" strokeWidth={2.25} />
+                {erroEvolucao}
+              </span>
+            )}
           </div>
         ) : (
-          <div className="space-y-2 rounded border p-4 text-sm">
-            <p className="text-xs text-muted-foreground">
+          <Card className="space-y-3 text-sm">
+            <p className="text-xs text-mid-grey">
               Comparado com {String(analiseEvolucao.competenciaAnteriorMes).padStart(2, '0')}/
               {analiseEvolucao.competenciaAnteriorAno} — gerado em{' '}
               {new Date(analiseEvolucao.createdAt).toLocaleString('pt-BR')}
             </p>
             <p>{analiseEvolucao.resumo}</p>
 
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b">
-                  <th className="py-1">Métrica</th>
-                  <th>Anterior</th>
-                  <th>Atual</th>
-                  <th>Variação</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {analiseEvolucao.metricasComparadas.map((m) => (
-                  <tr key={m.label} className="border-b">
-                    <td className="py-1">{m.label}</td>
-                    <td>{m.valorAnterior ?? '—'}</td>
-                    <td>{m.valorAtual ?? '—'}</td>
-                    <td>{m.deltaPercentual != null ? `${(m.deltaPercentual * 100).toFixed(1)}%` : '—'}</td>
-                    <td>{STATUS_EVOLUCAO_LABEL[m.status]}</td>
+            <div className="overflow-hidden rounded-lg border border-border-grey">
+              <table className="table-institucional">
+                <thead>
+                  <tr>
+                    <th>Métrica</th>
+                    <th>Anterior</th>
+                    <th>Atual</th>
+                    <th>Variação</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {analiseEvolucao.metricasComparadas.map((m) => (
+                    <tr key={m.label}>
+                      <td className="font-medium text-navy">{m.label}</td>
+                      <td className="text-mid-grey">{m.valorAnterior ?? '—'}</td>
+                      <td className="text-mid-grey">{m.valorAtual ?? '—'}</td>
+                      <td className="text-mid-grey">
+                        {m.deltaPercentual != null ? `${(m.deltaPercentual * 100).toFixed(1)}%` : '—'}
+                      </td>
+                      <td>
+                        <Badge
+                          variant={
+                            m.status === 'alta'
+                              ? 'success'
+                              : m.status === 'baixa'
+                                ? 'critical'
+                                : m.status === 'novo'
+                                  ? 'alert'
+                                  : 'outline'
+                          }
+                        >
+                          {STATUS_EVOLUCAO_LABEL[m.status]}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             {analiseEvolucao.pontosAtencao.length > 0 && (
-              <div>
-                <p className="font-medium">Pontos de atenção</p>
-                <ul className="list-disc space-y-1 pl-5 text-red-700">
+              <div className="rounded-lg bg-red-crit-light p-3">
+                <p className="mb-1 flex items-center gap-1.5 font-medium text-red-crit">
+                  <AlertTriangle className="size-4" strokeWidth={2.25} />
+                  Pontos de atenção
+                </p>
+                <ul className="space-y-1 pl-1 text-red-crit">
                   {analiseEvolucao.pontosAtencao.map((p, i) => (
                     <li key={i}>{p.texto}</li>
                   ))}
@@ -365,9 +496,12 @@ export default function ClienteCompetenciaPage({
             )}
 
             {analiseEvolucao.melhorias.length > 0 && (
-              <div>
-                <p className="font-medium">Melhorias</p>
-                <ul className="list-disc space-y-1 pl-5 text-green-700">
+              <div className="rounded-lg bg-green-ok-light p-3">
+                <p className="mb-1 flex items-center gap-1.5 font-medium text-green-ok">
+                  <CheckCircle2 className="size-4" strokeWidth={2.25} />
+                  Melhorias
+                </p>
+                <ul className="space-y-1 pl-1 text-green-ok">
                   {analiseEvolucao.melhorias.map((p, i) => (
                     <li key={i}>{p.texto}</li>
                   ))}
@@ -375,23 +509,30 @@ export default function ClienteCompetenciaPage({
               </div>
             )}
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4 pt-1">
               <a
                 href={`/api/analises-evolucao/${analiseEvolucao.id}/relatorio`}
-                className="text-blue-600 hover:underline"
+                className="inline-flex items-center gap-1.5 font-medium text-navy hover:underline"
               >
+                <FileDown className="size-3.5" strokeWidth={2.25} />
                 Baixar relatório de evolução
               </a>
               <button
                 onClick={handleGerarEvolucao}
                 disabled={gerandoEvolucao}
-                className="text-blue-600 hover:underline disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 font-medium text-navy hover:underline disabled:opacity-50"
               >
+                <RefreshCw className={`size-3.5 ${gerandoEvolucao ? 'animate-spin' : ''}`} strokeWidth={2.25} />
                 {gerandoEvolucao ? 'Atualizando...' : 'Atualizar comparação'}
               </button>
-              {erroEvolucao && <span className="text-sm text-red-600">{erroEvolucao}</span>}
+              {erroEvolucao && (
+                <span className="flex items-center gap-1 text-red-crit">
+                  <AlertCircle className="size-3.5 shrink-0" strokeWidth={2.25} />
+                  {erroEvolucao}
+                </span>
+              )}
             </div>
-          </div>
+          </Card>
         )}
       </section>
     </main>

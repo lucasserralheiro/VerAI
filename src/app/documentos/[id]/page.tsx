@@ -1,6 +1,20 @@
 'use client'
 
 import { use, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  Download,
+  FileDown,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
+  FileWarning,
+  CheckCircle2,
+  Gauge,
+  ListChecks,
+  Trash2,
+} from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 interface PontoCritico {
   texto: string
@@ -33,8 +47,14 @@ interface Documento {
   tipo: string
   status: string
   mensagemErro: string | null
+  uploadedById: string
   uploadedBy: { nome: string }
   analise: Analise | null
+}
+
+interface UsuarioLogado {
+  id: string
+  role: string
 }
 
 interface PreviewPlanilha {
@@ -44,10 +64,30 @@ interface PreviewPlanilha {
   truncado: boolean
 }
 
-const SEVERIDADE_BADGE: Record<PontoCritico['severidade'], string> = {
-  alto: 'bg-red-100 text-red-800',
-  medio: 'bg-orange-100 text-orange-800',
-  baixo: 'bg-gray-100 text-gray-800',
+const SEVERIDADE_BADGE: Record<PontoCritico['severidade'], 'critical' | 'alert' | 'low'> = {
+  alto: 'critical',
+  medio: 'alert',
+  baixo: 'low',
+}
+
+function Section({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: React.ElementType
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="space-y-2 border-b border-border-grey pb-4 last:border-b-0 last:pb-0">
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-navy">
+        <Icon className="size-4 text-orange" strokeWidth={2.25} />
+        {title}
+      </h2>
+      {children}
+    </section>
+  )
 }
 
 function DocumentoOriginal({ documento }: { documento: Documento }) {
@@ -65,7 +105,7 @@ function DocumentoOriginal({ documento }: { documento: Documento }) {
     return (
       <iframe
         src={`/api/documentos/${documento.id}/original?modo=preview`}
-        className="h-[70vh] w-full rounded border"
+        className="h-[70vh] w-full rounded-lg border border-border-grey"
         title="Documento original"
       />
     )
@@ -75,123 +115,138 @@ function DocumentoOriginal({ documento }: { documento: Documento }) {
     return (
       <iframe
         src={`/api/documentos/${documento.id}/preview`}
-        className="h-[70vh] w-full rounded border"
+        className="h-[70vh] w-full rounded-lg border border-border-grey"
         title="Documento original"
       />
     )
   }
 
   if (!preview) {
-    return <p className="text-sm text-muted-foreground">Carregando preview...</p>
+    return (
+      <p className="flex items-center gap-2 text-sm text-mid-grey">
+        <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
+        Carregando preview...
+      </p>
+    )
   }
 
   return (
-    <div className="overflow-auto rounded border">
+    <div className="overflow-hidden rounded-lg border border-border-grey">
       {preview.truncado && (
-        <p className="border-b bg-yellow-50 p-2 text-xs text-yellow-800">
+        <p className="border-b border-border-grey bg-orange-light px-3 py-2 text-xs text-orange-dark">
           Mostrando as primeiras {preview.linhas.length} de {preview.totalLinhas} linhas. Baixe o
           original pra ver tudo.
         </p>
       )}
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b bg-gray-50">
-            {preview.cabecalho.map((coluna, i) => (
-              <th key={i} className="p-2">
-                {coluna}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {preview.linhas.map((linha, i) => (
-            <tr key={i} className="border-b">
-              {linha.map((valor, j) => (
-                <td key={j} className="p-2">
-                  {valor}
-                </td>
+      <div className="max-h-[65vh] overflow-auto">
+        <table className="table-institucional">
+          <thead>
+            <tr>
+              {preview.cabecalho.map((coluna, i) => (
+                <th key={i}>{coluna}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {preview.linhas.map((linha, i) => (
+              <tr key={i}>
+                {linha.map((valor, j) => (
+                  <td key={j}>{valor}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
 
 function AnaliseIA({ documento }: { documento: Documento }) {
   if (documento.status === 'processando') {
-    return <p className="text-sm text-muted-foreground">Processando...</p>
+    return (
+      <p className="flex items-center gap-2 text-sm text-mid-grey">
+        <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
+        Processando...
+      </p>
+    )
   }
   if (documento.status === 'erro') {
-    return <p className="text-sm text-red-600">Erro ao analisar: {documento.mensagemErro}</p>
+    return (
+      <p className="flex items-center gap-2 rounded-lg bg-red-crit-light p-3 text-sm text-red-crit">
+        <AlertCircle className="size-4 shrink-0" strokeWidth={2.25} />
+        Erro ao analisar: {documento.mensagemErro}
+      </p>
+    )
   }
   if (!documento.analise) {
-    return <p className="text-sm text-muted-foreground">Sem análise disponível.</p>
+    return <p className="text-sm text-mid-grey">Sem análise disponível.</p>
   }
 
   const { analise } = documento
 
   return (
     <div className="space-y-4">
-      <section>
-        <h2 className="font-medium">Resumo</h2>
-        <p className="text-sm">{analise.resumo}</p>
-      </section>
+      <Section icon={Gauge} title="Resumo">
+        <p className="text-sm leading-relaxed text-foreground">{analise.resumo}</p>
+      </Section>
 
-      <section>
-        <h2 className="font-medium">Pontos críticos</h2>
-        <ul className="space-y-1">
-          {analise.pontosCriticos.map((ponto, i) => (
-            <li key={i} className="text-sm">
-              <span className={`mr-2 rounded px-2 py-0.5 text-xs ${SEVERIDADE_BADGE[ponto.severidade]}`}>
-                {ponto.severidade}
-              </span>
-              {ponto.texto}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section>
-        <h2 className="font-medium">Pontos positivos</h2>
-        <ul className="space-y-1">
-          {analise.pontosPositivos.map((ponto, i) => (
-            <li key={i} className="text-sm">
-              <span className="mr-2 rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">✓</span>
-              {ponto.texto}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {analise.metricasChave && analise.metricasChave.length > 0 && (
-        <section>
-          <h2 className="font-medium">Métricas-chave</h2>
-          <table className="w-full text-left text-sm">
-            <tbody>
-              {analise.metricasChave.map((metrica, i) => (
-                <tr key={i} className="border-b">
-                  <td className="py-1 font-medium">{metrica.label}</td>
-                  <td className="py-1">{metrica.valorExibicao}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
-
-      {analise.recomendacoes && analise.recomendacoes.length > 0 && (
-        <section>
-          <h2 className="font-medium">Recomendações</h2>
-          <ul className="list-disc space-y-1 pl-5">
-            {analise.recomendacoes.map((recomendacao, i) => (
-              <li key={i} className="text-sm">
-                {recomendacao}
+      <Section icon={FileWarning} title="Pontos críticos">
+        {analise.pontosCriticos.length === 0 ? (
+          <p className="text-sm text-mid-grey">Nenhum ponto crítico identificado.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {analise.pontosCriticos.map((ponto, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm">
+                <Badge variant={SEVERIDADE_BADGE[ponto.severidade]} className="mt-0.5 shrink-0 capitalize">
+                  {ponto.severidade}
+                </Badge>
+                <span>{ponto.texto}</span>
               </li>
             ))}
           </ul>
-        </section>
+        )}
+      </Section>
+
+      <Section icon={CheckCircle2} title="Pontos positivos">
+        {analise.pontosPositivos.length === 0 ? (
+          <p className="text-sm text-mid-grey">Nenhum ponto positivo identificado.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {analise.pontosPositivos.map((ponto, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm">
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-ok" strokeWidth={2.25} />
+                <span>{ponto.texto}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      {analise.metricasChave && analise.metricasChave.length > 0 && (
+        <Section icon={Gauge} title="Métricas-chave">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {analise.metricasChave.map((metrica, i) => (
+              <div key={i} className="rounded-lg bg-navy-2 p-3">
+                <p className="text-[0.7rem] font-semibold text-white/85 uppercase">{metrica.label}</p>
+                <p className="mt-0.5 text-lg font-bold text-orange">{metrica.valorExibicao}</p>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {analise.recomendacoes && analise.recomendacoes.length > 0 && (
+        <Section icon={ListChecks} title="Recomendações">
+          <ul className="space-y-1.5">
+            {analise.recomendacoes.map((recomendacao, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm">
+                <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-orange" />
+                <span>{recomendacao}</span>
+              </li>
+            ))}
+          </ul>
+        </Section>
       )}
     </div>
   )
@@ -199,8 +254,11 @@ function AnaliseIA({ documento }: { documento: Documento }) {
 
 export default function DocumentoDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const router = useRouter()
   const [documento, setDocumento] = useState<Documento | null>(null)
+  const [usuario, setUsuario] = useState<UsuarioLogado | null>(null)
   const [reprocessando, setReprocessando] = useState(false)
+  const [excluindo, setExcluindo] = useState(false)
 
   async function carregar() {
     const response = await fetch(`/api/documentos/${id}`)
@@ -214,6 +272,12 @@ export default function DocumentoDetalhePage({ params }: { params: Promise<{ id:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setUsuario)
+  }, [])
+
   async function handleReprocessar() {
     setReprocessando(true)
     await fetch(`/api/documentos/${id}/reprocessar`, { method: 'POST' })
@@ -221,53 +285,83 @@ export default function DocumentoDetalhePage({ params }: { params: Promise<{ id:
     setReprocessando(false)
   }
 
+  async function handleExcluir() {
+    if (!documento) return
+    if (!confirm(`Excluir "${documento.nomeArquivo}"? Essa ação não pode ser desfeita.`)) return
+    setExcluindo(true)
+    const response = await fetch(`/api/documentos/${id}`, { method: 'DELETE' })
+    setExcluindo(false)
+    if (!response.ok) {
+      const body = await response.json().catch(() => null)
+      alert(body?.error ?? 'Falha ao excluir documento.')
+      return
+    }
+    router.push('/')
+  }
+
   if (!documento) {
     return (
-      <main className="p-8">
-        <p className="text-sm text-muted-foreground">Carregando...</p>
+      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+        <p className="flex items-center gap-2 text-sm text-mid-grey">
+          <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
+          Carregando...
+        </p>
       </main>
     )
   }
 
   return (
-    <main className="space-y-4 p-8">
-      <div className="flex items-center justify-between">
+    <main className="mx-auto max-w-7xl space-y-6 px-6 py-8 lg:px-8">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border-grey bg-white p-5 shadow-sm">
         <div>
-          <h1 className="text-xl font-semibold">{documento.nomeArquivo}</h1>
-          <p className="text-sm text-muted-foreground">Enviado por {documento.uploadedBy.nome}</p>
+          <h1 className="text-xl font-bold text-navy">{documento.nomeArquivo}</h1>
+          <p className="text-sm text-mid-grey">Enviado por {documento.uploadedBy.nome}</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
           <a
             href={`/api/documentos/${documento.id}/original`}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
+            className="flex items-center gap-1.5 rounded-lg border border-navy/25 bg-white px-3 py-1.5 text-sm font-medium text-navy transition-colors hover:border-navy hover:bg-navy/5"
           >
+            <Download className="size-3.5" strokeWidth={2.25} />
             Baixar original
           </a>
           {documento.status === 'concluido' && (
             <a
               href={`/api/documentos/${documento.id}/relatorio`}
-              className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
+              className="flex items-center gap-1.5 rounded-lg border border-navy/25 bg-white px-3 py-1.5 text-sm font-medium text-navy transition-colors hover:border-navy hover:bg-navy/5"
             >
+              <FileDown className="size-3.5" strokeWidth={2.25} />
               Baixar relatório
             </a>
           )}
           <button
             onClick={handleReprocessar}
             disabled={reprocessando}
-            className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-orange px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-orange-dark disabled:opacity-50"
           >
+            <RefreshCw className={`size-3.5 ${reprocessando ? 'animate-spin' : ''}`} strokeWidth={2.25} />
             {reprocessando ? 'Reprocessando...' : 'Reprocessar'}
           </button>
+          {usuario && (usuario.role === 'admin' || usuario.id === documento.uploadedById) && (
+            <button
+              onClick={handleExcluir}
+              disabled={excluindo}
+              className="flex items-center gap-1.5 rounded-lg border border-red-crit/30 bg-white px-3 py-1.5 text-sm font-medium text-red-crit transition-colors hover:border-red-crit hover:bg-red-crit-light disabled:opacity-50"
+            >
+              <Trash2 className="size-3.5" strokeWidth={2.25} />
+              {excluindo ? 'Excluindo...' : 'Excluir'}
+            </button>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div>
-          <h2 className="mb-2 font-medium">Documento original</h2>
+        <div className="rounded-xl border border-border-grey bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold text-navy uppercase tracking-wide">Documento original</h2>
           <DocumentoOriginal documento={documento} />
         </div>
-        <div>
-          <h2 className="mb-2 font-medium">Análise da IA</h2>
+        <div className="rounded-xl border border-border-grey bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold text-navy uppercase tracking-wide">Análise da IA</h2>
           <AnaliseIA documento={documento} />
         </div>
       </div>

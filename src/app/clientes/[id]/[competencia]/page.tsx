@@ -33,6 +33,34 @@ interface AnaliseConsolidada {
   documentos: Array<{ id: string; nomeArquivo: string }>
 }
 
+interface MetricaEvoluida {
+  label: string
+  valorAtual: number | null
+  valorAnterior: number | null
+  deltaAbsoluto: number | null
+  deltaPercentual: number | null
+  status: 'novo' | 'removido' | 'estavel' | 'alta' | 'baixa'
+}
+
+interface AnaliseEvolucao {
+  id: string
+  competenciaAnteriorAno: number
+  competenciaAnteriorMes: number
+  metricasComparadas: MetricaEvoluida[]
+  resumo: string
+  pontosAtencao: Array<{ texto: string }>
+  melhorias: Array<{ texto: string }>
+  createdAt: string
+}
+
+const STATUS_EVOLUCAO_LABEL: Record<MetricaEvoluida['status'], string> = {
+  novo: 'Novo',
+  removido: 'Removido',
+  estavel: 'Estável',
+  alta: 'Alta',
+  baixa: 'Baixa',
+}
+
 const STATUS_BADGE: Record<string, string> = {
   concluido: 'bg-green-100 text-green-800',
   processando: 'bg-gray-100 text-gray-800',
@@ -55,18 +83,23 @@ export default function ClienteCompetenciaPage({
   const [selecionados, setSelecionados] = useState<string[]>([])
   const [gerandoConsolidada, setGerandoConsolidada] = useState(false)
   const [erroConsolidada, setErroConsolidada] = useState<string | null>(null)
+  const [analiseEvolucao, setAnaliseEvolucao] = useState<AnaliseEvolucao | null>(null)
+  const [gerandoEvolucao, setGerandoEvolucao] = useState(false)
+  const [erroEvolucao, setErroEvolucao] = useState<string | null>(null)
 
   async function carregar() {
     if (!parsed) return
     setCarregando(true)
-    const [clienteResponse, documentosResponse, consolidadasResponse] = await Promise.all([
+    const [clienteResponse, documentosResponse, consolidadasResponse, evolucaoResponse] = await Promise.all([
       fetch(`/api/clientes/${id}`),
       fetch(`/api/documentos?clienteId=${id}&competenciaAno=${parsed.ano}&competenciaMes=${parsed.mes}`),
       fetch(`/api/clientes/${id}/competencias/${competencia}/analise-consolidada`),
+      fetch(`/api/clientes/${id}/competencias/${competencia}/analise-evolucao`),
     ])
     if (clienteResponse.ok) setCliente(await clienteResponse.json())
     if (documentosResponse.ok) setDocumentos(await documentosResponse.json())
     if (consolidadasResponse.ok) setAnalisesConsolidadas(await consolidadasResponse.json())
+    if (evolucaoResponse.ok) setAnaliseEvolucao(await evolucaoResponse.json())
     setCarregando(false)
   }
 
@@ -122,6 +155,21 @@ export default function ClienteCompetenciaPage({
       return
     }
     setSelecionados([])
+    carregar()
+  }
+
+  async function handleGerarEvolucao() {
+    setErroEvolucao(null)
+    setGerandoEvolucao(true)
+    const response = await fetch(`/api/clientes/${id}/competencias/${competencia}/analise-evolucao`, {
+      method: 'POST',
+    })
+    setGerandoEvolucao(false)
+    if (!response.ok) {
+      const body = await response.json().catch(() => null)
+      setErroEvolucao(body?.error ?? 'Falha ao gerar a comparação com o mês anterior.')
+      return
+    }
     carregar()
   }
 
@@ -259,6 +307,93 @@ export default function ClienteCompetenciaPage({
           ))}
         </section>
       )}
+
+      <section className="space-y-3">
+        <h2 className="font-medium">Evolução vs. mês anterior</h2>
+        {!analiseEvolucao ? (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleGerarEvolucao}
+              disabled={gerandoEvolucao}
+              className="rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              {gerandoEvolucao ? 'Comparando...' : 'Comparar com mês anterior'}
+            </button>
+            {erroEvolucao && <span className="text-sm text-red-600">{erroEvolucao}</span>}
+          </div>
+        ) : (
+          <div className="space-y-2 rounded border p-4 text-sm">
+            <p className="text-xs text-muted-foreground">
+              Comparado com {String(analiseEvolucao.competenciaAnteriorMes).padStart(2, '0')}/
+              {analiseEvolucao.competenciaAnteriorAno} — gerado em{' '}
+              {new Date(analiseEvolucao.createdAt).toLocaleString('pt-BR')}
+            </p>
+            <p>{analiseEvolucao.resumo}</p>
+
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b">
+                  <th className="py-1">Métrica</th>
+                  <th>Anterior</th>
+                  <th>Atual</th>
+                  <th>Variação</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analiseEvolucao.metricasComparadas.map((m) => (
+                  <tr key={m.label} className="border-b">
+                    <td className="py-1">{m.label}</td>
+                    <td>{m.valorAnterior ?? '—'}</td>
+                    <td>{m.valorAtual ?? '—'}</td>
+                    <td>{m.deltaPercentual != null ? `${(m.deltaPercentual * 100).toFixed(1)}%` : '—'}</td>
+                    <td>{STATUS_EVOLUCAO_LABEL[m.status]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {analiseEvolucao.pontosAtencao.length > 0 && (
+              <div>
+                <p className="font-medium">Pontos de atenção</p>
+                <ul className="list-disc space-y-1 pl-5 text-red-700">
+                  {analiseEvolucao.pontosAtencao.map((p, i) => (
+                    <li key={i}>{p.texto}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {analiseEvolucao.melhorias.length > 0 && (
+              <div>
+                <p className="font-medium">Melhorias</p>
+                <ul className="list-disc space-y-1 pl-5 text-green-700">
+                  {analiseEvolucao.melhorias.map((p, i) => (
+                    <li key={i}>{p.texto}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <a
+                href={`/api/analises-evolucao/${analiseEvolucao.id}/relatorio`}
+                className="text-blue-600 hover:underline"
+              >
+                Baixar relatório de evolução
+              </a>
+              <button
+                onClick={handleGerarEvolucao}
+                disabled={gerandoEvolucao}
+                className="text-blue-600 hover:underline disabled:opacity-50"
+              >
+                {gerandoEvolucao ? 'Atualizando...' : 'Atualizar comparação'}
+              </button>
+              {erroEvolucao && <span className="text-sm text-red-600">{erroEvolucao}</span>}
+            </div>
+          </div>
+        )}
+      </section>
     </main>
   )
 }

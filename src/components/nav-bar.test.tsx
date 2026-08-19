@@ -18,6 +18,7 @@ describe('NavBar', () => {
   it('renderiza um link para cada página do dashboard', () => {
     render(<NavBar />)
     expect(screen.getByRole('link', { name: 'Documentos' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: 'Clientes' })).toHaveAttribute('href', '/clientes')
     expect(screen.getByRole('link', { name: 'Notificações' })).toHaveAttribute('href', '/notificacoes')
     expect(screen.getByRole('link', { name: 'Usuários' })).toHaveAttribute('href', '/admin/usuarios')
     expect(screen.getByRole('link', { name: 'Gerenciar clientes' })).toHaveAttribute(

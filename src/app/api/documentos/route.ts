@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
       createdAt: true,
       competenciaAno: true,
       competenciaMes: true,
+      uploadedById: true,
       uploadedBy: { select: { nome: true } },
       cliente: { select: { id: true, nome: true } },
       analise: { select: { id: true } },

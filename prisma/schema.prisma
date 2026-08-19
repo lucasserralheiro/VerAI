@@ -16,6 +16,14 @@ model Usuario {
   createdAt  DateTime @default(now())
   documentos Documento[]
   acessos    AcessoDocumento[]
+  clientesPermitidos Cliente[] @relation("UsuarioClientes")
+}
+
+model Cliente {
+  id                 String    @id @default(cuid())
+  nome               String    @unique
+  createdAt          DateTime  @default(now())
+  usuariosPermitidos Usuario[] @relation("UsuarioClientes")
 }
 
 model Documento {

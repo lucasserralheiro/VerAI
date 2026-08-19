@@ -20,10 +20,11 @@ model Usuario {
 }
 
 model Cliente {
-  id                 String    @id @default(cuid())
-  nome               String    @unique
-  createdAt          DateTime  @default(now())
-  usuariosPermitidos Usuario[] @relation("UsuarioClientes")
+  id                 String      @id @default(cuid())
+  nome               String      @unique
+  createdAt          DateTime    @default(now())
+  usuariosPermitidos Usuario[]   @relation("UsuarioClientes")
+  documentos         Documento[]
 }
 
 model Documento {
@@ -36,10 +37,16 @@ model Documento {
   mensagemErro    String?
   uploadedById    String
   uploadedBy      Usuario   @relation(fields: [uploadedById], references: [id])
+  clienteId       String
+  cliente         Cliente   @relation(fields: [clienteId], references: [id])
+  competenciaAno  Int
+  competenciaMes  Int
   createdAt       DateTime  @default(now())
   analise         Analise?
   acessos         AcessoDocumento[]
   notificacoes    Notificacao[]
+
+  @@index([clienteId, competenciaAno, competenciaMes])
 }
 
 model Analise {

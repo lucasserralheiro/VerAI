@@ -14,6 +14,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     where: { id },
     include: {
       uploadedBy: { select: { nome: true } },
+      cliente: { select: { id: true, nome: true } },
       analise: true,
     },
   })

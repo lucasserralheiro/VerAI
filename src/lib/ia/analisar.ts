@@ -19,7 +19,16 @@ const schema = z.object({
   // .nullable() em vez de .optional(): alguns provedores (Groq, OpenAI-compatíveis)
   // usam saída estruturada em modo estrito, que exige todo campo em "required" —
   // mesmo quando pode ser vazio. Precisa vir null, não ausente.
-  metricasChave: z.array(z.object({ label: z.string(), valor: z.string() })).nullable(),
+  metricasChave: z
+    .array(
+      z.object({
+        label: z.string(),
+        valorNumerico: z.number().nullable(),
+        unidade: z.string().nullable(),
+        valorExibicao: z.string(),
+      })
+    )
+    .nullable(),
   recomendacoes: z.array(z.string()).nullable(),
 })
 
@@ -44,10 +53,15 @@ function montarPrompt(conteudoExtraido: string): string {
     '3. PONTOS POSITIVOS: destaque o que está bem, com a mesma especificidade',
     '   (números e nomes concretos, não elogios genéricos).',
     '',
-    '4. MÉTRICAS-CHAVE: calcule e liste as métricas numéricas mais relevantes que',
-    '   dá pra derivar do conteúdo (totais, médias, proporções, contagens,',
-    '   comparações) — não repita as estatísticas óbvias se já vieram prontas no',
-    '   texto extraído, sintetize o que importa pra decisão.',
+    '4. MÉTRICAS-CHAVE: liste as métricas numéricas mais relevantes presentes no',
+    '   conteúdo extraído (totais, médias, proporções, contagens já calculadas no',
+    '   texto). Para cada uma, informe "valorNumerico" com o número exatamente',
+    '   como aparece no texto extraído — nunca estime, arredonde ou invente um',
+    '   valor que não esteja lá; se não houver um número exato pra essa métrica,',
+    '   deixe "valorNumerico" null e descreva só em "valorExibicao". Preencha',
+    '   "unidade" quando fizer sentido (ex: "BRL", "%", "GB", null se não houver)',
+    '   e "valorExibicao" formatado como deve aparecer pro leitor (ex:',
+    '   "R$ 11.200,00").',
     '',
     '5. RECOMENDAÇÕES: pra cada ponto crítico relevante, uma recomendação prática',
     '   do que fazer a respeito. Deve ser específica e executável, não genérica',

@@ -42,7 +42,9 @@ describe('analisarDocumento', () => {
         resumo: 'resumo gerado',
         pontosCriticos: [{ texto: 'ponto crítico', severidade: 'alto' }],
         pontosPositivos: [{ texto: 'ponto positivo' }],
-        metricasChave: [{ label: 'linhas', valor: '120' }],
+        metricasChave: [
+          { label: 'linhas', valorNumerico: 120, unidade: null, valorExibicao: '120' },
+        ],
       },
     })
 
@@ -55,7 +57,9 @@ describe('analisarDocumento', () => {
       resumo: 'resumo gerado',
       pontosCriticos: [{ texto: 'ponto crítico', severidade: 'alto' }],
       pontosPositivos: [{ texto: 'ponto positivo' }],
-      metricasChave: [{ label: 'linhas', valor: '120' }],
+      metricasChave: [
+        { label: 'linhas', valorNumerico: 120, unidade: null, valorExibicao: '120' },
+      ],
       promptVersion: 'v1',
     })
   })

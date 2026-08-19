@@ -73,8 +73,14 @@ monta um texto com:
 - Amostra das primeiras 20–30 linhas, formatada como texto tabular
 - Estatísticas básicas por coluna numérica: mínimo, máximo, média, soma
 
-Limitação assumida: só a primeira planilha é processada. Documentado aqui
-— revisitar se virar necessidade real.
+Limitação assumida: só uma planilha é processada — a primeira aba do
+arquivo que tiver dados (não necessariamente a de índice 0: se a primeira
+aba estiver vazia, ex. capa/resumo, o sistema usa a próxima que tiver
+registros). Corrigido em 19/08/2026 — a versão original tratava sempre a
+aba de índice 0 como "a planilha", o que reportava "vazia" mesmo com dado
+real numa aba seguinte. Continua processando só UMA aba (não agrega dados
+de várias abas com registros ao mesmo tempo) — revisitar se virar
+necessidade real.
 
 **`pdf.ts`** — usa `unpdf` para extrair o texto do PDF a partir do buffer.
 Texto truncado em ~15.000 caracteres (controle de custo de tokens na IA);

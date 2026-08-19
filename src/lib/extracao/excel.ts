@@ -17,18 +17,26 @@ async function carregarPrimeiraPlanilha(buffer: Buffer, tipo: 'xlsx' | 'csv') {
     await workbook.xlsx.load(buffer as unknown as ArrayBuffer)
   }
 
-  const planilha = workbook.worksheets[0]
-  if (!planilha || planilha.rowCount === 0) {
-    return null
+  // Percorre as abas na ordem em que aparecem e usa a primeira que TEM dados —
+  // exports reais de faturamento costumam ter uma aba de capa/resumo vazia
+  // antes da aba com os registros de verdade; tratar sempre a aba de índice 0
+  // como "a planilha" fazia o sistema reportar "vazia" mesmo com dado real
+  // numa aba seguinte.
+  for (const planilha of workbook.worksheets) {
+    if (planilha.rowCount === 0) continue
+
+    const cabecalho = (planilha.getRow(1).values as unknown[]).slice(1).map((v) => String(v ?? ''))
+    const linhas: unknown[][] = []
+    for (let i = 2; i <= planilha.rowCount; i++) {
+      linhas.push((planilha.getRow(i).values as unknown[]).slice(1))
+    }
+
+    if (linhas.length > 0) {
+      return { planilha, cabecalho, linhas }
+    }
   }
 
-  const cabecalho = (planilha.getRow(1).values as unknown[]).slice(1).map((v) => String(v ?? ''))
-  const linhas: unknown[][] = []
-  for (let i = 2; i <= planilha.rowCount; i++) {
-    linhas.push((planilha.getRow(i).values as unknown[]).slice(1))
-  }
-
-  return { planilha, cabecalho, linhas }
+  return null
 }
 
 export interface PreviewPlanilha {

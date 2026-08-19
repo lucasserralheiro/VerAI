@@ -16,7 +16,10 @@ const schema = z.object({
     })
   ),
   pontosPositivos: z.array(z.object({ texto: z.string() })),
-  metricasChave: z.array(z.object({ label: z.string(), valor: z.string() })).optional(),
+  // .nullable() em vez de .optional(): alguns provedores (Groq, OpenAI-compatíveis)
+  // usam saída estruturada em modo estrito, que exige todo campo em "required" —
+  // mesmo quando pode ser vazio. Precisa vir null, não ausente.
+  metricasChave: z.array(z.object({ label: z.string(), valor: z.string() })).nullable(),
 })
 
 function montarPrompt(conteudoExtraido: string): string {

@@ -1,5 +1,6 @@
 import { generateObject } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createVertex } from '@ai-sdk/google-vertex'
 import { z } from 'zod'
 
@@ -32,6 +33,9 @@ function getModel() {
   switch (process.env.AI_PROVIDER) {
     case 'anthropic':
       return createAnthropic({ apiKey: process.env.AI_API_KEY })(process.env.AI_MODEL!)
+    case 'google':
+      // Google AI Studio (aistudio.google.com/apikey) — tier gratuito, sem projeto GCP.
+      return createGoogleGenerativeAI({ apiKey: process.env.AI_API_KEY })(process.env.AI_MODEL!)
     case 'vertex':
       // Sem apiKey: usa Application Default Credentials (gcloud auth application-default login).
       return createVertex({

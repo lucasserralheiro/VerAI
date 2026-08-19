@@ -9,6 +9,7 @@ const LINKS = [
   { href: '/', label: 'Documentos' },
   { href: '/notificacoes', label: 'Notificações' },
   { href: '/admin/usuarios', label: 'Usuários' },
+  { href: '/admin/clientes', label: 'Gerenciar clientes' },
   { href: '/admin/regras-notificacao', label: 'Regras de notificação' },
 ]
 

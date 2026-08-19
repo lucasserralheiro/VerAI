@@ -20,6 +20,10 @@ describe('NavBar', () => {
     expect(screen.getByRole('link', { name: 'Documentos' })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: 'Notificações' })).toHaveAttribute('href', '/notificacoes')
     expect(screen.getByRole('link', { name: 'Usuários' })).toHaveAttribute('href', '/admin/usuarios')
+    expect(screen.getByRole('link', { name: 'Gerenciar clientes' })).toHaveAttribute(
+      'href',
+      '/admin/clientes'
+    )
     expect(screen.getByRole('link', { name: 'Regras de notificação' })).toHaveAttribute(
       'href',
       '/admin/regras-notificacao'

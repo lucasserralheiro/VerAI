@@ -2,31 +2,51 @@
 
 import { useEffect, useState, type FormEvent } from 'react'
 
+interface Cliente {
+  id: string
+  nome: string
+}
+
 interface Usuario {
   id: string
   nome: string
   email: string
   role: string
   createdAt: string
+  clientesPermitidos: Cliente[]
 }
 
 export default function AdminUsuariosPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
+  const [clientes, setClientes] = useState<Cliente[]>([])
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [role, setRole] = useState('uploader')
+  const [edicoes, setEdicoes] = useState<Record<string, string[]>>({})
 
   async function carregar() {
-    const response = await fetch('/api/admin/usuarios')
-    if (response.ok) {
-      setUsuarios(await response.json())
+    const [usuariosResponse, clientesResponse] = await Promise.all([
+      fetch('/api/admin/usuarios'),
+      fetch('/api/admin/clientes'),
+    ])
+    if (usuariosResponse.ok) {
+      const lista: Usuario[] = await usuariosResponse.json()
+      setUsuarios(lista)
+      setEdicoes(Object.fromEntries(lista.map((u) => [u.id, u.clientesPermitidos.map((c) => c.id)])))
+    }
+    if (clientesResponse.ok) {
+      setClientes(await clientesResponse.json())
     }
   }
 
   useEffect(() => {
     carregar()
   }, [])
+
+  function toggleSelecionado(lista: string[], id: string): string[] {
+    return lista.includes(id) ? lista.filter((x) => x !== id) : [...lista, id]
+  }
 
   async function handleCriar(event: FormEvent) {
     event.preventDefault()
@@ -44,6 +64,15 @@ export default function AdminUsuariosPage() {
 
   async function handleExcluir(id: string) {
     await fetch(`/api/admin/usuarios?id=${id}`, { method: 'DELETE' })
+    carregar()
+  }
+
+  async function handleSalvarClientes(id: string) {
+    await fetch('/api/admin/usuarios', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, clientesPermitidos: edicoes[id] ?? [] }),
+    })
     carregar()
   }
 
@@ -94,6 +123,9 @@ export default function AdminUsuariosPage() {
           Criar usuário
         </button>
       </form>
+      <p className="text-xs text-muted-foreground">
+        Clientes permitidos são atribuídos depois de criar o usuário, na tabela abaixo.
+      </p>
 
       <table className="w-full text-left text-sm">
         <thead>
@@ -101,20 +133,49 @@ export default function AdminUsuariosPage() {
             <th className="py-2">Nome</th>
             <th>E-mail</th>
             <th>Perfil</th>
+            <th>Clientes permitidos</th>
             <th>Ações</th>
           </tr>
         </thead>
         <tbody>
           {usuarios.map((usuario) => (
-            <tr key={usuario.id} className="border-b">
+            <tr key={usuario.id} className="border-b align-top">
               <td className="py-2">{usuario.nome}</td>
               <td>{usuario.email}</td>
               <td>{usuario.role}</td>
               <td>
-                <button
-                  onClick={() => handleExcluir(usuario.id)}
-                  className="text-red-600 hover:underline"
-                >
+                {usuario.role === 'admin' ? (
+                  <span className="text-xs text-muted-foreground">Todos (admin)</span>
+                ) : (
+                  <>
+                    <div className="flex max-w-xs flex-wrap gap-2">
+                      {clientes.map((cliente) => (
+                        <label key={cliente.id} className="flex items-center gap-1 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={(edicoes[usuario.id] ?? []).includes(cliente.id)}
+                            onChange={() =>
+                              setEdicoes({
+                                ...edicoes,
+                                [usuario.id]: toggleSelecionado(edicoes[usuario.id] ?? [], cliente.id),
+                              })
+                            }
+                          />
+                          {cliente.nome}
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => handleSalvarClientes(usuario.id)}
+                      className="mt-1 text-blue-600 hover:underline"
+                    >
+                      Salvar clientes
+                    </button>
+                  </>
+                )}
+              </td>
+              <td>
+                <button onClick={() => handleExcluir(usuario.id)} className="text-red-600 hover:underline">
                   Excluir
                 </button>
               </td>

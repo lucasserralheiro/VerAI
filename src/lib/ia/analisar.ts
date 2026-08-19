@@ -1,5 +1,6 @@
 import { generateObject } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createVertex } from '@ai-sdk/google-vertex'
 import { z } from 'zod'
 
 export const PROMPT_VERSION_ATUAL = 'v1'
@@ -31,6 +32,12 @@ function getModel() {
   switch (process.env.AI_PROVIDER) {
     case 'anthropic':
       return createAnthropic({ apiKey: process.env.AI_API_KEY })(process.env.AI_MODEL!)
+    case 'vertex':
+      // Sem apiKey: usa Application Default Credentials (gcloud auth application-default login).
+      return createVertex({
+        project: process.env.GOOGLE_VERTEX_PROJECT,
+        location: process.env.GOOGLE_VERTEX_LOCATION,
+      })(process.env.AI_MODEL!)
     default:
       throw new Error(`AI_PROVIDER "${process.env.AI_PROVIDER}" não suportado`)
   }

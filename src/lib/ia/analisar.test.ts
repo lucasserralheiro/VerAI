@@ -8,9 +8,14 @@ const modeloFactoryMock = jest.fn(() => 'modelo-mock')
 jest.mock('@ai-sdk/anthropic', () => ({
   createAnthropic: jest.fn(() => modeloFactoryMock),
 }))
+const modeloFactoryVertexMock = jest.fn(() => 'modelo-vertex-mock')
+jest.mock('@ai-sdk/google-vertex', () => ({
+  createVertex: jest.fn(() => modeloFactoryVertexMock),
+}))
 
 import { generateObject } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createVertex } from '@ai-sdk/google-vertex'
 import { analisarDocumento } from './analisar'
 
 describe('analisarDocumento', () => {
@@ -43,6 +48,29 @@ describe('analisarDocumento', () => {
       metricasChave: [{ label: 'linhas', valor: '120' }],
       promptVersion: 'v1',
     })
+  })
+
+  it('usa o Vertex AI quando AI_PROVIDER=vertex, sem exigir AI_API_KEY', async () => {
+    process.env.AI_PROVIDER = 'vertex'
+    process.env.AI_MODEL = 'gemini-2.5-flash'
+    process.env.GOOGLE_VERTEX_PROJECT = 'meu-projeto'
+    process.env.GOOGLE_VERTEX_LOCATION = 'us-central1'
+    delete process.env.AI_API_KEY
+
+    ;(generateObject as jest.Mock).mockResolvedValue({
+      object: {
+        resumo: 'resumo',
+        pontosCriticos: [],
+        pontosPositivos: [],
+        metricasChave: null,
+      },
+    })
+
+    await analisarDocumento('conteúdo', 'v1')
+
+    expect(createVertex).toHaveBeenCalledWith({ project: 'meu-projeto', location: 'us-central1' })
+    expect(modeloFactoryVertexMock).toHaveBeenCalledWith('gemini-2.5-flash')
+    expect(generateObject).toHaveBeenCalledWith(expect.objectContaining({ model: 'modelo-vertex-mock' }))
   })
 
   it('lança erro quando AI_PROVIDER não é suportado', async () => {

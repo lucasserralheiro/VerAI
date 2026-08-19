@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { podeVerDocumento } from '@/lib/visibilidade'
 import { getUploadFullPath } from '@/lib/storage'
-import { lerPlanilhaPreview } from '@/lib/extracao'
+import { lerPlanilhaPreview, converterDocxParaHtml } from '@/lib/extracao'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const usuario = await getAuthUser(request)
@@ -23,8 +23,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'acesso negado' }, { status: 403 })
   }
 
+  if (documento.tipo === 'docx') {
+    const buffer = await readFile(getUploadFullPath(documento.caminhoOriginal))
+    const html = await converterDocxParaHtml(buffer)
+    return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  }
+
   if (documento.tipo !== 'xlsx' && documento.tipo !== 'csv') {
-    return NextResponse.json({ error: 'preview estruturado só existe para xlsx/csv' }, { status: 400 })
+    return NextResponse.json({ error: 'preview estruturado só existe para xlsx/csv/docx' }, { status: 400 })
   }
 
   const buffer = await readFile(getUploadFullPath(documento.caminhoOriginal))

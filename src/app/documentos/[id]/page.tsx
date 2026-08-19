@@ -71,6 +71,16 @@ function DocumentoOriginal({ documento }: { documento: Documento }) {
     )
   }
 
+  if (documento.tipo === 'docx') {
+    return (
+      <iframe
+        src={`/api/documentos/${documento.id}/preview`}
+        className="h-[70vh] w-full rounded border"
+        title="Documento original"
+      />
+    )
+  }
+
   if (!preview) {
     return <p className="text-sm text-muted-foreground">Carregando preview...</p>
   }

@@ -9,6 +9,7 @@ const CONTENT_TYPES: Record<string, string> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   csv: 'text/csv',
   pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

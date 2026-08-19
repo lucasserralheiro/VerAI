@@ -193,7 +193,7 @@ export default function ClienteCompetenciaPage({
       </div>
 
       <form onSubmit={handleUpload} className="flex items-center gap-3">
-        <input type="file" name="arquivo" accept=".xlsx,.csv,.pdf" required className="text-sm" />
+        <input type="file" name="arquivo" accept=".xlsx,.csv,.pdf,.docx" required className="text-sm" />
         <button
           type="submit"
           disabled={enviando}

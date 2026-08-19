@@ -119,6 +119,7 @@ export default function DashboardPage() {
             <option value="xlsx">Excel</option>
             <option value="csv">CSV</option>
             <option value="pdf">PDF</option>
+            <option value="docx">Word</option>
           </select>
         </label>
         <label className="flex flex-col gap-1">

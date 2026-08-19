@@ -10,7 +10,7 @@ import { extrairConteudo } from '@/lib/extracao'
 import { analisarDocumento, PROMPT_VERSION_ATUAL } from '@/lib/ia/analisar'
 import { dispararNotificacoes } from '@/lib/notificacao'
 
-const TIPOS_SUPORTADOS = ['xlsx', 'csv', 'pdf'] as const
+const TIPOS_SUPORTADOS = ['xlsx', 'csv', 'pdf', 'docx'] as const
 
 function tipoDoArquivo(nomeArquivo: string): string | null {
   const extensao = nomeArquivo.split('.').pop()?.toLowerCase()

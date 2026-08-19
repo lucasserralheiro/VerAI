@@ -2,6 +2,7 @@ import { generateObject } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createVertex } from '@ai-sdk/google-vertex'
+import { createGroq } from '@ai-sdk/groq'
 import { z } from 'zod'
 
 export const PROMPT_VERSION_ATUAL = 'v1'
@@ -42,6 +43,9 @@ function getModel() {
         project: process.env.GOOGLE_VERTEX_PROJECT,
         location: process.env.GOOGLE_VERTEX_LOCATION,
       })(process.env.AI_MODEL!)
+    case 'groq':
+      // Groq (console.groq.com/keys) — tier gratuito sem cartão de crédito, "forever free".
+      return createGroq({ apiKey: process.env.AI_API_KEY })(process.env.AI_MODEL!)
     default:
       throw new Error(`AI_PROVIDER "${process.env.AI_PROVIDER}" não suportado`)
   }

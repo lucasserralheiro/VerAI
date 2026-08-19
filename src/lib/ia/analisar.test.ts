@@ -16,11 +16,16 @@ const modeloFactoryGoogleMock = jest.fn(() => 'modelo-google-mock')
 jest.mock('@ai-sdk/google', () => ({
   createGoogleGenerativeAI: jest.fn(() => modeloFactoryGoogleMock),
 }))
+const modeloFactoryGroqMock = jest.fn(() => 'modelo-groq-mock')
+jest.mock('@ai-sdk/groq', () => ({
+  createGroq: jest.fn(() => modeloFactoryGroqMock),
+}))
 
 import { generateObject } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createVertex } from '@ai-sdk/google-vertex'
+import { createGroq } from '@ai-sdk/groq'
 import { analisarDocumento } from './analisar'
 
 describe('analisarDocumento', () => {
@@ -92,6 +97,22 @@ describe('analisarDocumento', () => {
     expect(createGoogleGenerativeAI).toHaveBeenCalledWith({ apiKey: 'chave-google-fake' })
     expect(modeloFactoryGoogleMock).toHaveBeenCalledWith('gemini-2.5-flash')
     expect(generateObject).toHaveBeenCalledWith(expect.objectContaining({ model: 'modelo-google-mock' }))
+  })
+
+  it('usa o Groq quando AI_PROVIDER=groq', async () => {
+    process.env.AI_PROVIDER = 'groq'
+    process.env.AI_MODEL = 'llama-3.3-70b-versatile'
+    process.env.AI_API_KEY = 'chave-groq-fake'
+
+    ;(generateObject as jest.Mock).mockResolvedValue({
+      object: { resumo: 'resumo', pontosCriticos: [], pontosPositivos: [], metricasChave: null },
+    })
+
+    await analisarDocumento('conteúdo', 'v1')
+
+    expect(createGroq).toHaveBeenCalledWith({ apiKey: 'chave-groq-fake' })
+    expect(modeloFactoryGroqMock).toHaveBeenCalledWith('llama-3.3-70b-versatile')
+    expect(generateObject).toHaveBeenCalledWith(expect.objectContaining({ model: 'modelo-groq-mock' }))
   })
 
   it('lança erro quando AI_PROVIDER não é suportado', async () => {

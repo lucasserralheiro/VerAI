@@ -317,10 +317,7 @@ export default function ClienteCompetenciaPage({
       {enviando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/50 p-4 backdrop-blur-sm">
           <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-2xl bg-white p-8 text-center shadow-xl">
-            <span className="relative flex size-14 items-center justify-center rounded-full bg-orange-light text-orange">
-              <span className="absolute inset-0 animate-ping rounded-full bg-orange/25" />
-              <Sparkles className="relative size-6" strokeWidth={1.75} />
-            </span>
+            <Loader2 className="size-8 animate-spin text-orange" strokeWidth={2} />
             <div className="space-y-1.5">
               <p className="text-base font-semibold text-navy">Analisando documento com IA</p>
               <p className="text-sm text-mid-grey">
@@ -328,10 +325,6 @@ export default function ClienteCompetenciaPage({
                 alguns segundos — não feche esta página.
               </p>
             </div>
-            <span className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
-              <Loader2 className="size-3.5 animate-spin" strokeWidth={2.25} />
-              Processando...
-            </span>
           </div>
         </div>
       )}

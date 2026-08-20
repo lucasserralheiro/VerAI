@@ -108,7 +108,7 @@
   --chart-3: var(--green-ok);
   --chart-4: var(--grey-badge);
   --chart-5: var(--red-crit);
-  --radius: 0.85rem;
+  --radius: 0.4rem;
   --sidebar: var(--navy);
   --sidebar-foreground: #ffffff;
   --sidebar-primary: var(--orange);
@@ -118,13 +118,13 @@
   --sidebar-border: var(--navy-2);
   --sidebar-ring: var(--orange);
 
-  /* Sombras suaves com tinta navy — dão profundidade sem pesar */
-  --shadow-2xs: 0 1px 1px rgba(0, 20, 40, 0.03);
-  --shadow-xs: 0 1px 2px rgba(0, 20, 40, 0.05);
-  --shadow-sm: 0 1px 2px rgba(0, 20, 40, 0.04), 0 2px 6px -2px rgba(0, 20, 40, 0.06);
-  --shadow-md: 0 4px 10px -4px rgba(0, 42, 74, 0.10), 0 8px 20px -6px rgba(0, 42, 74, 0.08);
-  --shadow-lg: 0 8px 16px -6px rgba(0, 42, 74, 0.12), 0 20px 40px -12px rgba(0, 42, 74, 0.14);
-  --shadow-xl: 0 16px 24px -8px rgba(0, 42, 74, 0.16), 0 28px 56px -16px rgba(0, 42, 74, 0.18);
+  /* Sombra única e discreta — só onde há elevação real (modal, dropdown, sticky bar) */
+  --shadow-2xs: 0 1px 1px rgba(0, 20, 40, 0.04);
+  --shadow-xs: 0 1px 2px rgba(0, 20, 40, 0.06);
+  --shadow-sm: 0 1px 3px rgba(0, 20, 40, 0.08);
+  --shadow-md: 0 2px 6px rgba(0, 20, 40, 0.10);
+  --shadow-lg: 0 4px 10px rgba(0, 20, 40, 0.12);
+  --shadow-xl: 0 8px 16px rgba(0, 20, 40, 0.14);
 }
 
 .dark {
@@ -209,18 +209,7 @@
     @apply relative overflow-hidden rounded-2xl border border-black/[0.05] bg-white shadow-sm;
   }
   .card-interactive {
-    @apply transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-orange/25 hover:shadow-md;
-  }
-
-  /* Textura de grade pontilhada — usada em heros/paineis navy */
-  .bg-dot-grid {
-    background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px);
-    background-size: 20px 20px;
-  }
-
-  /* Marca d'água decorativa de ícone em cartões de métrica — defina o size-* no uso */
-  .icon-watermark {
-    @apply pointer-events-none absolute -top-3 -right-3 text-white/[0.07];
+    @apply transition-all duration-200 ease-out hover:border-orange/25 hover:shadow-md;
   }
 
   /* Skeleton de carregamento com brilho suave */

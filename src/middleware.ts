@@ -27,7 +27,7 @@ export async function middleware(request: NextRequest) {
     if (isApi) {
       return NextResponse.json({ error: 'acesso negado' }, { status: 403 })
     }
-    return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.redirect(new URL('/clientes', request.url))
   }
 
   return NextResponse.next()

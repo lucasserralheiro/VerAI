@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { Bell, CheckCheck, Inbox, Loader2, FileText } from 'lucide-react'
+import { BTN_OUTLINE_SM } from '@/lib/ui'
 
 interface Notificacao {
   id: string
@@ -37,31 +39,52 @@ export default function NotificacoesPage() {
   }
 
   return (
-    <main className="space-y-4 p-8">
-      <h1 className="text-xl font-semibold">Notificações</h1>
+    <main className="mx-auto max-w-4xl space-y-6 px-6 py-8 lg:px-8">
+      <div className="flex items-center gap-2">
+        <Bell className="size-5 text-orange" strokeWidth={2.25} />
+        <h1 className="text-2xl font-bold text-navy">Notificações</h1>
+      </div>
 
       {carregando ? (
-        <p className="text-sm text-muted-foreground">Carregando...</p>
+        <p className="flex items-center gap-2 text-sm text-mid-grey">
+          <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
+          Carregando...
+        </p>
       ) : notificacoes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma notificação por enquanto.</p>
+        <div className="card-flush flex flex-col items-center gap-2 p-10 text-center">
+          <span className="flex size-11 items-center justify-center rounded-full bg-light-grey text-mid-grey">
+            <Inbox className="size-5" strokeWidth={1.75} />
+          </span>
+          <p className="text-sm text-mid-grey">Nenhuma notificação por enquanto.</p>
+        </div>
       ) : (
         <ul className="space-y-2">
           {notificacoes.map((notificacao) => (
             <li
               key={notificacao.id}
-              className={`flex items-center justify-between rounded border p-3 text-sm ${
-                notificacao.lida ? 'opacity-60' : 'bg-blue-50'
+              className={`flex items-center justify-between gap-3 rounded-2xl border p-4 text-sm shadow-sm transition-all ${
+                notificacao.lida
+                  ? 'border-black/[0.05] bg-white opacity-60'
+                  : 'border-orange/25 bg-orange-light shadow-md'
               }`}
             >
-              <Link href={`/documentos/${notificacao.documentoId}`} className="hover:underline">
-                {notificacao.documento.nomeArquivo} —{' '}
-                {new Date(notificacao.createdAt).toLocaleString('pt-BR')}
+              <Link
+                href={`/documentos/${notificacao.documentoId}`}
+                className="flex items-center gap-2.5 hover:underline"
+              >
+                <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${notificacao.lida ? 'bg-light-grey text-mid-grey' : 'bg-orange text-white'}`}>
+                  <FileText className="size-4" strokeWidth={2.25} />
+                </span>
+                <span>
+                  <span className="font-medium text-navy">{notificacao.documento.nomeArquivo}</span>
+                  <span className="block text-xs text-mid-grey">
+                    {new Date(notificacao.createdAt).toLocaleString('pt-BR')}
+                  </span>
+                </span>
               </Link>
               {!notificacao.lida && (
-                <button
-                  onClick={() => marcarComoLida(notificacao.id)}
-                  className="rounded border px-2 py-1 text-xs hover:bg-gray-50"
-                >
+                <button onClick={() => marcarComoLida(notificacao.id)} className={BTN_OUTLINE_SM}>
+                  <CheckCheck className="size-3.5" strokeWidth={2.25} />
                   Marcar como lida
                 </button>
               )}

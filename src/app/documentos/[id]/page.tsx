@@ -15,6 +15,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { BTN_PRIMARY, BTN_OUTLINE } from '@/lib/ui'
 
 interface PontoCritico {
   texto: string
@@ -225,11 +226,12 @@ function AnaliseIA({ documento }: { documento: Documento }) {
 
       {analise.metricasChave && analise.metricasChave.length > 0 && (
         <Section icon={Gauge} title="Métricas-chave">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             {analise.metricasChave.map((metrica, i) => (
-              <div key={i} className="rounded-lg bg-navy-2 p-3">
-                <p className="text-[0.7rem] font-semibold text-white/85 uppercase">{metrica.label}</p>
-                <p className="mt-0.5 text-lg font-bold text-orange">{metrica.valorExibicao}</p>
+              <div key={i} className="relative overflow-hidden rounded-xl bg-navy-2 p-3.5 shadow-sm">
+                <Gauge className="icon-watermark size-14" strokeWidth={1.5} />
+                <p className="text-[0.68rem] font-semibold tracking-wide text-white/70 uppercase">{metrica.label}</p>
+                <p className="mt-0.5 text-xl font-bold tabular-nums text-orange">{metrica.valorExibicao}</p>
               </div>
             ))}
           </div>
@@ -312,33 +314,23 @@ export default function DocumentoDetalhePage({ params }: { params: Promise<{ id:
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-6 py-8 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border-grey bg-white p-5 shadow-sm">
+      <div className="card flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-navy">{documento.nomeArquivo}</h1>
           <p className="text-sm text-mid-grey">Enviado por {documento.uploadedBy.nome}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a
-            href={`/api/documentos/${documento.id}/original`}
-            className="flex items-center gap-1.5 rounded-lg border border-navy/25 bg-white px-3 py-1.5 text-sm font-medium text-navy transition-colors hover:border-navy hover:bg-navy/5"
-          >
+          <a href={`/api/documentos/${documento.id}/original`} className={BTN_OUTLINE}>
             <Download className="size-3.5" strokeWidth={2.25} />
             Baixar original
           </a>
           {documento.status === 'concluido' && (
-            <a
-              href={`/api/documentos/${documento.id}/relatorio`}
-              className="flex items-center gap-1.5 rounded-lg border border-navy/25 bg-white px-3 py-1.5 text-sm font-medium text-navy transition-colors hover:border-navy hover:bg-navy/5"
-            >
+            <a href={`/api/documentos/${documento.id}/relatorio`} className={BTN_OUTLINE}>
               <FileDown className="size-3.5" strokeWidth={2.25} />
               Baixar relatório
             </a>
           )}
-          <button
-            onClick={handleReprocessar}
-            disabled={reprocessando}
-            className="flex items-center gap-1.5 rounded-lg bg-orange px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-orange-dark disabled:opacity-50"
-          >
+          <button onClick={handleReprocessar} disabled={reprocessando} className={BTN_PRIMARY}>
             <RefreshCw className={`size-3.5 ${reprocessando ? 'animate-spin' : ''}`} strokeWidth={2.25} />
             {reprocessando ? 'Reprocessando...' : 'Reprocessar'}
           </button>
@@ -346,7 +338,7 @@ export default function DocumentoDetalhePage({ params }: { params: Promise<{ id:
             <button
               onClick={handleExcluir}
               disabled={excluindo}
-              className="flex items-center gap-1.5 rounded-lg border border-red-crit/30 bg-white px-3 py-1.5 text-sm font-medium text-red-crit transition-colors hover:border-red-crit hover:bg-red-crit-light disabled:opacity-50"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-red-crit/30 bg-white px-3.5 py-2 text-sm font-medium text-red-crit shadow-xs transition-all duration-150 hover:border-red-crit hover:bg-red-crit-light disabled:pointer-events-none disabled:opacity-50"
             >
               <Trash2 className="size-3.5" strokeWidth={2.25} />
               {excluindo ? 'Excluindo...' : 'Excluir'}
@@ -356,11 +348,11 @@ export default function DocumentoDetalhePage({ params }: { params: Promise<{ id:
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-border-grey bg-white p-5 shadow-sm">
+        <div className="card">
           <h2 className="mb-3 text-sm font-semibold text-navy uppercase tracking-wide">Documento original</h2>
           <DocumentoOriginal documento={documento} />
         </div>
-        <div className="rounded-xl border border-border-grey bg-white p-5 shadow-sm">
+        <div className="card">
           <h2 className="mb-3 text-sm font-semibold text-navy uppercase tracking-wide">Análise da IA</h2>
           <AnaliseIA documento={documento} />
         </div>

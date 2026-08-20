@@ -44,7 +44,7 @@ describe('middleware', () => {
     ;(verificarSessao as jest.Mock).mockResolvedValue({ id: 'user-1', role: 'uploader' })
     const response = await middleware(buildRequest('/admin/usuarios', `${AUTH_COOKIE_NAME}=token`))
     expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toBe('http://localhost/')
+    expect(response.headers.get('location')).toBe('http://localhost/clientes')
   })
 
   it('libera rota /api/admin pra admin', async () => {

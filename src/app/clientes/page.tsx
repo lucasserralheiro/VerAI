@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { Building2, ChevronRight, Loader2, Inbox } from 'lucide-react'
 
 interface Cliente {
   id: string
@@ -20,24 +21,39 @@ export default function ClientesPage() {
   }, [])
 
   return (
-    <main className="space-y-6 p-8">
-      <h1 className="text-xl font-semibold">Clientes</h1>
+    <main className="mx-auto max-w-7xl space-y-6 px-6 py-8 lg:px-8">
+      <div className="space-y-1">
+        <span className="text-xs font-semibold tracking-wide text-orange uppercase">Painel</span>
+        <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight text-navy">Clientes</h1>
+      </div>
 
       {carregando ? (
-        <p className="text-sm text-muted-foreground">Carregando...</p>
-      ) : clientes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Nenhum cliente disponível. Peça a um admin pra cadastrar em /admin/clientes e liberar acesso.
+        <p className="flex items-center gap-2 text-sm text-mid-grey">
+          <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
+          Carregando...
         </p>
+      ) : clientes.length === 0 ? (
+        <div className="card-flush flex flex-col items-center gap-2 p-10 text-center">
+          <span className="flex size-11 items-center justify-center rounded-full bg-light-grey text-mid-grey">
+            <Inbox className="size-5" strokeWidth={1.75} />
+          </span>
+          <p className="text-sm text-mid-grey">
+            Nenhum cliente disponível. Peça a um admin pra cadastrar em /admin/clientes e liberar acesso.
+          </p>
+        </div>
       ) : (
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {clientes.map((cliente) => (
             <li key={cliente.id}>
               <Link
                 href={`/clientes/${cliente.id}`}
-                className="block rounded border p-4 text-sm font-medium hover:bg-gray-50"
+                className="card card-interactive group flex items-center gap-3"
               >
-                {cliente.nome}
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-navy/5 text-navy group-hover:bg-orange-light group-hover:text-orange">
+                  <Building2 className="size-5" strokeWidth={2} />
+                </span>
+                <span className="flex-1 text-sm font-semibold text-navy">{cliente.nome}</span>
+                <ChevronRight className="size-4 text-mid-grey transition-transform group-hover:translate-x-0.5 group-hover:text-orange" strokeWidth={2.25} />
               </Link>
             </li>
           ))}

@@ -9,10 +9,6 @@ import {
   FileDown,
   Inbox,
   ArrowRight,
-  FileStack,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
   Trash2,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -127,10 +123,10 @@ export default function DashboardPage() {
   const totalErros = documentos.filter((d) => d.status === 'erro').length
 
   const stats = [
-    { label: 'Total no filtro', value: totalDocs, icon: FileStack },
-    { label: 'Concluídos', value: totalConcluidos, icon: CheckCircle2 },
-    { label: 'Processando', value: totalProcessando, icon: Clock },
-    { label: 'Com erro', value: totalErros, icon: AlertCircle },
+    { label: 'Total no filtro', value: totalDocs },
+    { label: 'Concluídos', value: totalConcluidos },
+    { label: 'Processando', value: totalProcessando },
+    { label: 'Com erro', value: totalErros },
   ]
 
   return (
@@ -150,9 +146,8 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {stats.map(({ label, value, icon: Icon }) => (
-          <div key={label} className="relative overflow-hidden rounded-2xl bg-navy-2 p-4 shadow-md">
-            <Icon className="icon-watermark size-20" strokeWidth={1.5} />
+        {stats.map(({ label, value }) => (
+          <div key={label} className="rounded-2xl bg-navy-2 p-4 shadow-md">
             <p className="text-[0.7rem] font-semibold tracking-wide text-white/70 uppercase">{label}</p>
             <p className="mt-1 text-3xl font-bold tabular-nums text-orange">{value}</p>
           </div>

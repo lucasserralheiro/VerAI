@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  FileSearch,
   FileText,
   Users,
   Bell,
@@ -116,10 +115,10 @@ export function NavBar() {
     >
       <Link
         href="/clientes"
-        className="group flex shrink-0 items-center gap-2 overflow-hidden px-3.5 py-4"
+        className="flex shrink-0 items-center gap-2 overflow-hidden px-3.5 py-4"
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-b from-[#ff7a34] to-orange text-white shadow-[0_2px_8px_-2px_rgba(245,105,30,0.6)] transition-transform group-hover:scale-105">
-          <FileSearch className="size-4.5" strokeWidth={2.25} />
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-orange text-sm font-bold text-white">
+          V
         </span>
         {expandida && (
           <span className="whitespace-nowrap text-base font-semibold tracking-tight text-white">
@@ -129,6 +128,11 @@ export function NavBar() {
       </Link>
 
       <div className="flex flex-1 flex-col gap-1 px-2.5 py-1">
+        {expandida && (
+          <span className="px-2.5 pt-1 pb-1 text-[0.65rem] font-semibold tracking-wide text-white/35 uppercase">
+            Análise de Documentos
+          </span>
+        )}
         {TOP_LINKS.map((link) => {
           const ativo = pathname === link.href
           const Icon = link.icon

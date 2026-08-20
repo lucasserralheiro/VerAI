@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Bell, CheckCheck, Inbox, Loader2, FileText } from 'lucide-react'
+import { Bell, CheckCheck, Inbox, Loader2 } from 'lucide-react'
 import { BTN_OUTLINE_SM } from '@/lib/ui'
 
 interface Notificacao {
@@ -72,9 +72,7 @@ export default function NotificacoesPage() {
                 href={`/documentos/${notificacao.documentoId}`}
                 className="flex items-center gap-2.5 hover:underline"
               >
-                <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${notificacao.lida ? 'bg-light-grey text-mid-grey' : 'bg-orange text-white'}`}>
-                  <FileText className="size-4" strokeWidth={2.25} />
-                </span>
+                {!notificacao.lida && <span className="size-1.5 shrink-0 rounded-full bg-orange" aria-hidden />}
                 <span>
                   <span className="font-medium text-navy">{notificacao.documento.nomeArquivo}</span>
                   <span className="block text-xs text-mid-grey">

@@ -228,8 +228,7 @@ function AnaliseIA({ documento }: { documento: Documento }) {
         <Section icon={Gauge} title="Métricas-chave">
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             {analise.metricasChave.map((metrica, i) => (
-              <div key={i} className="relative overflow-hidden rounded-xl bg-navy-2 p-3.5 shadow-sm">
-                <Gauge className="icon-watermark size-14" strokeWidth={1.5} />
+              <div key={i} className="rounded-xl bg-navy-2 p-3.5 shadow-sm">
                 <p className="text-[0.68rem] font-semibold tracking-wide text-white/70 uppercase">{metrica.label}</p>
                 <p className="mt-0.5 text-xl font-bold tabular-nums text-orange">{metrica.valorExibicao}</p>
               </div>

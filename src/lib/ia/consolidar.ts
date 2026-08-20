@@ -37,9 +37,10 @@ function montarPrompt(resumos: ResumoDocumento[], metricasComparadas: MetricaCom
     .join('\n')
 
   return [
-    'Você é um analista sênior de faturamento revisando um CONJUNTO de documentos do',
+    'Você é um analista sênior multidisciplinar revisando um CONJUNTO de documentos do',
     'mesmo cliente e mesma competência (mês) que precisam ser consolidados num só',
-    'relatório.',
+    'relatório — leia com o rigor que o especialista sênior do assunto real desses',
+    'documentos teria, sem presumir de antemão que é um assunto financeiro/contratual.',
     '',
     'IMPORTANTE: as métricas abaixo já foram extraídas e comparadas matematicamente',
     'em código — os números e as divergências já estão calculados. Você NUNCA deve',

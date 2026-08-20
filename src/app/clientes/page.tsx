@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Building2, ChevronRight, Loader2, Inbox } from 'lucide-react'
+import { ChevronRight, Loader2, Inbox } from 'lucide-react'
 
 interface Cliente {
   id: string
@@ -49,9 +49,6 @@ export default function ClientesPage() {
                 href={`/clientes/${cliente.id}`}
                 className="card card-interactive group flex items-center gap-3"
               >
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-navy/5 text-navy group-hover:bg-orange-light group-hover:text-orange">
-                  <Building2 className="size-5" strokeWidth={2} />
-                </span>
                 <span className="flex-1 text-sm font-semibold text-navy">{cliente.nome}</span>
                 <ChevronRight className="size-4 text-mid-grey transition-transform group-hover:translate-x-0.5 group-hover:text-orange" strokeWidth={2.25} />
               </Link>

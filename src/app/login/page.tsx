@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileSearch, Mail, Lock, AlertCircle } from 'lucide-react'
+import { Mail, Lock, AlertCircle } from 'lucide-react'
 import { BTN_PRIMARY } from '@/lib/ui'
 
 export default function LoginPage() {
@@ -28,20 +28,17 @@ export default function LoginPage() {
 
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
-      <section className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-navy via-navy to-navy-2 p-12 text-white lg:flex">
-        <div className="bg-dot-grid absolute inset-0 opacity-60" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,105,30,0.22),transparent_55%)]" />
-        <div className="absolute -right-24 -bottom-24 size-96 rounded-full bg-orange/10 blur-3xl" />
-        <div className="relative flex items-center gap-2">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-orange">
-            <FileSearch className="size-5" strokeWidth={2.25} />
+      <section className="hidden flex-col justify-between bg-navy p-12 text-white lg:flex">
+        <div className="flex items-center gap-2">
+          <span className="flex size-9 items-center justify-center rounded-md bg-orange text-base font-bold text-white">
+            V
           </span>
           <span className="text-lg font-semibold tracking-tight">
             Ver<span className="text-orange">AI</span>
           </span>
         </div>
 
-        <div className="relative space-y-5">
+        <div className="space-y-5">
           <span className="inline-block rounded-full bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-orange uppercase">
             Uso interno
           </span>
@@ -55,7 +52,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <p className="relative text-xs text-light-blue/70">
+        <p className="text-xs text-light-blue/70">
           © {new Date().getFullYear()} Prodam — VerAI
         </p>
       </section>
@@ -64,8 +61,8 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-6">
           <div className="space-y-1 lg:hidden">
             <div className="mb-4 flex items-center gap-2">
-              <span className="flex size-9 items-center justify-center rounded-lg bg-orange text-white">
-                <FileSearch className="size-5" strokeWidth={2.25} />
+              <span className="flex size-9 items-center justify-center rounded-md bg-orange text-base font-bold text-white">
+                V
               </span>
               <span className="text-lg font-semibold tracking-tight text-navy">
                 Ver<span className="text-orange">AI</span>

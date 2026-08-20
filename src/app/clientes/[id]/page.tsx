@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import {
   Plus,
   ChevronRight,
-  FileStack,
   Loader2,
   AlertCircle,
   Eye,
@@ -240,19 +239,9 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
                   onClick={() => toggleAberta(chave)}
                   className="group flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-navy/[0.02]"
                 >
-                  <span className="flex items-center gap-3">
-                    <span
-                      className={cn(
-                        'flex size-9 items-center justify-center rounded-lg bg-navy/5 text-navy transition-colors',
-                        expandida && 'bg-orange-light text-orange'
-                      )}
-                    >
-                      <FileStack className="size-4.5" strokeWidth={2} />
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-navy capitalize">{nomeCompetencia(c.ano, c.mes)}</span>
-                      {ehAtual && <Badge variant="navy-soft">Mês atual</Badge>}
-                    </span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-navy capitalize">{nomeCompetencia(c.ano, c.mes)}</span>
+                    {ehAtual && <Badge variant="navy-soft">Mês atual</Badge>}
                   </span>
                   <span className="flex items-center gap-2 text-sm text-mid-grey">
                     {c.quantidade} documento{c.quantidade === 1 ? '' : 's'}

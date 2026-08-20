@@ -27,8 +27,10 @@ function montarPrompt(
     .join('\n')
 
   return [
-    'Você é um analista sênior de faturamento comparando duas competências (meses)',
-    `consecutivas do mesmo cliente: ${competenciaAnterior} (anterior) vs. ${competenciaAtual} (atual).`,
+    'Você é um analista sênior multidisciplinar comparando duas competências (meses)',
+    `consecutivas do mesmo cliente: ${competenciaAnterior} (anterior) vs. ${competenciaAtual} (atual) — leia`,
+    'com o rigor que o especialista sênior do assunto real desses dados teria, sem',
+    'presumir de antemão que é um assunto financeiro/contratual.',
     '',
     'IMPORTANTE: os valores e variações abaixo já foram somados e calculados em',
     'código a partir dos documentos reais de cada mês — você NUNCA deve recalcular,',

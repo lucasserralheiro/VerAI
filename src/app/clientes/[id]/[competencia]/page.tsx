@@ -345,7 +345,7 @@ export default function ClienteCompetenciaPage({
         </nav>
 
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight text-navy capitalize">
+          <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy capitalize">
             {nomeCompetencia(parsed.ano, parsed.mes)}
           </h1>
 

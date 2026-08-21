@@ -174,7 +174,7 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
             <ChevronRight className="size-3" strokeWidth={2.5} />
             <span className="font-semibold text-navy">{cliente.nome}</span>
           </nav>
-          <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight text-navy">{cliente.nome}</h1>
+          <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">{cliente.nome}</h1>
         </div>
 
         {!seletorAberto && (

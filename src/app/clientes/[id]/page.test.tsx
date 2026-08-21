@@ -53,4 +53,11 @@ describe('ClienteDetalhePage', () => {
     expect(screen.getByText('Análise de Documentos')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Clientes' })).toHaveAttribute('href', '/clientes')
   })
+
+  it('usa font-semibold no título (não font-bold)', async () => {
+    await renderPagina()
+    const heading = await screen.findByRole('heading', { name: 'Prefeitura X' })
+    expect(heading).toHaveClass('font-semibold')
+    expect(heading).not.toHaveClass('font-bold')
+  })
 })

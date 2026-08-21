@@ -237,7 +237,7 @@
     @apply bg-navy text-white;
   }
   .table-institucional th {
-    @apply px-3.5 py-3 text-xs font-semibold tracking-wide text-white/90 uppercase first:rounded-tl-xl last:rounded-tr-xl;
+    @apply px-3.5 py-3 text-xs font-semibold text-white/90 first:rounded-tl-xl last:rounded-tr-xl;
   }
   .table-institucional tbody tr {
     @apply border-b border-border-grey/70 transition-colors last:border-b-0 odd:bg-white even:bg-light-grey/50 hover:bg-orange-light/40;

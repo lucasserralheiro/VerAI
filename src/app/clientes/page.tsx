@@ -24,7 +24,7 @@ export default function ClientesPage() {
     <main className="mx-auto max-w-7xl space-y-6 px-6 py-8 lg:px-8">
       <div className="space-y-1">
         <span className="text-xs font-semibold tracking-wide text-orange uppercase">Painel</span>
-        <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight text-navy">Clientes</h1>
+        <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">Clientes</h1>
       </div>
 
       {carregando ? (

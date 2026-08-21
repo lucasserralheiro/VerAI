@@ -105,4 +105,12 @@ describe('ClienteCompetenciaPage', () => {
       '/api/analises-evolucao/ev-1/relatorio'
     )
   })
+
+  it('usa font-semibold no título (não font-bold)', async () => {
+    mockFetchCompetencia()
+    await renderPagina()
+    const heading = await screen.findByRole('heading', { name: 'Agosto/2026' })
+    expect(heading).toHaveClass('font-semibold')
+    expect(heading).not.toHaveClass('font-bold')
+  })
 })

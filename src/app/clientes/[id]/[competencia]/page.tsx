@@ -159,6 +159,7 @@ export default function ClienteCompetenciaPage({
   const [erroEvolucao, setErroEvolucao] = useState<string | null>(null)
   const [aba, setAba] = useState<Aba>('documentos')
   const [historicoAberto, setHistoricoAberto] = useState(false)
+  const [seletorConsolidadaAberto, setSeletorConsolidadaAberto] = useState(false)
   // Por padrão, toda vez que a lista de documentos muda, selecionamos automaticamente
   // todos os concluídos — a ação óbvia é comparar tudo que já foi enviado no mês.
   // Assim que a pessoa mexe manualmente numa seleção, paramos de sobrescrever a escolha dela.
@@ -283,6 +284,7 @@ export default function ClienteCompetenciaPage({
     selecaoManualRef.current = false
     setSelecionados([])
     setAba('consolidada')
+    setSeletorConsolidadaAberto(false)
     carregar()
   }
 
@@ -397,8 +399,8 @@ export default function ClienteCompetenciaPage({
                   key={tab.key}
                   onClick={() => setAba(tab.key)}
                   className={cn(
-                    'group relative flex shrink-0 items-center gap-2 py-3 text-[0.8rem] font-semibold whitespace-nowrap tracking-wide uppercase transition-colors',
-                    ativa ? 'text-navy' : 'text-mid-grey hover:text-navy'
+                    'group relative flex shrink-0 items-center gap-2 py-3 text-[0.8rem] whitespace-nowrap transition-colors',
+                    ativa ? 'font-semibold text-navy' : 'font-medium text-mid-grey hover:text-navy'
                   )}
                 >
                   <Icon className={cn('size-3.5 transition-colors', ativa ? 'text-orange' : 'text-mid-grey/70 group-hover:text-navy')} strokeWidth={2.25} />
@@ -509,20 +511,12 @@ export default function ClienteCompetenciaPage({
                 </form>
               </Card>
 
-              {documentos.filter((d) => d.status === 'concluido').length >= 2 && (
-                <p className="flex items-center gap-1.5 text-xs text-mid-grey">
-                  <Layers className="size-3.5 shrink-0 text-mid-grey/70" strokeWidth={2.25} />
-                  Todos os documentos concluídos vêm marcados pra comparação — desmarque os que não devem entrar na análise consolidada.
-                </p>
-              )}
-
               {documentos.length > 0 && (
-                <div className={cn('card-flush', selecionados.length > 0 && 'pb-16')}>
+                <div className="card-flush">
                   <div className="overflow-x-auto">
                     <table className="table-institucional">
                       <thead>
                         <tr>
-                          <th></th>
                           <th>Arquivo</th>
                           <th>Tipo</th>
                           <th>Enviado por</th>
@@ -534,15 +528,6 @@ export default function ClienteCompetenciaPage({
                       <tbody>
                         {documentos.map((doc) => (
                           <tr key={doc.id}>
-                            <td>
-                              <input
-                                type="checkbox"
-                                disabled={doc.status !== 'concluido'}
-                                checked={selecionados.includes(doc.id)}
-                                onChange={() => toggleSelecionado(doc.id)}
-                                className="size-4 accent-orange"
-                              />
-                            </td>
                             <td className="font-medium text-navy">{doc.nomeArquivo}</td>
                             <td className="uppercase text-mid-grey">{doc.tipo}</td>
                             <td className="text-mid-grey">{doc.uploadedBy.nome}</td>
@@ -593,85 +578,96 @@ export default function ClienteCompetenciaPage({
                 </div>
               )}
 
-              {selecionados.length > 0 && (
-                <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-2xl border border-navy/10 bg-white/95 p-3 pl-4 shadow-xl backdrop-blur-sm">
-                  {selecionados.length === 1 ? (
-                    <span className="text-sm text-mid-grey">
-                      1 documento selecionado — marque pelo menos mais 1 pra comparar valores entre eles.
-                    </span>
-                  ) : (
-                    <span className="text-sm font-medium text-navy">
-                      {selecionados.length} documentos selecionados pra comparar
-                    </span>
-                  )}
-                  <button
-                    onClick={handleGerarConsolidada}
-                    disabled={gerandoConsolidada || selecionados.length < 2}
-                    title={selecionados.length < 2 ? 'Selecione pelo menos 2 documentos' : undefined}
-                    className={cn(BTN_PRIMARY, 'ml-auto')}
-                  >
-                    {gerandoConsolidada ? (
-                      <Loader2 className="size-3.5 animate-spin" strokeWidth={2.25} />
-                    ) : (
-                      <Layers className="size-3.5" strokeWidth={2.25} />
-                    )}
-                    {gerandoConsolidada ? 'Gerando...' : 'Gerar análise consolidada'}
-                  </button>
-                  <button onClick={() => setSelecionados([])} className="text-sm font-medium text-mid-grey hover:text-navy">
-                    Limpar
-                  </button>
-                  {erroConsolidada && (
-                    <span className="flex w-full items-center gap-1 text-sm text-red-crit">
-                      <AlertCircle className="size-3.5 shrink-0" strokeWidth={2.25} />
-                      {erroConsolidada}
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
           {aba === 'consolidada' && (
             <div className="space-y-3">
-              {analisesConsolidadas.length === 0 ? (
-                <div className="card flex flex-col items-center gap-2 py-10 text-center">
-                  <Layers className="size-6 text-mid-grey" strokeWidth={1.75} />
-                  <p className="max-w-sm text-sm text-mid-grey">
-                    Serve pra comparar números que deveriam bater entre fontes diferentes do mesmo mês — por exemplo, a fatura da nuvem
-                    e o controle interno — e pegar divergência antes de fechar a competência.
-                  </p>
-                  <p className="max-w-sm text-xs text-mid-grey/80">
-                    Precisa de pelo menos 2 documentos concluídos no mesmo mês pra comparar.
-                  </p>
-                  <button onClick={() => setAba('documentos')} className={BTN_OUTLINE}>
-                    Ir para Documentos
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-mid-grey">
+                Compara números que deveriam bater entre documentos diferentes do mesmo mês — pra achar
+                divergência antes de fechar a competência.
+              </p>
+
+              {(analisesConsolidadas.length === 0 || seletorConsolidadaAberto) && (
+                <Card className="space-y-3">
+                  <p className="text-sm font-medium text-navy">Marque os documentos que devem bater entre si</p>
+
+                  {documentos.filter((d) => d.status === 'concluido').length < 2 ? (
                     <p className="text-sm text-mid-grey">
-                      Números que deveriam bater entre os documentos deste mês, lado a lado — pra pegar divergência antes de fechar a
-                      competência.
+                      Precisa de pelo menos 2 documentos concluídos no mesmo mês pra comparar. Envie mais
+                      documentos na aba Documentos.
                     </p>
-                    <button onClick={() => setAba('documentos')} className={BTN_OUTLINE}>
-                      <Layers className="size-3.5" strokeWidth={2.25} />
-                      Gerar nova análise
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {documentos
+                        .filter((d) => d.status === 'concluido')
+                        .map((doc) => (
+                          <li key={doc.id}>
+                            <label className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-light-grey/60">
+                              <input
+                                type="checkbox"
+                                checked={selecionados.includes(doc.id)}
+                                onChange={() => toggleSelecionado(doc.id)}
+                                className="size-4 accent-orange"
+                              />
+                              <span className="truncate text-navy">{doc.nomeArquivo}</span>
+                            </label>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={handleGerarConsolidada}
+                      disabled={gerandoConsolidada || selecionados.length < 2}
+                      title={selecionados.length < 2 ? 'Selecione pelo menos 2 documentos' : undefined}
+                      className={BTN_PRIMARY}
+                    >
+                      {gerandoConsolidada ? (
+                        <Loader2 className="size-3.5 animate-spin" strokeWidth={2.25} />
+                      ) : (
+                        <Layers className="size-3.5" strokeWidth={2.25} />
+                      )}
+                      {gerandoConsolidada ? 'Gerando...' : 'Gerar relatório consolidado'}
                     </button>
+                    {analisesConsolidadas.length > 0 && (
+                      <button
+                        onClick={() => setSeletorConsolidadaAberto(false)}
+                        className="text-sm font-medium text-mid-grey hover:text-navy"
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                    {erroConsolidada && (
+                      <span className="flex w-full items-center gap-1 text-sm text-red-crit">
+                        <AlertCircle className="size-3.5 shrink-0" strokeWidth={2.25} />
+                        {erroConsolidada}
+                      </span>
+                    )}
                   </div>
+                </Card>
+              )}
 
+              {analiseAtual && !seletorConsolidadaAberto && (
+                <>
                   <Card className="space-y-3 border-l-[3px] border-l-orange text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-[0.7rem] font-semibold tracking-wide text-orange uppercase">Análise mais recente</p>
-                      <p className="text-xs text-mid-grey">{new Date(analiseAtual!.createdAt).toLocaleString('pt-BR')}</p>
-                    </div>
+                    {divergenciasAtuais.length > 0 ? (
+                      <Stat tone="critical">
+                        <AlertTriangle className="size-3.5" strokeWidth={2.5} />
+                        {divergenciasAtuais.length} divergência{divergenciasAtuais.length === 1 ? '' : 's'} encontrada
+                        {divergenciasAtuais.length === 1 ? '' : 's'}
+                      </Stat>
+                    ) : (
+                      <Stat tone="success">
+                        <CheckCircle2 className="size-3.5" strokeWidth={2.5} />
+                        Sem divergências
+                      </Stat>
+                    )}
 
-                    <div className="flex flex-wrap gap-1.5">
-                      {analiseAtual!.documentos.map((d) => (
-                        <Badge key={d.id} variant="outline">
-                          {d.nomeArquivo}
-                        </Badge>
-                      ))}
+                    <div className="flex items-start gap-2 rounded-lg bg-navy/[0.03] p-3">
+                      <Sparkles className="size-4 shrink-0 translate-y-0.5 text-orange" strokeWidth={1.75} />
+                      <p className="text-foreground">{analiseAtual.resumo}</p>
                     </div>
 
                     <div className="overflow-hidden overflow-x-auto rounded-lg border border-border-grey">
@@ -679,7 +675,7 @@ export default function ClienteCompetenciaPage({
                         <thead>
                           <tr>
                             <th>Métrica</th>
-                            {analiseAtual!.documentos.map((d) => (
+                            {analiseAtual.documentos.map((d) => (
                               <th key={d.id} className="truncate normal-case" title={d.nomeArquivo}>
                                 {d.nomeArquivo}
                               </th>
@@ -688,10 +684,10 @@ export default function ClienteCompetenciaPage({
                           </tr>
                         </thead>
                         <tbody>
-                          {analiseAtual!.metricasComparadas.map((m) => (
+                          {analiseAtual.metricasComparadas.map((m) => (
                             <tr key={m.label}>
                               <td className="font-medium text-navy">{m.label}</td>
-                              {analiseAtual!.documentos.map((d) => {
+                              {analiseAtual.documentos.map((d) => {
                                 const valor = m.valores.find((v) => v.documentoId === d.id)
                                 return (
                                   <td key={d.id} className="text-mid-grey">
@@ -717,18 +713,25 @@ export default function ClienteCompetenciaPage({
                       </table>
                     </div>
 
-                    <div className="flex items-start gap-2 rounded-lg bg-navy/[0.03] p-3">
-                      <Sparkles className="size-4 shrink-0 translate-y-0.5 text-orange" strokeWidth={1.75} />
-                      <p className="text-foreground">{analiseAtual!.resumo}</p>
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-grey pt-3 text-xs text-mid-grey">
+                      <button
+                        onClick={() => setSeletorConsolidadaAberto(true)}
+                        className="text-left font-medium text-mid-grey hover:text-navy"
+                      >
+                        Baseado em: {analiseAtual.documentos.map((d) => d.nomeArquivo).join(', ')} · Gerar novo
+                        relatório
+                      </button>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span>{new Date(analiseAtual.createdAt).toLocaleString('pt-BR')}</span>
+                        <a
+                          href={`/api/analises-consolidadas/${analiseAtual.id}/relatorio`}
+                          className="inline-flex items-center gap-1.5 font-medium text-navy hover:underline"
+                        >
+                          <FileDown className="size-3.5" strokeWidth={2.25} />
+                          Baixar PDF
+                        </a>
+                      </div>
                     </div>
-
-                    <a
-                      href={`/api/analises-consolidadas/${analiseAtual!.id}/relatorio`}
-                      className="inline-flex items-center gap-1.5 font-medium text-navy hover:underline"
-                    >
-                      <FileDown className="size-3.5" strokeWidth={2.25} />
-                      Baixar relatório consolidado
-                    </a>
                   </Card>
 
                   {analisesAnteriores.length > 0 && (
@@ -767,7 +770,7 @@ export default function ClienteCompetenciaPage({
                                   className="flex shrink-0 items-center gap-1.5 font-medium text-navy hover:underline"
                                 >
                                   <FileDown className="size-3.5" strokeWidth={2.25} />
-                                  Relatório
+                                  PDF
                                 </a>
                               </li>
                             )

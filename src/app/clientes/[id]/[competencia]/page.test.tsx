@@ -113,4 +113,123 @@ describe('ClienteCompetenciaPage', () => {
     expect(heading).toHaveClass('font-semibold')
     expect(heading).not.toHaveClass('font-bold')
   })
+
+  it('aba Documentos não mostra mais seleção nem barra de gerar relatório', async () => {
+    mockFetchCompetencia({
+      documentos: [
+        {
+          id: 'doc-1',
+          nomeArquivo: 'a.xlsx',
+          tipo: 'xlsx',
+          status: 'concluido',
+          createdAt: '2026-08-01T00:00:00Z',
+          uploadedById: 'u1',
+          uploadedBy: { nome: 'Ana' },
+          analise: { id: 'an-1' },
+        },
+        {
+          id: 'doc-2',
+          nomeArquivo: 'b.xlsx',
+          tipo: 'xlsx',
+          status: 'concluido',
+          createdAt: '2026-08-02T00:00:00Z',
+          uploadedById: 'u1',
+          uploadedBy: { nome: 'Ana' },
+          analise: { id: 'an-2' },
+        },
+      ],
+    })
+    await renderPagina()
+    await screen.findByRole('heading', { name: 'Agosto/2026' })
+
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Gerar relatório consolidado/ })).not.toBeInTheDocument()
+  })
+
+  it('aba Relatório Consolidado mostra o seletor de documentos quando não há relatório gerado', async () => {
+    mockFetchCompetencia({
+      documentos: [
+        {
+          id: 'doc-1',
+          nomeArquivo: 'a.xlsx',
+          tipo: 'xlsx',
+          status: 'concluido',
+          createdAt: '2026-08-01T00:00:00Z',
+          uploadedById: 'u1',
+          uploadedBy: { nome: 'Ana' },
+          analise: { id: 'an-1' },
+        },
+        {
+          id: 'doc-2',
+          nomeArquivo: 'b.xlsx',
+          tipo: 'xlsx',
+          status: 'concluido',
+          createdAt: '2026-08-02T00:00:00Z',
+          uploadedById: 'u1',
+          uploadedBy: { nome: 'Ana' },
+          analise: { id: 'an-2' },
+        },
+      ],
+    })
+    await renderPagina()
+    await screen.findByRole('heading', { name: 'Agosto/2026' })
+
+    fireEvent.click(screen.getByRole('button', { name: /Relatório consolidado/ }))
+
+    expect(await screen.findByText('Marque os documentos que devem bater entre si')).toBeInTheDocument()
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: /Gerar relatório consolidado/ })).toBeInTheDocument()
+  })
+
+  it('aba Relatório Consolidado mostra o veredito e permite reabrir o seletor quando já existe relatório', async () => {
+    mockFetchCompetencia({
+      documentos: [
+        {
+          id: 'doc-1',
+          nomeArquivo: 'a.xlsx',
+          tipo: 'xlsx',
+          status: 'concluido',
+          createdAt: '2026-08-01T00:00:00Z',
+          uploadedById: 'u1',
+          uploadedBy: { nome: 'Ana' },
+          analise: { id: 'an-1' },
+        },
+        {
+          id: 'doc-2',
+          nomeArquivo: 'b.xlsx',
+          tipo: 'xlsx',
+          status: 'concluido',
+          createdAt: '2026-08-02T00:00:00Z',
+          uploadedById: 'u1',
+          uploadedBy: { nome: 'Ana' },
+          analise: { id: 'an-2' },
+        },
+      ],
+      analisesConsolidadas: [
+        {
+          id: 'ac-1',
+          resumo: 'Os valores batem entre os documentos.',
+          metricasComparadas: [
+            {
+              label: 'Total',
+              valores: [{ documentoId: 'doc-1', nomeArquivo: 'a.xlsx', valorExibicao: 'R$ 100' }],
+              divergencia: { diferencaPercentual: 0.1 },
+            },
+          ],
+          createdAt: '2026-08-10T00:00:00Z',
+          documentos: [{ id: 'doc-1', nomeArquivo: 'a.xlsx' }],
+        },
+      ],
+    })
+    await renderPagina()
+    await screen.findByRole('heading', { name: 'Agosto/2026' })
+
+    fireEvent.click(screen.getByRole('button', { name: /Relatório consolidado/ }))
+
+    expect(await screen.findByText('1 divergência encontrada')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText(/Baseado em:/))
+    expect(await screen.findAllByRole('checkbox')).toHaveLength(2)
+  })
 })

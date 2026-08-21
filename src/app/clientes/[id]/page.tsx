@@ -166,6 +166,8 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
           <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
+            <span>Análise de Documentos</span>
+            <ChevronRight className="size-3" strokeWidth={2.5} />
             <Link href="/clientes" className="hover:text-navy hover:underline">
               Clientes
             </Link>

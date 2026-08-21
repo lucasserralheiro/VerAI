@@ -206,8 +206,8 @@ export default function ClienteCompetenciaPage({
 
   const TABS: Array<{ key: Aba; label: string; icon: typeof FileStack; count?: number }> = [
     { key: 'documentos', label: 'Documentos', icon: FileStack, count: documentos.length },
-    { key: 'consolidada', label: 'Análise consolidada', icon: Layers, count: analisesConsolidadas.length },
-    { key: 'evolucao', label: 'Evolução', icon: GitCompare },
+    { key: 'consolidada', label: 'Relatório consolidado', icon: Layers, count: analisesConsolidadas.length },
+    { key: 'evolucao', label: 'Relatório de evolução', icon: GitCompare },
   ]
 
   async function handleExcluirDocumento(doc: Documento) {
@@ -277,7 +277,7 @@ export default function ClienteCompetenciaPage({
     setGerandoConsolidada(false)
     if (!response.ok) {
       const body = await response.json().catch(() => null)
-      setErroConsolidada(body?.error ?? 'Falha ao gerar a análise consolidada.')
+      setErroConsolidada(body?.error ?? 'Falha ao gerar o relatório consolidado.')
       return
     }
     selecaoManualRef.current = false
@@ -890,7 +890,7 @@ export default function ClienteCompetenciaPage({
                       className="inline-flex items-center gap-1.5 font-medium text-navy hover:underline"
                     >
                       <FileDown className="size-3.5" strokeWidth={2.25} />
-                      Baixar relatório de evolução
+                      Baixar PDF
                     </a>
                     <button
                       onClick={handleGerarEvolucao}

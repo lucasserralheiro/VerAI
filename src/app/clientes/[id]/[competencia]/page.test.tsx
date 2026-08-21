@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { Suspense } from 'react'
 import ClienteCompetenciaPage from './page'
 
@@ -65,5 +65,44 @@ describe('ClienteCompetenciaPage', () => {
     expect(screen.getByText('Análise de Documentos')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Clientes' })).toHaveAttribute('href', '/clientes')
     expect(screen.getByRole('link', { name: 'Prefeitura X' })).toHaveAttribute('href', '/clientes/cliente-1')
+  })
+
+  it('usa o vocabulário "Relatório" nas abas em vez de "Análise"', async () => {
+    mockFetchCompetencia({
+      documentos: [
+        {
+          id: 'doc-1',
+          nomeArquivo: 'a.xlsx',
+          tipo: 'xlsx',
+          status: 'concluido',
+          createdAt: '2026-08-01T00:00:00Z',
+          uploadedById: 'u1',
+          uploadedBy: { nome: 'Ana' },
+          analise: { id: 'an-1' },
+        },
+      ],
+      analiseEvolucao: {
+        id: 'ev-1',
+        competenciaAnteriorAno: 2026,
+        competenciaAnteriorMes: 7,
+        metricasComparadas: [],
+        resumo: 'Resumo',
+        pontosAtencao: [],
+        melhorias: [],
+        createdAt: '2026-08-05T00:00:00Z',
+      },
+    })
+    await renderPagina()
+    await screen.findByRole('heading', { name: 'Agosto/2026' })
+
+    expect(screen.getByRole('button', { name: /Relatório consolidado/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Relatório de evolução' })).toBeInTheDocument()
+    expect(screen.queryByText('Análise consolidada')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Relatório de evolução' }))
+    expect(await screen.findByRole('link', { name: /Baixar PDF/ })).toHaveAttribute(
+      'href',
+      '/api/analises-evolucao/ev-1/relatorio'
+    )
   })
 })

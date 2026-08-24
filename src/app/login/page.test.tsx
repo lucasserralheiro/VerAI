@@ -1,47 +1,23 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+jest.mock('@/lib/dev-auth', () => ({ devAuthEnabled: jest.fn() }))
+jest.mock('./login-form', () => ({ LoginForm: () => <div>login-form</div> }))
+jest.mock('./dev-login-form', () => ({ DevLoginForm: () => <div>dev-login-form</div> }))
+
+import { render, screen } from '@testing-library/react'
+import { devAuthEnabled } from '@/lib/dev-auth'
 import LoginPage from './page'
 
-const pushMock = jest.fn()
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: pushMock }),
-}))
-
 describe('LoginPage', () => {
-  beforeEach(() => {
-    pushMock.mockClear()
-    global.fetch = jest.fn()
+  it('renderiza o formulário normal quando o modo dev está desligado', () => {
+    ;(devAuthEnabled as jest.Mock).mockReturnValue(false)
+    render(<LoginPage />)
+    expect(screen.getByText('login-form')).toBeInTheDocument()
+    expect(screen.queryByText('dev-login-form')).not.toBeInTheDocument()
   })
 
-  it('renderiza o formulário de login', () => {
+  it('renderiza o formulário de token quando o modo dev está ligado', () => {
+    ;(devAuthEnabled as jest.Mock).mockReturnValue(true)
     render(<LoginPage />)
-    expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('admin ou voce@empresa.com')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument()
-  })
-
-  it('redireciona para /clientes após login bem-sucedido', async () => {
-    ;(global.fetch as jest.Mock).mockResolvedValue({ ok: true })
-    render(<LoginPage />)
-
-    fireEvent.change(screen.getByPlaceholderText('admin ou voce@empresa.com'), {
-      target: { value: 'admin@verai.local' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'admin123' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
-
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/clientes'))
-  })
-
-  it('mostra mensagem de erro quando o login falha', async () => {
-    ;(global.fetch as jest.Mock).mockResolvedValue({ ok: false })
-    render(<LoginPage />)
-
-    fireEvent.change(screen.getByPlaceholderText('admin ou voce@empresa.com'), {
-      target: { value: 'admin@verai.local' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'errada' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
-
-    await waitFor(() => expect(screen.getByText('Credenciais inválidas')).toBeInTheDocument())
+    expect(screen.getByText('dev-login-form')).toBeInTheDocument()
+    expect(screen.queryByText('login-form')).not.toBeInTheDocument()
   })
 })

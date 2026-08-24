@@ -1,11 +1,9 @@
-import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { documentosVisiveisWhere, podeVerCliente } from '@/lib/visibilidade'
-import { buildUploadPath, getUploadFullPath } from '@/lib/storage'
+import { buildUploadPath, putUpload } from '@/lib/storage'
 import { extrairConteudo } from '@/lib/extracao'
 import { analisarDocumento, PROMPT_VERSION_ATUAL } from '@/lib/ia/analisar'
 import { dispararNotificacoes } from '@/lib/notificacao'
@@ -138,12 +136,10 @@ export async function POST(request: NextRequest) {
   })
 
   const caminhoRelativo = buildUploadPath(documento.id, tipo)
-  const caminhoCompleto = getUploadFullPath(caminhoRelativo)
-  await mkdir(dirname(caminhoCompleto), { recursive: true })
-  await writeFile(caminhoCompleto, buffer)
+  const url = await putUpload(caminhoRelativo, buffer)
   await prisma.documento.update({
     where: { id: documento.id },
-    data: { caminhoOriginal: caminhoRelativo },
+    data: { caminhoOriginal: url },
   })
 
   let documentoFinal

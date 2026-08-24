@@ -1,11 +1,9 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
 import type { AnaliseConsolidada } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { podeVerCliente } from '@/lib/visibilidade'
-import { buildRelatorioConsolidadoPath, getUploadFullPath } from '@/lib/storage'
+import { buildRelatorioConsolidadoPath, getUpload, putUpload } from '@/lib/storage'
 import { gerarRelatorioConsolidadoPdf } from '@/lib/pdf/gerarRelatorioConsolidado'
 
 async function obterBuffer(
@@ -15,7 +13,7 @@ async function obterBuffer(
 ): Promise<Buffer> {
   if (analise.caminhoRelatorioPdf) {
     try {
-      return await readFile(getUploadFullPath(analise.caminhoRelatorioPdf))
+      return await getUpload(analise.caminhoRelatorioPdf)
     } catch {
       // cache inválido — regenera abaixo
     }
@@ -23,12 +21,10 @@ async function obterBuffer(
 
   const buffer = await gerarRelatorioConsolidadoPdf(cliente, documentos, analise)
   const caminhoRelativo = buildRelatorioConsolidadoPath(analise.id)
-  const caminhoCompleto = getUploadFullPath(caminhoRelativo)
-  await mkdir(dirname(caminhoCompleto), { recursive: true })
-  await writeFile(caminhoCompleto, buffer)
+  const url = await putUpload(caminhoRelativo, buffer, 'application/pdf')
   await prisma.analiseConsolidada.update({
     where: { id: analise.id },
-    data: { caminhoRelatorioPdf: caminhoRelativo, relatorioGeradoEm: new Date() },
+    data: { caminhoRelatorioPdf: url, relatorioGeradoEm: new Date() },
   })
 
   return buffer

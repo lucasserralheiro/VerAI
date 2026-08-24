@@ -1,10 +1,8 @@
-import { rm } from 'node:fs/promises'
-import { dirname } from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { podeVerDocumento } from '@/lib/visibilidade'
-import { getUploadFullPath } from '@/lib/storage'
+import { buildDocumentoPrefix, deleteUploadPrefix } from '@/lib/storage'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const usuario = await getAuthUser(request)
@@ -73,10 +71,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     prisma.documento.delete({ where: { id } }),
   ])
 
-  // Apaga a pasta inteira do documento (original + relatório PDF em cache) —
-  // best-effort: se o arquivo já não existir, segue sem erro.
-  const pastaDocumento = dirname(getUploadFullPath(documento.caminhoOriginal))
-  await rm(pastaDocumento, { recursive: true, force: true }).catch(() => {})
+  // Apaga todos os blobs do documento (original + relatório PDF em cache) —
+  // best-effort: se já não existirem, segue sem erro.
+  const prefixoDocumento = buildDocumentoPrefix(documento.id, documento.createdAt)
+  await deleteUploadPrefix(prefixoDocumento).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

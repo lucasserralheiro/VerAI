@@ -1,8 +1,7 @@
-import { readFile } from 'node:fs/promises'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
-import { getUploadFullPath } from '@/lib/storage'
+import { getUpload } from '@/lib/storage'
 import { extrairConteudo } from '@/lib/extracao'
 import { analisarDocumento, PROMPT_VERSION_ATUAL } from '@/lib/ia/analisar'
 import { dispararNotificacoes } from '@/lib/notificacao'
@@ -23,7 +22,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   let documentoFinal
   try {
-    const buffer = await readFile(getUploadFullPath(documento.caminhoOriginal))
+    const buffer = await getUpload(documento.caminhoOriginal)
     const conteudoExtraido = await extrairConteudo(buffer, documento.tipo)
     const analise = await analisarDocumento(conteudoExtraido, PROMPT_VERSION_ATUAL)
 

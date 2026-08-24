@@ -1,8 +1,6 @@
-import { rm } from 'node:fs/promises'
-import { dirname } from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUploadFullPath } from '@/lib/storage'
+import { buildDocumentoPrefix, deleteUploadPrefix } from '@/lib/storage'
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -10,7 +8,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   const documentos = await prisma.documento.findMany({
     where: { clienteId: id },
-    select: { id: true, caminhoOriginal: true },
+    select: { id: true, caminhoOriginal: true, createdAt: true },
   })
 
   if (documentos.length > 0 && !forcar) {
@@ -34,11 +32,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     prisma.cliente.delete({ where: { id } }),
   ])
 
-  // Apaga as pastas de cada documento no disco — best-effort, fora da transação
-  // (é IO de arquivo, não de banco).
+  // Apaga os blobs de cada documento no storage — best-effort, fora da transação
+  // (é IO externo, não de banco).
   for (const documento of documentos) {
-    const pasta = dirname(getUploadFullPath(documento.caminhoOriginal))
-    await rm(pasta, { recursive: true, force: true }).catch(() => {})
+    const prefixo = buildDocumentoPrefix(documento.id, documento.createdAt)
+    await deleteUploadPrefix(prefixo).catch(() => {})
   }
 
   return NextResponse.json({ ok: true })

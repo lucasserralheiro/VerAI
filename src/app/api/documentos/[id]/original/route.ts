@@ -1,9 +1,8 @@
-import { readFile } from 'node:fs/promises'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { podeVerDocumento } from '@/lib/visibilidade'
-import { getUploadFullPath } from '@/lib/storage'
+import { getUpload } from '@/lib/storage'
 
 const CONTENT_TYPES: Record<string, string> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -30,7 +29,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const modoPreview = request.nextUrl.searchParams.get('modo') === 'preview'
-  const buffer = await readFile(getUploadFullPath(documento.caminhoOriginal))
+  const buffer = await getUpload(documento.caminhoOriginal)
 
   if (!modoPreview) {
     await prisma.acessoDocumento.create({
@@ -38,7 +37,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     })
   }
 
-  return new NextResponse(buffer, {
+  return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': CONTENT_TYPES[documento.tipo] ?? 'application/octet-stream',
       'Content-Disposition': `${modoPreview ? 'inline' : 'attachment'}; filename="${documento.nomeArquivo}"`,

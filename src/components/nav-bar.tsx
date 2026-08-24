@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronUp,
   Settings,
+  ArrowLeftRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -34,11 +35,18 @@ const CONFIG_LINKS = [
 const NAV_EXPANDIDA_KEY = 'verai:nav-expandida'
 const LARGURA_MINIMA_EXPANDIDA = 640 // px — abaixo disso a barra sempre abre só com ícones
 
+interface DevStatus {
+  enabled: boolean
+  impersonating: boolean
+  users: Array<{ id: string; nome: string; email: string; role: string }>
+}
+
 export function NavBar() {
   const pathname = usePathname()
   const router = useRouter()
   const [naoLidas, setNaoLidas] = useState(0)
-  const [role, setRole] = useState<string | null>(null)
+  const [usuarioAtual, setUsuarioAtual] = useState<{ nome: string; role: string } | null>(null)
+  const [devStatus, setDevStatus] = useState<DevStatus>({ enabled: false, impersonating: false, users: [] })
   // Por padrão a barra já mostra ícone + nome — nada fica escondido atrás de hover.
   // Recolher é uma ação explícita de quem quer mais espaço de tela.
   const [expandida, setExpandida] = useState(true)
@@ -50,7 +58,17 @@ export function NavBar() {
     if (naLoginPage) return
     fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
-      .then((usuario: { role: string } | null) => setRole(usuario?.role ?? null))
+      .then((usuario: { nome: string; role: string } | null) => setUsuarioAtual(usuario))
+      .catch(() => {})
+  }, [naLoginPage])
+
+  useEffect(() => {
+    if (naLoginPage) return
+    fetch('/api/auth/dev-status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((status: DevStatus | null) => {
+        if (status) setDevStatus(status)
+      })
       .catch(() => {})
   }, [naLoginPage])
 
@@ -104,7 +122,22 @@ export function NavBar() {
     router.push('/login')
   }
 
-  const ehAdmin = role === 'admin'
+  async function handleSimular(userId: string) {
+    if (!userId) return
+    await fetch('/api/dev-auth/switch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    })
+    window.location.reload()
+  }
+
+  async function handleVoltarAdmin() {
+    await fetch('/api/dev-auth/restore', { method: 'POST' })
+    window.location.reload()
+  }
+
+  const ehAdmin = usuarioAtual?.role === 'admin'
 
   return (
     <nav
@@ -222,6 +255,50 @@ export function NavBar() {
       </div>
 
       <div className="flex shrink-0 flex-col gap-1 px-2.5 py-2.5">
+        {devStatus.enabled && devStatus.impersonating && (
+          <button
+            type="button"
+            onClick={handleVoltarAdmin}
+            aria-label="Voltar para admin"
+            className="flex items-center gap-2.5 rounded-md bg-orange/15 px-2.5 py-2 text-sm font-medium text-orange transition-colors hover:bg-orange/25"
+          >
+            <ArrowLeftRight className="size-3.5 shrink-0" strokeWidth={2.25} />
+            {expandida && (
+              <span className="truncate whitespace-nowrap">
+                Vendo como {usuarioAtual?.nome ?? '...'} · Voltar para admin
+              </span>
+            )}
+          </button>
+        )}
+
+        {devStatus.enabled && !devStatus.impersonating && ehAdmin && expandida && devStatus.users.length > 0 && (
+          <div className="flex flex-col gap-1 px-0.5 pb-1">
+            <label
+              htmlFor="dev-simular-usuario"
+              className="text-[0.65rem] font-semibold tracking-wide text-white/40 uppercase"
+            >
+              Simular usuário
+            </label>
+            <select
+              id="dev-simular-usuario"
+              onChange={(event) => {
+                if (event.target.value) handleSimular(event.target.value)
+              }}
+              defaultValue=""
+              className="rounded-md border border-white/15 bg-navy-2 px-2 py-1.5 text-xs font-normal tracking-normal text-white normal-case outline-none"
+            >
+              <option value="" disabled>
+                Escolher...
+              </option>
+              {devStatus.users.map((usuario) => (
+                <option key={usuario.id} value={usuario.id}>
+                  {usuario.nome} ({usuario.role})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <button
           onClick={handleLogout}
           aria-label="Sair"

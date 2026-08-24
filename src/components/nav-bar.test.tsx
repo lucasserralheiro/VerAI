@@ -107,3 +107,74 @@ describe('NavBar', () => {
     expect(container).toBeEmptyDOMElement()
   })
 })
+
+function mockFetchComDevStatus(
+  role: string | null,
+  devStatus: {
+    enabled: boolean
+    impersonating: boolean
+    users: Array<{ id: string; nome: string; email: string; role: string }>
+  }
+) {
+  global.fetch = jest.fn((url: RequestInfo | URL) => {
+    if (url === '/api/auth/me') {
+      return Promise.resolve({
+        ok: role !== null,
+        json: () => Promise.resolve(role ? { nome: 'Fulano', role } : null),
+      }) as unknown as Promise<Response>
+    }
+    if (url === '/api/auth/dev-status') {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(devStatus) }) as unknown as Promise<Response>
+    }
+    if (url === '/api/notificacoes') {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) }) as unknown as Promise<Response>
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) }) as unknown as Promise<Response>
+  }) as jest.Mock
+}
+
+describe('NavBar — modo dev', () => {
+  beforeEach(() => {
+    pushMock.mockClear()
+    pathnameMock = '/'
+    localStorage.clear()
+  })
+
+  it('não mostra nada de dev-auth quando o modo está desligado', async () => {
+    mockFetch('admin')
+    render(<NavBar />)
+    await screen.findByRole('button', { name: 'Configuração' })
+    expect(screen.queryByText('Simular usuário')).not.toBeInTheDocument()
+  })
+
+  it('mostra o seletor "Simular usuário" para admin real com o modo ligado e chama switch ao escolher', async () => {
+    mockFetchComDevStatus('admin', {
+      enabled: true,
+      impersonating: false,
+      users: [{ id: 'u1', nome: 'Uploader Teste', email: 'up@verai.dev', role: 'uploader' }],
+    })
+    render(<NavBar />)
+
+    const select = await screen.findByLabelText('Simular usuário')
+    fireEvent.change(select, { target: { value: 'u1' } })
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/dev-auth/switch',
+        expect.objectContaining({ method: 'POST', body: JSON.stringify({ userId: 'u1' }) })
+      )
+    )
+  })
+
+  it('mostra "Voltar para admin" quando está simulando um usuário e chama restore ao clicar', async () => {
+    mockFetchComDevStatus('uploader', { enabled: true, impersonating: true, users: [] })
+    render(<NavBar />)
+
+    const botao = await screen.findByRole('button', { name: 'Voltar para admin' })
+    fireEvent.click(botao)
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith('/api/dev-auth/restore', { method: 'POST' })
+    )
+  })
+})

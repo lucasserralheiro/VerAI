@@ -21,7 +21,7 @@ import {
 import { cn } from '@/lib/utils'
 
 const TOP_LINKS = [
-  { href: '/clientes', label: 'Clientes', icon: Building2 },
+  { href: '/clientes', label: 'Relatórios dos clientes', icon: Building2 },
   { href: '/', label: 'Todos os documentos', icon: FileText },
   { href: '/notificacoes', label: 'Notificações', icon: Bell },
 ]
@@ -163,7 +163,7 @@ export function NavBar() {
       <div className="flex flex-1 flex-col gap-1 px-2.5 py-1">
         {expandida && (
           <span className="px-2.5 pt-1 pb-1 text-[0.65rem] font-semibold tracking-wide text-white/35 uppercase">
-            Análise de Documentos
+            Relatórios
           </span>
         )}
         {TOP_LINKS.map((link) => {

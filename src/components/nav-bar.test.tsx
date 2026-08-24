@@ -36,9 +36,15 @@ describe('NavBar', () => {
 
   it('renderiza os links de topo para qualquer usuário', () => {
     render(<NavBar />)
-    expect(screen.getByRole('link', { name: 'Clientes' })).toHaveAttribute('href', '/clientes')
+    expect(screen.getByRole('link', { name: 'Relatórios dos clientes' })).toHaveAttribute('href', '/clientes')
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: 'Notificações' })).toHaveAttribute('href', '/notificacoes')
+  })
+
+  it('usa "Relatórios" como cabeçalho de seção, não mais "Análise de Documentos"', () => {
+    render(<NavBar />)
+    expect(screen.getByText('Relatórios')).toBeInTheDocument()
+    expect(screen.queryByText('Análise de Documentos')).not.toBeInTheDocument()
   })
 
   it('não mostra a seção Configuração para quem não é admin', async () => {

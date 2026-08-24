@@ -333,7 +333,7 @@ export default function ClienteCompetenciaPage({
 
       <div className="space-y-2">
         <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
-          <span>Análise de Documentos</span>
+          <span>Relatórios</span>
           <ChevronRight className="size-3" strokeWidth={2.5} />
           <Link href="/clientes" className="hover:text-navy hover:underline">
             Clientes

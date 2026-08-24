@@ -57,12 +57,13 @@ export async function renderPagina() {
 }
 
 describe('ClienteCompetenciaPage', () => {
-  it('mostra "Análise de Documentos" como raiz do breadcrumb, antes de Clientes e do cliente', async () => {
+  it('mostra "Relatórios" como raiz do breadcrumb, antes de Clientes e do cliente', async () => {
     mockFetchCompetencia()
     await renderPagina()
     await screen.findByRole('heading', { name: 'Agosto/2026' })
 
-    expect(screen.getByText('Análise de Documentos')).toBeInTheDocument()
+    expect(screen.getByText('Relatórios')).toBeInTheDocument()
+    expect(screen.queryByText('Análise de Documentos')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Clientes' })).toHaveAttribute('href', '/clientes')
     expect(screen.getByRole('link', { name: 'Prefeitura X' })).toHaveAttribute('href', '/clientes/cliente-1')
   })

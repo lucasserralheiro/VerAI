@@ -46,11 +46,12 @@ describe('ClienteDetalhePage', () => {
     mockFetch()
   })
 
-  it('mostra "Análise de Documentos" como raiz do breadcrumb, antes de Clientes', async () => {
+  it('mostra "Relatórios" como raiz do breadcrumb, antes de Clientes', async () => {
     await renderPagina()
     await screen.findByRole('heading', { name: 'Prefeitura X' })
 
-    expect(screen.getByText('Análise de Documentos')).toBeInTheDocument()
+    expect(screen.getByText('Relatórios')).toBeInTheDocument()
+    expect(screen.queryByText('Análise de Documentos')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Clientes' })).toHaveAttribute('href', '/clientes')
   })
 

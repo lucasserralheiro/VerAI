@@ -17,14 +17,24 @@ import {
   ChevronUp,
   Settings,
   ArrowLeftRight,
+  ClipboardCopy,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const TOP_LINKS = [
-  { href: '/clientes', label: 'Relatórios dos clientes', icon: Building2 },
+// "Relatórios" é uma das soluções do VerAI (conjunto de soluções) — por isso
+// vive como um grupo próprio no menu, com "Relatórios dos clientes" como
+// item principal (link de verdade, com página) e "Todos os documentos" como
+// sub-item dele. Quando outra solução existir, ela ganha o mesmo formato de
+// grupo, ao lado deste.
+const RELATORIOS_LINK = { href: '/clientes', label: 'Relatórios dos clientes', icon: Building2 }
+const RELATORIOS_SUBLINKS = [
   { href: '/', label: 'Todos os documentos', icon: FileText },
-  { href: '/notificacoes', label: 'Notificações', icon: Bell },
+  { href: '/documentos-sei', label: 'Documento SEI', icon: ClipboardCopy },
 ]
+
+// Fora de qualquer solução — utilitário do produto como um todo.
+const NOTIFICACOES_LINK = { href: '/notificacoes', label: 'Notificações', icon: Bell }
 
 const CONFIG_LINKS = [
   { href: '/admin/usuarios', label: 'Usuários', icon: UserCog },
@@ -41,6 +51,50 @@ interface DevStatus {
   users: Array<{ id: string; nome: string; email: string; role: string }>
 }
 
+function LinkMenu({
+  href,
+  label,
+  icon: Icon,
+  ativo,
+  expandida,
+  badge,
+  className,
+}: {
+  href: string
+  label: string
+  icon: LucideIcon
+  ativo: boolean
+  expandida: boolean
+  badge?: number
+  className?: string
+}) {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      className={cn(
+        'relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-light-blue transition-colors hover:bg-white/[0.06] hover:text-white',
+        ativo && 'text-white',
+        className
+      )}
+    >
+      {ativo && <span className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-orange" />}
+      <span className="relative flex shrink-0 items-center justify-center">
+        <Icon className="size-3.5" strokeWidth={2.25} />
+        {!!badge && !expandida && (
+          <span className="absolute -right-1 -top-1 size-2 rounded-full bg-orange ring-2 ring-navy" />
+        )}
+      </span>
+      {expandida && <span className="truncate whitespace-nowrap">{label}</span>}
+      {!!badge && expandida && (
+        <span className="ml-auto flex min-w-[1.1rem] items-center justify-center rounded-full bg-orange px-1 py-0.5 text-[0.65rem] leading-none font-semibold text-white">
+          {badge}
+        </span>
+      )}
+    </Link>
+  )
+}
+
 export function NavBar() {
   const pathname = usePathname()
   const router = useRouter()
@@ -51,6 +105,8 @@ export function NavBar() {
   // Recolher é uma ação explícita de quem quer mais espaço de tela.
   const [expandida, setExpandida] = useState(true)
   const [configAberta, setConfigAberta] = useState(false)
+  // O grupo "Relatórios dos clientes" nasce aberto — é a solução em uso hoje.
+  const [relatoriosAberto, setRelatoriosAberto] = useState(true)
 
   const naLoginPage = pathname === '/login'
 
@@ -95,6 +151,14 @@ export function NavBar() {
     setConfigAberta(CONFIG_LINKS.some((link) => link.href === pathname))
   }, [pathname])
 
+  // Se por algum motivo o grupo Relatórios estiver fechado e a navegação cair
+  // num dos seus sub-itens, reabre — pra quem está lá dentro sempre ver onde está.
+  useEffect(() => {
+    if (RELATORIOS_SUBLINKS.some((link) => link.href === pathname)) {
+      setRelatoriosAberto(true)
+    }
+  }, [pathname])
+
   if (pathname === '/login') {
     return null
   }
@@ -115,6 +179,16 @@ export function NavBar() {
       return
     }
     setConfigAberta((aberta) => !aberta)
+  }
+
+  function alternarRelatorios() {
+    if (!expandida) {
+      setExpandida(true)
+      localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
+      setRelatoriosAberto(true)
+      return
+    }
+    setRelatoriosAberto((aberto) => !aberto)
   }
 
   async function handleLogout() {
@@ -166,35 +240,56 @@ export function NavBar() {
             Relatórios
           </span>
         )}
-        {TOP_LINKS.map((link) => {
-          const ativo = pathname === link.href
-          const Icon = link.icon
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              aria-label={link.label}
-              className={cn(
-                'relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-light-blue transition-colors hover:bg-white/[0.06] hover:text-white',
-                ativo && 'text-white'
-              )}
+
+        <div className="flex items-center gap-1">
+          <LinkMenu
+            href={RELATORIOS_LINK.href}
+            label={RELATORIOS_LINK.label}
+            icon={RELATORIOS_LINK.icon}
+            ativo={pathname === RELATORIOS_LINK.href}
+            expandida={expandida}
+            className="flex-1"
+          />
+          {expandida && (
+            <button
+              type="button"
+              onClick={alternarRelatorios}
+              aria-label={relatoriosAberto ? 'Recolher Relatórios dos clientes' : 'Expandir Relatórios dos clientes'}
+              aria-expanded={relatoriosAberto}
+              className="flex shrink-0 items-center justify-center rounded-md p-2 text-light-blue transition-colors hover:bg-white/[0.06] hover:text-white"
             >
-              {ativo && <span className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-orange" />}
-              <span className="relative flex shrink-0 items-center justify-center">
-                <Icon className="size-3.5" strokeWidth={2.25} />
-                {link.href === '/notificacoes' && naoLidas > 0 && !expandida && (
-                  <span className="absolute -right-1 -top-1 size-2 rounded-full bg-orange ring-2 ring-navy" />
-                )}
-              </span>
-              {expandida && <span className="truncate whitespace-nowrap">{link.label}</span>}
-              {link.href === '/notificacoes' && naoLidas > 0 && expandida && (
-                <span className="ml-auto flex min-w-[1.1rem] items-center justify-center rounded-full bg-orange px-1 py-0.5 text-[0.65rem] leading-none font-semibold text-white">
-                  {naoLidas}
-                </span>
+              {relatoriosAberto ? (
+                <ChevronUp className="size-3.5" strokeWidth={2.25} />
+              ) : (
+                <ChevronDown className="size-3.5" strokeWidth={2.25} />
               )}
-            </Link>
-          )
-        })}
+            </button>
+          )}
+        </div>
+
+        {expandida && relatoriosAberto && (
+          <div className="flex flex-col gap-1 pl-4">
+            {RELATORIOS_SUBLINKS.map((link) => (
+              <LinkMenu
+                key={link.href}
+                href={link.href}
+                label={link.label}
+                icon={link.icon}
+                ativo={pathname === link.href}
+                expandida={expandida}
+              />
+            ))}
+          </div>
+        )}
+
+        <LinkMenu
+          href={NOTIFICACOES_LINK.href}
+          label={NOTIFICACOES_LINK.label}
+          icon={NOTIFICACOES_LINK.icon}
+          ativo={pathname === NOTIFICACOES_LINK.href}
+          expandida={expandida}
+          badge={naoLidas}
+        />
 
         {ehAdmin && (
           <>

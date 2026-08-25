@@ -47,6 +47,51 @@ describe('NavBar', () => {
     expect(screen.queryByText('Análise de Documentos')).not.toBeInTheDocument()
   })
 
+  it('"Todos os documentos" fica dentro do grupo "Relatórios dos clientes", aberto por padrão', () => {
+    render(<NavBar />)
+    const botao = screen.getByRole('button', { name: 'Recolher Relatórios dos clientes' })
+    expect(botao).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'Todos os documentos' })).toBeInTheDocument()
+  })
+
+  it('"Documento SEI" fica dentro do grupo "Relatórios dos clientes", ao lado de "Todos os documentos"', () => {
+    render(<NavBar />)
+    expect(screen.getByRole('link', { name: 'Documento SEI' })).toHaveAttribute('href', '/documentos-sei')
+  })
+
+  it('alterna o grupo "Relatórios dos clientes" ao clicar no chevron, sem navegar', () => {
+    render(<NavBar />)
+    const botao = screen.getByRole('button', { name: 'Recolher Relatórios dos clientes' })
+
+    fireEvent.click(botao)
+    expect(screen.getByRole('button', { name: 'Expandir Relatórios dos clientes' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    expect(screen.queryByRole('link', { name: 'Todos os documentos' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Relatórios dos clientes' })).toHaveAttribute('href', '/clientes')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir Relatórios dos clientes' }))
+    expect(screen.getByRole('link', { name: 'Todos os documentos' })).toBeInTheDocument()
+  })
+
+  it('reabre o grupo "Relatórios dos clientes" ao navegar para um dos seus sub-itens', () => {
+    pathnameMock = '/notificacoes'
+    const { rerender } = render(<NavBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher Relatórios dos clientes' }))
+    expect(screen.queryByRole('link', { name: 'Todos os documentos' })).not.toBeInTheDocument()
+
+    pathnameMock = '/'
+    rerender(<NavBar />)
+    expect(screen.getByRole('link', { name: 'Todos os documentos' })).toBeInTheDocument()
+  })
+
+  it('"Notificações" fica fora do grupo "Relatórios", como item solto', () => {
+    render(<NavBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher Relatórios dos clientes' }))
+    expect(screen.getByRole('link', { name: 'Notificações' })).toHaveAttribute('href', '/notificacoes')
+  })
+
   it('não mostra a seção Configuração para quem não é admin', async () => {
     mockFetch('usuario')
     render(<NavBar />)

@@ -54,9 +54,24 @@ describe('NavBar', () => {
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).toBeInTheDocument()
   })
 
-  it('"Documento SEI" fica dentro do grupo "Relatórios dos clientes", ao lado de "Todos os documentos"', () => {
+  it('"Proposta Comercial (Conversão SEI)" é um grupo próprio, fora de "Relatórios", aberto por padrão', () => {
     render(<NavBar />)
-    expect(screen.getByRole('link', { name: 'Documento SEI' })).toHaveAttribute('href', '/documentos-sei')
+    const botao = screen.getByRole('button', { name: 'Proposta Comercial (Conversão SEI)' })
+    expect(botao).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'Histórico' })).toHaveAttribute('href', '/propostas-comerciais')
+  })
+
+  it('alterna o grupo "Proposta Comercial (Conversão SEI)" ao clicar, sem navegar', () => {
+    render(<NavBar />)
+    const botao = screen.getByRole('button', { name: 'Proposta Comercial (Conversão SEI)' })
+
+    fireEvent.click(botao)
+    expect(botao).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Histórico' })).not.toBeInTheDocument()
+
+    fireEvent.click(botao)
+    expect(botao).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'Histórico' })).toBeInTheDocument()
   })
 
   it('alterna o grupo "Relatórios dos clientes" ao clicar no chevron, sem navegar', () => {

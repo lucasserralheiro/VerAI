@@ -18,6 +18,7 @@ import {
   Settings,
   ArrowLeftRight,
   ClipboardCopy,
+  History,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -28,10 +29,12 @@ import { cn } from '@/lib/utils'
 // sub-item dele. Quando outra solução existir, ela ganha o mesmo formato de
 // grupo, ao lado deste.
 const RELATORIOS_LINK = { href: '/clientes', label: 'Relatórios dos clientes', icon: Building2 }
-const RELATORIOS_SUBLINKS = [
-  { href: '/', label: 'Todos os documentos', icon: FileText },
-  { href: '/documentos-sei', label: 'Documento SEI', icon: ClipboardCopy },
-]
+const RELATORIOS_SUBLINKS = [{ href: '/', label: 'Todos os documentos', icon: FileText }]
+
+// "Proposta Comercial (Conversão SEI)" é outro módulo à parte, sem página
+// própria de grupo (diferente de "Relatórios dos clientes") — o cabeçalho é
+// só um botão que abre/fecha o único sub-item de hoje, "Histórico".
+const PROPOSTA_COMERCIAL_SUBLINKS = [{ href: '/propostas-comerciais', label: 'Histórico', icon: History }]
 
 // Fora de qualquer solução — utilitário do produto como um todo.
 const NOTIFICACOES_LINK = { href: '/notificacoes', label: 'Notificações', icon: Bell }
@@ -107,6 +110,9 @@ export function NavBar() {
   const [configAberta, setConfigAberta] = useState(false)
   // O grupo "Relatórios dos clientes" nasce aberto — é a solução em uso hoje.
   const [relatoriosAberto, setRelatoriosAberto] = useState(true)
+  // Nasce aberto pelo mesmo motivo que "Relatórios dos clientes": é a única
+  // coisa dentro do grupo hoje, não faz sentido esconder por padrão.
+  const [propostaComercialAberto, setPropostaComercialAberto] = useState(true)
 
   const naLoginPage = pathname === '/login'
 
@@ -159,6 +165,12 @@ export function NavBar() {
     }
   }, [pathname])
 
+  useEffect(() => {
+    if (PROPOSTA_COMERCIAL_SUBLINKS.some((link) => link.href === pathname)) {
+      setPropostaComercialAberto(true)
+    }
+  }, [pathname])
+
   if (pathname === '/login') {
     return null
   }
@@ -189,6 +201,16 @@ export function NavBar() {
       return
     }
     setRelatoriosAberto((aberto) => !aberto)
+  }
+
+  function alternarPropostaComercial() {
+    if (!expandida) {
+      setExpandida(true)
+      localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
+      setPropostaComercialAberto(true)
+      return
+    }
+    setPropostaComercialAberto((aberto) => !aberto)
   }
 
   async function handleLogout() {
@@ -270,6 +292,45 @@ export function NavBar() {
         {expandida && relatoriosAberto && (
           <div className="flex flex-col gap-1 pl-4">
             {RELATORIOS_SUBLINKS.map((link) => (
+              <LinkMenu
+                key={link.href}
+                href={link.href}
+                label={link.label}
+                icon={link.icon}
+                ativo={pathname === link.href}
+                expandida={expandida}
+              />
+            ))}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={alternarPropostaComercial}
+          aria-label="Proposta Comercial (Conversão SEI)"
+          aria-expanded={propostaComercialAberto}
+          className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-light-blue transition-colors hover:bg-white/[0.06] hover:text-white"
+        >
+          <span className="flex shrink-0 items-center justify-center">
+            <ClipboardCopy className="size-3.5" strokeWidth={2.25} />
+          </span>
+          {expandida && (
+            <>
+              <span className="truncate whitespace-nowrap">Proposta Comercial (Conversão SEI)</span>
+              <span className="ml-auto flex shrink-0 items-center justify-center">
+                {propostaComercialAberto ? (
+                  <ChevronUp className="size-3.5" strokeWidth={2.25} />
+                ) : (
+                  <ChevronDown className="size-3.5" strokeWidth={2.25} />
+                )}
+              </span>
+            </>
+          )}
+        </button>
+
+        {expandida && propostaComercialAberto && (
+          <div className="flex flex-col gap-1 pl-4">
+            {PROPOSTA_COMERCIAL_SUBLINKS.map((link) => (
               <LinkMenu
                 key={link.href}
                 href={link.href}

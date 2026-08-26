@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
-import { documentosSeiVisiveisWhere, podeVerCliente } from '@/lib/visibilidade'
 import { buildUploadPath, putUpload } from '@/lib/storage'
 import { converterPdfParaMarkdown } from '@/lib/extracao/pdfMarkdown'
 
@@ -12,16 +11,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'não autenticado' }, { status: 401 })
   }
 
-  const params = request.nextUrl.searchParams
-  const clienteId = params.get('clienteId')
-  const status = params.get('status')
-
-  const filtros: Prisma.DocumentoSeiWhereInput = {}
-  if (clienteId) filtros.clienteId = clienteId
+  const status = request.nextUrl.searchParams.get('status')
+  const filtros: Prisma.PropostaComercialWhereInput = {}
   if (status) filtros.status = status
 
-  const documentosSei = await prisma.documentoSei.findMany({
-    where: { AND: [await documentosSeiVisiveisWhere(usuario), filtros] },
+  const propostas = await prisma.propostaComercial.findMany({
+    where: filtros,
     orderBy: { createdAt: 'desc' },
     select: {
       id: true,
@@ -30,13 +25,10 @@ export async function GET(request: NextRequest) {
       status: true,
       mensagemErro: true,
       createdAt: true,
-      uploadedById: true,
-      uploadedBy: { select: { nome: true } },
-      cliente: { select: { id: true, nome: true } },
     },
   })
 
-  return NextResponse.json(documentosSei)
+  return NextResponse.json(propostas)
 }
 
 export async function POST(request: NextRequest) {
@@ -54,38 +46,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'só é aceito arquivo PDF' }, { status: 400 })
   }
 
-  const clienteId = formData?.get('clienteId')
-  if (typeof clienteId !== 'string' || !clienteId) {
-    return NextResponse.json({ error: '"clienteId" é obrigatório' }, { status: 400 })
-  }
-
-  const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } })
-  if (!cliente) {
-    return NextResponse.json({ error: 'cliente não encontrado' }, { status: 404 })
-  }
-
-  const podeVer = await podeVerCliente(usuario, clienteId)
-  if (!podeVer) {
-    return NextResponse.json({ error: 'acesso negado a esse cliente' }, { status: 403 })
-  }
-
   const buffer = Buffer.from(await arquivo.arrayBuffer())
 
-  const documentoSei = await prisma.documentoSei.create({
+  const proposta = await prisma.propostaComercial.create({
     data: {
       nomeArquivo: arquivo.name,
       tamanhoBytes: buffer.length,
       caminhoOriginal: '',
-      uploadedById: usuario.id,
-      clienteId,
       status: 'rascunho',
     },
   })
 
-  const caminhoRelativo = buildUploadPath(documentoSei.id, 'pdf')
+  const caminhoRelativo = buildUploadPath(proposta.id, 'pdf')
   const url = await putUpload(caminhoRelativo, buffer)
 
-  let documentoSeiFinal
+  let propostaFinal
   try {
     const markdown = await converterPdfParaMarkdown(buffer)
     if (!markdown.trim()) {
@@ -93,13 +68,13 @@ export async function POST(request: NextRequest) {
         'não foi possível extrair texto deste PDF — parece ser um PDF escaneado sem texto selecionável'
       )
     }
-    documentoSeiFinal = await prisma.documentoSei.update({
-      where: { id: documentoSei.id },
+    propostaFinal = await prisma.propostaComercial.update({
+      where: { id: proposta.id },
       data: { caminhoOriginal: url, conteudoMarkdown: markdown, status: 'rascunho' },
     })
   } catch (error) {
-    documentoSeiFinal = await prisma.documentoSei.update({
-      where: { id: documentoSei.id },
+    propostaFinal = await prisma.propostaComercial.update({
+      where: { id: proposta.id },
       data: {
         caminhoOriginal: url,
         status: 'erro',
@@ -108,5 +83,5 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  return NextResponse.json(documentoSeiFinal, { status: 201 })
+  return NextResponse.json(propostaFinal, { status: 201 })
 }

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
-import { podeVerDocumentoSei } from '@/lib/visibilidade'
 import { getUpload } from '@/lib/storage'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -11,23 +10,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { id } = await params
-  const documentoSei = await prisma.documentoSei.findUnique({ where: { id } })
-  if (!documentoSei) {
-    return NextResponse.json({ error: 'documento SEI não encontrado' }, { status: 404 })
-  }
-
-  const podeVer = await podeVerDocumentoSei(usuario, documentoSei)
-  if (!podeVer) {
-    return NextResponse.json({ error: 'acesso negado' }, { status: 403 })
+  const proposta = await prisma.propostaComercial.findUnique({ where: { id } })
+  if (!proposta) {
+    return NextResponse.json({ error: 'proposta comercial não encontrada' }, { status: 404 })
   }
 
   const modoPreview = request.nextUrl.searchParams.get('modo') === 'preview'
-  const buffer = await getUpload(documentoSei.caminhoOriginal)
+  const buffer = await getUpload(proposta.caminhoOriginal)
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `${modoPreview ? 'inline' : 'attachment'}; filename="${documentoSei.nomeArquivo}"`,
+      'Content-Disposition': `${modoPreview ? 'inline' : 'attachment'}; filename="${proposta.nomeArquivo}"`,
     },
   })
 }

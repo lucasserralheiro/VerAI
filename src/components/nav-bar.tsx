@@ -31,9 +31,15 @@ import { cn } from '@/lib/utils'
 const RELATORIOS_LINK = { href: '/clientes', label: 'Relatórios dos clientes', icon: Building2 }
 const RELATORIOS_SUBLINKS = [{ href: '/', label: 'Todos os documentos', icon: FileText }]
 
-// "Proposta Comercial (Conversão SEI)" é outro módulo à parte, sem página
-// própria de grupo (diferente de "Relatórios dos clientes") — o cabeçalho é
-// só um botão que abre/fecha o único sub-item de hoje, "Histórico".
+// "Proposta Comercial (Conversão SEI)" é outro módulo à parte — mesmo padrão
+// de "Relatórios dos clientes": o cabeçalho já é um link de verdade pro
+// histórico (onde também dá pra iniciar uma nova conversão), com "Histórico"
+// como sub-item pra quando o grupo ganhar mais itens no futuro.
+const PROPOSTA_COMERCIAL_LINK = {
+  href: '/propostas-comerciais',
+  label: 'Proposta Comercial (Conversão SEI)',
+  icon: ClipboardCopy,
+}
 const PROPOSTA_COMERCIAL_SUBLINKS = [{ href: '/propostas-comerciais', label: 'Histórico', icon: History }]
 
 // Fora de qualquer solução — utilitário do produto como um todo.
@@ -304,29 +310,35 @@ export function NavBar() {
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={alternarPropostaComercial}
-          aria-label="Proposta Comercial (Conversão SEI)"
-          aria-expanded={propostaComercialAberto}
-          className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-light-blue transition-colors hover:bg-white/[0.06] hover:text-white"
-        >
-          <span className="flex shrink-0 items-center justify-center">
-            <ClipboardCopy className="size-3.5" strokeWidth={2.25} />
-          </span>
+        <div className="flex items-center gap-1">
+          <LinkMenu
+            href={PROPOSTA_COMERCIAL_LINK.href}
+            label={PROPOSTA_COMERCIAL_LINK.label}
+            icon={PROPOSTA_COMERCIAL_LINK.icon}
+            ativo={pathname === PROPOSTA_COMERCIAL_LINK.href}
+            expandida={expandida}
+            className="flex-1"
+          />
           {expandida && (
-            <>
-              <span className="truncate whitespace-nowrap">Proposta Comercial (Conversão SEI)</span>
-              <span className="ml-auto flex shrink-0 items-center justify-center">
-                {propostaComercialAberto ? (
-                  <ChevronUp className="size-3.5" strokeWidth={2.25} />
-                ) : (
-                  <ChevronDown className="size-3.5" strokeWidth={2.25} />
-                )}
-              </span>
-            </>
+            <button
+              type="button"
+              onClick={alternarPropostaComercial}
+              aria-label={
+                propostaComercialAberto
+                  ? 'Recolher Proposta Comercial (Conversão SEI)'
+                  : 'Expandir Proposta Comercial (Conversão SEI)'
+              }
+              aria-expanded={propostaComercialAberto}
+              className="flex shrink-0 items-center justify-center rounded-md p-2 text-light-blue transition-colors hover:bg-white/[0.06] hover:text-white"
+            >
+              {propostaComercialAberto ? (
+                <ChevronUp className="size-3.5" strokeWidth={2.25} />
+              ) : (
+                <ChevronDown className="size-3.5" strokeWidth={2.25} />
+              )}
+            </button>
           )}
-        </button>
+        </div>
 
         {expandida && propostaComercialAberto && (
           <div className="flex flex-col gap-1 pl-4">

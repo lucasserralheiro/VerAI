@@ -54,23 +54,33 @@ describe('NavBar', () => {
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).toBeInTheDocument()
   })
 
-  it('"Proposta Comercial (Conversão SEI)" é um grupo próprio, fora de "Relatórios", aberto por padrão', () => {
+  it('"Proposta Comercial (Conversão SEI)" é um link de verdade pro histórico, fora de "Relatórios", aberto por padrão', () => {
     render(<NavBar />)
-    const botao = screen.getByRole('button', { name: 'Proposta Comercial (Conversão SEI)' })
+    expect(screen.getByRole('link', { name: 'Proposta Comercial (Conversão SEI)' })).toHaveAttribute(
+      'href',
+      '/propostas-comerciais'
+    )
+    const botao = screen.getByRole('button', { name: 'Recolher Proposta Comercial (Conversão SEI)' })
     expect(botao).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('link', { name: 'Histórico' })).toHaveAttribute('href', '/propostas-comerciais')
   })
 
-  it('alterna o grupo "Proposta Comercial (Conversão SEI)" ao clicar, sem navegar', () => {
+  it('alterna o grupo "Proposta Comercial (Conversão SEI)" ao clicar no chevron, sem navegar', () => {
     render(<NavBar />)
-    const botao = screen.getByRole('button', { name: 'Proposta Comercial (Conversão SEI)' })
+    const botao = screen.getByRole('button', { name: 'Recolher Proposta Comercial (Conversão SEI)' })
 
     fireEvent.click(botao)
-    expect(botao).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Expandir Proposta Comercial (Conversão SEI)' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
     expect(screen.queryByRole('link', { name: 'Histórico' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Proposta Comercial (Conversão SEI)' })).toHaveAttribute(
+      'href',
+      '/propostas-comerciais'
+    )
 
-    fireEvent.click(botao)
-    expect(botao).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir Proposta Comercial (Conversão SEI)' }))
     expect(screen.getByRole('link', { name: 'Histórico' })).toBeInTheDocument()
   })
 

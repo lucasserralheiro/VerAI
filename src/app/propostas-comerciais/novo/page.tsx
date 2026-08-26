@@ -1,33 +1,20 @@
 'use client'
 
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, UploadCloud } from 'lucide-react'
 import { BTN_PRIMARY, INPUT_BASE } from '@/lib/ui'
 
-interface Cliente {
-  id: string
-  nome: string
-}
-
-export default function NovoDocumentoSeiPage() {
+export default function NovaPropostaComercialPage() {
   const router = useRouter()
-  const [clientes, setClientes] = useState<Cliente[]>([])
-  const [clienteId, setClienteId] = useState('')
   const [arquivo, setArquivo] = useState<File | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetch('/api/clientes')
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setClientes)
-  }, [])
-
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    if (!clienteId || !arquivo) {
-      setErro('Escolha um cliente e um arquivo PDF.')
+    if (!arquivo) {
+      setErro('Escolha um arquivo PDF.')
       return
     }
 
@@ -35,10 +22,9 @@ export default function NovoDocumentoSeiPage() {
     setErro(null)
 
     const formData = new FormData()
-    formData.set('clienteId', clienteId)
     formData.set('arquivo', arquivo)
 
-    const response = await fetch('/api/documentos-sei', { method: 'POST', body: formData })
+    const response = await fetch('/api/propostas-comerciais', { method: 'POST', body: formData })
     const resultado = await response.json().catch(() => null)
 
     if (!response.ok) {
@@ -47,29 +33,17 @@ export default function NovoDocumentoSeiPage() {
       return
     }
 
-    router.push(`/documentos-sei/${resultado.id}`)
+    router.push(`/propostas-comerciais/${resultado.id}`)
   }
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 px-6 py-8 lg:px-8">
       <div className="space-y-1">
-        <span className="text-xs font-semibold tracking-wide text-orange uppercase">Relatórios</span>
-        <h1 className="text-2xl font-bold text-navy">Novo documento SEI</h1>
+        <span className="text-xs font-semibold tracking-wide text-orange uppercase">Proposta Comercial</span>
+        <h1 className="text-2xl font-bold text-navy">Nova conversão</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="card space-y-4">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium text-mid-grey">Cliente</span>
-          <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} className={INPUT_BASE}>
-            <option value="">Escolha um cliente</option>
-            {clientes.map((cliente) => (
-              <option key={cliente.id} value={cliente.id}>
-                {cliente.nome}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-xs font-medium text-mid-grey">Proposta em PDF</span>
           <input

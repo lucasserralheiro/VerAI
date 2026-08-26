@@ -1,4 +1,6 @@
 import { extractTextItems, getDocumentProxy, type StructuredTextItem } from 'unpdf'
+import { extrairSegmentosRetosPorPagina, type SegmentoReto } from './pdfTracos'
+import { construirGradeDaPagina, detectarTabelaPorBordas, type GradeDeTabela } from './pdfTabelas'
 
 /** Gap horizontal (em pontos) acima do qual duas células passam a ser consideradas
  *  colunas separadas de uma tabela, em vez de duas palavras na mesma frase. */
@@ -14,6 +16,27 @@ const TOLERANCIA_ANCORA_COLUNA = 10
  *  é ruído de medição da extração, não uma seção nova. */
 const LIMIAR_TAMANHO_TITULO = 80
 
+/** Distância (em pontos) abaixo da linha de base do texto onde um traço de
+ *  sublinhado costuma ser desenhado. */
+const DISTANCIA_MIN_SUBLINHADO = 0.5
+const DISTANCIA_MAX_SUBLINHADO = 4
+/** Fração mínima da largura do trecho que o traço precisa cobrir pra contar
+ *  como sublinhado (evita marcar por causa de um traço decorativo curto). */
+const COBERTURA_MIN_SUBLINHADO = 0.7
+
+/** Folga mínima (em pontos) dos dois lados, e tolerância de simetria entre
+ *  elas, pra uma linha curta contar como centralizada. */
+const FOLGA_MINIMA_CENTRALIZADO = 8
+const TOLERANCIA_SIMETRIA_CENTRALIZADO = 12
+/** Uma linha "centralizada" também precisa ser bem mais estreita que a
+ *  largura útil do documento — senão qualquer linha de corpo comum, com
+ *  folgas pequenas e parecidas por acaso, seria marcada como centralizada. */
+const LARGURA_MAXIMA_CENTRALIZADO = 0.85
+
+/** Tolerância (em pontos) pra considerar que o fim de uma linha "toca" a
+ *  margem direita do documento — sinal de parágrafo justificado. */
+const TOLERANCIA_MARGEM_JUSTIFICADO = 4
+
 const REGEX_LISTA_NUMERADA = /^(\d+)[.)]\s+(.*)$/
 const REGEX_LISTA_MARCADOR = /^[•\-*]\s+(.*)$/
 const REGEX_RODAPE_PAGINA = /^page\s+\d+\s+of\s+\d+$/i
@@ -26,30 +49,30 @@ export interface ItemLinha {
   width: number
   negrito: boolean
   italico: boolean
+  sublinhado: boolean
 }
 
 export interface Linha {
   itens: ItemLinha[]
   fontSizeMedio: number
+  y: number
+  pagina: number
 }
 
-/** Aplica negrito/itálico (Markdown) a um trecho de texto — fonte única desse
- *  formato, reaproveitada tanto pra parágrafo comum quanto pra célula de
- *  tabela (posição ou borda). */
-export function formatarTexto(item: ItemLinha): string {
-  if (item.negrito && item.italico) return `***${item.texto}***`
-  if (item.negrito) return `**${item.texto}**`
-  if (item.italico) return `*${item.texto}*`
-  return item.texto
+interface Margens {
+  esquerda: number
+  direita: number
 }
 
 /**
- * Converte o conteúdo de um PDF em Markdown, preservando negrito, título, lista
- * e tabela detectados a partir da fonte e da posição de cada trecho de texto —
- * sem usar IA. É uma extração best-effort: negrito e título são confiáveis
- * (comparação direta de fonte/tamanho); tabela funciona bem em grades simples
- * e pode sair desalinhada em casos complexos. É esperado que a pessoa ajuste
- * o resultado manualmente antes de copiar.
+ * Converte o conteúdo de um PDF em Markdown, preservando negrito, itálico,
+ * sublinhado, alinhamento, título, lista e tabela detectados a partir da
+ * fonte, posição e traços vetoriais de cada página — sem usar IA. É uma
+ * extração best-effort: negrito/itálico/título são confiáveis (comparação
+ * direta de fonte/tamanho); tabela e sublinhado usam as bordas/traços
+ * desenhados no PDF quando existem (mais confiável) e caem pra heurística de
+ * posição de texto quando não. É esperado que a pessoa ajuste o resultado
+ * manualmente antes de copiar.
  *
  * O `hasEOL` do unpdf marca fim de LINHA VISUAL (onde o PDF quebra a linha na
  * página), não fim de parágrafo — por isso linhas consecutivas são reunidas num
@@ -58,25 +81,33 @@ export function formatarTexto(item: ItemLinha): string {
  */
 export async function converterPdfParaMarkdown(buffer: Buffer): Promise<string> {
   const pdf = await getDocumentProxy(new Uint8Array(buffer))
-  const { items } = await extractTextItems(pdf)
+  const { items, totalPages } = await extractTextItems(pdf)
+  const segmentosPorPagina = await extrairSegmentosRetosPorPagina(pdf, totalPages)
 
   const todasAsLinhas: Linha[] = []
-  for (const itensDaPagina of items) {
-    todasAsLinhas.push(...agruparEmLinhas(itensDaPagina))
-  }
+  items.forEach((itensDaPagina, pagina) => {
+    todasAsLinhas.push(...agruparEmLinhas(itensDaPagina, pagina, segmentosPorPagina[pagina] ?? []))
+  })
 
   const linhasSemRodape = todasAsLinhas.filter((linha) => !ehRodapeDePagina(linha))
   if (linhasSemRodape.length === 0) return ''
 
   const tamanhoCorpo = calcularTamanhoCorpo(linhasSemRodape)
-  return montarMarkdown(linhasSemRodape, tamanhoCorpo)
+  const margens = calcularMargens(linhasSemRodape)
+  const gradesPorPagina = new Map<number, GradeDeTabela>()
+  segmentosPorPagina.forEach((segmentos, pagina) => {
+    const grade = construirGradeDaPagina(segmentos)
+    if (grade) gradesPorPagina.set(pagina, grade)
+  })
+
+  return montarMarkdown(linhasSemRodape, tamanhoCorpo, margens, gradesPorPagina)
 }
 
 function ehRodapeDePagina(linha: Linha): boolean {
   return REGEX_RODAPE_PAGINA.test(extrairTextoLinha(linha))
 }
 
-function agruparEmLinhas(itens: StructuredTextItem[]): Linha[] {
+function agruparEmLinhas(itens: StructuredTextItem[], pagina: number, segmentosDaPagina: SegmentoReto[]): Linha[] {
   const linhas: Linha[] = []
   let atual: StructuredTextItem[] = []
 
@@ -84,28 +115,42 @@ function agruparEmLinhas(itens: StructuredTextItem[]): Linha[] {
     if (item.str.trim().length === 0 && atual.length === 0) continue
     atual.push(item)
     if (item.hasEOL) {
-      linhas.push(construirLinha(atual))
+      linhas.push(construirLinha(atual, pagina, segmentosDaPagina))
       atual = []
     }
   }
-  if (atual.length > 0) linhas.push(construirLinha(atual))
+  if (atual.length > 0) linhas.push(construirLinha(atual, pagina, segmentosDaPagina))
 
   return linhas
 }
 
-function construirLinha(itensBrutos: StructuredTextItem[]): Linha {
-  const itens: ItemLinha[] = itensBrutos
-    .filter((item) => item.str.trim().length > 0)
-    .map((item) => ({
-      texto: item.str,
-      x: item.x,
-      width: item.width,
-      negrito: /bold|negrito/i.test(item.fontFamily),
-      italico: /italic|oblique|itálico/i.test(item.fontFamily),
-    }))
+function construirLinha(itensBrutos: StructuredTextItem[], pagina: number, segmentosDaPagina: SegmentoReto[]): Linha {
+  const itensComTexto = itensBrutos.filter((item) => item.str.trim().length > 0)
+  const y = itensComTexto[0]?.y ?? 0
+
+  const itens: ItemLinha[] = itensComTexto.map((item) => ({
+    texto: item.str,
+    x: item.x,
+    width: item.width,
+    negrito: /bold|negrito/i.test(item.fontFamily),
+    italico: /italic|oblique|itálico/i.test(item.fontFamily),
+    sublinhado: temTracoDeSublinhado(item, y, segmentosDaPagina),
+  }))
   const fontSizeMedio =
     itensBrutos.reduce((soma, item) => soma + item.fontSize, 0) / (itensBrutos.length || 1)
-  return { itens, fontSizeMedio }
+  return { itens, fontSizeMedio, y, pagina }
+}
+
+function temTracoDeSublinhado(item: StructuredTextItem, y: number, segmentosDaPagina: SegmentoReto[]): boolean {
+  const inicio = item.x
+  const fim = item.x + item.width
+  return segmentosDaPagina.some((segmento) => {
+    if (segmento.y1 !== segmento.y2) return false // só interessa traço horizontal
+    const distancia = y - segmento.y1
+    if (distancia < DISTANCIA_MIN_SUBLINHADO || distancia > DISTANCIA_MAX_SUBLINHADO) return false
+    const sobreposicao = Math.min(fim, segmento.x2) - Math.max(inicio, segmento.x1)
+    return sobreposicao >= (fim - inicio) * COBERTURA_MIN_SUBLINHADO
+  })
 }
 
 /** Tamanho de fonte predominante do documento, usado como referência de "corpo do
@@ -127,6 +172,57 @@ function calcularTamanhoCorpo(linhas: Linha[]): number {
     }
   }
   return tamanhoMaisComum || 12
+}
+
+/** Margens esquerda/direita "úteis" do documento — esquerda é a posição X
+ *  mais à esquerda entre todas as linhas, direita é a posição X mais à
+ *  direita — usadas como referência pra detectar linha centralizada e
+ *  parágrafo justificado. */
+function calcularMargens(linhas: Linha[]): Margens {
+  let esquerda = Infinity
+  let direita = -Infinity
+  for (const linha of linhas) {
+    if (linha.itens.length === 0) continue
+    const primeiro = linha.itens[0]
+    const ultimo = linha.itens[linha.itens.length - 1]
+    esquerda = Math.min(esquerda, primeiro.x)
+    direita = Math.max(direita, ultimo.x + ultimo.width)
+  }
+  return { esquerda: Number.isFinite(esquerda) ? esquerda : 0, direita: Number.isFinite(direita) ? direita : 0 }
+}
+
+function ehCentralizado(linha: Linha, margens: Margens): boolean {
+  const larguraTotal = margens.direita - margens.esquerda
+  if (larguraTotal <= 0 || linha.itens.length === 0) return false
+
+  const primeiro = linha.itens[0]
+  const ultimo = linha.itens[linha.itens.length - 1]
+  const inicio = primeiro.x
+  const fim = ultimo.x + ultimo.width
+  const folgaEsquerda = inicio - margens.esquerda
+  const folgaDireita = margens.direita - fim
+  const larguraLinha = fim - inicio
+
+  return (
+    folgaEsquerda > FOLGA_MINIMA_CENTRALIZADO &&
+    folgaDireita > FOLGA_MINIMA_CENTRALIZADO &&
+    Math.abs(folgaEsquerda - folgaDireita) <= TOLERANCIA_SIMETRIA_CENTRALIZADO &&
+    larguraLinha < larguraTotal * LARGURA_MAXIMA_CENTRALIZADO
+  )
+}
+
+/** Justificado: parágrafo com 2+ linhas onde todas menos a última terminam
+ *  bem perto da margem direita — texto comum alinhado à esquerda tem borda
+ *  direita irregular (ragged-right); texto justificado, não. */
+function ehJustificado(linhasDoBloco: Linha[], margens: Margens): boolean {
+  if (margens.direita <= margens.esquerda) return false
+  if (linhasDoBloco.length < 2) return false
+  return linhasDoBloco.slice(0, -1).every((linha) => {
+    if (linha.itens.length === 0) return false
+    const ultimo = linha.itens[linha.itens.length - 1]
+    const fim = ultimo.x + ultimo.width
+    return margens.direita - fim <= TOLERANCIA_MARGEM_JUSTIFICADO
+  })
 }
 
 function detectarColunas(linha: Linha): number[] | null {
@@ -151,6 +247,18 @@ function incluirAncora(ancoras: number[], valor: number): void {
   if (!ancoras.some((ancora) => Math.abs(ancora - valor) <= TOLERANCIA_ANCORA_COLUNA)) {
     ancoras.push(valor)
   }
+}
+
+/** Aplica negrito/itálico/sublinhado a um trecho de texto — fonte única desse
+ *  formato, reaproveitada tanto pra parágrafo comum quanto pra célula de
+ *  tabela (posição ou borda). */
+export function formatarTexto(item: ItemLinha): string {
+  let texto = item.texto
+  if (item.negrito && item.italico) texto = `***${texto}***`
+  else if (item.negrito) texto = `**${texto}**`
+  else if (item.italico) texto = `*${texto}*`
+  if (item.sublinhado) texto = `<u>${texto}</u>`
+  return texto
 }
 
 function linhaParaColunas(linha: Linha, anchors: number[]): string[] {
@@ -196,12 +304,16 @@ function ehTitulo(linha: Linha, tamanhoCorpo: number): boolean {
   return linha.fontSizeMedio >= tamanhoCorpo * 1.15
 }
 
-function formatarTitulo(linha: Linha, tamanhoCorpo: number): string {
+function formatarTitulo(linha: Linha, tamanhoCorpo: number, margens: Margens): string {
   const texto = extrairTextoLinha(linha)
-  return linha.fontSizeMedio >= tamanhoCorpo * 1.5 ? `# ${texto}` : `## ${texto}`
+  const nivel = linha.fontSizeMedio >= tamanhoCorpo * 1.5 ? 1 : 2
+  if (ehCentralizado(linha, margens)) {
+    return `<h${nivel} align="center">${texto}</h${nivel}>`
+  }
+  return `${'#'.repeat(nivel)} ${texto}`
 }
 
-function formatarBlocoDeTexto(textos: string[]): string {
+function formatarBlocoDeTexto(textos: string[], linhasDoBloco: Linha[], margens: Margens): string {
   const textoCompleto = textos.join(' ')
 
   const numerada = textoCompleto.match(REGEX_LISTA_NUMERADA)
@@ -209,6 +321,13 @@ function formatarBlocoDeTexto(textos: string[]): string {
 
   const marcada = textoCompleto.match(REGEX_LISTA_MARCADOR)
   if (marcada) return `- ${marcada[1]}`
+
+  if (linhasDoBloco.length === 1 && ehCentralizado(linhasDoBloco[0], margens)) {
+    return `<p align="center">${textoCompleto}</p>`
+  }
+  if (linhasDoBloco.length >= 2 && ehJustificado(linhasDoBloco, margens)) {
+    return `<p align="justify">${textoCompleto}</p>`
+  }
 
   return textoCompleto
 }
@@ -221,7 +340,8 @@ function absorverBloco(
   linhas: Linha[],
   indiceInicial: number,
   tamanhoCorpo: number
-): { textos: string[]; proximoIndice: number } {
+): { textos: string[]; linhasConsumidas: Linha[]; proximoIndice: number } {
+  const linhasConsumidas = [linhas[indiceInicial]]
   const textos = [extrairTextoLinha(linhas[indiceInicial])]
   let j = indiceInicial + 1
 
@@ -235,17 +355,18 @@ function absorverBloco(
     if (detectarColunas(candidata)) break
 
     textos.push(textoCandidata)
+    linhasConsumidas.push(candidata)
     j++
   }
 
-  return { textos, proximoIndice: j }
+  return { textos, linhasConsumidas, proximoIndice: j }
 }
 
 /** Reúne, a partir de `indiceInicial`, uma sequência de linhas que parecem linhas
- *  de tabela (têm colunas detectáveis), unificando as âncoras de coluna de todas
- *  elas — assim cabeçalho e linhas de dados com layouts de coluna levemente
- *  diferentes ainda formam uma única tabela, em vez de a tabela ser descartada. */
-function absorverTabela(
+ *  de tabela por POSIÇÃO de texto (têm colunas detectáveis), unificando as âncoras
+ *  de coluna de todas elas. Fallback usado só quando a página não tem uma grade de
+ *  bordas visuais reconhecível (`detectarTabelaPorBordas` devolveu `null`). */
+function absorverTabelaPorPosicao(
   linhas: Linha[],
   indiceInicial: number
 ): { markdown: string; proximoIndice: number } | null {
@@ -271,26 +392,39 @@ function absorverTabela(
   return { markdown: montarTabelaMarkdown(linhasFormatadas), proximoIndice: j }
 }
 
-function montarMarkdown(linhas: Linha[], tamanhoCorpo: number): string {
+function montarMarkdown(
+  linhas: Linha[],
+  tamanhoCorpo: number,
+  margens: Margens,
+  gradesPorPagina: Map<number, GradeDeTabela>
+): string {
   const blocos: string[] = []
   let i = 0
 
   while (i < linhas.length) {
-    const tabela = absorverTabela(linhas, i)
-    if (tabela) {
-      blocos.push(tabela.markdown)
-      i = tabela.proximoIndice
+    const grade = gradesPorPagina.get(linhas[i].pagina)
+    const tabelaPorBordas = grade ? detectarTabelaPorBordas(linhas, i, grade) : null
+    if (tabelaPorBordas) {
+      blocos.push(tabelaPorBordas.markdown)
+      i = tabelaPorBordas.proximoIndice
+      continue
+    }
+
+    const tabelaPorPosicao = absorverTabelaPorPosicao(linhas, i)
+    if (tabelaPorPosicao) {
+      blocos.push(tabelaPorPosicao.markdown)
+      i = tabelaPorPosicao.proximoIndice
       continue
     }
 
     if (ehTitulo(linhas[i], tamanhoCorpo)) {
-      blocos.push(formatarTitulo(linhas[i], tamanhoCorpo))
+      blocos.push(formatarTitulo(linhas[i], tamanhoCorpo, margens))
       i++
       continue
     }
 
-    const { textos, proximoIndice } = absorverBloco(linhas, i, tamanhoCorpo)
-    blocos.push(formatarBlocoDeTexto(textos))
+    const { textos, linhasConsumidas, proximoIndice } = absorverBloco(linhas, i, tamanhoCorpo)
+    blocos.push(formatarBlocoDeTexto(textos, linhasConsumidas, margens))
     i = proximoIndice
   }
 

@@ -963,7 +963,9 @@ import { extrairSegmentosRetosPorPagina } from './pdfTracos'
 
 // Códigos reais do pdf.js (conferidos com `OPS` de `getResolvedPDFJS()` numa
 // instalação real do unpdf) — fixos aqui pro teste não depender do pacote.
-const OPS_FAKE = {
+// `var` (não `const`) + nome começando com "mock" porque `jest.mock` abaixo é
+// hoisted pro topo do arquivo — com `const` o mock capturaria `undefined`.
+var mockOps = {
   save: 10,
   restore: 11,
   transform: 12,
@@ -978,8 +980,11 @@ const OPS_FAKE = {
   constructPath: 91,
 }
 
+// Fábrica lê `mockOps` só quando chamada (não no `.mockResolvedValue` direto)
+// — assim pega o valor já atribuído, mesmo com a atribuição vindo "depois"
+// do `jest.mock` hoisted.
 jest.mock('unpdf', () => ({
-  getResolvedPDFJS: jest.fn().mockResolvedValue({ OPS: OPS_FAKE }),
+  getResolvedPDFJS: jest.fn(() => Promise.resolve({ OPS: mockOps })),
 }))
 
 function pdfFalso(fnArray: number[], argsArray: unknown[]) {
@@ -994,10 +999,10 @@ describe('extrairSegmentosRetosPorPagina', () => {
   it('extrai uma linha horizontal (moveTo + lineTo) já convertida pela matriz de transformação corrente', async () => {
     const caminho = new Float32Array([0, 100, 50, 1, 300, 50]) // moveTo(100,50) lineTo(300,50)
     const pdf = pdfFalso(
-      [OPS_FAKE.transform, OPS_FAKE.constructPath],
+      [mockOps.transform, mockOps.constructPath],
       [
         [1, 0, 0, 1, 10, 20], // translada (10, 20)
-        [OPS_FAKE.stroke, [caminho], new Float32Array([100, 50, 300, 50])],
+        [mockOps.stroke, [caminho], new Float32Array([100, 50, 300, 50])],
       ]
     )
 
@@ -1009,12 +1014,12 @@ describe('extrairSegmentosRetosPorPagina', () => {
   it('respeita save/restore ao acumular a matriz — transform dentro de save/restore não vaza pro traço seguinte', async () => {
     const caminho = new Float32Array([0, 0, 0, 1, 100, 0])
     const pdf = pdfFalso(
-      [OPS_FAKE.save, OPS_FAKE.transform, OPS_FAKE.restore, OPS_FAKE.constructPath],
+      [mockOps.save, mockOps.transform, mockOps.restore, mockOps.constructPath],
       [
         null,
         [1, 0, 0, 1, 1000, 1000],
         null,
-        [OPS_FAKE.stroke, [caminho], new Float32Array([0, 0, 100, 0])],
+        [mockOps.stroke, [caminho], new Float32Array([0, 0, 100, 0])],
       ]
     )
 
@@ -1026,8 +1031,8 @@ describe('extrairSegmentosRetosPorPagina', () => {
   it('descarta segmento diagonal (não é reto horizontal nem vertical)', async () => {
     const caminho = new Float32Array([0, 0, 0, 1, 100, 100])
     const pdf = pdfFalso(
-      [OPS_FAKE.constructPath],
-      [[OPS_FAKE.stroke, [caminho], new Float32Array([0, 0, 100, 100])]]
+      [mockOps.constructPath],
+      [[mockOps.stroke, [caminho], new Float32Array([0, 0, 100, 100])]]
     )
 
     const [segmentosPagina1] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
@@ -1038,8 +1043,8 @@ describe('extrairSegmentosRetosPorPagina', () => {
   it('ignora path preenchido não-fino (não é traço nem barra de sublinhado)', async () => {
     const caminho = new Float32Array([0, 0, 0, 1, 50, 0, 1, 50, 50, 1, 0, 50, 4])
     const pdf = pdfFalso(
-      [OPS_FAKE.constructPath],
-      [[OPS_FAKE.fill, [caminho], new Float32Array([0, 0, 50, 50])]]
+      [mockOps.constructPath],
+      [[mockOps.fill, [caminho], new Float32Array([0, 0, 50, 50])]]
     )
 
     const [segmentosPagina1] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
@@ -1051,8 +1056,8 @@ describe('extrairSegmentosRetosPorPagina', () => {
     // retângulo fino: moveTo(0,0) lineTo(100,0) lineTo(100,2) lineTo(0,2) closePath
     const caminho = new Float32Array([0, 0, 0, 1, 100, 0, 1, 100, 2, 1, 0, 2, 4])
     const pdf = pdfFalso(
-      [OPS_FAKE.constructPath],
-      [[OPS_FAKE.fill, [caminho], new Float32Array([0, 0, 100, 2])]]
+      [mockOps.constructPath],
+      [[mockOps.fill, [caminho], new Float32Array([0, 0, 100, 2])]]
     )
 
     const [segmentosPagina1] = await extrairSegmentosRetosPorPagina(pdf as never, 1)

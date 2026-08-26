@@ -20,16 +20,27 @@ const REGEX_RODAPE_PAGINA = /^page\s+\d+\s+of\s+\d+$/i
 /** Fim de frase/parágrafo: pontuação final, opcionalmente seguida de aspas/parêntese. */
 const REGEX_PONTUACAO_FINAL = /[.:;!?]["'”)\]]?$/
 
-interface ItemLinha {
+export interface ItemLinha {
   texto: string
   x: number
   width: number
   negrito: boolean
+  italico: boolean
 }
 
-interface Linha {
+export interface Linha {
   itens: ItemLinha[]
   fontSizeMedio: number
+}
+
+/** Aplica negrito/itálico (Markdown) a um trecho de texto — fonte única desse
+ *  formato, reaproveitada tanto pra parágrafo comum quanto pra célula de
+ *  tabela (posição ou borda). */
+export function formatarTexto(item: ItemLinha): string {
+  if (item.negrito && item.italico) return `***${item.texto}***`
+  if (item.negrito) return `**${item.texto}**`
+  if (item.italico) return `*${item.texto}*`
+  return item.texto
 }
 
 /**
@@ -90,6 +101,7 @@ function construirLinha(itensBrutos: StructuredTextItem[]): Linha {
       x: item.x,
       width: item.width,
       negrito: /bold|negrito/i.test(item.fontFamily),
+      italico: /italic|oblique|itálico/i.test(item.fontFamily),
     }))
   const fontSizeMedio =
     itensBrutos.reduce((soma, item) => soma + item.fontSize, 0) / (itensBrutos.length || 1)
@@ -151,23 +163,20 @@ function linhaParaColunas(linha: Linha, anchors: number[]): string[] {
         break
       }
     }
-    const texto = item.negrito ? `**${item.texto}**` : item.texto
+    const texto = formatarTexto(item)
     celulas[indiceColuna] = celulas[indiceColuna] ? `${celulas[indiceColuna]} ${texto}` : texto
   }
   return celulas
 }
 
-function montarTabelaMarkdown(linhas: string[][]): string {
+export function montarTabelaMarkdown(linhas: string[][]): string {
   const [cabecalho, ...resto] = linhas
   const separador = cabecalho.map(() => '---')
   return [cabecalho, separador, ...resto].map((linha) => `| ${linha.join(' | ')} |`).join('\n')
 }
 
 function extrairTextoLinha(linha: Linha): string {
-  return linha.itens
-    .map((item) => (item.negrito ? `**${item.texto}**` : item.texto))
-    .join(' ')
-    .trim()
+  return linha.itens.map((item) => formatarTexto(item)).join(' ').trim()
 }
 
 function terminaComPontuacaoFinal(texto: string): boolean {

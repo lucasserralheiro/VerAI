@@ -35,6 +35,28 @@ describe('converterPdfParaMarkdown', () => {
     expect(resultado).toBe('**Cláusula 1**')
   })
 
+  it('envolve trecho em itálico com *...*', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 1,
+      items: [[item({ str: 'Termo em itálico', x: 0, fontFamily: 'Helvetica-Oblique', hasEOL: true })]],
+    })
+
+    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+    expect(resultado).toBe('*Termo em itálico*')
+  })
+
+  it('combina negrito e itálico em ***...*** quando os dois batem no mesmo trecho', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 1,
+      items: [[item({ str: 'Muito importante', x: 0, fontFamily: 'Helvetica-BoldOblique', hasEOL: true })]],
+    })
+
+    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+    expect(resultado).toBe('***Muito importante***')
+  })
+
   it('detecta título por tamanho de fonte maior que o corpo do texto', async () => {
     ;(extractTextItems as jest.Mock).mockResolvedValue({
       totalPages: 1,

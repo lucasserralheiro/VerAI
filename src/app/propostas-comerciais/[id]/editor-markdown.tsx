@@ -6,12 +6,12 @@ import { FileText, X } from 'lucide-react'
 import { BTN_PRIMARY, BTN_OUTLINE } from '@/lib/ui'
 
 export interface EditorMarkdownProps {
-  documentoId: string
+  propostaId: string
   conteudoInicial: string
   onSalvar: (markdown: string) => Promise<void>
 }
 
-export function EditorMarkdown({ documentoId, conteudoInicial, onSalvar }: EditorMarkdownProps) {
+export function EditorMarkdown({ propostaId, conteudoInicial, onSalvar }: EditorMarkdownProps) {
   const [markdown, setMarkdown] = useState(conteudoInicial)
   const [modalAberto, setModalAberto] = useState(false)
   const [salvando, setSalvando] = useState(false)
@@ -61,7 +61,7 @@ export function EditorMarkdown({ documentoId, conteudoInicial, onSalvar }: Edito
               </button>
             </div>
             <iframe
-              src={`/api/documentos-sei/${documentoId}/original?modo=preview`}
+              src={`/api/propostas-comerciais/${propostaId}/original?modo=preview`}
               className="h-full w-full rounded-lg border border-border-grey"
               title="PDF original"
             />

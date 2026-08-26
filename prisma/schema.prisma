@@ -15,7 +15,6 @@ model Usuario {
   role       String   // uploader | responsavel | admin
   createdAt  DateTime @default(now())
   documentos Documento[]
-  documentosSei DocumentoSei[]
   acessos    AcessoDocumento[]
   clientesPermitidos Cliente[] @relation("UsuarioClientes")
 }
@@ -26,7 +25,6 @@ model Cliente {
   createdAt          DateTime    @default(now())
   usuariosPermitidos Usuario[]   @relation("UsuarioClientes")
   documentos         Documento[]
-  documentosSei      DocumentoSei[]
   analisesConsolidadas AnaliseConsolidada[]
   analisesEvolucao  AnaliseEvolucao[]
 }
@@ -110,7 +108,7 @@ model Analise {
   createdAt           DateTime  @default(now())
 }
 
-model DocumentoSei {
+model PropostaComercial {
   id               String    @id @default(cuid())
   nomeArquivo      String
   tamanhoBytes     Int
@@ -118,13 +116,7 @@ model DocumentoSei {
   conteudoMarkdown String?   @db.Text // null só quando status é "erro"
   status           String    @default("rascunho") // rascunho | concluido | erro
   mensagemErro     String?
-  uploadedById     String
-  uploadedBy       Usuario   @relation(fields: [uploadedById], references: [id])
-  clienteId        String
-  cliente          Cliente   @relation(fields: [clienteId], references: [id])
   createdAt        DateTime  @default(now())
-
-  @@index([clienteId])
 }
 
 model RegraNotificacao {

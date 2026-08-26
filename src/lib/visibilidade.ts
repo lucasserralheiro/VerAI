@@ -1,4 +1,4 @@
-import type { Documento, DocumentoSei, Prisma } from '@prisma/client'
+import type { Documento, Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 import type { AuthUser } from './auth'
 
@@ -66,23 +66,4 @@ export async function clientesVisiveisWhere(usuario: AuthUser): Promise<Prisma.C
 export async function podeVerCliente(usuario: AuthUser, clienteId: string): Promise<boolean> {
   const ids = await clienteIdsPermitidos(usuario)
   return ids === null || ids.includes(clienteId)
-}
-
-export async function documentosSeiVisiveisWhere(usuario: AuthUser): Promise<Prisma.DocumentoSeiWhereInput> {
-  const idsClientes = await clienteIdsPermitidos(usuario)
-  const restricaoCliente: Prisma.DocumentoSeiWhereInput =
-    idsClientes === null ? {} : { clienteId: { in: idsClientes } }
-
-  if (usuario.role === 'uploader') {
-    return { AND: [restricaoCliente, { uploadedById: usuario.id }] }
-  }
-  return restricaoCliente
-}
-
-export async function podeVerDocumentoSei(usuario: AuthUser, documentoSei: DocumentoSei): Promise<boolean> {
-  const idsClientes = await clienteIdsPermitidos(usuario)
-  if (idsClientes !== null && !idsClientes.includes(documentoSei.clienteId)) return false
-
-  if (usuario.role === 'uploader') return documentoSei.uploadedById === usuario.id
-  return true
 }

@@ -77,6 +77,19 @@ describe('POST /api/propostas-comerciais/[id]/revisao-portugues', () => {
     })
   })
 
+  it('retorna 502 quando a chamada de IA falha', async () => {
+    ;(prisma.propostaComercial.findUnique as jest.Mock).mockResolvedValue({
+      id: 'p1',
+      conteudoMarkdown: 'texto qualquer',
+    })
+    ;(revisarPortugues as jest.Mock).mockRejectedValue(new Error('modelo indisponível'))
+
+    const resposta = await POST(requisicao(), contexto)
+
+    expect(resposta.status).toBe(502)
+    await expect(resposta.json()).resolves.toEqual({ error: expect.stringMatching(/modelo indisponível/) })
+  })
+
   it('retorna 422 quando a revisão altera um número', async () => {
     ;(prisma.propostaComercial.findUnique as jest.Mock).mockResolvedValue({
       id: 'p1',

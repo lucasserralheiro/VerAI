@@ -35,7 +35,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'a proposta ainda não tem conteúdo pra revisar' }, { status: 400 })
   }
 
-  const corrigido = await revisarPortugues(original)
+  let corrigido: string
+  try {
+    corrigido = await revisarPortugues(original)
+  } catch (erro) {
+    console.error('revisão de português falhou:', erro)
+    const detalhe = erro instanceof Error ? erro.message : String(erro)
+    return NextResponse.json(
+      { error: `não foi possível revisar o texto agora (${detalhe})` },
+      { status: 502 }
+    )
+  }
 
   const problema = validarRevisaoPortugues(original, corrigido)
   if (problema) {

@@ -5,9 +5,10 @@ import { ClipboardCheck, ClipboardCopy, Sparkles } from 'lucide-react'
 import { BTN_PRIMARY } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { copiarMarkdownFormatado } from '@/lib/copiarMarkdownFormatado'
-import { renderizarMarkdownProposta } from '@/lib/renderizarMarkdownProposta'
 import { PainelRevisaoPortugues } from './painel-revisao-portugues'
 import { ArquivoOriginal, MenuArquivosOriginais, ModalArquivoOriginal } from './arquivos-originais'
+import { ConteudoEditavelProposta } from './conteudo-editavel-proposta'
+import { EditarComoTexto } from './editar-como-texto'
 
 export interface EditorMarkdownProps {
   propostaId: string
@@ -19,7 +20,7 @@ export interface EditorMarkdownProps {
 export function EditorMarkdown({ propostaId, conteudoInicial, arquivosOriginais, onSalvar }: EditorMarkdownProps) {
   const [texto, setTexto] = useState(conteudoInicial)
   const [arquivos, setArquivos] = useState(arquivosOriginais)
-  const [aba, setAba] = useState<'visualizar' | 'editar' | 'correcao'>('visualizar')
+  const [aba, setAba] = useState<'visualizar' | 'correcao'>('visualizar')
   const [arquivoAberto, setArquivoAberto] = useState<ArquivoOriginal | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [copiado, setCopiado] = useState(false)
@@ -43,7 +44,7 @@ export function EditorMarkdown({ propostaId, conteudoInicial, arquivosOriginais,
   async function handleRemoverArquivo(arquivo: ArquivoOriginal) {
     if (
       !confirm(
-        `Remover "${arquivo.nomeArquivo}" dos arquivos originais desta proposta? O texto já gerado não é alterado automaticamente — se precisar, ajuste manualmente na aba "Editar texto".`
+        `Remover "${arquivo.nomeArquivo}" dos arquivos originais desta proposta? O texto já gerado não é alterado automaticamente — se precisar, ajuste manualmente o conteúdo.`
       )
     ) {
       return
@@ -90,16 +91,6 @@ export function EditorMarkdown({ propostaId, conteudoInicial, arquivosOriginais,
           </button>
           <button
             type="button"
-            onClick={() => setAba('editar')}
-            className={cn(
-              'rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors',
-              aba === 'editar' ? 'bg-white text-navy shadow-xs' : 'text-mid-grey hover:text-navy'
-            )}
-          >
-            Editar texto
-          </button>
-          <button
-            type="button"
             onClick={() => setAba('correcao')}
             className={cn(
               'inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors',
@@ -136,25 +127,9 @@ export function EditorMarkdown({ propostaId, conteudoInicial, arquivosOriginais,
       </div>
 
       {aba === 'visualizar' && (
-        <div
-          aria-label="Visualização da proposta"
-          className="markdown-preview h-[65vh] overflow-auto rounded-lg border border-border-grey bg-white p-4"
-          dangerouslySetInnerHTML={{ __html: renderizarMarkdownProposta(texto) }}
-        />
-      )}
-
-      {aba === 'editar' && (
-        <div className="flex flex-col gap-1.5">
-          <textarea
-            aria-label="Texto da proposta"
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            className="h-[65vh] w-full rounded-lg border border-border-grey p-3.5 text-sm leading-relaxed outline-none focus:border-orange"
-          />
-          <p className="text-xs text-mid-grey">
-            A formatação (negrito, títulos, tabelas) é atualizada automaticamente — confira o resultado na aba
-            &quot;Visualizar&quot;.
-          </p>
+        <div className="space-y-1.5">
+          <ConteudoEditavelProposta markdown={texto} onChange={setTexto} />
+          <EditarComoTexto markdown={texto} onChange={setTexto} />
         </div>
       )}
 

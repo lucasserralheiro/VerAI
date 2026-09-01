@@ -1,11 +1,22 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { PainelRevisaoPortugues } from './painel-revisao-portugues'
+import { limparRevisao } from '@/lib/revisaoPortuguesEmAndamento'
 
 function mockFetch(resposta: { ok: boolean; body: unknown }) {
   global.fetch = jest.fn().mockResolvedValue({
     ok: resposta.ok,
     json: () => Promise.resolve(resposta.body),
   }) as jest.Mock
+}
+
+/** fetch que só resolve quando a gente mandar — pra testar o estado "rodando". */
+function mockFetchPendente() {
+  let resolver!: (v: unknown) => void
+  const pendente = new Promise((r) => {
+    resolver = r
+  })
+  global.fetch = jest.fn().mockReturnValue(pendente) as jest.Mock
+  return (body: unknown) => resolver({ ok: true, json: () => Promise.resolve(body) })
 }
 
 const props = {
@@ -17,6 +28,7 @@ const props = {
 describe('PainelRevisaoPortugues', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    limparRevisao('p1')
   })
 
   it('começa com o botão "Revisar português" e a explicação do que a IA faz', () => {
@@ -88,6 +100,39 @@ describe('PainelRevisaoPortugues', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Revisar português/ }))
 
-    expect(await screen.findByText(/Não foi possível revisar o texto/)).toBeInTheDocument()
+    expect(await screen.findByText(/rede caiu|Não foi possível revisar o texto/)).toBeInTheDocument()
+  })
+
+  it('não cancela ao desmontar: ao voltar, a revisão continua e o resultado aparece', async () => {
+    const concluir = mockFetchPendente()
+    const { unmount } = render(<PainelRevisaoPortugues {...props} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Revisar português/ }))
+    expect(await screen.findByText(/Revisando/)).toBeInTheDocument()
+
+    // usuário troca de aba — painel desmonta enquanto a chamada roda
+    unmount()
+
+    // e a resposta chega com o painel desmontado
+    concluir({ original: 'A proposta e boa.', corrigido: 'A proposta é boa.' })
+
+    // volta pra aba: remonta e recupera o resultado, sem nova chamada
+    render(<PainelRevisaoPortugues {...props} />)
+    expect(await screen.findByRole('button', { name: /Usar correções/ })).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('clicar em "Revisar" enquanto já roda não dispara segunda chamada', async () => {
+    mockFetchPendente()
+    render(<PainelRevisaoPortugues {...props} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Revisar português/ }))
+    await screen.findByText(/Revisando/)
+
+    // remonta e a nova instância não deve refazer a chamada
+    render(<PainelRevisaoPortugues {...props} />)
+    await waitFor(() => expect(screen.getAllByText(/Revisando/).length).toBeGreaterThan(0))
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
   })
 })

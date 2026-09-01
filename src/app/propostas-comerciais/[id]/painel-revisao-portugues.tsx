@@ -1,9 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react'
 import { BTN_PRIMARY, BTN_OUTLINE } from '@/lib/ui'
 import { diffPropostaRenderizada } from '@/lib/diffPropostaRenderizada'
+import {
+  iniciarRevisao,
+  limparRevisao,
+  revisaoAtual,
+  type ResultadoRevisao,
+} from '@/lib/revisaoPortuguesEmAndamento'
 
 type EstadoRevisao =
   | { fase: 'inicial' }
@@ -23,41 +29,70 @@ export interface PainelRevisaoPortuguesProps {
 
 /**
  * Painel da revisão ortográfica sob demanda — usado tanto no editor (rascunho)
- * quanto na tela final. Roda o endpoint stateless, mostra o diff destacado e
- * deixa o usuário aceitar ou recusar. Nada é aplicado sem a escolha dele.
+ * quanto na tela final. A revisão em si roda no cache de módulo
+ * (`revisaoPortuguesEmAndamento`), então sair da aba não cancela nada: ao
+ * voltar, o painel recupera o "carregando" ou o resultado.
  */
 export function PainelRevisaoPortugues({ propostaId, markdownAtual, onUsarCorrecoes }: PainelRevisaoPortuguesProps) {
   const [estado, setEstado] = useState<EstadoRevisao>({ fase: 'inicial' })
   const [aplicando, setAplicando] = useState(false)
+  const montado = useRef(true)
 
-  async function revisar() {
-    setEstado({ fase: 'carregando' })
-    try {
-      const resposta = await fetch(`/api/propostas-comerciais/${propostaId}/revisao-portugues`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conteudoMarkdown: markdownAtual }),
-      })
-      const corpo = await resposta.json().catch(() => null)
-      if (!resposta.ok) {
-        setEstado({ fase: 'erro', mensagem: corpo?.error ?? 'Não foi possível revisar o texto.' })
-        return
-      }
-      setEstado({ fase: 'pronta', original: corpo.original, corrigido: corpo.corrigido })
-    } catch {
-      setEstado({ fase: 'erro', mensagem: 'Não foi possível revisar o texto.' })
+  useEffect(() => {
+    montado.current = true
+    return () => {
+      montado.current = false
     }
+  }, [])
+
+  // Ao montar (ou trocar de proposta), recupera uma revisão que já estava
+  // rodando/pronta pra essa proposta.
+  useEffect(() => {
+    const atual = revisaoAtual(propostaId)
+    if (!atual) {
+      setEstado({ fase: 'inicial' })
+      return
+    }
+    if (atual.status === 'ok') {
+      setEstado({ fase: 'pronta', ...atual.resultado })
+    } else if (atual.status === 'erro') {
+      setEstado({ fase: 'erro', mensagem: atual.mensagem })
+    } else {
+      setEstado({ fase: 'carregando' })
+      acompanhar(atual.promise)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propostaId])
+
+  function acompanhar(promise: Promise<ResultadoRevisao>) {
+    promise.then(
+      (resultado) => {
+        if (montado.current) setEstado({ fase: 'pronta', ...resultado })
+      },
+      (erro) => {
+        if (montado.current) {
+          setEstado({ fase: 'erro', mensagem: erro instanceof Error ? erro.message : 'Não foi possível revisar o texto.' })
+        }
+      }
+    )
+  }
+
+  function revisar() {
+    setEstado({ fase: 'carregando' })
+    acompanhar(iniciarRevisao(propostaId, markdownAtual))
   }
 
   async function usar() {
     if (estado.fase !== 'pronta') return
     setAplicando(true)
     await onUsarCorrecoes(estado.corrigido)
-    setAplicando(false)
-    setEstado({ fase: 'inicial' })
+    if (montado.current) setAplicando(false)
+    limparRevisao(propostaId)
+    if (montado.current) setEstado({ fase: 'inicial' })
   }
 
   function voltar() {
+    limparRevisao(propostaId)
     setEstado({ fase: 'inicial' })
   }
 
@@ -80,7 +115,7 @@ export function PainelRevisaoPortugues({ propostaId, markdownAtual, onUsarCorrec
     return (
       <p className="flex items-center gap-2 rounded-lg border border-border-grey bg-white p-4 text-sm text-mid-grey">
         <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
-        Revisando...
+        Revisando... pode sair desta aba, a revisão continua rodando.
       </p>
     )
   }

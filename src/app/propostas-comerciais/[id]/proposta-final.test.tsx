@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { PropostaFinal } from './proposta-final'
+import { limparRevisao } from '@/lib/revisaoPortuguesEmAndamento'
 
 class ClipboardItemFalso {
   constructor(public items: Record<string, Blob>) {}
@@ -15,6 +16,7 @@ const propsBase = {
 describe('PropostaFinal', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    limparRevisao('p1')
     ;(global as unknown as { ClipboardItem: typeof ClipboardItemFalso }).ClipboardItem = ClipboardItemFalso
     Object.assign(navigator, { clipboard: { write: jest.fn().mockResolvedValue(undefined) } })
   })

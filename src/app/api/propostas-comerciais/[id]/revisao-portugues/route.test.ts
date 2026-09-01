@@ -15,8 +15,13 @@ import { prisma } from '@/lib/prisma'
 import { revisarPortugues } from '@/lib/ia/revisarPortugues'
 import { POST } from './route'
 
-const requisicao = () =>
-  new NextRequest('http://localhost/api/propostas-comerciais/p1/revisao-portugues', { method: 'POST' })
+const requisicao = (corpo?: unknown) =>
+  new NextRequest('http://localhost/api/propostas-comerciais/p1/revisao-portugues', {
+    method: 'POST',
+    ...(corpo !== undefined
+      ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }
+      : {}),
+  })
 const contexto = { params: Promise.resolve({ id: 'p1' }) }
 
 describe('POST /api/propostas-comerciais/[id]/revisao-portugues', () => {
@@ -50,6 +55,22 @@ describe('POST /api/propostas-comerciais/[id]/revisao-portugues', () => {
     const resposta = await POST(requisicao(), contexto)
 
     expect(resposta.status).toBe(200)
+    await expect(resposta.json()).resolves.toEqual({
+      original: 'A proposta e boa.',
+      corrigido: 'A proposta é boa.',
+    })
+  })
+
+  it('revisa o texto enviado no corpo (editor com texto ainda não salvo)', async () => {
+    ;(prisma.propostaComercial.findUnique as jest.Mock).mockResolvedValue({
+      id: 'p1',
+      conteudoMarkdown: 'texto salvo antigo',
+    })
+    ;(revisarPortugues as jest.Mock).mockResolvedValue('A proposta é boa.')
+
+    const resposta = await POST(requisicao({ conteudoMarkdown: 'A proposta e boa.' }), contexto)
+
+    expect(revisarPortugues).toHaveBeenCalledWith('A proposta e boa.')
     await expect(resposta.json()).resolves.toEqual({
       original: 'A proposta e boa.',
       corrigido: 'A proposta é boa.',

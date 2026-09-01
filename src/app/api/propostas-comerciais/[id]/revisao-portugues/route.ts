@@ -22,7 +22,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'proposta comercial não encontrada' }, { status: 404 })
   }
 
-  const original = proposta.conteudoMarkdown
+  // O editor manda o texto em edição (ainda não salvo) no corpo; a tela final
+  // não manda corpo e a revisão roda em cima do que está gravado.
+  const corpo = await request.json().catch(() => null)
+  const markdownDoCorpo =
+    corpo && typeof corpo.conteudoMarkdown === 'string' && corpo.conteudoMarkdown.trim()
+      ? (corpo.conteudoMarkdown as string)
+      : null
+
+  const original = markdownDoCorpo ?? proposta.conteudoMarkdown
   if (!original || !original.trim()) {
     return NextResponse.json({ error: 'a proposta ainda não tem conteúdo pra revisar' }, { status: 400 })
   }

@@ -246,3 +246,161 @@
     @apply px-3.5 py-3 align-middle text-foreground tabular-nums;
   }
 }
+
+@layer utilities {
+  /* Scrollbar do menu lateral — mais fina e discreta que a padrão, em tom
+     translúcido claro pra combinar com o fundo navy escuro em vez do
+     cinza institucional (que fica com contraste alto demais aqui). */
+  .nav-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+  .nav-scroll::-webkit-scrollbar {
+    width: 5px;
+  }
+  .nav-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+  }
+  .nav-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.28);
+  }
+}
+
+@layer utilities {
+  /* Barra de progresso indeterminada — usada em envios/operações assíncronas
+     sem percentual conhecido (ex.: upload de PDF). Mesma linguagem visual do
+     .skeleton (brilho correndo), só que num bloco fino de cor sólida. */
+  .progress-indeterminate {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--orange-light);
+  }
+  .progress-indeterminate::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background-color: var(--orange);
+    border-radius: inherit;
+    animation: progress-indeterminate-slide 1.3s ease-in-out infinite;
+  }
+  @keyframes progress-indeterminate-slide {
+    0% {
+      transform: translateX(-100%);
+    }
+    60% {
+      transform: translateX(250%);
+    }
+    100% {
+      transform: translateX(250%);
+    }
+  }
+}
+
+@layer components {
+  /* Tipografia do Markdown renderizado (preview do editor e proposta final)
+     — sem isso, marked.parse() gera h1-h6/strong/ul/table semanticamente
+     corretos mas visualmente idênticos ao texto normal, o que torna a
+     hierarquia do documento ilegível de relance. */
+  .markdown-preview {
+    @apply text-[13.5px] leading-relaxed text-foreground;
+  }
+  .markdown-preview > :first-child {
+    margin-top: 0;
+  }
+  .markdown-preview h1,
+  .markdown-preview h2,
+  .markdown-preview h3,
+  .markdown-preview h4,
+  .markdown-preview h5,
+  .markdown-preview h6 {
+    @apply font-semibold text-navy;
+  }
+  .markdown-preview h1 {
+    @apply mt-6 mb-3 border-b border-border-grey pb-2 text-lg;
+  }
+  .markdown-preview h2 {
+    @apply mt-5 mb-2.5 text-base;
+  }
+  .markdown-preview h3 {
+    @apply mt-4 mb-2 text-[15px];
+  }
+  .markdown-preview h4,
+  .markdown-preview h5,
+  .markdown-preview h6 {
+    @apply mt-3 mb-1.5 text-sm;
+  }
+  .markdown-preview p {
+    @apply my-2.5;
+  }
+  .markdown-preview strong {
+    @apply font-semibold text-navy;
+  }
+  .markdown-preview ul,
+  .markdown-preview ol {
+    @apply my-2.5 space-y-1 pl-5;
+  }
+  .markdown-preview ul {
+    @apply list-disc;
+  }
+  .markdown-preview ol {
+    @apply list-decimal;
+  }
+  .markdown-preview li > ul,
+  .markdown-preview li > ol {
+    @apply my-1;
+  }
+  .markdown-preview li::marker {
+    @apply text-mid-grey;
+  }
+  .markdown-preview hr {
+    @apply my-5 border-border-grey;
+  }
+  .markdown-preview a {
+    @apply text-orange underline underline-offset-2 hover:text-orange-dark;
+  }
+  .markdown-preview code {
+    @apply rounded bg-navy/[0.05] px-1 py-0.5 font-mono text-[0.85em];
+  }
+
+  /* Tabela — a estrutura mais importante pra virar um item de proposta
+     comercial legível em vez de bullets desalinhados. */
+  .markdown-preview table {
+    @apply my-3 w-full border-collapse overflow-hidden rounded-lg text-left text-[13px];
+  }
+  .markdown-preview thead tr {
+    @apply bg-navy text-white;
+  }
+  .markdown-preview th {
+    @apply border border-navy px-2.5 py-1.5 font-semibold;
+  }
+  .markdown-preview td {
+    @apply border border-border-grey px-2.5 py-1.5 align-top tabular-nums;
+  }
+  .markdown-preview tbody tr:nth-child(even) {
+    @apply bg-light-grey/50;
+  }
+
+  /* Callout de divergência — o prompt de consolidação instrui a IA a marcar
+     conflitos entre fontes com um parágrafo começando em "Divergência:"; o
+     JS em copiarMarkdownFormatado/markdownPreview envolve esse parágrafo
+     numa div com essa classe pra virar um alerta visual em vez de se perder
+     como itálico solto no meio do texto. */
+  .markdown-preview .callout-divergencia {
+    @apply my-3 flex items-start gap-2 rounded-lg border border-orange/30 bg-orange-light/40 px-3 py-2.5 text-[13px] text-navy not-italic;
+  }
+  .markdown-preview .callout-divergencia::before {
+    content: '⚠';
+    @apply shrink-0 text-orange;
+  }
+
+  /* Diff da revisão de português — <ins>/<del> inline no texto renderizado
+     da aba "Correção da IA" (ver src/lib/diffPropostaRenderizada.ts). */
+  .markdown-preview ins {
+    @apply rounded bg-green-ok-light px-0.5 font-medium text-green-ok no-underline;
+  }
+  .markdown-preview del {
+    @apply rounded bg-red-crit-light px-0.5 text-red-crit;
+  }
+}

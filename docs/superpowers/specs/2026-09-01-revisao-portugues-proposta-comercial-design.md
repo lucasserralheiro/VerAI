@@ -36,19 +36,16 @@ Arquivo: `src/app/api/propostas-comerciais/[id]/revisao-portugues/route.ts`
 Fluxo:
 
 1. `getAuthUser` — 401 se não autenticado.
-2. Busca a `PropostaComercial` por `id` — 404 se não existir; 400 se
-   `conteudoMarkdown` for null/vazio.
-3. Chama `revisarPortugues(conteudoMarkdown)` (módulo novo, abaixo).
-4. Roda o **guardrail** comparando `original` × `corrigido`:
-   - mesma quantidade de linhas totais (`split('\n').length`);
-   - mesma quantidade de linhas que começam com `#` (títulos);
-   - mesma quantidade de linhas de tabela (linhas que contêm `|`);
-   - mesma quantidade de itens de lista (linhas que casam `/^\s*([-*]|\d+\.)\s/`);
-   - toda sequência de dígitos (`/\d+/g`) presente no original continua
-     presente no corrigido, na mesma contagem por token.
-   - Se qualquer checagem falhar → responde **422** com
-     `{ error: 'a revisão alterou mais que ortografia — não é seguro aplicar automaticamente' }`.
-5. Sucesso → **200** com `{ original, corrigido }`.
+2. Busca a `PropostaComercial` por `id` — 404 se não existir.
+3. Texto a revisar: `conteudoMarkdown` do corpo da requisição (o editor manda o
+   rascunho ainda não salvo) ou, sem corpo, o `conteudoMarkdown` gravado — 400
+   se ambos vazios.
+4. Chama `revisarPortugues(texto)`.
+5. Roda o **guardrail** `validarRevisaoPortugues(original, corrigido)` como
+   rede de segurança final (linhas, títulos, tabelas, itens de lista, dígitos).
+   Com a abordagem de lista de trocas ele praticamente nunca dispara, mas se
+   disparar → **422** com `{ error }`.
+6. Sucesso → **200** com `{ original, corrigido }`.
 
 Nada é persistido. Nenhuma migration. Clicar de novo roda de novo.
 
@@ -58,21 +55,24 @@ Arquivo: `src/lib/ia/revisarPortugues.ts`
 
 ```ts
 export async function revisarPortugues(markdown: string): Promise<string>
+export function aplicarCorrecoes(markdown: string, correcoes: Correcao[]): string
 ```
 
-- Usa `generateText` (não `generateObject` — queremos o Markdown cru de volta)
-  com `getModel()` (mesma infra de `src/lib/ia/modelo.ts`).
-- System/prompt restrito, em português, deixando explícito:
-  - papel: revisor ortográfico, não editor de texto;
-  - corrigir apenas ortografia, acentuação, concordância e digitação;
-  - proibido reescrever, reordenar, resumir, traduzir, adicionar ou remover
-    qualquer conteúdo;
-  - preservar literalmente todo número, data, valor, sigla, nome próprio e toda
-    a marcação Markdown (`#`, `**`, `|`, `-`, quebras de linha);
-  - responder **somente** com o Markdown corrigido, sem comentários, sem cercas
-    de código ao redor.
-- Faz um trim de cercas ```` ```markdown ```` / ```` ``` ```` que o modelo
-  eventualmente adicione ao redor da resposta.
+**A IA não reescreve o documento.** Ela devolve só uma **lista de trocas**
+`{ antes, depois }` via `generateObject` (schema Zod), e `aplicarCorrecoes`
+aplica cada uma por substituição literal de string. Assim a estrutura é
+intocável por construção e a resposta é curta (rápida) em vez de o documento
+inteiro regerado.
+
+- `getModel(process.env.AI_REVISAO_MODEL || undefined)` — a revisão roda num
+  modelo mais rápido/barato que o `AI_MODEL` padrão (tarefa mecânica).
+- Prompt restrito: achar erros de ortografia/acentuação/concordância/digitação;
+  `antes` = trecho literal com 1–3 palavras de contexto; `depois` = mesmo
+  trecho só com o erro corrigido; lista vazia se não há erro; nunca mexer em
+  número, data, valor, sigla, nome próprio ou marcação Markdown.
+- `aplicarCorrecoes` descarta trocas inseguras: `antes` com < 3 caracteres,
+  `antes`/`depois` com quebra de linha, `antes` que não aparece literalmente,
+  ou troca que altera os dígitos do trecho.
 
 ### Frontend — abas na tela final
 

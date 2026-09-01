@@ -26,7 +26,6 @@ export default function PropostaComercialDetalhePage({ params }: { params: Promi
   const { id } = use(params)
   const router = useRouter()
   const [proposta, setProposta] = useState<PropostaComercialDetalhe | null>(null)
-  const [modoEdicao, setModoEdicao] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
 
   async function carregar() {
@@ -47,7 +46,6 @@ export default function PropostaComercialDetalhePage({ params }: { params: Promi
     })
     if (response.ok) {
       await carregar()
-      setModoEdicao(false)
     }
   }
 
@@ -77,8 +75,8 @@ export default function PropostaComercialDetalhePage({ params }: { params: Promi
     )
   }
 
-  const mostrarEditor = proposta.status === 'rascunho' || (proposta.status === 'concluido' && modoEdicao)
-  const mostrarFinal = proposta.status === 'concluido' && !modoEdicao
+  const mostrarEditor = proposta.status === 'rascunho'
+  const mostrarFinal = proposta.status === 'concluido'
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-6 py-8 lg:px-8">
@@ -124,8 +122,8 @@ export default function PropostaComercialDetalhePage({ params }: { params: Promi
         <PropostaFinal
           propostaId={proposta.id}
           conteudoMarkdown={proposta.conteudoMarkdown ?? ''}
-          onEditarNovamente={() => setModoEdicao(true)}
-          onUsarCorrecoes={handleSalvar}
+          arquivos={proposta.arquivos}
+          onSalvar={handleSalvar}
         />
       )}
     </main>

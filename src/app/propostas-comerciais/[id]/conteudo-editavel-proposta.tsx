@@ -32,7 +32,6 @@ export function ConteudoEditavelProposta({ markdown, onChange }: ConteudoEditave
       return
     }
     if (ref.current) ref.current.innerHTML = renderizarMarkdownProposta(markdown)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markdown])
 
   useEffect(() => {

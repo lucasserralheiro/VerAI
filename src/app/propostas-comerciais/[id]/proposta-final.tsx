@@ -1,32 +1,65 @@
 'use client'
 
-import { useState } from 'react'
-import { ClipboardCopy, ClipboardCheck, Pencil, Sparkles } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ClipboardCopy, ClipboardCheck, Sparkles } from 'lucide-react'
 import { BTN_PRIMARY, BTN_OUTLINE } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { copiarMarkdownFormatado } from '@/lib/copiarMarkdownFormatado'
-import { renderizarMarkdownProposta } from '@/lib/renderizarMarkdownProposta'
+import { ConteudoEditavelProposta } from './conteudo-editavel-proposta'
+import { EditarComoTexto } from './editar-como-texto'
 import { PainelRevisaoPortugues } from './painel-revisao-portugues'
+import { ArquivoOriginal, MenuArquivosOriginais, ModalArquivoOriginal } from './arquivos-originais'
 
 export interface PropostaFinalProps {
   propostaId: string
   conteudoMarkdown: string
-  onEditarNovamente: () => void
-  onUsarCorrecoes: (markdown: string) => Promise<void>
+  arquivos: ArquivoOriginal[]
+  onSalvar: (markdown: string) => Promise<void>
 }
 
-export function PropostaFinal({ propostaId, conteudoMarkdown, onEditarNovamente, onUsarCorrecoes }: PropostaFinalProps) {
+export function PropostaFinal({ propostaId, conteudoMarkdown, arquivos, onSalvar }: PropostaFinalProps) {
+  const [markdown, setMarkdown] = useState(conteudoMarkdown)
+  const [sujo, setSujo] = useState(false)
+  const [salvando, setSalvando] = useState(false)
   const [copiado, setCopiado] = useState(false)
   const [aba, setAba] = useState<'visualizar' | 'correcao'>('visualizar')
+  const [arquivoAberto, setArquivoAberto] = useState<ArquivoOriginal | null>(null)
+
+  useEffect(() => {
+    setMarkdown(conteudoMarkdown)
+    setSujo(false)
+  }, [conteudoMarkdown])
+
+  useEffect(() => {
+    if (!sujo) return
+    function handler(e: BeforeUnloadEvent) {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [sujo])
+
+  function handleMudarTexto(novoMarkdown: string) {
+    setMarkdown(novoMarkdown)
+    setSujo(true)
+  }
+
+  async function handleSalvar() {
+    setSalvando(true)
+    await onSalvar(markdown)
+    setSalvando(false)
+    setSujo(false)
+  }
 
   async function handleCopiarFormatado() {
-    await copiarMarkdownFormatado(conteudoMarkdown)
+    await copiarMarkdownFormatado(markdown)
     setCopiado(true)
     setTimeout(() => setCopiado(false), 2000)
   }
 
-  async function handleUsarCorrecoes(corrigido: string) {
-    await onUsarCorrecoes(corrigido)
+  function handleUsarCorrecoes(corrigido: string) {
+    setMarkdown(corrigido)
+    setSujo(true)
     setAba('visualizar')
   }
 
@@ -57,12 +90,14 @@ export function PropostaFinal({ propostaId, conteudoMarkdown, onEditarNovamente,
           </button>
         </div>
 
-        <div className="flex gap-2">
-          <button type="button" onClick={onEditarNovamente} className={BTN_OUTLINE}>
-            <Pencil className="size-3.5" strokeWidth={2.25} />
-            Editar novamente
-          </button>
-          <button type="button" onClick={handleCopiarFormatado} className={BTN_PRIMARY}>
+        <div className="flex flex-wrap gap-2">
+          <MenuArquivosOriginais arquivos={arquivos} onAbrir={setArquivoAberto} />
+          {sujo && (
+            <button type="button" onClick={handleSalvar} disabled={salvando} className={BTN_PRIMARY}>
+              {salvando ? 'Salvando...' : 'Salvar alterações'}
+            </button>
+          )}
+          <button type="button" onClick={handleCopiarFormatado} className={BTN_OUTLINE}>
             {copiado ? (
               <>
                 <ClipboardCheck className="size-3.5" strokeWidth={2.25} />
@@ -79,18 +114,18 @@ export function PropostaFinal({ propostaId, conteudoMarkdown, onEditarNovamente,
       </div>
 
       {aba === 'visualizar' && (
-        <div
-          className="markdown-preview max-h-[70vh] overflow-auto rounded-lg border border-border-grey bg-white p-4"
-          dangerouslySetInnerHTML={{ __html: renderizarMarkdownProposta(conteudoMarkdown) }}
-        />
+        <div className="space-y-1.5">
+          <ConteudoEditavelProposta markdown={markdown} onChange={handleMudarTexto} />
+          <EditarComoTexto markdown={markdown} onChange={handleMudarTexto} />
+        </div>
       )}
 
       {aba === 'correcao' && (
-        <PainelRevisaoPortugues
-          propostaId={propostaId}
-          markdownAtual={conteudoMarkdown}
-          onUsarCorrecoes={handleUsarCorrecoes}
-        />
+        <PainelRevisaoPortugues propostaId={propostaId} markdownAtual={markdown} onUsarCorrecoes={handleUsarCorrecoes} />
+      )}
+
+      {arquivoAberto && (
+        <ModalArquivoOriginal propostaId={propostaId} arquivo={arquivoAberto} onFechar={() => setArquivoAberto(null)} />
       )}
     </div>
   )

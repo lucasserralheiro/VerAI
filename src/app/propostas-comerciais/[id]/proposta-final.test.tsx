@@ -9,8 +9,8 @@ class ClipboardItemFalso {
 const propsBase = {
   propostaId: 'p1',
   conteudoMarkdown: '# Proposta',
-  onEditarNovamente: jest.fn(),
-  onUsarCorrecoes: jest.fn().mockResolvedValue(undefined),
+  arquivos: [],
+  onSalvar: jest.fn().mockResolvedValue(undefined),
 }
 
 describe('PropostaFinal', () => {
@@ -21,9 +21,32 @@ describe('PropostaFinal', () => {
     Object.assign(navigator, { clipboard: { write: jest.fn().mockResolvedValue(undefined) } })
   })
 
-  it('mostra o preview renderizado do markdown na aba Visualizar', () => {
+  it('mostra o conteúdo renderizado e editável na aba Visualizar', () => {
     render(<PropostaFinal {...propsBase} />)
     expect(screen.getByRole('heading', { name: 'Proposta' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Conteúdo da proposta' })).toBeInTheDocument()
+  })
+
+  it('não mostra "Salvar alterações" antes de qualquer edição', () => {
+    render(<PropostaFinal {...propsBase} />)
+    expect(screen.queryByRole('button', { name: /Salvar alterações/ })).not.toBeInTheDocument()
+  })
+
+  it('edição faz aparecer "Salvar alterações"; salvar chama onSalvar e o esconde de novo', async () => {
+    render(<PropostaFinal {...propsBase} />)
+
+    const editor = screen.getByRole('textbox', { name: 'Conteúdo da proposta' })
+    editor.innerHTML = '<h1>Proposta editada</h1>'
+    fireEvent.input(editor)
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 450))
+    })
+
+    const botaoSalvar = await screen.findByRole('button', { name: /Salvar alterações/ })
+    fireEvent.click(botaoSalvar)
+
+    await waitFor(() => expect(propsBase.onSalvar).toHaveBeenCalledWith('# Proposta editada'))
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Salvar alterações/ })).not.toBeInTheDocument())
   })
 
   it('copia o conteúdo formatado (HTML + texto simples) e mostra "Copiado!" temporariamente', async () => {
@@ -45,10 +68,14 @@ describe('PropostaFinal', () => {
     jest.useRealTimers()
   })
 
-  it('chama onEditarNovamente ao clicar em "Editar novamente"', () => {
+  it('não mostra mais o botão "Editar novamente"', () => {
     render(<PropostaFinal {...propsBase} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Editar novamente' }))
-    expect(propsBase.onEditarNovamente).toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /Editar novamente/ })).not.toBeInTheDocument()
+  })
+
+  it('com arquivos originais, mostra o menu pra abrir', () => {
+    render(<PropostaFinal {...propsBase} arquivos={[{ id: 'a1', nomeArquivo: 'proposta.pdf', tipo: 'pdf' }]} />)
+    expect(screen.getByRole('button', { name: 'Arquivo original' })).toBeInTheDocument()
   })
 
   it('na aba "Correção da IA" mostra o botão "Revisar português"', () => {
@@ -57,25 +84,7 @@ describe('PropostaFinal', () => {
     expect(screen.getByRole('button', { name: /Revisar português/ })).toBeInTheDocument()
   })
 
-  it('revisa e mostra o diff com botões de aceitar/recusar', async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ original: 'A proposta e boa.', corrigido: 'A proposta é boa.' }),
-    }) as jest.Mock
-
-    render(<PropostaFinal {...propsBase} conteudoMarkdown="A proposta e boa." />)
-    fireEvent.click(screen.getByRole('button', { name: /Correção da IA/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Revisar português/ }))
-
-    expect(await screen.findByRole('button', { name: /Usar correções/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Manter original/ })).toBeInTheDocument()
-    expect(global.fetch).toHaveBeenCalledWith(
-      '/api/propostas-comerciais/p1/revisao-portugues',
-      expect.objectContaining({ method: 'POST' })
-    )
-  })
-
-  it('"Usar correções" chama onUsarCorrecoes com a versão corrigida', async () => {
+  it('"Usar correções" atualiza o conteúdo e marca como sujo (precisa salvar)', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ original: 'A proposta e boa.', corrigido: 'A proposta é boa.' }),
@@ -86,10 +95,11 @@ describe('PropostaFinal', () => {
     fireEvent.click(screen.getByRole('button', { name: /Revisar português/ }))
     fireEvent.click(await screen.findByRole('button', { name: /Usar correções/ }))
 
-    await waitFor(() => expect(propsBase.onUsarCorrecoes).toHaveBeenCalledWith('A proposta é boa.'))
+    expect(await screen.findByRole('button', { name: /Salvar alterações/ })).toBeInTheDocument()
+    expect(propsBase.onSalvar).not.toHaveBeenCalled()
   })
 
-  it('"Manter original" volta ao estado inicial sem chamar onUsarCorrecoes', async () => {
+  it('"Manter original" volta ao estado inicial sem marcar sujo', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ original: 'A proposta e boa.', corrigido: 'A proposta é boa.' }),
@@ -101,33 +111,6 @@ describe('PropostaFinal', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Manter original/ }))
 
     expect(await screen.findByRole('button', { name: /Revisar português/ })).toBeInTheDocument()
-    expect(propsBase.onUsarCorrecoes).not.toHaveBeenCalled()
-  })
-
-  it('mostra a mensagem do guardrail quando a resposta é 422', async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: false,
-      status: 422,
-      json: () => Promise.resolve({ error: 'a revisão alterou números do documento — não é seguro aplicar.' }),
-    }) as jest.Mock
-
-    render(<PropostaFinal {...propsBase} />)
-    fireEvent.click(screen.getByRole('button', { name: /Correção da IA/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Revisar português/ }))
-
-    expect(await screen.findByText(/alterou números do documento/)).toBeInTheDocument()
-  })
-
-  it('mostra "Nenhum erro de português encontrado" quando original e corrigido são iguais', async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ original: '# Proposta', corrigido: '# Proposta' }),
-    }) as jest.Mock
-
-    render(<PropostaFinal {...propsBase} />)
-    fireEvent.click(screen.getByRole('button', { name: /Correção da IA/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Revisar português/ }))
-
-    expect(await screen.findByText(/Nenhum erro de português encontrado/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Salvar alterações/ })).not.toBeInTheDocument()
   })
 })

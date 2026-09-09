@@ -42,6 +42,45 @@ const REGEX_LISTA_MARCADOR = /^[•\-*]\s+(.*)$/
 /** Fim de frase/parágrafo: pontuação final, opcionalmente seguida de aspas/parêntese. */
 const REGEX_PONTUACAO_FINAL = /[.:;!?]["'”)\]]?$/
 
+/** Preposições/artigos/conjunções que um título em Title Case mantém em minúsculas
+ *  (ex.: "Da Lei Geral de Proteção de Dados") — só a primeira palavra do título
+ *  nunca entra aqui, mesmo que ela própria seja um desses conectivos. */
+const CONECTIVOS_MINUSCULOS = new Set([
+  'de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o', 'os', 'as', 'em', 'no', 'na',
+  'nos', 'nas', 'para', 'por', 'com', 'sem', 'sob', 'sobre', 'entre', 'após',
+  'ante', 'até', 'perante', 'um', 'uma', 'uns', 'umas', 'ou', 'à', 'às', 'ao',
+  'aos', 'que',
+])
+
+/** Conjunções que nunca ABREM um título de verdade — diferente de "Do"/"Da" (que
+ *  são contração de artigo+preposição e abrem título normalmente, ex. "Do Reajuste
+ *  de Preços"), uma conjunção pura no início só aparece quando o PDF quebrou a
+ *  linha no meio de uma frase/nome ("...4 TREINAMENTOS PADRÃO" / "E 1 AVANÇADO"). */
+const CONJUNCOES_PROIBIDAS_NO_INICIO = new Set(['e', 'ou', 'mas', 'que', 'se', 'nem'])
+
+/** Fonte igual ou um pouco maior que o corpo (ver `ehTitulo`) não é sinal
+ *  suficiente sozinha — em seções onde corpo E título usam o mesmo tamanho de
+ *  fonte (comum em introdução e cláusulas finais deste tipo de documento), só
+ *  o PADRÃO DE CAPITALIZAÇÃO separa um título de uma frase comum: título tem
+ *  cada palavra de conteúdo com inicial maiúscula (Title Case) ou está TUDO EM
+ *  MAIÚSCULAS; frase comum começa com minúscula ou mistura maiúsculas só nos
+ *  substantivos próprios/termos definidos, com o resto em minúsculas. */
+function pareceTituloPelaCapitalizacao(texto: string): boolean {
+  const palavras = texto.split(/\s+/).filter(Boolean)
+  if (palavras.length === 0) return false
+
+  const primeiraLimpa = palavras[0].replace(/^[-–("'“]+|[-–)"'”,;:]+$/g, '')
+  if (CONJUNCOES_PROIBIDAS_NO_INICIO.has(primeiraLimpa.toLowerCase())) return false
+
+  return palavras.every((palavra, indice) => {
+    const limpa = palavra.replace(/^[-–("'“]+|[-–)"'”,;:]+$/g, '')
+    const letraInicial = limpa.match(/\p{L}/u)?.[0]
+    if (!letraInicial) return true // token sem letra (número, "-", "/") não desqualifica
+    if (indice > 0 && CONECTIVOS_MINUSCULOS.has(limpa.toLowerCase())) return true
+    return letraInicial === letraInicial.toUpperCase() && letraInicial !== letraInicial.toLowerCase()
+  })
+}
+
 export interface ItemLinha {
   texto: string
   x: number
@@ -293,12 +332,25 @@ function ehMarcadorDeLista(texto: string): boolean {
 }
 
 /** Título de verdade é curto (ver `LIMIAR_TAMANHO_TITULO`) — frase longa com fonte
- *  um pouco maior é ruído de medição da extração, não uma seção nova do documento. */
+ *  um pouco maior é ruído de medição da extração, não uma seção nova do documento.
+ *  Título também nunca termina em pontuação final — é o início de algo novo, não o
+ *  fim de uma frase.
+ *
+ *  Fonte NOTAVELMENTE maior que o corpo (>= 1.3x) já basta sozinha: nesse caso não
+ *  há ambiguidade. Mas o documento pode ter seções inteiras (introdução, cláusulas
+ *  finais) onde o corpo do texto inteiro usa uma fonte só um pouco maior que o
+ *  resto do documento — nesse caso comparar só o tamanho da fonte classificaria
+ *  toda frase comum daquela seção como título. Por isso, fonte apenas igual ou um
+ *  pouco maior (>= 0.95x) só conta como título se o TEXTO também tiver cara de
+ *  título (Title Case ou TUDO EM MAIÚSCULAS) — ver `pareceTituloPelaCapitalizacao`. */
 function ehTitulo(linha: Linha, tamanhoCorpo: number): boolean {
   const texto = extrairTextoLinha(linha)
   if (texto.length === 0 || texto.length > LIMIAR_TAMANHO_TITULO) return false
   if (ehMarcadorDeLista(texto)) return false
-  return linha.fontSizeMedio >= tamanhoCorpo * 1.15
+  if (terminaComPontuacaoFinal(texto)) return false
+
+  if (linha.fontSizeMedio >= tamanhoCorpo * 1.3) return true
+  return linha.fontSizeMedio >= tamanhoCorpo * 0.95 && pareceTituloPelaCapitalizacao(texto)
 }
 
 function formatarTitulo(linha: Linha, tamanhoCorpo: number, margens: Margens): string {

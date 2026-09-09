@@ -34,14 +34,16 @@ describe('converterPdfParaMarkdown', () => {
   })
 
   it('envolve trecho com fonte em negrito em **...**', async () => {
+    // Texto escolhido de propósito pra não ter cara de título (ver describe
+    // 'título com fonte igual ao corpo do texto' abaixo) e isolar só o negrito.
     ;(extractTextItems as jest.Mock).mockResolvedValue({
       totalPages: 1,
-      items: [[item({ str: 'Cláusula 1', x: 0, fontFamily: 'Helvetica-Bold', hasEOL: true })]],
+      items: [[item({ str: 'Texto em negrito', x: 0, fontFamily: 'Helvetica-Bold', hasEOL: true })]],
     })
 
     const resultado = await converterPdfParaMarkdown(Buffer.from(''))
 
-    expect(resultado).toBe('**Cláusula 1**')
+    expect(resultado).toBe('**Texto em negrito**')
   })
 
   it('envolve trecho em itálico com *...*', async () => {
@@ -272,6 +274,93 @@ describe('converterPdfParaMarkdown', () => {
     expect(resultado).toBe(
       '<p align="justify">Primeira linha que vai até a margem direita Segunda linha que também toca a mesma margem terceira e última linha, mais curta.</p>'
     )
+  })
+
+  describe('título com fonte igual (ou só um pouco maior) ao corpo do texto', () => {
+    // Documentos reais às vezes têm seções inteiras (introdução, cláusulas finais)
+    // onde corpo E título usam o mesmo tamanho de fonte — nesses casos só o
+    // tamanho de fonte não separa título de frase comum, e o padrão de
+    // capitalização (Title Case / TUDO EM MAIÚSCULAS) tem que decidir.
+
+    it('reconhece título em Title Case mesmo com a MESMA fonte do corpo do texto', async () => {
+      ;(extractTextItems as jest.Mock).mockResolvedValue({
+        totalPages: 1,
+        items: [
+          [
+            item({ str: 'A - Sistemas De Informação', x: 0, fontSize: 9, hasEOL: true }),
+            item({ str: 'Texto de apoio pra fixar o corpo do documento em 9pt aqui.', x: 0, fontSize: 9, hasEOL: true }),
+          ],
+        ],
+      })
+
+      const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+      expect(resultado).toBe(
+        '## A - Sistemas De Informação\n\nTexto de apoio pra fixar o corpo do documento em 9pt aqui.'
+      )
+    })
+
+    it('NÃO trata continuação de frase (minúscula) como título mesmo com fonte maior que o resto do documento', async () => {
+      ;(extractTextItems as jest.Mock).mockResolvedValue({
+        totalPages: 1,
+        items: [
+          [
+            item({ str: 'O prazo de início dos serviços será na forma estabelecida no contrato', x: 0, fontSize: 11, hasEOL: true }),
+            item({ str: 'administrativo, a ser formalizado entre as partes.', x: 0, fontSize: 11, hasEOL: true }),
+            item({ str: 'Corpo do restante do documento em fonte menor.', x: 0, fontSize: 9, hasEOL: true }),
+          ],
+        ],
+      })
+
+      const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+      expect(resultado).not.toContain('##')
+      expect(resultado).toContain(
+        'O prazo de início dos serviços será na forma estabelecida no contrato administrativo, a ser formalizado entre as partes.'
+      )
+    })
+
+    it('não trata conjunção isolada (quebra de linha no meio de uma frase) como título', async () => {
+      ;(extractTextItems as jest.Mock).mockResolvedValue({
+        totalPages: 1,
+        items: [
+          [
+            item({ str: 'Consulte o nosso catálogo de produtos para mais detalhes', x: 0, fontSize: 9, hasEOL: true }),
+            item({ str: 'E 1 AVANÇADO', x: 0, fontSize: 9, hasEOL: true }),
+            item({ str: 'Este é o produto mais vendido.', x: 0, fontSize: 9, hasEOL: true }),
+          ],
+        ],
+      })
+
+      const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+      expect(resultado).not.toContain('##')
+      expect(resultado).toBe(
+        'Consulte o nosso catálogo de produtos para mais detalhes E 1 AVANÇADO Este é o produto mais vendido.'
+      )
+    })
+
+    it('título nunca termina em pontuação final, mesmo com fonte bem maior que o corpo', async () => {
+      ;(extractTextItems as jest.Mock).mockResolvedValue({
+        totalPages: 1,
+        items: [
+          [
+            item({ str: 'TÍTULO FALSO.', x: 0, fontSize: 20, hasEOL: true }),
+            item({
+              str: 'Corpo do texto normal aqui, com bastante conteúdo para dominar a contagem de caracteres do documento inteiro.',
+              x: 0,
+              fontSize: 10,
+              hasEOL: true,
+            }),
+          ],
+        ],
+      })
+
+      const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+      expect(resultado).not.toContain('##')
+      expect(resultado).toContain('TÍTULO FALSO.')
+    })
   })
 
   it('reconstrói tabela a partir de bordas vetoriais desenhadas no PDF', async () => {

@@ -2,7 +2,7 @@ import { extrairSegmentosRetosPorPagina } from './pdfTracos'
 
 // Códigos reais do pdf.js (conferidos com `OPS` de `getResolvedPDFJS()` numa
 // instalação real do unpdf) — fixos aqui pro teste não depender do pacote.
-var mockOps = {
+const mockOps = {
   save: 10,
   restore: 11,
   transform: 12,

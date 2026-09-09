@@ -61,7 +61,6 @@ export function PainelRevisaoPortugues({ propostaId, markdownAtual, onUsarCorrec
       setEstado({ fase: 'carregando' })
       acompanhar(atual.promise)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propostaId])
 
   function acompanhar(promise: Promise<ResultadoRevisao>) {

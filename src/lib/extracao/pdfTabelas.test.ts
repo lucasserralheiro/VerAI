@@ -44,6 +44,38 @@ describe('construirGradeDaPagina', () => {
   it('devolve null quando não há pelo menos 2 linhas e 2 colunas', () => {
     expect(construirGradeDaPagina([segmento(0, 100, 200, 100)])).toBeNull()
   })
+
+  it('rejeita grade 1x1 — moldura decorativa em volta de texto corrido, não é tabela de dados', () => {
+    // Reproduz o caso real: o PDF desenha uma caixa (só a borda externa, sem
+    // nenhuma linha/coluna interna) em volta de um bloco de texto corrido pra
+    // destacar uma seção da proposta. Sem essa checagem, o bloco inteiro —
+    // que pode ter várias frases e itens de lista — vira uma única célula de
+    // uma "tabela" Markdown de 1 linha e 1 coluna, perdendo a separação em
+    // parágrafos.
+    const segmentos = [
+      segmento(0, 500, 400, 500), // topo
+      segmento(0, 100, 400, 100), // base
+      segmento(0, 100, 0, 500), // esquerda
+      segmento(400, 100, 400, 500), // direita
+    ]
+
+    expect(construirGradeDaPagina(segmentos)).toBeNull()
+  })
+
+  it('aceita grade com 1 linha e várias colunas (ou vice-versa) — não exige as duas dimensões', () => {
+    // Uma tabela real pode ter só uma linha de dado com várias colunas (ou
+    // só uma coluna com várias linhas) — só a caixa 1x1, sem NENHUMA
+    // divisória, é que não é tabela.
+    const segmentos = [
+      segmento(0, 100, 300, 100),
+      segmento(0, 80, 300, 80),
+      segmento(0, 80, 0, 100),
+      segmento(150, 80, 150, 100),
+      segmento(300, 80, 300, 100),
+    ]
+
+    expect(construirGradeDaPagina(segmentos)).toEqual({ y: [100, 80], x: [0, 150, 300] })
+  })
 })
 
 describe('detectarTabelaPorBordas', () => {

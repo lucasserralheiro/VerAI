@@ -59,6 +59,17 @@ export function construirGradeDaPagina(segmentos: SegmentoReto[]): GradeDeTabela
   const x = clusterizar(xsVerticais, TOLERANCIA_CLUSTER_GRADE)
 
   if (y.length < 2 || x.length < 2) return null
+
+  // Uma grade 1x1 (só 2 linhas e 2 colunas de borda — ou seja, uma única
+  // caixa fechada, sem divisória interna nenhuma) não é uma tabela de dados:
+  // é uma MOLDURA decorativa em volta de um bloco de texto corrido (comum em
+  // proposta comercial pra destacar uma seção). Sem essa checagem, todo o
+  // texto ali dentro — que pode ser várias frases e itens de lista — vira
+  // uma única célula de uma tabela Markdown de 1 linha, perdendo a separação
+  // em parágrafos. Tabela de dados de verdade sempre tem pelo menos 2 linhas
+  // OU 2 colunas (cabeçalho + dado, ou várias colunas numa linha só).
+  if (y.length < 3 && x.length < 3) return null
+
   return { y, x }
 }
 

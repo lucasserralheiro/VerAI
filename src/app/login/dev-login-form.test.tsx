@@ -12,33 +12,31 @@ describe('DevLoginForm', () => {
     global.fetch = jest.fn()
   })
 
-  it('renderiza o campo de token', () => {
+  it('renderiza o botão de acesso direto', () => {
     render(<DevLoginForm />)
     expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('verai_2026')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument()
   })
 
-  it('redireciona para /clientes quando o token é aceito', async () => {
+  it('redireciona para /clientes ao entrar', async () => {
     ;(global.fetch as jest.Mock).mockResolvedValue({ ok: true })
     render(<DevLoginForm />)
 
-    fireEvent.change(screen.getByPlaceholderText('verai_2026'), { target: { value: 'verai_2026' } })
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/clientes'))
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/auth/dev-login',
-      expect.objectContaining({ method: 'POST', body: JSON.stringify({ token: 'verai_2026' }) })
+      expect.objectContaining({ method: 'POST' })
     )
   })
 
-  it('mostra mensagem de erro quando o token é inválido', async () => {
+  it('mostra mensagem de erro quando o acesso falha', async () => {
     ;(global.fetch as jest.Mock).mockResolvedValue({ ok: false })
     render(<DevLoginForm />)
 
-    fireEvent.change(screen.getByPlaceholderText('verai_2026'), { target: { value: 'errado' } })
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
 
-    await waitFor(() => expect(screen.getByText('Token inválido')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Não foi possível entrar')).toBeInTheDocument())
   })
 })

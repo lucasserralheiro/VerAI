@@ -1,17 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { criarSessao, AUTH_COOKIE_NAME, type Role } from '@/lib/auth'
 import { devAuthEnabled } from '@/lib/dev-auth'
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   if (!devAuthEnabled()) {
-    return NextResponse.json({ error: 'token inválido' }, { status: 401 })
-  }
-
-  const body = await request.json().catch(() => null)
-  const token = body?.token
-
-  if (typeof token !== 'string' || token !== process.env.DEV_AUTH_TOKEN) {
     return NextResponse.json({ error: 'token inválido' }, { status: 401 })
   }
 

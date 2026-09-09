@@ -2,12 +2,11 @@
 
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { KeyRound, AlertCircle } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { BTN_PRIMARY } from '@/lib/ui'
 
 export function DevLoginForm() {
   const router = useRouter()
-  const [token, setToken] = useState('')
   const [erro, setErro] = useState<string | null>(null)
 
   async function handleSubmit(event: FormEvent) {
@@ -16,10 +15,10 @@ export function DevLoginForm() {
     const response = await fetch('/api/auth/dev-login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({}),
     })
     if (!response.ok) {
-      setErro('Token inválido')
+      setErro('Não foi possível entrar')
       return
     }
     router.push('/clientes')
@@ -41,24 +40,8 @@ export function DevLoginForm() {
 
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold text-navy">Entrar</h2>
-          <p className="text-sm text-mid-grey">Modo de desenvolvimento — informe o token de acesso.</p>
+          <p className="text-sm text-mid-grey">Modo de desenvolvimento — acesso direto como administrador.</p>
         </div>
-
-        <label className="block space-y-1.5">
-          <span className="text-sm font-medium text-foreground">Token</span>
-          <span className="relative flex items-center">
-            <KeyRound className="pointer-events-none absolute left-3 size-4 text-mid-grey" strokeWidth={2} />
-            <input
-              type="text"
-              autoComplete="off"
-              placeholder="verai_2026"
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-              className="w-full rounded-lg border border-border-grey py-2.5 pr-3 pl-9 text-sm shadow-xs outline-none transition-all focus:border-orange focus:ring-4 focus:ring-orange/12"
-              required
-            />
-          </span>
-        </label>
 
         {erro && (
           <p className="flex items-center gap-1.5 rounded-lg bg-red-crit-light px-3 py-2 text-sm text-red-crit">

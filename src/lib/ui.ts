@@ -21,3 +21,6 @@ export const LINK_DANGER =
 
 export const INPUT_BASE =
   'rounded-xl border border-border-grey bg-white px-3 py-2 text-sm text-foreground shadow-xs outline-none transition-all duration-150 focus:border-orange focus:ring-4 focus:ring-orange/12'
+
+export const BTN_PRIMARY_LG =
+  'inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange px-5 py-3 text-sm font-semibold text-white shadow-md shadow-orange/25 transition-all duration-150 hover:bg-orange-dark hover:shadow-lg hover:shadow-orange/35 active:scale-[0.98] disabled:pointer-events-none disabled:bg-navy/10 disabled:text-mid-grey disabled:shadow-none'

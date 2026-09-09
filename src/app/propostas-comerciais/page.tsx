@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Eye, Inbox } from 'lucide-react'
+import { Plus, Eye, Inbox, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { BTN_PRIMARY } from '@/lib/ui'
+import { BTN_PRIMARY, LINK_DANGER } from '@/lib/ui'
 
 interface PropostaComercial {
   id: string
@@ -28,6 +28,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default function PropostasComerciaisPage() {
   const [propostas, setPropostas] = useState<PropostaComercial[]>([])
   const [carregando, setCarregando] = useState(true)
+  const [excluindoId, setExcluindoId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/propostas-comerciais')
@@ -35,6 +36,19 @@ export default function PropostasComerciaisPage() {
       .then(setPropostas)
       .finally(() => setCarregando(false))
   }, [])
+
+  async function handleExcluir(proposta: PropostaComercial) {
+    if (!confirm(`Excluir "${proposta.nomeArquivo}"? Essa ação não pode ser desfeita.`)) return
+    setExcluindoId(proposta.id)
+    const response = await fetch(`/api/propostas-comerciais/${proposta.id}`, { method: 'DELETE' })
+    setExcluindoId(null)
+    if (!response.ok) {
+      const body = await response.json().catch(() => null)
+      alert(body?.error ?? 'Falha ao excluir proposta.')
+      return
+    }
+    setPropostas((prev) => prev.filter((p) => p.id !== proposta.id))
+  }
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-6 py-8 lg:px-8">
@@ -85,13 +99,25 @@ export default function PropostasComerciaisPage() {
                       </Badge>
                     </td>
                     <td>
-                      <Link
-                        href={`/propostas-comerciais/${proposta.id}`}
-                        className="flex items-center gap-1 text-sm font-medium text-navy transition-colors hover:text-orange hover:underline"
-                      >
-                        <Eye className="size-3.5" strokeWidth={2.25} />
-                        Ver
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          href={`/propostas-comerciais/${proposta.id}`}
+                          className="flex items-center gap-1 text-sm font-medium text-navy transition-colors hover:text-orange hover:underline"
+                        >
+                          <Eye className="size-3.5" strokeWidth={2.25} />
+                          Ver
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleExcluir(proposta)}
+                          disabled={excluindoId === proposta.id}
+                          title="Excluir"
+                          className={LINK_DANGER}
+                        >
+                          <Trash2 className="size-3.5" strokeWidth={2.25} />
+                          {excluindoId === proposta.id ? 'Excluindo...' : 'Excluir'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

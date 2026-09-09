@@ -55,3 +55,9 @@ export async function deleteUploadPrefix(prefix: string): Promise<void> {
   if (blobs.length === 0) return
   await del(blobs.map((b) => b.url))
 }
+
+/** Apaga um único blob a partir da URL salva no banco (ex.: um arquivo
+ *  específico dentro de uma proposta comercial com vários arquivos). */
+export async function deleteUpload(url: string): Promise<void> {
+  await del(url)
+}

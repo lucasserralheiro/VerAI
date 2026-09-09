@@ -16,6 +16,11 @@ const COMPRIMENTO_MIN_COLUNA_GRADE = 8
 const TOLERANCIA_CLUSTER_GRADE = 1.5
 const TOLERANCIA_DENTRO_DA_GRADE = 2
 
+/** Fração mínima de células com texto pra uma grade de bordas contar como
+ *  tabela de dados. Abaixo disso é grade de layout de formulário (bordas
+ *  organizando campos numa página), não uma tabela — cai pro fluxo de texto. */
+const FRACAO_MINIMA_CELULAS_PREENCHIDAS = 0.25
+
 /** Agrupa valores próximos (dentro de `tolerancia`) numa única âncora — linhas
  *  de borda quase-coincidentes (erro de arredondamento do PDF) viram uma só. */
 function clusterizar(valores: number[], tolerancia: number): number[] {
@@ -116,5 +121,16 @@ export function detectarTabelaPorBordas(
   }
 
   if (!algumaCelulaPreenchida) return null
+
+  // Guarda contra "grade de layout": um formulário (ficha SEI, etc.) tem
+  // bordas por toda a página só pra organizar visualmente os campos — não é
+  // uma tabela de dados. Sem essa checagem, a página inteira vira uma tabela
+  // Markdown gigante e quase vazia, e todo o texto (títulos, pares
+  // rótulo:valor, parágrafos) é picotado entre células. Uma tabela de dados
+  // de verdade tem a maioria das células preenchida; uma grade de layout, não.
+  const totalCelulas = numLinhas * numColunas
+  const celulasComTexto = celulas.reduce((soma, linha) => soma + linha.filter(Boolean).length, 0)
+  if (celulasComTexto / totalCelulas < FRACAO_MINIMA_CELULAS_PREENCHIDAS) return null
+
   return { markdown: montarTabelaMarkdown(celulas), proximoIndice: j }
 }

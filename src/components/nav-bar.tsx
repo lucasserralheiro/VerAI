@@ -14,7 +14,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  ChevronUp,
   Settings,
   ArrowLeftRight,
   ClipboardCopy,
@@ -37,7 +36,7 @@ const RELATORIOS_SUBLINKS = [{ href: '/', label: 'Todos os documentos', icon: Fi
 // como sub-item pra quando o grupo ganhar mais itens no futuro.
 const PROPOSTA_COMERCIAL_LINK = {
   href: '/propostas-comerciais',
-  label: 'Proposta Comercial (Conversão SEI)',
+  label: 'Proposta Comercial',
   icon: ClipboardCopy,
 }
 const PROPOSTA_COMERCIAL_SUBLINKS = [{ href: '/propostas-comerciais', label: 'Histórico', icon: History }]
@@ -51,6 +50,12 @@ const CONFIG_LINKS = [
   { href: '/admin/regras-notificacao', label: 'Regras de notificação', icon: BellRing },
 ]
 
+// Menu temporariamente simplificado: só "Relatórios" e "Proposta Comercial"
+// ficam visíveis para todos os usuários enquanto o restante do menu é
+// reorganizado. Reverter = trocar para false (ou remover a flag e os `if`s
+// que a usam abaixo).
+const MENU_SIMPLIFICADO = true
+
 const NAV_EXPANDIDA_KEY = 'verai:nav-expandida'
 const LARGURA_MINIMA_EXPANDIDA = 640 // px — abaixo disso a barra sempre abre só com ícones
 
@@ -60,14 +65,28 @@ interface DevStatus {
   users: Array<{ id: string; nome: string; email: string; role: string }>
 }
 
+function IconeMenu({ icon: Icon, badge, expandida }: { icon: LucideIcon; badge?: number; expandida: boolean }) {
+  return (
+    <span className="relative flex size-8 shrink-0 items-center justify-center rounded-lg">
+      <Icon className="size-[18px]" strokeWidth={1.75} />
+      {!!badge && !expandida && (
+        <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-orange text-[0.6rem] font-bold leading-none text-white ring-2 ring-navy">
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
+    </span>
+  )
+}
+
 function LinkMenu({
   href,
   label,
-  icon: Icon,
+  icon,
   ativo,
   expandida,
   badge,
   className,
+  destaque = false,
 }: {
   href: string
   label: string
@@ -76,31 +95,104 @@ function LinkMenu({
   expandida: boolean
   badge?: number
   className?: string
+  destaque?: boolean
 }) {
   return (
     <Link
       href={href}
       aria-label={label}
       className={cn(
-        'relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-light-blue transition-colors hover:bg-white/[0.06] hover:text-white',
-        ativo && 'text-white',
+        'group relative flex items-center gap-2 rounded-lg py-1.5 pl-1.5 pr-2 text-[13px] font-medium text-light-blue transition-all duration-150',
+        'hover:bg-white/[0.07] hover:text-white',
+        ativo
+          ? destaque
+            ? 'bg-orange/[0.12] text-white'
+            : 'bg-white/[0.08] text-white'
+          : '',
         className
       )}
     >
-      {ativo && <span className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-orange" />}
-      <span className="relative flex shrink-0 items-center justify-center">
-        <Icon className="size-3.5" strokeWidth={2.25} />
-        {!!badge && !expandida && (
-          <span className="absolute -right-1 -top-1 size-2 rounded-full bg-orange ring-2 ring-navy" />
-        )}
+      {ativo && destaque && (
+        <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-orange" />
+      )}
+      <span className={cn(ativo && destaque && 'text-orange')}>
+        <IconeMenu icon={icon} badge={badge} expandida={expandida} />
       </span>
-      {expandida && <span className="truncate whitespace-nowrap">{label}</span>}
+      {expandida && (
+        <span className={cn('min-w-0 flex-1 truncate leading-tight', destaque && 'font-semibold')}>{label}</span>
+      )}
       {!!badge && expandida && (
-        <span className="ml-auto flex min-w-[1.1rem] items-center justify-center rounded-full bg-orange px-1 py-0.5 text-[0.65rem] leading-none font-semibold text-white">
+        <span className="ml-auto flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-orange px-1.5 text-[0.7rem] font-bold leading-none text-white">
           {badge}
         </span>
       )}
     </Link>
+  )
+}
+
+function GrupoMenu({
+  link,
+  sublinks,
+  aberto,
+  onToggle,
+  pathname,
+  expandida,
+}: {
+  link: { href: string; label: string; icon: LucideIcon }
+  sublinks: Array<{ href: string; label: string; icon: LucideIcon }>
+  aberto: boolean
+  onToggle: () => void
+  pathname: string
+  expandida: boolean
+}) {
+  const ativo = pathname === link.href || sublinks.some((s) => s.href === pathname)
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-0.5">
+        <LinkMenu
+          href={link.href}
+          label={link.label}
+          icon={link.icon}
+          ativo={pathname === link.href}
+          expandida={expandida}
+          className="flex-1"
+          destaque
+        />
+        {expandida && sublinks.length > 0 && (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={aberto ? `Recolher ${link.label}` : `Expandir ${link.label}`}
+            aria-expanded={aberto}
+            className={cn(
+              'flex size-7 shrink-0 items-center justify-center rounded-md text-light-blue/70 transition-all duration-150 hover:bg-white/[0.07] hover:text-white',
+              ativo && 'text-white/70'
+            )}
+          >
+            <ChevronDown
+              className={cn('size-3.5 transition-transform duration-200', aberto && 'rotate-180')}
+              strokeWidth={2.25}
+            />
+          </button>
+        )}
+      </div>
+
+      {expandida && aberto && sublinks.length > 0 && (
+        <div className="ml-4 flex flex-col gap-0.5 border-l border-white/[0.08] pl-3">
+          {sublinks.map((sub) => (
+            <LinkMenu
+              key={sub.href}
+              href={sub.href}
+              label={sub.label}
+              icon={sub.icon}
+              ativo={pathname === sub.href}
+              expandida={expandida}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -245,205 +337,135 @@ export function NavBar() {
     <nav
       className={cn(
         'sticky top-0 flex h-screen shrink-0 flex-col bg-gradient-to-b from-navy via-navy to-navy-2 shadow-[1px_0_0_0_rgba(255,255,255,0.06),8px_0_20px_-8px_rgba(0,0,0,0.35)] transition-[width] duration-200',
-        expandida ? 'w-56' : 'w-16'
+        expandida ? 'w-64' : 'w-[68px]'
       )}
     >
       <Link
         href="/clientes"
-        className="flex shrink-0 items-center gap-2 overflow-hidden px-3.5 py-4"
+        className={cn(
+          'flex shrink-0 items-center gap-2.5 overflow-hidden px-4 py-5',
+          !expandida && 'justify-center px-0'
+        )}
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-orange text-sm font-bold text-white">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange to-orange-dark text-sm font-bold text-white shadow-[0_2px_6px_rgba(240,124,45,0.35)]">
           V
         </span>
         {expandida && (
-          <span className="whitespace-nowrap text-base font-semibold tracking-tight text-white">
+          <span className="whitespace-nowrap text-[15px] font-bold tracking-tight text-white">
             Ver<span className="text-orange">AI</span>
           </span>
         )}
       </Link>
 
-      <div className="flex flex-1 flex-col gap-1 px-2.5 py-1">
-        {expandida && (
-          <span className="px-2.5 pt-1 pb-1 text-[0.65rem] font-semibold tracking-wide text-white/35 uppercase">
-            Relatórios
-          </span>
-        )}
-
-        <div className="flex items-center gap-1">
-          <LinkMenu
-            href={RELATORIOS_LINK.href}
-            label={RELATORIOS_LINK.label}
-            icon={RELATORIOS_LINK.icon}
-            ativo={pathname === RELATORIOS_LINK.href}
-            expandida={expandida}
-            className="flex-1"
-          />
+      <div className="nav-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-2">
+        <div className="flex flex-col gap-1">
           {expandida && (
-            <button
-              type="button"
-              onClick={alternarRelatorios}
-              aria-label={relatoriosAberto ? 'Recolher Relatórios dos clientes' : 'Expandir Relatórios dos clientes'}
-              aria-expanded={relatoriosAberto}
-              className="flex shrink-0 items-center justify-center rounded-md p-2 text-light-blue transition-colors hover:bg-white/[0.06] hover:text-white"
-            >
-              {relatoriosAberto ? (
-                <ChevronUp className="size-3.5" strokeWidth={2.25} />
-              ) : (
-                <ChevronDown className="size-3.5" strokeWidth={2.25} />
-              )}
-            </button>
+            <span className="px-1.5 pb-0.5 text-[10px] font-bold tracking-[0.08em] text-white/30 uppercase">
+              Relatórios
+            </span>
           )}
+
+          <GrupoMenu
+            link={RELATORIOS_LINK}
+            sublinks={RELATORIOS_SUBLINKS}
+            aberto={relatoriosAberto}
+            onToggle={alternarRelatorios}
+            pathname={pathname}
+            expandida={expandida}
+          />
+
+          <GrupoMenu
+            link={PROPOSTA_COMERCIAL_LINK}
+            sublinks={PROPOSTA_COMERCIAL_SUBLINKS}
+            aberto={propostaComercialAberto}
+            onToggle={alternarPropostaComercial}
+            pathname={pathname}
+            expandida={expandida}
+          />
         </div>
 
-        {expandida && relatoriosAberto && (
-          <div className="flex flex-col gap-1 pl-4">
-            {RELATORIOS_SUBLINKS.map((link) => (
-              <LinkMenu
-                key={link.href}
-                href={link.href}
-                label={link.label}
-                icon={link.icon}
-                ativo={pathname === link.href}
-                expandida={expandida}
-              />
-            ))}
+        {!MENU_SIMPLIFICADO && (
+          <div className="flex flex-col gap-1">
+            <LinkMenu
+              href={NOTIFICACOES_LINK.href}
+              label={NOTIFICACOES_LINK.label}
+              icon={NOTIFICACOES_LINK.icon}
+              ativo={pathname === NOTIFICACOES_LINK.href}
+              expandida={expandida}
+              badge={naoLidas}
+            />
           </div>
         )}
 
-        <div className="flex items-center gap-1">
-          <LinkMenu
-            href={PROPOSTA_COMERCIAL_LINK.href}
-            label={PROPOSTA_COMERCIAL_LINK.label}
-            icon={PROPOSTA_COMERCIAL_LINK.icon}
-            ativo={pathname === PROPOSTA_COMERCIAL_LINK.href}
-            expandida={expandida}
-            className="flex-1"
-          />
-          {expandida && (
-            <button
-              type="button"
-              onClick={alternarPropostaComercial}
-              aria-label={
-                propostaComercialAberto
-                  ? 'Recolher Proposta Comercial (Conversão SEI)'
-                  : 'Expandir Proposta Comercial (Conversão SEI)'
-              }
-              aria-expanded={propostaComercialAberto}
-              className="flex shrink-0 items-center justify-center rounded-md p-2 text-light-blue transition-colors hover:bg-white/[0.06] hover:text-white"
-            >
-              {propostaComercialAberto ? (
-                <ChevronUp className="size-3.5" strokeWidth={2.25} />
-              ) : (
-                <ChevronDown className="size-3.5" strokeWidth={2.25} />
-              )}
-            </button>
-          )}
-        </div>
-
-        {expandida && propostaComercialAberto && (
-          <div className="flex flex-col gap-1 pl-4">
-            {PROPOSTA_COMERCIAL_SUBLINKS.map((link) => (
-              <LinkMenu
-                key={link.href}
-                href={link.href}
-                label={link.label}
-                icon={link.icon}
-                ativo={pathname === link.href}
-                expandida={expandida}
-              />
-            ))}
-          </div>
-        )}
-
-        <LinkMenu
-          href={NOTIFICACOES_LINK.href}
-          label={NOTIFICACOES_LINK.label}
-          icon={NOTIFICACOES_LINK.icon}
-          ativo={pathname === NOTIFICACOES_LINK.href}
-          expandida={expandida}
-          badge={naoLidas}
-        />
-
-        {ehAdmin && (
-          <>
-            <span className="my-1.5 block h-px w-full shrink-0 bg-white/15" aria-hidden />
+        {!MENU_SIMPLIFICADO && ehAdmin && (
+          <div className="flex flex-col gap-1 border-t border-white/[0.08] pt-3">
             <button
               type="button"
               onClick={alternarConfig}
               aria-label="Configuração"
               aria-expanded={configAberta}
-              className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-light-blue transition-colors hover:bg-white/[0.06] hover:text-white"
+              className={cn(
+                'flex items-center gap-2 rounded-lg py-1.5 pl-1.5 pr-2 text-[13px] font-medium text-light-blue transition-all duration-150 hover:bg-white/[0.07] hover:text-white',
+                !expandida && 'justify-center'
+              )}
             >
-              <span className="flex shrink-0 items-center justify-center">
-                <Settings className="size-3.5" strokeWidth={2.25} />
-              </span>
+              <IconeMenu icon={Settings} expandida={expandida} />
               {expandida && (
                 <>
-                  <span className="truncate whitespace-nowrap">Configuração</span>
-                  <span className="ml-auto flex shrink-0 items-center justify-center">
-                    {configAberta ? (
-                      <ChevronUp className="size-3.5" strokeWidth={2.25} />
-                    ) : (
-                      <ChevronDown className="size-3.5" strokeWidth={2.25} />
-                    )}
-                  </span>
+                  <span className="min-w-0 flex-1 truncate text-left leading-tight">Configuração</span>
+                  <ChevronDown
+                    className={cn('size-3.5 shrink-0 transition-transform duration-200', configAberta && 'rotate-180')}
+                    strokeWidth={2.25}
+                  />
                 </>
               )}
             </button>
 
             {expandida && configAberta && (
-              <div className="flex flex-col gap-1 pl-4">
-                {CONFIG_LINKS.map((link) => {
-                  const ativo = pathname === link.href
-                  const Icon = link.icon
-                  return (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      aria-label={link.label}
-                      className={cn(
-                        'relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-light-blue transition-colors hover:bg-white/[0.06] hover:text-white',
-                        ativo && 'text-white'
-                      )}
-                    >
-                      {ativo && (
-                        <span className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-orange" />
-                      )}
-                      <span className="flex shrink-0 items-center justify-center">
-                        <Icon className="size-3.5" strokeWidth={2.25} />
-                      </span>
-                      <span className="truncate whitespace-nowrap">{link.label}</span>
-                    </Link>
-                  )
-                })}
+              <div className="ml-4 flex flex-col gap-0.5 border-l border-white/[0.08] pl-3">
+                {CONFIG_LINKS.map((link) => (
+                  <LinkMenu
+                    key={link.href}
+                    href={link.href}
+                    label={link.label}
+                    icon={link.icon}
+                    ativo={pathname === link.href}
+                    expandida={expandida}
+                  />
+                ))}
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
-      <div className="flex shrink-0 flex-col gap-1 px-2.5 py-2.5">
+      <div className="flex shrink-0 flex-col gap-1.5 border-t border-white/[0.08] px-3 py-3">
         {devStatus.enabled && devStatus.impersonating && (
           <button
             type="button"
             onClick={handleVoltarAdmin}
             aria-label="Voltar para admin"
-            className="flex items-center gap-2.5 rounded-md bg-orange/15 px-2.5 py-2 text-sm font-medium text-orange transition-colors hover:bg-orange/25"
+            className={cn(
+              'flex items-center gap-2 rounded-lg bg-orange/15 py-1.5 pl-1.5 pr-2 text-[13px] font-medium text-orange transition-colors hover:bg-orange/25',
+              !expandida && 'justify-center'
+            )}
           >
-            <ArrowLeftRight className="size-3.5 shrink-0" strokeWidth={2.25} />
+            <span className="flex size-8 shrink-0 items-center justify-center">
+              <ArrowLeftRight className="size-[18px]" strokeWidth={1.75} />
+            </span>
             {expandida && (
-              <span className="truncate whitespace-nowrap">
-                Vendo como {usuarioAtual?.nome ?? '...'} · Voltar para admin
+              <span className="min-w-0 flex-1 truncate leading-tight">
+                Vendo como {usuarioAtual?.nome ?? '...'}
               </span>
             )}
           </button>
         )}
 
-        {devStatus.enabled && !devStatus.impersonating && ehAdmin && expandida && devStatus.users.length > 0 && (
-          <div className="flex flex-col gap-1 px-0.5 pb-1">
+        {!MENU_SIMPLIFICADO && devStatus.enabled && !devStatus.impersonating && ehAdmin && expandida && devStatus.users.length > 0 && (
+          <div className="flex flex-col gap-1 px-1 pb-1">
             <label
               htmlFor="dev-simular-usuario"
-              className="text-[0.65rem] font-semibold tracking-wide text-white/40 uppercase"
+              className="text-[10px] font-bold tracking-[0.08em] text-white/40 uppercase"
             >
               Simular usuário
             </label>
@@ -470,23 +492,31 @@ export function NavBar() {
         <button
           onClick={handleLogout}
           aria-label="Sair"
-          className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
+          className={cn(
+            'flex items-center gap-2 rounded-lg py-1.5 pl-1.5 pr-2 text-[13px] font-medium text-white/70 transition-colors hover:bg-white/[0.07] hover:text-white',
+            !expandida && 'justify-center'
+          )}
         >
-          <LogOut className="size-3.5 shrink-0" strokeWidth={2.25} />
-          {expandida && <span className="whitespace-nowrap">Sair</span>}
+          <span className="flex size-8 shrink-0 items-center justify-center">
+            <LogOut className="size-[18px]" strokeWidth={1.75} />
+          </span>
+          {expandida && <span className="leading-tight">Sair</span>}
         </button>
+
         <button
           onClick={alternarExpandida}
           aria-label={expandida ? 'Recolher menu' : 'Expandir menu'}
-          className="flex items-center gap-2.5 rounded-md border border-white/15 px-2.5 py-1.5 text-sm font-medium text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-all hover:border-white/30 hover:bg-white/[0.06] hover:text-white"
+          className={cn(
+            'flex items-center justify-center gap-2 rounded-lg border border-white/10 py-1.5 text-[13px] font-medium text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all hover:border-white/25 hover:bg-white/[0.07] hover:text-white'
+          )}
         >
           {expandida ? (
             <>
               <ChevronLeft className="size-3.5 shrink-0" strokeWidth={2.25} />
-              <span className="whitespace-nowrap">Recolher</span>
+              <span className="leading-tight">Recolher</span>
             </>
           ) : (
-            <ChevronRight className="mx-auto size-3.5" strokeWidth={2.25} />
+            <ChevronRight className="size-3.5" strokeWidth={2.25} />
           )}
         </button>
       </div>

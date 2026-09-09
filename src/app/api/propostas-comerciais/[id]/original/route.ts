@@ -1,27 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { getAuthUser } from '@/lib/auth'
-import { getUpload } from '@/lib/storage'
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const usuario = await getAuthUser(request)
-  if (!usuario) {
-    return NextResponse.json({ error: 'não autenticado' }, { status: 401 })
-  }
-
+/**
+ * Rota substituída por `/api/propostas-comerciais/[id]/arquivos/[arquivoId]`
+ * — cada proposta agora pode ter vários arquivos de origem, então "o PDF
+ * original" deixou de fazer sentido como conceito único. Mantida só pra
+ * responder com 410 Gone em vez de quebrar em runtime caso algo externo
+ * ainda aponte pra ela.
+ */
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const proposta = await prisma.propostaComercial.findUnique({ where: { id } })
-  if (!proposta) {
-    return NextResponse.json({ error: 'proposta comercial não encontrada' }, { status: 404 })
-  }
-
-  const modoPreview = request.nextUrl.searchParams.get('modo') === 'preview'
-  const buffer = await getUpload(proposta.caminhoOriginal)
-
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `${modoPreview ? 'inline' : 'attachment'}; filename="${proposta.nomeArquivo}"`,
+  return NextResponse.json(
+    {
+      error:
+        'rota descontinuada — uma proposta agora pode ter vários arquivos; use /api/propostas-comerciais/' +
+        id +
+        '/arquivos/{arquivoId}',
     },
-  })
+    { status: 410 }
+  )
 }

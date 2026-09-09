@@ -168,22 +168,21 @@ describe('converterPdfParaMarkdown', () => {
     expect(resultado).toContain(fraseLonga)
   })
 
-  it('remove linhas de rodapé de paginação tipo "Page N of M"', async () => {
+  it('preserva rodapé de paginação ("Page N of M") — nada é descartado do original', async () => {
     ;(extractTextItems as jest.Mock).mockResolvedValue({
-      totalPages: 2,
+      totalPages: 1,
       items: [
-        [item({ str: 'Texto da primeira página.', x: 0, hasEOL: true })],
         [
-          item({ str: 'Page 1 of 15', x: 0, hasEOL: true }),
-          item({ str: 'Texto da segunda página.', x: 0, hasEOL: true }),
+          item({ str: 'Texto da primeira página.', x: 0, hasEOL: true }),
+          item({ str: 'Page 1 of 15.', x: 0, hasEOL: true }),
         ],
       ],
     })
 
     const resultado = await converterPdfParaMarkdown(Buffer.from(''))
 
-    expect(resultado).not.toContain('Page 1 of 15')
-    expect(resultado).toBe('Texto da primeira página.\n\nTexto da segunda página.')
+    expect(resultado).toContain('Page 1 of 15')
+    expect(resultado).toBe('Texto da primeira página.\n\nPage 1 of 15.')
   })
 
   it('reconstrói tabela mesmo quando a quantidade de colunas detectadas varia entre as linhas (cabeçalho x dados)', async () => {

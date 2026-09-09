@@ -39,7 +39,6 @@ const TOLERANCIA_MARGEM_JUSTIFICADO = 4
 
 const REGEX_LISTA_NUMERADA = /^(\d+)[.)]\s+(.*)$/
 const REGEX_LISTA_MARCADOR = /^[•\-*]\s+(.*)$/
-const REGEX_RODAPE_PAGINA = /^page\s+\d+\s+of\s+\d+$/i
 /** Fim de frase/parágrafo: pontuação final, opcionalmente seguida de aspas/parêntese. */
 const REGEX_PONTUACAO_FINAL = /[.:;!?]["'”)\]]?$/
 
@@ -89,22 +88,20 @@ export async function converterPdfParaMarkdown(buffer: Buffer): Promise<string> 
     todasAsLinhas.push(...agruparEmLinhas(itensDaPagina, pagina, segmentosPorPagina[pagina] ?? []))
   })
 
-  const linhasSemRodape = todasAsLinhas.filter((linha) => !ehRodapeDePagina(linha))
-  if (linhasSemRodape.length === 0) return ''
+  // Nenhuma linha é descartada — a Proposta Comercial exige que o texto final
+  // seja idêntico ao original, então nem rodapé de paginação ("Page N of M",
+  // "Página N de N") é removido: se estava no PDF, entra no Markdown.
+  if (todasAsLinhas.length === 0) return ''
 
-  const tamanhoCorpo = calcularTamanhoCorpo(linhasSemRodape)
-  const margens = calcularMargens(linhasSemRodape)
+  const tamanhoCorpo = calcularTamanhoCorpo(todasAsLinhas)
+  const margens = calcularMargens(todasAsLinhas)
   const gradesPorPagina = new Map<number, GradeDeTabela>()
   segmentosPorPagina.forEach((segmentos, pagina) => {
     const grade = construirGradeDaPagina(segmentos)
     if (grade) gradesPorPagina.set(pagina, grade)
   })
 
-  return montarMarkdown(linhasSemRodape, tamanhoCorpo, margens, gradesPorPagina)
-}
-
-function ehRodapeDePagina(linha: Linha): boolean {
-  return REGEX_RODAPE_PAGINA.test(extrairTextoLinha(linha))
+  return montarMarkdown(todasAsLinhas, tamanhoCorpo, margens, gradesPorPagina)
 }
 
 function agruparEmLinhas(itens: StructuredTextItem[], pagina: number, segmentosDaPagina: SegmentoReto[]): Linha[] {

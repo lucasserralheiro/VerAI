@@ -4,7 +4,7 @@ jest.mock('./modelo', () => ({ getModel: jest.fn(() => 'modelo-mock') }))
 
 import { generateObject } from 'ai'
 import { getModel } from './modelo'
-import { revisarPortugues, aplicarCorrecoes } from './revisarPortugues'
+import { revisarPortugues, aplicarCorrecoes, dividirEmBlocos } from './revisarPortugues'
 
 describe('aplicarCorrecoes', () => {
   it('aplica cada troca por substituição literal', () => {
@@ -72,5 +72,59 @@ describe('revisarPortugues', () => {
   it('sem correções, devolve o texto idêntico', async () => {
     ;(generateObject as jest.Mock).mockResolvedValue({ object: { correcoes: [] } })
     expect(await revisarPortugues('# Proposta\n\nTexto certo.')).toBe('# Proposta\n\nTexto certo.')
+  })
+
+  it('documento grande é dividido em blocos — um bloco que falha não derruba os outros', async () => {
+    // Reproduz o caso real: um contrato grande vira mais de um bloco (> 6000
+    // caracteres); se um bloco quebra (JSON malformado / truncado do
+    // modelo), a revisão não pode falhar por completo — só aquele trecho
+    // fica sem correção.
+    const paragrafo1 = 'A'.repeat(4000)
+    const paragrafo2 = 'BBBB ' + 'B'.repeat(4000)
+    const markdown = [paragrafo1, paragrafo2].join('\n\n')
+
+    ;(generateObject as jest.Mock)
+      .mockRejectedValueOnce(new Error('AI_NoObjectGeneratedError: could not parse the response'))
+      .mockResolvedValueOnce({ object: { correcoes: [{ antes: 'BBBB', depois: 'bbbb' }] } })
+
+    const resultado = await revisarPortugues(markdown)
+
+    expect(generateObject).toHaveBeenCalledTimes(2)
+    expect(resultado).toContain('bbbb ')
+    expect(resultado).toContain(paragrafo1) // bloco que falhou fica intacto, sem quebrar o documento
+  })
+
+  it('lança erro só quando TODOS os blocos falham', async () => {
+    const paragrafo1 = 'A'.repeat(4000)
+    const paragrafo2 = 'B'.repeat(4000)
+    const markdown = [paragrafo1, paragrafo2].join('\n\n')
+
+    ;(generateObject as jest.Mock).mockRejectedValue(new Error('falhou'))
+
+    await expect(revisarPortugues(markdown)).rejects.toThrow('não foi possível revisar nenhum trecho')
+  })
+})
+
+describe('dividirEmBlocos', () => {
+  it('mantém texto pequeno num bloco só', () => {
+    expect(dividirEmBlocos('texto pequeno\n\noutro parágrafo', 6000)).toHaveLength(1)
+  })
+
+  it('divide em mais de um bloco quando passa do tamanho-alvo, sem perder conteúdo', () => {
+    const p1 = 'A'.repeat(4000)
+    const p2 = 'B'.repeat(4000)
+    const p3 = 'C'.repeat(100)
+    const md = [p1, p2, p3].join('\n\n')
+
+    const blocos = dividirEmBlocos(md, 6000)
+
+    expect(blocos.length).toBeGreaterThan(1)
+    expect(blocos.join('\n\n')).toBe(md) // nada é cortado ou duplicado
+  })
+
+  it('nunca corta no meio de um parágrafo, mesmo que ele sozinho passe do alvo', () => {
+    const gigante = 'X'.repeat(10000)
+    const blocos = dividirEmBlocos(gigante, 6000)
+    expect(blocos).toEqual([gigante])
   })
 })

@@ -43,3 +43,9 @@ next-env.d.ts
 
 # VerAI
 /uploads
+
+.vercel
+.env*
+
+# arquivos temporários de teste manual (gerados em sessões de trabalho, sem uso no app)
+.smoke-tmp

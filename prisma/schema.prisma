@@ -110,13 +110,33 @@ model Analise {
 
 model PropostaComercial {
   id               String    @id @default(cuid())
+  // Nome de exibição da proposta — herda o nome do primeiro arquivo enviado
+  // no momento da criação (múltiplos arquivos vivem em `arquivos` abaixo).
   nomeArquivo      String
-  tamanhoBytes     Int
-  caminhoOriginal  String
-  conteudoMarkdown String?   @db.Text // null só quando status é "erro"
+  tamanhoBytes     Int       // soma dos arquivos em `arquivos`
+  conteudoMarkdown String?   @db.Text // resumo consolidado final — null até concluir, ou quando status é "erro"
   status           String    @default("rascunho") // rascunho | concluido | erro
   mensagemErro     String?
   createdAt        DateTime  @default(now())
+  arquivos         PropostaComercialArquivo[]
+}
+
+// Cada arquivo de origem enviado numa conversão (PDF, planilha ou Word) — uma
+// proposta pode juntar vários; o conteúdo de cada um é extraído individualmente
+// e depois consolidado num único `conteudoMarkdown` na PropostaComercial.
+model PropostaComercialArquivo {
+  id               String            @id @default(cuid())
+  propostaId       String
+  proposta         PropostaComercial @relation(fields: [propostaId], references: [id], onDelete: Cascade)
+  nomeArquivo      String
+  tipo             String            // pdf | xlsx | csv | docx
+  tamanhoBytes     Int
+  caminhoOriginal  String
+  conteudoExtraido String?           @db.Text // null quando a extração desse arquivo específico falhou
+  ordem            Int               // ordem de upload — preserva a sequência que o usuário escolheu
+  createdAt        DateTime          @default(now())
+
+  @@index([propostaId])
 }
 
 model RegraNotificacao {

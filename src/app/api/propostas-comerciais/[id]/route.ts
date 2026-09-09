@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
+import { buildDocumentoPrefix, deleteUploadPrefix } from '@/lib/storage'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const usuario = await getAuthUser(request)
@@ -9,7 +10,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { id } = await params
-  const proposta = await prisma.propostaComercial.findUnique({ where: { id } })
+  const proposta = await prisma.propostaComercial.findUnique({
+    where: { id },
+    include: { arquivos: { orderBy: { ordem: 'asc' } } },
+  })
   if (!proposta) {
     return NextResponse.json({ error: 'proposta comercial não encontrada' }, { status: 404 })
   }
@@ -41,4 +45,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   })
 
   return NextResponse.json(propostaFinal)
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const usuario = await getAuthUser(request)
+  if (!usuario) {
+    return NextResponse.json({ error: 'não autenticado' }, { status: 401 })
+  }
+
+  const { id } = await params
+  const proposta = await prisma.propostaComercial.findUnique({ where: { id } })
+  if (!proposta) {
+    return NextResponse.json({ error: 'proposta comercial não encontrada' }, { status: 404 })
+  }
+
+  // O relacionamento com PropostaComercialArquivo tem onDelete: Cascade, então
+  // apagar a proposta já apaga as linhas dos arquivos junto.
+  await prisma.propostaComercial.delete({ where: { id } })
+
+  // Apaga os blobs de todos os arquivos da proposta — best-effort, se já não
+  // existirem (ou o storage estiver indisponível) a exclusão segue sem erro.
+  const prefixo = buildDocumentoPrefix(proposta.id, proposta.createdAt)
+  await deleteUploadPrefix(prefixo).catch(() => {})
+
+  return NextResponse.json({ ok: true })
 }

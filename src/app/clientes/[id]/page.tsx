@@ -3,22 +3,10 @@
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import {
-  Plus,
-  ChevronRight,
-  Loader2,
-  AlertCircle,
-  Eye,
-  Download,
-  Trash2,
-  ArrowUpRight,
-  Inbox,
-  X,
-} from 'lucide-react'
+import { Plus, ChevronRight, Loader2, AlertCircle, Calendar, Inbox, X } from 'lucide-react'
 import { formatarCompetencia, nomeCompetencia } from '@/lib/competencia'
 import { Badge } from '@/components/ui/badge'
-import { BTN_PRIMARY, BTN_OUTLINE, INPUT_BASE, LINK_DANGER } from '@/lib/ui'
-import { cn } from '@/lib/utils'
+import { BTN_PRIMARY, BTN_OUTLINE, INPUT_BASE } from '@/lib/ui'
 
 interface Cliente {
   id: string
@@ -42,11 +30,8 @@ interface Competencia {
   ano: number
   mes: number
   quantidade: number
-}
-
-interface UsuarioLogado {
-  id: string
-  role: string
+  erros: number
+  processando: number
 }
 
 const MESES = [
@@ -54,29 +39,15 @@ const MESES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ]
 
-const STATUS_BADGE: Record<string, 'success' | 'neutral' | 'critical'> = {
-  concluido: 'success',
-  processando: 'neutral',
-  erro: 'critical',
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  concluido: 'Concluído',
-  processando: 'Processando',
-  erro: 'Erro',
-}
-
 export default function ClienteDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [documentos, setDocumentos] = useState<Documento[]>([])
-  const [usuario, setUsuario] = useState<UsuarioLogado | null>(null)
   const [carregando, setCarregando] = useState(true)
   const hoje = new Date()
   const [novoAno, setNovoAno] = useState(hoje.getFullYear())
   const [novoMes, setNovoMes] = useState(hoje.getMonth() + 1)
-  const [aberta, setAberta] = useState<string | null>(null)
   const [seletorAberto, setSeletorAberto] = useState(false)
 
   async function carregar() {
@@ -94,13 +65,6 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setUsuario)
-      .catch(() => {})
-  }, [])
-
   const competencias: Competencia[] = (() => {
     const porCompetencia = new Map<string, Competencia>()
     for (const doc of documentos) {
@@ -110,6 +74,8 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
         ano: doc.competenciaAno,
         mes: doc.competenciaMes,
         quantidade: (atual?.quantidade ?? 0) + 1,
+        erros: (atual?.erros ?? 0) + (doc.status === 'erro' ? 1 : 0),
+        processando: (atual?.processando ?? 0) + (doc.status === 'processando' ? 1 : 0),
       })
     }
     return [...porCompetencia.values()].sort((a, b) => b.ano - a.ano || b.mes - a.mes)
@@ -122,21 +88,6 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
 
   function handleNovoMes() {
     router.push(`/clientes/${id}/${formatarCompetencia(novoAno, novoMes)}`)
-  }
-
-  function toggleAberta(chave: string) {
-    setAberta((atual) => (atual === chave ? null : chave))
-  }
-
-  async function handleExcluirDocumento(doc: Documento) {
-    if (!confirm(`Excluir "${doc.nomeArquivo}"? Essa ação não pode ser desfeita.`)) return
-    const response = await fetch(`/api/documentos/${doc.id}`, { method: 'DELETE' })
-    if (!response.ok) {
-      const body = await response.json().catch(() => null)
-      alert(body?.error ?? 'Falha ao excluir documento.')
-      return
-    }
-    carregar()
   }
 
   if (carregando) {
@@ -175,6 +126,12 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
             <span className="font-semibold text-navy">{cliente.nome}</span>
           </nav>
           <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">{cliente.nome}</h1>
+          {competencias.length > 0 && (
+            <p className="text-sm text-mid-grey">
+              {competencias.length} competência{competencias.length === 1 ? '' : 's'} registrada
+              {competencias.length === 1 ? '' : 's'}
+            </p>
+          )}
         </div>
 
         {!seletorAberto && (
@@ -223,97 +180,51 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
 
       {competencias.length === 0 ? (
         !seletorAberto && (
-          <p className="card text-sm text-mid-grey">Nenhum documento ainda. Abra uma competência pra começar.</p>
+          <div className="card-flush flex flex-col items-center gap-2 p-10 text-center">
+            <span className="flex size-11 items-center justify-center rounded-full bg-light-grey text-mid-grey">
+              <Inbox className="size-5" strokeWidth={1.75} />
+            </span>
+            <p className="text-sm text-mid-grey">Nenhum documento ainda. Abra uma competência pra começar.</p>
+          </div>
         )
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2.5">
           {competencias.map((c) => {
             const chave = formatarCompetencia(c.ano, c.mes)
-            const expandida = aberta === chave
             const ehAtual = c.ano === hoje.getFullYear() && c.mes === hoje.getMonth() + 1
-            const docsDoMes = documentos
-              .filter((d) => d.competenciaAno === c.ano && d.competenciaMes === c.mes)
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
             return (
-              <li key={chave} className="card-flush overflow-hidden">
-                <button
-                  onClick={() => toggleAberta(chave)}
-                  className="group flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-navy/[0.02]"
+              <li key={chave}>
+                <Link
+                  href={`/clientes/${id}/${chave}`}
+                  className="card card-interactive group flex flex-wrap items-center justify-between gap-3"
                 >
-                  <span className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-navy capitalize">{nomeCompetencia(c.ano, c.mes)}</span>
-                    {ehAtual && <Badge variant="navy-soft">Mês atual</Badge>}
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-navy/[0.05] text-navy/60 transition-colors duration-200 group-hover:bg-orange-light group-hover:text-orange">
+                      <Calendar className="size-4.5" strokeWidth={1.75} />
+                    </span>
+                    <span className="min-w-0 space-y-0.5">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-navy capitalize">{nomeCompetencia(c.ano, c.mes)}</span>
+                        {ehAtual && <Badge variant="navy-soft">Mês atual</Badge>}
+                        {c.erros > 0 && (
+                          <Badge variant="critical">
+                            {c.erros} erro{c.erros === 1 ? '' : 's'}
+                          </Badge>
+                        )}
+                        {c.processando > 0 && <Badge variant="neutral">{c.processando} processando</Badge>}
+                      </span>
+                      <span className="block text-xs text-mid-grey">
+                        {c.quantidade} documento{c.quantidade === 1 ? '' : 's'}
+                      </span>
+                    </span>
                   </span>
-                  <span className="flex items-center gap-2 text-sm text-mid-grey">
-                    {c.quantidade} documento{c.quantidade === 1 ? '' : 's'}
-                    <ChevronRight
-                      className={cn('size-4 transition-transform group-hover:text-orange', expandida && 'rotate-90 text-orange')}
-                      strokeWidth={2.25}
-                    />
+
+                  <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-mid-grey transition-colors duration-200 group-hover:text-orange">
+                    Ver mês completo
+                    <ChevronRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={2.25} />
                   </span>
-                </button>
-
-                {expandida && (
-                  <div className="border-t border-black/[0.05] bg-light-grey/40 p-4">
-                    {docsDoMes.length === 0 ? (
-                      <p className="flex items-center gap-2 text-sm text-mid-grey">
-                        <Inbox className="size-4" strokeWidth={2} />
-                        Nenhum documento neste mês ainda.
-                      </p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {docsDoMes.map((doc) => (
-                          <li
-                            key={doc.id}
-                            className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white p-3 shadow-xs"
-                          >
-                            <span className="flex min-w-0 items-center gap-2.5">
-                              <span className="truncate text-sm font-medium text-navy">{doc.nomeArquivo}</span>
-                              <Badge variant={STATUS_BADGE[doc.status] ?? 'neutral'}>
-                                {STATUS_LABEL[doc.status] ?? doc.status}
-                              </Badge>
-                            </span>
-                            <span className="flex shrink-0 items-center gap-3">
-                              <Link
-                                href={`/documentos/${doc.id}`}
-                                title="Ver análise"
-                                className="flex items-center gap-1 text-sm font-medium text-navy hover:underline"
-                              >
-                                <Eye className="size-3.5" strokeWidth={2.25} />
-                                Ver
-                              </Link>
-                              <a
-                                href={`/api/documentos/${doc.id}/original`}
-                                title="Baixar original"
-                                className="text-mid-grey transition-colors hover:text-navy"
-                              >
-                                <Download className="size-4" strokeWidth={2.25} />
-                              </a>
-                              {usuario && (usuario.role === 'admin' || usuario.id === doc.uploadedById) && (
-                                <button
-                                  onClick={() => handleExcluirDocumento(doc)}
-                                  title="Excluir"
-                                  className={LINK_DANGER}
-                                >
-                                  <Trash2 className="size-4" strokeWidth={2.25} />
-                                </button>
-                              )}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    <Link
-                      href={`/clientes/${id}/${chave}`}
-                      className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-orange hover:underline"
-                    >
-                      Ver mês completo (upload, análise consolidada, evolução)
-                      <ArrowUpRight className="size-3.5" strokeWidth={2.25} />
-                    </Link>
-                  </div>
-                )}
+                </Link>
               </li>
             )
           })}

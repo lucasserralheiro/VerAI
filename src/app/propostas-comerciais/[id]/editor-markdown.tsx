@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { ClipboardCheck, ClipboardCopy, Sparkles } from 'lucide-react'
-import { BTN_PRIMARY } from '@/lib/ui'
+import { BTN_PRIMARY, BTN_OUTLINE } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { copiarMarkdownFormatado } from '@/lib/copiarMarkdownFormatado'
 import { PainelRevisaoPortugues } from './painel-revisao-portugues'
@@ -63,19 +63,7 @@ export function EditorMarkdown({ propostaId, conteudoInicial, arquivosOriginais,
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-mid-grey">Revise o conteúdo da proposta e ajuste o que precisar antes de salvar.</p>
-        <div className="flex flex-wrap gap-2">
-          <MenuArquivosOriginais
-            arquivos={arquivos}
-            onAbrir={setArquivoAberto}
-            onRemover={arquivos.length > 1 ? handleRemoverArquivo : undefined}
-          />
-          <button type="button" onClick={handleSalvar} disabled={salvando} className={BTN_PRIMARY}>
-            {salvando ? 'Salvando...' : 'Salvar'}
-          </button>
-        </div>
-      </div>
+      <p className="text-sm text-mid-grey">Revise o conteúdo da proposta e ajuste o que precisar antes de salvar.</p>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex rounded-lg border border-border-grey bg-light-grey/60 p-0.5">
@@ -102,28 +90,29 @@ export function EditorMarkdown({ propostaId, conteudoInicial, arquivosOriginais,
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={handleCopiarFormatado}
-          className={cn(
-            'inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-150 active:scale-[0.98]',
-            copiado
-              ? 'bg-green-ok shadow-green-ok/25'
-              : 'bg-orange shadow-orange/25 hover:bg-orange-dark hover:shadow-lg hover:shadow-orange/35'
-          )}
-        >
-          {copiado ? (
-            <>
-              <ClipboardCheck className="size-4" strokeWidth={2.25} />
-              Copiado!
-            </>
-          ) : (
-            <>
-              <ClipboardCopy className="size-4" strokeWidth={2.25} />
-              Copiar formatado
-            </>
-          )}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <MenuArquivosOriginais
+            arquivos={arquivos}
+            onAbrir={setArquivoAberto}
+            onRemover={arquivos.length > 1 ? handleRemoverArquivo : undefined}
+          />
+          <button type="button" onClick={handleCopiarFormatado} className={BTN_OUTLINE}>
+            {copiado ? (
+              <>
+                <ClipboardCheck className="size-3.5" strokeWidth={2.25} />
+                Copiado!
+              </>
+            ) : (
+              <>
+                <ClipboardCopy className="size-3.5" strokeWidth={2.25} />
+                Copiar formatado
+              </>
+            )}
+          </button>
+          <button type="button" onClick={handleSalvar} disabled={salvando} className={BTN_PRIMARY}>
+            {salvando ? 'Salvando...' : 'Salvar'}
+          </button>
+        </div>
       </div>
 
       {aba === 'visualizar' && (

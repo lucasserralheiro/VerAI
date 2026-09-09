@@ -92,11 +92,6 @@ export function PropostaFinal({ propostaId, conteudoMarkdown, arquivos, onSalvar
 
         <div className="flex flex-wrap gap-2">
           <MenuArquivosOriginais arquivos={arquivos} onAbrir={setArquivoAberto} />
-          {sujo && (
-            <button type="button" onClick={handleSalvar} disabled={salvando} className={BTN_PRIMARY}>
-              {salvando ? 'Salvando...' : 'Salvar alterações'}
-            </button>
-          )}
           <button type="button" onClick={handleCopiarFormatado} className={BTN_OUTLINE}>
             {copiado ? (
               <>
@@ -110,6 +105,11 @@ export function PropostaFinal({ propostaId, conteudoMarkdown, arquivos, onSalvar
               </>
             )}
           </button>
+          {sujo && (
+            <button type="button" onClick={handleSalvar} disabled={salvando} className={BTN_PRIMARY}>
+              {salvando ? 'Salvando...' : 'Salvar alterações'}
+            </button>
+          )}
         </div>
       </div>
 

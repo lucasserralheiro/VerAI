@@ -11,6 +11,7 @@ jest.mock('@ai-sdk/anthropic', () => ({
 jest.mock('@ai-sdk/google', () => ({ createGoogleGenerativeAI: jest.fn() }))
 jest.mock('@ai-sdk/google-vertex', () => ({ createVertex: jest.fn() }))
 jest.mock('@ai-sdk/groq', () => ({ createGroq: jest.fn() }))
+jest.mock('@ai-sdk/deepseek', () => ({ createDeepSeek: jest.fn() }))
 
 import { generateObject } from 'ai'
 import { analisarConsolidado } from './consolidar'

@@ -20,12 +20,17 @@ const modeloFactoryGroqMock = jest.fn(() => 'modelo-groq-mock')
 jest.mock('@ai-sdk/groq', () => ({
   createGroq: jest.fn(() => modeloFactoryGroqMock),
 }))
+const modeloFactoryDeepSeekMock = jest.fn(() => 'modelo-deepseek-mock')
+jest.mock('@ai-sdk/deepseek', () => ({
+  createDeepSeek: jest.fn(() => modeloFactoryDeepSeekMock),
+}))
 
 import { generateObject } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createVertex } from '@ai-sdk/google-vertex'
 import { createGroq } from '@ai-sdk/groq'
+import { createDeepSeek } from '@ai-sdk/deepseek'
 import { analisarDocumento } from './analisar'
 
 describe('analisarDocumento', () => {
@@ -117,6 +122,24 @@ describe('analisarDocumento', () => {
     expect(createGroq).toHaveBeenCalledWith({ apiKey: 'chave-groq-fake' })
     expect(modeloFactoryGroqMock).toHaveBeenCalledWith('llama-3.3-70b-versatile')
     expect(generateObject).toHaveBeenCalledWith(expect.objectContaining({ model: 'modelo-groq-mock' }))
+  })
+
+  it('usa o DeepSeek quando AI_PROVIDER=deepseek', async () => {
+    process.env.AI_PROVIDER = 'deepseek'
+    process.env.AI_MODEL = 'deepseek-chat'
+    process.env.AI_API_KEY = 'chave-deepseek-fake'
+
+    ;(generateObject as jest.Mock).mockResolvedValue({
+      object: { resumo: 'resumo', pontosCriticos: [], pontosPositivos: [], metricasChave: null },
+    })
+
+    await analisarDocumento('conteúdo', 'v1')
+
+    expect(createDeepSeek).toHaveBeenCalledWith({ apiKey: 'chave-deepseek-fake' })
+    expect(modeloFactoryDeepSeekMock).toHaveBeenCalledWith('deepseek-chat')
+    expect(generateObject).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'modelo-deepseek-mock' })
+    )
   })
 
   it('lança erro quando AI_PROVIDER não é suportado', async () => {

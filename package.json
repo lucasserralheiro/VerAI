@@ -11,6 +11,7 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
+    "diag:pdf": "tsx scripts/diagnostico-conversao.mts",
     "test": "jest --passWithNoTests",
     "dev:db:up": "docker compose --env-file .env.development up -d",
     "dev:db:down": "docker compose --env-file .env.development down",

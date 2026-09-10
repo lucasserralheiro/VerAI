@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
-import { buildUploadPath, putUpload } from '@/lib/storage'
+import { buildImagemPath, buildUploadPath, putUpload } from '@/lib/storage'
 import { converterPdfParaMarkdown } from '@/lib/extracao/pdfMarkdown'
 import { converterParaMarkdownDeterministico } from '@/lib/extracao'
 
@@ -95,7 +95,20 @@ export async function POST(request: NextRequest) {
 
     let markdown: string | null = null
     try {
-      markdown = tipo === 'pdf' ? await converterPdfParaMarkdown(buffer) : await converterParaMarkdownDeterministico(buffer, tipo)
+      markdown =
+        tipo === 'pdf'
+          ? await converterPdfParaMarkdown(buffer, {
+              // Diagrama, print de tela e tabela que veio como figura não
+              // existem no texto do PDF: sem gravar a imagem e devolver a URL,
+              // eles sumiriam do Markdown sem deixar rastro.
+              salvarImagem: (imagem) =>
+                putUpload(
+                  buildImagemPath(`${proposta.id}/${indice}`, imagem.nomeArquivo),
+                  imagem.png,
+                  'image/png'
+                ),
+            })
+          : await converterParaMarkdownDeterministico(buffer, tipo)
       if (!markdown.trim()) {
         throw new Error(`não foi possível converter "${arquivo.name}" — arquivo sem conteúdo reconhecível`)
       }

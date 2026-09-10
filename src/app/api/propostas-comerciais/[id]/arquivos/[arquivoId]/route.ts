@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
-import { getUpload, deleteUpload } from '@/lib/storage'
+import { getUpload, deleteUpload, deleteUploadPrefix, prefixoDeImagensDoOriginal } from '@/lib/storage'
 
 const CONTENT_TYPE_POR_TIPO: Record<string, string> = {
   pdf: 'application/pdf',
@@ -72,6 +72,11 @@ export async function DELETE(
 
   await prisma.propostaComercialArquivo.delete({ where: { id: arquivoId } })
   await deleteUpload(arquivo.caminhoOriginal).catch(() => {})
+
+  // As imagens extraídas de dentro do PDF ficam numa subpasta ao lado do
+  // original — sem apagar o prefixo elas ficariam órfãs no storage pra sempre.
+  const prefixoDeImagens = prefixoDeImagensDoOriginal(arquivo.caminhoOriginal)
+  if (prefixoDeImagens) await deleteUploadPrefix(prefixoDeImagens).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

@@ -1,12 +1,19 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import type { CSSProperties } from 'react'
 import { renderizarMarkdownProposta } from '@/lib/renderizarMarkdownProposta'
 import { htmlEditavelParaMarkdown } from '@/lib/propostaEditavel/htmlEditavelParaMarkdown'
 
 export interface ConteudoEditavelPropostaProps {
   markdown: string
   onChange: (markdown: string) => void
+  /** Pilha de font-family CSS (ex.: `pilhaDaFonte('aptos')`) — se omitida,
+   *  `.markdown-preview` usa o padrão institucional (Aptos). */
+  fonte?: string
+  /** Tamanho do corpo do texto em pontos — o título usa `tamanhoCorpo + 2`.
+   *  Se omitido, `.markdown-preview` usa o padrão institucional (12pt/14pt). */
+  tamanhoCorpo?: number
 }
 
 const DEBOUNCE_MS = 400
@@ -20,8 +27,15 @@ const DEBOUNCE_MS = 400
  * a este componente (ex.: "Usar correções" aplicou um texto novo) — uma
  * mudança que veio do próprio `onChange` não força um re-render, senão o
  * cursor pula pro início a cada tecla.
+ *
+ * `fonte`/`tamanhoCorpo` viram variáveis CSS (`--fonte-proposta`,
+ * `--tamanho-corpo-proposta`, `--tamanho-titulo-proposta`) que
+ * `.markdown-preview` em globals.css lê com fallback pro padrão
+ * institucional — assim o preview muda ao vivo conforme a pessoa escolhe a
+ * fonte/tamanho em `SeletorFonteProposta`, sem precisar duplicar a folha de
+ * estilos inteira por combinação de fonte.
  */
-export function ConteudoEditavelProposta({ markdown, onChange }: ConteudoEditavelPropostaProps) {
+export function ConteudoEditavelProposta({ markdown, onChange, fonte, tamanhoCorpo }: ConteudoEditavelPropostaProps) {
   const ref = useRef<HTMLDivElement>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mudancaInternaRef = useRef(false)
@@ -61,6 +75,13 @@ export function ConteudoEditavelProposta({ markdown, onChange }: ConteudoEditave
     if (elemento?.closest('td, th')) e.preventDefault()
   }
 
+  const estiloFonte: CSSProperties & Record<string, string> = {}
+  if (fonte) estiloFonte['--fonte-proposta'] = fonte
+  if (tamanhoCorpo != null) {
+    estiloFonte['--tamanho-corpo-proposta'] = `${tamanhoCorpo}pt`
+    estiloFonte['--tamanho-titulo-proposta'] = `${tamanhoCorpo + 2}pt`
+  }
+
   return (
     <div
       ref={ref}
@@ -72,6 +93,7 @@ export function ConteudoEditavelProposta({ markdown, onChange }: ConteudoEditave
       onInput={handleInput}
       onPaste={handlePaste}
       onKeyDown={handleKeyDown}
+      style={estiloFonte}
       className="markdown-preview max-h-[70vh] min-h-[200px] overflow-auto rounded-lg border border-border-grey bg-white p-4 outline-none focus:border-orange"
     />
   )

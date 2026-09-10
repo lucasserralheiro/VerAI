@@ -17,6 +17,15 @@ function temEstiloFonte(html: string, trecho: string): boolean {
   return html.includes(trecho)
 }
 
+const MARKDOWN_TABELA = '| Item | Valor |\n| --- | --- |\n| Storage | R$ 100 |\n| Rede | R$ 200 |'
+
+// jsdom (igual a um browser de verdade) normaliza cor hex pra `rgb(...)` ao
+// serializar o `style` de volta pra HTML — o Word/SEI de destino interpreta
+// os dois formatos do mesmo jeito, então os testes checam pela forma rgb().
+const NAVY_RGB = 'rgb(0, 42, 74)'
+const BORDA_GREY_RGB = 'rgb(217, 217, 217)'
+const LIGHT_GREY_RGB = 'rgb(242, 242, 242)'
+
 describe('copiarMarkdownFormatado', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -61,11 +70,37 @@ describe('copiarMarkdownFormatado', () => {
   })
 
   it('célula de tabela sai com a fonte institucional em 12pt', async () => {
-    const html = await htmlCopiado('| Item | Valor |\n| --- | --- |\n| Storage | R$ 100 |')
+    const html = await htmlCopiado(MARKDOWN_TABELA)
     const tdTag = html.match(/<td[^>]*>/)?.[0] ?? ''
 
-    expect(html).toContain('<table>')
+    expect(html).toContain('<table')
     expect(tdTag.toLowerCase()).toContain('aptos')
     expect(temEstiloFonte(tdTag, 'font-size: 12pt')).toBe(true)
+  })
+
+  it('tabela sai com borda, largura cheia e cabeçalho em navy — sem isso ela cola sem estrutura nenhuma no Word/SEI', async () => {
+    const html = await htmlCopiado(MARKDOWN_TABELA)
+    const tabelaTag = html.match(/<table[^>]*>/)?.[0] ?? ''
+    const linhaCabecalhoTag = html.match(/<tr[^>]*>\s*<th/)?.[0] ?? ''
+    // `(?=[\s>])` evita casar com `<thead>` (que também começa com "<th")
+    const thTag = html.match(/<th(?=[\s>])[^>]*>/)?.[0] ?? ''
+    const tdTag = html.match(/<td[^>]*>/)?.[0] ?? ''
+
+    expect(temEstiloFonte(tabelaTag, 'border-collapse: collapse')).toBe(true)
+    expect(temEstiloFonte(tabelaTag, 'width: 100%')).toBe(true)
+    expect(temEstiloFonte(linhaCabecalhoTag, `background-color: ${NAVY_RGB}`)).toBe(true)
+    expect(temEstiloFonte(thTag, `border: 1px solid ${NAVY_RGB}`)).toBe(true)
+    expect(temEstiloFonte(tdTag, `border: 1px solid ${BORDA_GREY_RGB}`)).toBe(true)
+    // fonte institucional continua presente — o estilo de tabela SOMA ao de fonte, não substitui
+    expect(thTag.toLowerCase()).toContain('aptos')
+  })
+
+  it('linhas do corpo da tabela alternam fundo (zebra), igual ao preview na tela', async () => {
+    const html = await htmlCopiado(MARKDOWN_TABELA)
+    const linhasCorpo = [...html.matchAll(/<tr[^>]*>\s*<td/g)].map((m) => m[0])
+
+    expect(linhasCorpo).toHaveLength(2)
+    expect(linhasCorpo[0]).not.toContain(LIGHT_GREY_RGB) // 1ª linha (ímpar): sem zebra
+    expect(linhasCorpo[1]).toContain(LIGHT_GREY_RGB) // 2ª linha (par): com zebra
   })
 })

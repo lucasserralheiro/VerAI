@@ -63,7 +63,8 @@ const SUBOP_CLOSE_PATH = 4
  * e reconstrói a posição real de cada traço acompanhando a matriz de
  * transformação corrente (`save`/`restore`/`transform`) — os pontos dentro de
  * um `constructPath` vêm em coordenadas locais (do momento em que o traço foi
- * desenhado), não já convertidas pra página.
+ * desenhado), não já convertidas pra página. Form XObjects entram nessa mesma
+ * pilha: o desenho dentro deles tem uma matriz a mais por cima.
  */
 export async function extrairSegmentosRetosPorPagina(
   pdf: PdfDocumento,
@@ -112,6 +113,17 @@ function extrairSegmentosDaPagina(
     } else if (fn === OPS.transform) {
       const matrizAplicada = operatorList.argsArray[i] as Matriz
       atual = multiplicar(atual, matrizAplicada)
+    } else if (fn === OPS.paintFormXObjectBegin) {
+      // Form XObject é um sub-desenho reaproveitável com matriz própria: o
+      // pdf.js empilha o estado e aplica essa matriz, igual a save+transform.
+      // Sem tratar isso aqui, TODO traço desenhado dentro de um form sai na
+      // posição errada — e some a borda de tabela ou o sublinhado daquela
+      // página inteira.
+      pilha.push(atual)
+      const [matrizDoForm] = operatorList.argsArray[i] as [Matriz | null, unknown]
+      if (matrizDoForm) atual = multiplicar(atual, matrizDoForm)
+    } else if (fn === OPS.paintFormXObjectEnd) {
+      atual = pilha.pop() ?? IDENTIDADE
     } else if (fn === OPS.constructPath) {
       const [tipoPintura, buffers, minMax] = operatorList.argsArray[i] as [
         number,

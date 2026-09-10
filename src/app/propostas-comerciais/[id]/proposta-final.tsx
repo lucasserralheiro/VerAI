@@ -5,9 +5,18 @@ import { ClipboardCopy, ClipboardCheck, Sparkles } from 'lucide-react'
 import { BTN_PRIMARY, BTN_OUTLINE } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { copiarMarkdownFormatado } from '@/lib/copiarMarkdownFormatado'
+import {
+  carregarPreferenciaFonte,
+  pilhaDaFonte,
+  salvarPreferenciaFonte,
+  PREFERENCIA_PADRAO,
+  type PreferenciaFonte,
+  type TamanhoCorpo,
+} from '@/lib/preferenciaFonteProposta'
 import { ConteudoEditavelProposta } from './conteudo-editavel-proposta'
 import { EditarComoTexto } from './editar-como-texto'
 import { PainelRevisaoPortugues } from './painel-revisao-portugues'
+import { SeletorFonteProposta } from './seletor-fonte-proposta'
 import { ArquivoOriginal, MenuArquivosOriginais, ModalArquivoOriginal } from './arquivos-originais'
 
 export interface PropostaFinalProps {
@@ -24,6 +33,13 @@ export function PropostaFinal({ propostaId, conteudoMarkdown, arquivos, onSalvar
   const [copiado, setCopiado] = useState(false)
   const [aba, setAba] = useState<'visualizar' | 'correcao'>('visualizar')
   const [arquivoAberto, setArquivoAberto] = useState<ArquivoOriginal | null>(null)
+  const [preferenciaFonte, setPreferenciaFonte] = useState<PreferenciaFonte>(PREFERENCIA_PADRAO)
+
+  // Carrega a preferência salva só depois de montar (localStorage não existe
+  // no SSR) — evita divergência entre o HTML do servidor e o do cliente.
+  useEffect(() => {
+    setPreferenciaFonte(carregarPreferenciaFonte())
+  }, [])
 
   useEffect(() => {
     setMarkdown(conteudoMarkdown)
@@ -52,9 +68,24 @@ export function PropostaFinal({ propostaId, conteudoMarkdown, arquivos, onSalvar
   }
 
   async function handleCopiarFormatado() {
-    await copiarMarkdownFormatado(markdown)
+    await copiarMarkdownFormatado(markdown, {
+      familia: pilhaDaFonte(preferenciaFonte.fonte),
+      tamanhoCorpo: preferenciaFonte.tamanhoCorpo,
+    })
     setCopiado(true)
     setTimeout(() => setCopiado(false), 2000)
+  }
+
+  function handleMudarFonte(fonte: string) {
+    const nova = { ...preferenciaFonte, fonte }
+    setPreferenciaFonte(nova)
+    salvarPreferenciaFonte(nova)
+  }
+
+  function handleMudarTamanho(tamanhoCorpo: TamanhoCorpo) {
+    const nova = { ...preferenciaFonte, tamanhoCorpo }
+    setPreferenciaFonte(nova)
+    salvarPreferenciaFonte(nova)
   }
 
   function handleUsarCorrecoes(corrigido: string) {
@@ -90,7 +121,12 @@ export function PropostaFinal({ propostaId, conteudoMarkdown, arquivos, onSalvar
           </button>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <SeletorFonteProposta
+            preferencia={preferenciaFonte}
+            onMudarFonte={handleMudarFonte}
+            onMudarTamanho={handleMudarTamanho}
+          />
           <MenuArquivosOriginais arquivos={arquivos} onAbrir={setArquivoAberto} />
           <button type="button" onClick={handleCopiarFormatado} className={BTN_OUTLINE}>
             {copiado ? (
@@ -115,7 +151,12 @@ export function PropostaFinal({ propostaId, conteudoMarkdown, arquivos, onSalvar
 
       {aba === 'visualizar' && (
         <div className="space-y-1.5">
-          <ConteudoEditavelProposta markdown={markdown} onChange={handleMudarTexto} />
+          <ConteudoEditavelProposta
+            markdown={markdown}
+            onChange={handleMudarTexto}
+            fonte={pilhaDaFonte(preferenciaFonte.fonte)}
+            tamanhoCorpo={preferenciaFonte.tamanhoCorpo}
+          />
           <EditarComoTexto markdown={markdown} onChange={handleMudarTexto} />
         </div>
       )}

@@ -15,6 +15,8 @@ const mockOps = {
   closeFillStroke: 26,
   closeEOFillStroke: 27,
   constructPath: 91,
+  paintFormXObjectBegin: 74,
+  paintFormXObjectEnd: 75,
 }
 
 jest.mock('unpdf', () => ({
@@ -97,5 +99,27 @@ describe('extrairSegmentosRetosPorPagina', () => {
     const [segmentosPagina1] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
 
     expect(segmentosPagina1).toContainEqual({ x1: 0, y1: 0, x2: 100, y2: 0 })
+  })
+
+  it('aplica a matriz do Form XObject — traço desenhado dentro de um form sai na posição real da página', async () => {
+    const caminho = new Float32Array([0, 0, 0, 1, 200, 0]) // moveTo(0,0) lineTo(200,0)
+    const pdf = pdfFalso(
+      [mockOps.paintFormXObjectBegin, mockOps.constructPath, mockOps.paintFormXObjectEnd, mockOps.constructPath],
+      [
+        [[1, 0, 0, 1, 40, 300], null], // o form desloca tudo 40pt à direita e 300pt pra cima
+        [mockOps.stroke, [caminho], new Float32Array([0, 0, 200, 0])],
+        [],
+        [mockOps.stroke, [caminho], new Float32Array([0, 0, 200, 0])],
+      ]
+    )
+
+    const [segmentos] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
+
+    // O primeiro traço nasce dentro do form (deslocado); o segundo, depois do
+    // `End`, volta pra origem — é isso que prova que a pilha foi desempilhada.
+    expect(segmentos).toEqual([
+      { x1: 40, y1: 300, x2: 240, y2: 300 },
+      { x1: 0, y1: 0, x2: 200, y2: 0 },
+    ])
   })
 })

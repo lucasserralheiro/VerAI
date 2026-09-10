@@ -6,6 +6,14 @@ export function buildUploadPath(documentoId: string, extensao: string, data: Dat
   return `${ano}/${mes}/${documentoId}/original.${extensao}`
 }
 
+/** Caminho de uma imagem extraída de dentro de um PDF — fica na mesma "pasta"
+ *  do original, então apagar o prefixo do documento leva as imagens junto. */
+export function buildImagemPath(documentoId: string, nomeArquivo: string, data: Date = new Date()): string {
+  const ano = String(data.getFullYear())
+  const mes = String(data.getMonth() + 1).padStart(2, '0')
+  return `${ano}/${mes}/${documentoId}/imagens/${nomeArquivo}`
+}
+
 export function buildRelatorioPath(documentoId: string, data: Date = new Date()): string {
   const ano = String(data.getFullYear())
   const mes = String(data.getMonth() + 1).padStart(2, '0')
@@ -29,6 +37,19 @@ export function buildDocumentoPrefix(documentoId: string, data: Date = new Date(
   const ano = String(data.getFullYear())
   const mes = String(data.getMonth() + 1).padStart(2, '0')
   return `${ano}/${mes}/${documentoId}/`
+}
+
+/** Prefixo da pasta de imagens de um arquivo, deduzido da URL do original que
+ *  está no banco — sem recalcular ano/mês, que podem ter virado desde o upload.
+ *  Devolve `null` quando a URL não tem o formato esperado. */
+export function prefixoDeImagensDoOriginal(urlDoOriginal: string): string | null {
+  try {
+    const caminho = new URL(urlDoOriginal).pathname.replace(/^\//, '')
+    const pasta = caminho.replace(/[^/]+$/, '')
+    return pasta ? `${pasta}imagens/` : null
+  } catch {
+    return null
+  }
 }
 
 /** Sobe um arquivo pro Vercel Blob e retorna a URL pública (não-adivinhável) dele. */

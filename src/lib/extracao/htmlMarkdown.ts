@@ -151,6 +151,63 @@ function renderizarLista(no: No, ordenada: boolean, nivel: number): string {
     .join('\n')
 }
 
+/** Linhas "• texto" pra uma lista (com sublistas) DENTRO de célula de
+ *  tabela — usada só por `renderizarConteudoCelula`. Cada nível de
+ *  aninhamento ganha um recuo de espaços não separáveis (`&nbsp;`), já que
+ *  dentro de uma célula não dá pra usar recuo de verdade (é tudo uma linha
+ *  só de Markdown). Numerada ou com marcador, sempre sai como "•" — dentro
+ *  da célula o que importa é preservar a hierarquia visual, não recriar uma
+ *  lista Markdown de verdade (que exigiria quebra de linha real, impossível
+ *  numa única célula de tabela). */
+function linhasDeListaEmCelula(no: No, nivel: number): string[] {
+  const itens = no.filhos.filter((f) => f.tag === 'li')
+  const indentacao = '&nbsp;&nbsp;&nbsp;&nbsp;'.repeat(nivel)
+  return itens.flatMap((li) => {
+    const listasFilhas = li.filhos.filter((f) => f.tag === 'ul' || f.tag === 'ol')
+    const conteudoInline = li.filhos
+      .filter((f) => f.tag !== 'ul' && f.tag !== 'ol')
+      .map(renderizarInline)
+      .join('')
+      .trim()
+    const linhasFilhas = listasFilhas.flatMap((sub) => linhasDeListaEmCelula(sub, nivel + 1))
+    return [`${indentacao}• ${conteudoInline}`, ...linhasFilhas]
+  })
+}
+
+/**
+ * Renderiza o conteúdo de UMA célula (`<td>`/`<th>`), preservando parágrafo
+ * e item de lista (inclusive lista aninhada) como linha separada — em vez
+ * de jogar tudo achatado num parágrafo só, que era o que a célula virava
+ * antes (bastava a célula ter um `<ul>`/`<p>` dentro pra perder toda a
+ * hierarquia: cabeçalho, bullet e sub-bullet colavam tudo junto).
+ *
+ * Markdown de tabela não aceita célula com quebra de linha de verdade — uma
+ * quebra vira nova linha da TABELA, não da célula — então as linhas saem
+ * unidas por `<br>` HTML: o Markdown deixa tag inline passar direto, e ao
+ * renderizar (`marked.parse`) ela vira quebra de linha de verdade dentro da
+ * célula, igual ao Word original.
+ */
+function renderizarConteudoCelula(no: No): string {
+  const linhas: string[] = []
+  for (const filho of no.filhos) {
+    if (filho.tag === 'ul' || filho.tag === 'ol') {
+      linhas.push(...linhasDeListaEmCelula(filho, 0))
+      continue
+    }
+    if (filho.tag === '#text') {
+      const texto = escaparInlineMarkdown(filho.texto ?? '').trim()
+      if (texto) linhas.push(texto)
+      continue
+    }
+    // <p> e qualquer outro bloco (h1-h6, div, etc.) — trata como parágrafo:
+    // um <p> só tem conteúdo inline dentro, então dá pra extrair com
+    // textoInlineDoNo sem perder nada.
+    const texto = textoInlineDoNo(filho)
+    if (texto) linhas.push(texto)
+  }
+  return linhas.join('<br>')
+}
+
 function escaparCelulaTabela(texto: string): string {
   return texto.replace(/\|/g, '\\|').replace(/\n+/g, ' ').trim()
 }
@@ -159,7 +216,7 @@ function renderizarTabela(no: No): string {
   const linhas = no.filhos.flatMap((f) => (f.tag === 'thead' || f.tag === 'tbody' || f.tag === 'tfoot' ? f.filhos : [f])).filter((f) => f.tag === 'tr')
   if (linhas.length === 0) return ''
 
-  const celulasPorLinha = linhas.map((tr) => tr.filhos.filter((f) => f.tag === 'td' || f.tag === 'th').map((c) => escaparCelulaTabela(textoInlineDoNo(c))))
+  const celulasPorLinha = linhas.map((tr) => tr.filhos.filter((f) => f.tag === 'td' || f.tag === 'th').map((c) => escaparCelulaTabela(renderizarConteudoCelula(c))))
   const numColunas = Math.max(...celulasPorLinha.map((l) => l.length))
 
   function normalizarLinha(linha: string[]): string {

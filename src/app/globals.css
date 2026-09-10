@@ -303,15 +303,21 @@
      — sem isso, marked.parse() gera h1-h6/strong/ul/table semanticamente
      corretos mas visualmente idênticos ao texto normal, o que torna a
      hierarquia do documento ilegível de relance. */
-  /* Fonte institucional da Proposta Comercial: Aptos (Corpo) — a fonte
-   * padrão do Word/SEI. Corpo do texto em 12pt, títulos em 14pt negrito;
-   * ver `src/lib/copiarMarkdownFormatado.ts`, que aplica os mesmos valores
-   * como estilo INLINE no HTML copiado, pra colar no Word/SEI já formatado
+  /* Fonte institucional da Proposta Comercial: Aptos (Corpo) por padrão —
+   * a fonte padrão do Word/SEI. Corpo do texto em 12pt, títulos em 14pt
+   * negrito. `--fonte-proposta`/`--tamanho-corpo-proposta`/
+   * `--tamanho-titulo-proposta` são setadas inline por
+   * `ConteudoEditavelProposta` a partir da preferência escolhida em
+   * `SeletorFonteProposta` (ver `src/lib/preferenciaFonteProposta.ts`) — os
+   * valores literais abaixo são só o FALLBACK, usado quando nenhuma
+   * variável é setada (ex.: preview da aba "Correção da IA"). O HTML de
+   * "Copiar formatado" (`src/lib/copiarMarkdownFormatado.ts`) aplica os
+   * mesmos valores como estilo INLINE, pra colar no Word/SEI já formatado
    * igual ao que aparece aqui (uma folha de estilos externa não sobrevive
    * ao "colar" em outro aplicativo). */
   .markdown-preview {
-    font-family: 'Aptos', 'Aptos Text', Calibri, 'Segoe UI', ui-sans-serif, sans-serif;
-    font-size: 12pt;
+    font-family: var(--fonte-proposta, 'Aptos', 'Aptos Text', Calibri, 'Segoe UI', ui-sans-serif, sans-serif);
+    font-size: var(--tamanho-corpo-proposta, 12pt);
     @apply leading-relaxed text-foreground;
   }
   .markdown-preview > :first-child {
@@ -323,7 +329,7 @@
   .markdown-preview h4,
   .markdown-preview h5,
   .markdown-preview h6 {
-    font-size: 14pt;
+    font-size: var(--tamanho-titulo-proposta, 14pt);
     @apply font-bold text-navy;
   }
   .markdown-preview h1 {
@@ -376,7 +382,7 @@
   /* Tabela — a estrutura mais importante pra virar um item de proposta
      comercial legível em vez de bullets desalinhados. */
   .markdown-preview table {
-    font-size: 12pt;
+    font-size: var(--tamanho-corpo-proposta, 12pt);
     @apply my-3 w-full border-collapse overflow-hidden rounded-lg text-left;
   }
   .markdown-preview thead tr {

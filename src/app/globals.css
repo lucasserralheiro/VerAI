@@ -303,8 +303,16 @@
      — sem isso, marked.parse() gera h1-h6/strong/ul/table semanticamente
      corretos mas visualmente idênticos ao texto normal, o que torna a
      hierarquia do documento ilegível de relance. */
+  /* Fonte institucional da Proposta Comercial: Aptos (Corpo) — a fonte
+   * padrão do Word/SEI. Corpo do texto em 12pt, títulos em 14pt negrito;
+   * ver `src/lib/copiarMarkdownFormatado.ts`, que aplica os mesmos valores
+   * como estilo INLINE no HTML copiado, pra colar no Word/SEI já formatado
+   * igual ao que aparece aqui (uma folha de estilos externa não sobrevive
+   * ao "colar" em outro aplicativo). */
   .markdown-preview {
-    @apply text-[13.5px] leading-relaxed text-foreground;
+    font-family: 'Aptos', 'Aptos Text', Calibri, 'Segoe UI', ui-sans-serif, sans-serif;
+    font-size: 12pt;
+    @apply leading-relaxed text-foreground;
   }
   .markdown-preview > :first-child {
     margin-top: 0;
@@ -315,27 +323,28 @@
   .markdown-preview h4,
   .markdown-preview h5,
   .markdown-preview h6 {
-    @apply font-semibold text-navy;
+    font-size: 14pt;
+    @apply font-bold text-navy;
   }
   .markdown-preview h1 {
-    @apply mt-6 mb-3 border-b border-border-grey pb-2 text-lg;
+    @apply mt-6 mb-3 border-b border-border-grey pb-2;
   }
   .markdown-preview h2 {
-    @apply mt-5 mb-2.5 text-base;
+    @apply mt-5 mb-2.5;
   }
   .markdown-preview h3 {
-    @apply mt-4 mb-2 text-[15px];
+    @apply mt-4 mb-2;
   }
   .markdown-preview h4,
   .markdown-preview h5,
   .markdown-preview h6 {
-    @apply mt-3 mb-1.5 text-sm;
+    @apply mt-3 mb-1.5;
   }
   .markdown-preview p {
     @apply my-2.5;
   }
   .markdown-preview strong {
-    @apply font-semibold text-navy;
+    @apply font-bold text-navy;
   }
   .markdown-preview ul,
   .markdown-preview ol {
@@ -367,7 +376,8 @@
   /* Tabela — a estrutura mais importante pra virar um item de proposta
      comercial legível em vez de bullets desalinhados. */
   .markdown-preview table {
-    @apply my-3 w-full border-collapse overflow-hidden rounded-lg text-left text-[13px];
+    font-size: 12pt;
+    @apply my-3 w-full border-collapse overflow-hidden rounded-lg text-left;
   }
   .markdown-preview thead tr {
     @apply bg-navy text-white;

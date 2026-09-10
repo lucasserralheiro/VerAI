@@ -35,6 +35,28 @@ describe('construirGradeDaPagina', () => {
     expect(construirGradeDaPagina(segmentos)).toEqual({ y: [100, 80, 60], x: [0, 100, 200] })
   })
 
+  it('junta as duas arestas de uma borda desenhada como retângulo fino numa linha de grade só', () => {
+    // O Word exporta borda de tabela como retângulo preenchido de ~2pt: o
+    // extrator devolve a aresta de cima E a de baixo. Sem juntar as duas, a
+    // grade sai com o dobro de linhas e colunas, cheia de faixas de 2pt onde
+    // nenhum texto cai — e a tabela inteira é descartada por parecer vazia.
+    const bordaHorizontal = (y: number) => [segmento(0, y, 200, y), segmento(0, y - 2, 200, y - 2)]
+    const bordaVertical = (x: number) => [segmento(x, 56, x, 100), segmento(x + 2, 56, x + 2, 100)]
+    const segmentos = [
+      ...bordaHorizontal(100),
+      ...bordaHorizontal(80),
+      ...bordaHorizontal(58),
+      ...bordaVertical(0),
+      ...bordaVertical(100),
+      ...bordaVertical(198),
+    ]
+
+    const grade = construirGradeDaPagina(segmentos)
+
+    expect(grade?.y).toHaveLength(3)
+    expect(grade?.x).toHaveLength(3)
+  })
+
   it('ignora traços curtos demais pra serem borda de tabela', () => {
     const segmentos = [segmento(0, 100, 5, 100), segmento(0, 80, 5, 80), segmento(0, 60, 3, 60)]
 
@@ -122,3 +144,50 @@ describe('detectarTabelaPorBordas', () => {
     expect(resultado?.proximoIndice).toBe(1)
   })
 })
+
+describe('mapeamento de item pra coluna da grade', () => {
+  it('mantém na própria coluna o texto que começa logo depois da borda', () => {
+    // Caso real do cronograma da proposta: borda de coluna em x=75,7 e o
+    // cabeçalho começando em x=77,2. Com as faixas se sobrepondo pela
+    // tolerância, esse 1,5pt jogava "A - SISTEMAS DE INFORMAÇÃO" na coluna do
+    // "Periodo" e deslocava a linha de cabeçalho inteira uma coluna à esquerda.
+    const grade: GradeDeTabela = { y: [700, 670, 660], x: [17.6, 75.7, 169.3] }
+    const linhas = [
+      linha(
+        [
+          { texto: 'Periodo', x: 19.4, width: 30 },
+          { texto: 'A - SISTEMAS DE INFORMAÇÃO', x: 77.2, width: 80 },
+        ],
+        675
+      ),
+      linha(
+        [
+          { texto: 'out/26', x: 19.4, width: 30 },
+          { texto: 'R$ 277.663,04', x: 78.9, width: 80 },
+        ],
+        665
+      ),
+    ]
+
+    const tabela = detectarTabelaPorBordas(linhas, 0, grade)
+
+    expect(tabela?.markdown).toBe(
+      '| Periodo | A - SISTEMAS DE INFORMAÇÃO |\n| --- | --- |\n| out/26 | R$ 277.663,04 |'
+    )
+  })
+
+  it('ainda aceita, na faixa mais próxima, o texto que cai um pouco fora da grade', () => {
+    // A tolerância continua valendo pra linha de base desenhada logo abaixo da
+    // última borda — só deixou de ter prioridade sobre a faixa que contém.
+    const grade: GradeDeTabela = { y: [700, 680, 660], x: [0, 100, 200] }
+    const linhas = [
+      linha([{ texto: 'Cabeçalho', x: 10, width: 40 }, { texto: 'Valor', x: 110, width: 40 }], 690),
+      linha([{ texto: 'Dado', x: 10, width: 40 }, { texto: '10', x: 110, width: 20 }], 658.5),
+    ]
+
+    const tabela = detectarTabelaPorBordas(linhas, 0, grade)
+
+    expect(tabela?.markdown).toContain('| Dado | 10 |')
+  })
+})
+

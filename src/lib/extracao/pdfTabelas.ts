@@ -13,7 +13,14 @@ export interface GradeDeTabela {
 
 const COMPRIMENTO_MIN_LINHA_GRADE = 20
 const COMPRIMENTO_MIN_COLUNA_GRADE = 8
-const TOLERANCIA_CLUSTER_GRADE = 1.5
+// Borda de tabela raramente é uma linha: o Word e afins desenham um RETÂNGULO
+// FINO (~2pt), e o extrator de traços devolve as duas arestas dele. Com uma
+// tolerância menor que a espessura desse retângulo, cada borda vira duas linhas
+// de grade, a grade sai com o dobro de linhas e colunas — cheia de faixas de
+// 2pt onde nenhum texto cai — e a tabela é descartada por parecer vazia. Por
+// isso a tolerância acompanha `DIMENSAO_MAX_PREENCHIMENTO_FINO` do pdfTracos: o
+// que couber dentro da espessura de uma borda é a mesma borda.
+const TOLERANCIA_CLUSTER_GRADE = 3.5
 const TOLERANCIA_DENTRO_DA_GRADE = 2
 
 /** Fração mínima de células com texto pra uma grade de bordas contar como
@@ -73,16 +80,42 @@ export function construirGradeDaPagina(segmentos: SegmentoReto[]): GradeDeTabela
   return { y, x }
 }
 
-/** Índice da faixa (entre dois limites consecutivos, em qualquer ordem) onde
- *  `valor` cai — usado tanto pra linha (limites Y decrescentes) quanto coluna
- *  (limites X crescentes) da grade. */
+/**
+ * Índice da faixa (entre dois limites consecutivos, em qualquer ordem) onde
+ * `valor` cai — usado tanto pra linha (limites Y decrescentes) quanto coluna
+ * (limites X crescentes) da grade.
+ *
+ * A faixa que CONTÉM o valor tem prioridade absoluta; a tolerância só entra
+ * quando o valor não cai dentro de nenhuma. Aplicar a tolerância já na primeira
+ * passada faria as faixas se sobreporem, e como quem varre de trás pra frente
+ * devolve o primeiro acerto, todo texto que começa a menos de
+ * `TOLERANCIA_DENTRO_DA_GRADE` depois de uma borda seria empurrado pra coluna
+ * ANTERIOR. Era o que acontecia no cronograma da proposta de referência: a
+ * borda em x=75,7 e o cabeçalho começando em x=77,2 jogavam
+ * "A - SISTEMAS DE INFORMAÇÃO" na coluna do "Periodo" e deslocavam a linha de
+ * cabeçalho inteira uma coluna pra esquerda, deixando a última vazia.
+ */
 function indiceDaFaixa(valor: number, limites: number[]): number | null {
   for (let i = 0; i < limites.length - 1; i++) {
-    const min = Math.min(limites[i], limites[i + 1]) - TOLERANCIA_DENTRO_DA_GRADE
-    const max = Math.max(limites[i], limites[i + 1]) + TOLERANCIA_DENTRO_DA_GRADE
-    if (valor >= min && valor <= max) return i
+    const min = Math.min(limites[i], limites[i + 1])
+    const max = Math.max(limites[i], limites[i + 1])
+    if (valor >= min && valor < max) return i
   }
-  return null
+
+  // Fora de todas as faixas, mas por pouco: linha de base de texto logo abaixo
+  // da última borda, título encostado na primeira. Fica com a faixa mais perto.
+  let maisProxima: number | null = null
+  let menorDistancia = Infinity
+  for (let i = 0; i < limites.length - 1; i++) {
+    const min = Math.min(limites[i], limites[i + 1])
+    const max = Math.max(limites[i], limites[i + 1])
+    const distancia = valor < min ? min - valor : valor - max
+    if (distancia <= TOLERANCIA_DENTRO_DA_GRADE && distancia < menorDistancia) {
+      menorDistancia = distancia
+      maisProxima = i
+    }
+  }
+  return maisProxima
 }
 
 /**

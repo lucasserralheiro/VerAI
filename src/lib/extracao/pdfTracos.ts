@@ -53,11 +53,23 @@ const SUBOP_CURVE_TO = 2
 const SUBOP_QUADRATIC_CURVE_TO = 3
 const SUBOP_CLOSE_PATH = 4
 
+/** Segmentos retos de uma página + a fração da área dela coberta por imagem —
+ *  matéria-prima pra sublinhado/tabela (segmentos) e pra detectar página
+ *  escaneada (cobertura de imagem), sem uma segunda passada pela página. */
+export interface PaginaComTracos {
+  segmentos: SegmentoReto[]
+  /** Área somada de paintImageXObject/paintInlineImage/paintImageMaskXObject
+   *  dividida pela área da página. Pode passar de 1 se imagens se sobrepõem —
+   *  não é limitado, quem decide o que fazer com isso é quem consome. */
+  fracaoAreaComImagem: number
+}
+
 /**
  * Extrai, de cada página do PDF, os segmentos retos (horizontais/verticais)
  * desenhados com traço (linha) ou preenchimento fino (barra) — matéria-prima
  * pra detectar sublinhado (`pdfMarkdown.ts`) e bordas de tabela
- * (`pdfTabelas.ts`) sem depender só da posição do texto.
+ * (`pdfTabelas.ts`) sem depender só da posição do texto — e a fração da área
+ * da página coberta por imagem, usada pra detectar página escaneada.
  *
  * Lê a lista de operações de desenho de cada página (`page.getOperatorList()`)
  * e reconstrói a posição real de cada traço acompanhando a matriz de
@@ -69,7 +81,7 @@ const SUBOP_CLOSE_PATH = 4
 export async function extrairSegmentosRetosPorPagina(
   pdf: PdfDocumento,
   totalPaginas: number
-): Promise<SegmentoReto[][]> {
+): Promise<PaginaComTracos[]> {
   const pdfjs = await getResolvedPDFJS()
   const OPS = pdfjs.OPS
   const operacoesComTraco = new Set([
@@ -81,27 +93,43 @@ export async function extrairSegmentosRetosPorPagina(
     OPS.closeEOFillStroke,
   ])
 
-  const resultado: SegmentoReto[][] = []
+  const resultado: PaginaComTracos[] = []
   for (let numeroPagina = 1; numeroPagina <= totalPaginas; numeroPagina++) {
     const pagina = await pdf.getPage(numeroPagina)
     const operatorList = (await pagina.getOperatorList()) as {
       fnArray: number[]
       argsArray: unknown[]
     }
-    resultado.push(extrairSegmentosDaPagina(operatorList, OPS, operacoesComTraco))
+    const [, , larguraPagina, alturaPagina] = pagina.view as number[]
+    resultado.push(extrairSegmentosDaPagina(operatorList, OPS, operacoesComTraco, larguraPagina, alturaPagina))
   }
 
   return resultado
 }
 
+/** Retângulo (largura x altura) ocupado por uma imagem desenhada dentro do
+ *  quadrado unitário (0,0)-(1,1) transformado pela matriz corrente — mesmo
+ *  cálculo de `pdfImagens.ts`, duplicado aqui de propósito (módulo pequeno,
+ *  sem import cruzado) só pra medir área, não posição. */
+function retanguloDaImagem(matriz: Matriz): { largura: number; altura: number } {
+  const cantos = [aplicar(matriz, 0, 0), aplicar(matriz, 1, 0), aplicar(matriz, 0, 1), aplicar(matriz, 1, 1)]
+  const xs = cantos.map((c) => c[0])
+  const ys = cantos.map((c) => c[1])
+  return { largura: Math.max(...xs) - Math.min(...xs), altura: Math.max(...ys) - Math.min(...ys) }
+}
+
 function extrairSegmentosDaPagina(
   operatorList: { fnArray: number[]; argsArray: unknown[] },
   OPS: Record<string, number>,
-  operacoesComTraco: Set<number>
-): SegmentoReto[] {
+  operacoesComTraco: Set<number>,
+  larguraPagina: number,
+  alturaPagina: number
+): PaginaComTracos {
   const segmentos: SegmentoReto[] = []
   const pilha: Matriz[] = []
   let atual: Matriz = IDENTIDADE
+  let areaComImagem = 0
+  const operacoesDeImagem = new Set([OPS.paintImageXObject, OPS.paintInlineImage, OPS.paintImageMaskXObject])
 
   for (let i = 0; i < operatorList.fnArray.length; i++) {
     const fn = operatorList.fnArray[i]
@@ -138,10 +166,15 @@ function extrairSegmentosDaPagina(
       if ((desenhaTraco || ehPreenchimentoFino) && buffers[0]) {
         segmentos.push(...decodificarCaminho(buffers[0], atual))
       }
+    } else if (operacoesDeImagem.has(fn)) {
+      const { largura, altura } = retanguloDaImagem(atual)
+      areaComImagem += Math.abs(largura * altura)
     }
   }
 
-  return segmentos
+  const areaPagina = larguraPagina * alturaPagina
+  const fracaoAreaComImagem = areaPagina > 0 ? areaComImagem / areaPagina : 0
+  return { segmentos, fracaoAreaComImagem }
 }
 
 function decodificarCaminho(buffer: Float32Array, matriz: Matriz): SegmentoReto[] {

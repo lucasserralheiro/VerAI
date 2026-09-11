@@ -17,16 +17,20 @@ const mockOps = {
   constructPath: 91,
   paintFormXObjectBegin: 74,
   paintFormXObjectEnd: 75,
+  paintImageXObject: 85,
+  paintInlineImage: 86,
+  paintImageMaskXObject: 87,
 }
 
 jest.mock('unpdf', () => ({
   getResolvedPDFJS: jest.fn(() => Promise.resolve({ OPS: mockOps })),
 }))
 
-function pdfFalso(fnArray: number[], argsArray: unknown[]) {
+function pdfFalso(fnArray: number[], argsArray: unknown[], view: number[] = [0, 0, 100, 100]) {
   return {
     getPage: jest.fn().mockResolvedValue({
       getOperatorList: jest.fn().mockResolvedValue({ fnArray, argsArray }),
+      view,
     }),
   }
 }
@@ -42,7 +46,7 @@ describe('extrairSegmentosRetosPorPagina', () => {
       ]
     )
 
-    const [segmentosPagina1] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
+    const [{ segmentos: segmentosPagina1 }] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
 
     expect(segmentosPagina1).toEqual([{ x1: 110, y1: 70, x2: 310, y2: 70 }])
   })
@@ -59,7 +63,7 @@ describe('extrairSegmentosRetosPorPagina', () => {
       ]
     )
 
-    const [segmentosPagina1] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
+    const [{ segmentos: segmentosPagina1 }] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
 
     expect(segmentosPagina1).toEqual([{ x1: 0, y1: 0, x2: 100, y2: 0 }])
   })
@@ -71,7 +75,7 @@ describe('extrairSegmentosRetosPorPagina', () => {
       [[mockOps.stroke, [caminho], new Float32Array([0, 0, 100, 100])]]
     )
 
-    const [segmentosPagina1] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
+    const [{ segmentos: segmentosPagina1 }] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
 
     expect(segmentosPagina1).toEqual([])
   })
@@ -83,7 +87,7 @@ describe('extrairSegmentosRetosPorPagina', () => {
       [[mockOps.fill, [caminho], new Float32Array([0, 0, 50, 50])]]
     )
 
-    const [segmentosPagina1] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
+    const [{ segmentos: segmentosPagina1 }] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
 
     expect(segmentosPagina1).toEqual([])
   })
@@ -96,7 +100,7 @@ describe('extrairSegmentosRetosPorPagina', () => {
       [[mockOps.fill, [caminho], new Float32Array([0, 0, 100, 2])]]
     )
 
-    const [segmentosPagina1] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
+    const [{ segmentos: segmentosPagina1 }] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
 
     expect(segmentosPagina1).toContainEqual({ x1: 0, y1: 0, x2: 100, y2: 0 })
   })
@@ -113,7 +117,7 @@ describe('extrairSegmentosRetosPorPagina', () => {
       ]
     )
 
-    const [segmentos] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
+    const [{ segmentos }] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
 
     // O primeiro traço nasce dentro do form (deslocado); o segundo, depois do
     // `End`, volta pra origem — é isso que prova que a pilha foi desempilhada.
@@ -121,5 +125,28 @@ describe('extrairSegmentosRetosPorPagina', () => {
       { x1: 40, y1: 300, x2: 240, y2: 300 },
       { x1: 0, y1: 0, x2: 200, y2: 0 },
     ])
+  })
+
+  it('calcula a fração de área coberta por imagem numa página com uma imagem de página inteira', async () => {
+    const pdf = pdfFalso(
+      [mockOps.transform, mockOps.paintImageXObject],
+      [
+        [100, 0, 0, 100, 0, 0], // escala a imagem (unidade 0..1) pra cobrir toda a página 100x100
+        ['img1', 100, 100],
+      ]
+    )
+
+    const [{ fracaoAreaComImagem }] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
+
+    expect(fracaoAreaComImagem).toBeCloseTo(1)
+  })
+
+  it('página só com traço/texto (sem imagem) tem fracaoAreaComImagem zero', async () => {
+    const caminho = new Float32Array([0, 0, 0, 1, 100, 0])
+    const pdf = pdfFalso([mockOps.constructPath], [[mockOps.stroke, [caminho], new Float32Array([0, 0, 100, 0])]])
+
+    const [{ fracaoAreaComImagem }] = await extrairSegmentosRetosPorPagina(pdf as never, 1)
+
+    expect(fracaoAreaComImagem).toBe(0)
   })
 })

@@ -201,14 +201,14 @@ export async function converterPdfParaMarkdown(buffer: Buffer, opcoes: OpcoesCon
   // A grade de bordas vem antes das linhas porque o detector de sublinhado
   // precisa saber quais traços são borda de tabela pra não confundir os dois.
   const gradesPorPagina = new Map<number, GradeDeTabela>()
-  segmentosPorPagina.forEach((segmentos, pagina) => {
+  segmentosPorPagina.forEach(({ segmentos }, pagina) => {
     const grade = construirGradeDaPagina(segmentos)
     if (grade) gradesPorPagina.set(pagina, grade)
   })
 
   const todasAsLinhas: Linha[] = []
   items.forEach((itensDaPagina, pagina) => {
-    const segmentos = segmentosPorPagina[pagina] ?? []
+    const segmentos = segmentosPorPagina[pagina]?.segmentos ?? []
     const paraSublinhado = segmentosSemBordaDeTabela(segmentos, gradesPorPagina.get(pagina))
     todasAsLinhas.push(...agruparEmLinhas(itensDaPagina, pagina, paraSublinhado))
   })

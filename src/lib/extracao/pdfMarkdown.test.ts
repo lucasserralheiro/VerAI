@@ -35,7 +35,7 @@ function item(overrides: Partial<StructuredTextItem>): StructuredTextItem {
 
 describe('converterPdfParaMarkdown', () => {
   beforeEach(() => {
-    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([[]])
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([{ segmentos: [], fracaoAreaComImagem: 0 }])
   })
 
   it('envolve trecho com fonte em negrito em **...**', async () => {
@@ -260,7 +260,9 @@ describe('converterPdfParaMarkdown', () => {
       totalPages: 1,
       items: [[item({ str: 'Cláusula sublinhada', x: 0, y: 100, width: 120, hasEOL: true })]],
     })
-    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([[{ x1: 0, y1: 98, x2: 120, y2: 98 }]])
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([
+      { segmentos: [{ x1: 0, y1: 98, x2: 120, y2: 98 }], fracaoAreaComImagem: 0 },
+    ])
 
     const resultado = await converterPdfParaMarkdown(Buffer.from(''))
 
@@ -272,7 +274,9 @@ describe('converterPdfParaMarkdown', () => {
       totalPages: 1,
       items: [[item({ str: 'Texto normal', x: 0, y: 100, width: 120, hasEOL: true })]],
     })
-    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([[{ x1: 0, y1: 98, x2: 20, y2: 98 }]])
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([
+      { segmentos: [{ x1: 0, y1: 98, x2: 20, y2: 98 }], fracaoAreaComImagem: 0 },
+    ])
 
     const resultado = await converterPdfParaMarkdown(Buffer.from(''))
 
@@ -422,14 +426,17 @@ describe('converterPdfParaMarkdown', () => {
       ],
     })
     ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([
-      [
-        { x1: 0, y1: 100, x2: 200, y2: 100 },
-        { x1: 0, y1: 80, x2: 200, y2: 80 },
-        { x1: 0, y1: 60, x2: 200, y2: 60 },
-        { x1: 0, y1: 60, x2: 0, y2: 100 },
-        { x1: 100, y1: 60, x2: 100, y2: 100 },
-        { x1: 200, y1: 60, x2: 200, y2: 100 },
-      ],
+      {
+        segmentos: [
+          { x1: 0, y1: 100, x2: 200, y2: 100 },
+          { x1: 0, y1: 80, x2: 200, y2: 80 },
+          { x1: 0, y1: 60, x2: 200, y2: 60 },
+          { x1: 0, y1: 60, x2: 0, y2: 100 },
+          { x1: 100, y1: 60, x2: 100, y2: 100 },
+          { x1: 200, y1: 60, x2: 200, y2: 100 },
+        ],
+        fracaoAreaComImagem: 0,
+      },
     ])
 
     const resultado = await converterPdfParaMarkdown(Buffer.from(''))
@@ -440,7 +447,7 @@ describe('converterPdfParaMarkdown', () => {
 
 describe('imagens do PDF no Markdown', () => {
   beforeEach(() => {
-    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([[]])
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([{ segmentos: [], fracaoAreaComImagem: 0 }])
     ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([])
   })
 
@@ -537,7 +544,7 @@ describe('imagens do PDF no Markdown', () => {
 
 describe('tabela por posição (sem bordas desenhadas)', () => {
   beforeEach(() => {
-    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([[]])
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([{ segmentos: [], fracaoAreaComImagem: 0 }])
     ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([])
   })
 
@@ -640,7 +647,7 @@ describe('ordem de leitura', () => {
   // pela posição — foi o que colocou o rodapé no topo de toda página e a tabela
   // do cronograma na seção errada da proposta que serviu de referência.
   beforeEach(() => {
-    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([[]])
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([{ segmentos: [], fracaoAreaComImagem: 0 }])
   })
 
   it('coloca o rodapé no fim da página mesmo quando ele é o primeiro item desenhado', async () => {
@@ -727,14 +734,17 @@ describe('ordem de leitura', () => {
     // A borda inferior da célula cai na mesma faixa onde um sublinhado seria
     // desenhado. Sem excluir a grade, toda célula sairia como <u>...</u>.
     ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([
-      [
-        { x1: 0, y1: 110, x2: 300, y2: 110 },
-        { x1: 0, y1: 95, x2: 300, y2: 95 },
-        { x1: 0, y1: 78, x2: 300, y2: 78 },
-        { x1: 0, y1: 78, x2: 0, y2: 110 },
-        { x1: 150, y1: 78, x2: 150, y2: 110 },
-        { x1: 300, y1: 78, x2: 300, y2: 110 },
-      ],
+      {
+        segmentos: [
+          { x1: 0, y1: 110, x2: 300, y2: 110 },
+          { x1: 0, y1: 95, x2: 300, y2: 95 },
+          { x1: 0, y1: 78, x2: 300, y2: 78 },
+          { x1: 0, y1: 78, x2: 0, y2: 110 },
+          { x1: 150, y1: 78, x2: 150, y2: 110 },
+          { x1: 300, y1: 78, x2: 300, y2: 110 },
+        ],
+        fracaoAreaComImagem: 0,
+      },
     ])
     ;(extractTextItems as jest.Mock).mockResolvedValue({
       totalPages: 1,

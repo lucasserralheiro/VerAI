@@ -411,6 +411,12 @@
     @apply shrink-0 text-orange;
   }
 
+  /* Trecho de texto que veio de OCR e ainda não foi conferido pela pessoa
+     (ver src/lib/ocr/marcadorOcrPendente.ts / ocr-runner.tsx). */
+  .markdown-preview .callout-ocr-pendente {
+    @apply my-3 flex items-start gap-2 rounded-lg border border-red-crit/30 bg-red-crit-light px-3 py-2.5 text-[13px] text-navy;
+  }
+
   /* Diff da revisão de português — <ins>/<del> inline no texto renderizado
      da aba "Correção da IA" (ver src/lib/diffPropostaRenderizada.ts). */
   .markdown-preview ins {

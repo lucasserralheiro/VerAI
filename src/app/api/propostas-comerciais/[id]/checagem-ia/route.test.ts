@@ -51,6 +51,7 @@ describe('POST /api/propostas-comerciais/[id]/checagem-ia', () => {
       markdown: 'x',
       paginasImagem: [],
       paginasConvertidas: [{ pagina: 1, textoOriginal: 'original', markdown: 'gerado' }],
+      paginasComImagem: [3],
     })
     ;(checarConversao as jest.Mock).mockResolvedValue({ scoreExibido: 87, trechosSuspeitos: [] })
 
@@ -59,7 +60,7 @@ describe('POST /api/propostas-comerciais/[id]/checagem-ia', () => {
     expect(getUpload).toHaveBeenCalledTimes(1) // só o arquivo pdf, não o xlsx
     expect(getUpload).toHaveBeenCalledWith('https://blob/a1.pdf')
     expect(checarConversao).toHaveBeenCalledWith([{ pagina: 1, textoOriginal: 'original', markdown: 'gerado' }])
-    await expect(resposta.json()).resolves.toEqual({ scoreExibido: 87, trechosSuspeitos: [] })
+    await expect(resposta.json()).resolves.toEqual({ scoreExibido: 87, trechosSuspeitos: [], paginasComImagem: [3] })
   })
 
   it('sem nenhum arquivo pdf devolve score null sem chamar checarConversao', async () => {
@@ -71,7 +72,7 @@ describe('POST /api/propostas-comerciais/[id]/checagem-ia', () => {
     const resposta = await POST(requisicao(), contexto)
 
     expect(checarConversao).not.toHaveBeenCalled()
-    await expect(resposta.json()).resolves.toEqual({ scoreExibido: null, trechosSuspeitos: [] })
+    await expect(resposta.json()).resolves.toEqual({ scoreExibido: null, trechosSuspeitos: [], paginasComImagem: [] })
   })
 
   it('retorna 502 quando a checagem falha', async () => {
@@ -84,6 +85,7 @@ describe('POST /api/propostas-comerciais/[id]/checagem-ia', () => {
       markdown: 'x',
       paginasImagem: [],
       paginasConvertidas: [{ pagina: 1, textoOriginal: 'a', markdown: 'a' }],
+      paginasComImagem: [],
     })
     ;(checarConversao as jest.Mock).mockRejectedValue(new Error('modelo indisponível'))
 

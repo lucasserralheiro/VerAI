@@ -30,19 +30,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const arquivosPdf = proposta.arquivos.filter((arquivo) => arquivo.tipo === 'pdf')
 
   const paginasConvertidas: PaginaConvertida[] = []
+  const paginasComImagem: number[] = []
   for (const arquivo of arquivosPdf) {
     const buffer = await getUpload(arquivo.caminhoOriginal)
     const resultado = await converterPdfParaMarkdown(buffer)
     paginasConvertidas.push(...resultado.paginasConvertidas)
+    paginasComImagem.push(...resultado.paginasComImagem)
   }
 
   if (paginasConvertidas.length === 0) {
-    return NextResponse.json({ scoreExibido: null, trechosSuspeitos: [] })
+    return NextResponse.json({ scoreExibido: null, trechosSuspeitos: [], paginasComImagem })
   }
 
   try {
     const resultado = await checarConversao(paginasConvertidas)
-    return NextResponse.json(resultado)
+    return NextResponse.json({ ...resultado, paginasComImagem })
   } catch (erro) {
     console.error('checagem por IA falhou:', erro)
     const detalhe = erro instanceof Error ? erro.message : String(erro)

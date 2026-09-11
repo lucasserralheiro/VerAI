@@ -111,4 +111,21 @@ describe('EditorMarkdown', () => {
     expect(screen.getByRole('button', { name: 'Arquivo original' })).toBeInTheDocument()
     expect(screen.queryByText('precos.xlsx')).not.toBeInTheDocument()
   })
+
+  it('mostra o OcrRunner quando o conteúdo tem :::ocr-pendente', () => {
+    render(
+      <EditorMarkdown
+        propostaId="prop1"
+        conteudoInicial={'texto\n\n:::ocr-pendente[arquivoId=a1 pagina=1]\n_(aguardando OCR)_\n:::'}
+        arquivosOriginais={[]}
+        onSalvar={jest.fn()}
+      />
+    )
+    expect(screen.getByRole('button', { name: /Rodar OCR/ })).toBeInTheDocument()
+  })
+
+  it('sem :::ocr-pendente não mostra o OcrRunner', () => {
+    render(<EditorMarkdown propostaId="prop1" conteudoInicial="texto normal" arquivosOriginais={[]} onSalvar={jest.fn()} />)
+    expect(screen.queryByRole('button', { name: /Rodar OCR/ })).not.toBeInTheDocument()
+  })
 })

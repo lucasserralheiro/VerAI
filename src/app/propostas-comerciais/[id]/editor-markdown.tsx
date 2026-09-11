@@ -14,6 +14,7 @@ import {
   type TamanhoCorpo,
 } from '@/lib/preferenciaFonteProposta'
 import { PainelRevisaoPortugues } from './painel-revisao-portugues'
+import { OcrRunner } from './ocr-runner'
 import { ArquivoOriginal, MenuArquivosOriginais, ModalArquivoOriginal } from './arquivos-originais'
 import { ConteudoEditavelProposta } from './conteudo-editavel-proposta'
 import { EditarComoTexto } from './editar-como-texto'
@@ -150,6 +151,15 @@ export function EditorMarkdown({ propostaId, conteudoInicial, arquivosOriginais,
           </button>
         </div>
       </div>
+
+      <OcrRunner
+        propostaId={propostaId}
+        conteudoMarkdown={texto}
+        onConteudoAtualizado={async (novo) => {
+          setTexto(novo)
+          await onSalvar(novo)
+        }}
+      />
 
       {aba === 'visualizar' && (
         <div className="space-y-1.5">

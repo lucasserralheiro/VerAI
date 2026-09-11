@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { buildDocumentoPrefix, deleteUploadPrefix } from '@/lib/storage'
+import { temBlocoOcrPendente } from '@/lib/ocr/marcadorOcrPendente'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const usuario = await getAuthUser(request)
@@ -41,7 +42,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const propostaFinal = await prisma.propostaComercial.update({
     where: { id },
-    data: { conteudoMarkdown, status: 'concluido' },
+    data: { conteudoMarkdown, status: temBlocoOcrPendente(conteudoMarkdown) ? 'rascunho' : 'concluido' },
   })
 
   return NextResponse.json(propostaFinal)

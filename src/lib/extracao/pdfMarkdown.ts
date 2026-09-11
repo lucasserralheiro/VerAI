@@ -218,6 +218,11 @@ export interface ResultadoConversaoPdf {
    *  usada só pela checagem por IA, pra comparar texto original x Markdown
    *  gerado sem precisar reler o PDF de novo em outro lugar. */
   paginasConvertidas: PaginaConvertida[]
+  /** Páginas (1-indexadas) com pelo menos uma imagem de CONTEÚDO embutida
+   *  (![Imagem da página N]) — pode ser tabela, gráfico ou diagrama que o
+   *  PDF trouxe como figura em vez de texto. Exclui página que já está em
+   *  `paginasImagem` (essa já tem fluxo próprio de OCR). */
+  paginasComImagem: number[]
 }
 
 export async function converterPdfParaMarkdown(
@@ -241,6 +246,10 @@ export async function converterPdfParaMarkdown(
   // A página escaneada não deve virar figura crua (![Imagem...]) — ela some
   // como imagem e reaparece como marcador de OCR, na mesma posição.
   const imagensFiltradas = imagens.filter((imagem) => !paginasImagem0.has(imagem.pagina))
+  // Página com imagem de conteúdo (tabela/gráfico que virou figura) que NÃO é
+  // de OCR — a checagem por IA usa isso pra avisar "confira essa página na
+  // mão", já que ela não vê o pixel da imagem.
+  const paginasComImagem = [...new Set(imagensFiltradas.map((imagem) => imagem.pagina + 1))].sort((a, b) => a - b)
 
   // A grade de bordas vem antes das linhas porque o detector de sublinhado
   // precisa saber quais traços são borda de tabela pra não confundir os dois.
@@ -268,7 +277,7 @@ export async function converterPdfParaMarkdown(
     // marcada pra OCR vira o marcador; o resto (se houver) segue como figura.
     const blocosOcr = paginasOcrOrdenadas.map((p) => formatarBlocoOcrPendente(p + 1))
     const restante = imagensFiltradas.map((imagem) => imagem.markdown)
-    return { markdown: [...blocosOcr, ...restante].join('\n\n'), paginasImagem, paginasConvertidas: [] }
+    return { markdown: [...blocosOcr, ...restante].join('\n\n'), paginasImagem, paginasConvertidas: [], paginasComImagem }
   }
 
   const tamanhoCorpo = calcularTamanhoCorpo(todasAsLinhas)
@@ -299,7 +308,7 @@ export async function converterPdfParaMarkdown(
     }))
     .sort((a, b) => a.pagina - b.pagina)
 
-  return { markdown, paginasImagem, paginasConvertidas }
+  return { markdown, paginasImagem, paginasConvertidas, paginasComImagem }
 }
 
 /** Extrai as imagens de conteúdo, manda gravar cada uma e devolve as que

@@ -879,3 +879,72 @@ describe('paginasConvertidas (texto original x markdown, por página)', () => {
     expect(resultado.paginasConvertidas[1].textoOriginal).toBe('Segunda.')
   })
 })
+
+describe('paginasComImagem (aviso de imagem embutida)', () => {
+  it('página com imagem de conteúdo entra em paginasComImagem', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 1,
+      items: [[item({ str: 'Texto normal da página, com bastante conteúdo textual.', x: 0, hasEOL: true })]],
+    })
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([{ segmentos: [], fracaoAreaComImagem: 0 }])
+    ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([
+      {
+        pagina: 0,
+        x: 0,
+        y: 0,
+        largura: 200,
+        altura: 150,
+        topo: 150,
+        larguraPx: 400,
+        alturaPx: 300,
+        nomeArquivo: 'pagina-1-imagem-1.png',
+        png: Buffer.from(''),
+      },
+    ])
+
+    const resultado = await converterPdfParaMarkdown(Buffer.from(''), {
+      salvarImagem: async () => 'https://storage.exemplo/img.png',
+    })
+
+    expect(resultado.paginasComImagem).toEqual([1])
+  })
+
+  it('página sem imagem não entra em paginasComImagem', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 1,
+      items: [[item({ str: 'Texto normal, sem imagem nenhuma nessa página.', x: 0, hasEOL: true })]],
+    })
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([{ segmentos: [], fracaoAreaComImagem: 0 }])
+    ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([])
+
+    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+    expect(resultado.paginasComImagem).toEqual([])
+  })
+
+  it('imagem numa página marcada pra OCR não duplica em paginasComImagem', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({ totalPages: 1, items: [[]] }) // página escaneada
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([{ segmentos: [], fracaoAreaComImagem: 0.9 }])
+    ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([
+      {
+        pagina: 0,
+        x: 0,
+        y: 0,
+        largura: 500,
+        altura: 700,
+        topo: 700,
+        larguraPx: 1000,
+        alturaPx: 1400,
+        nomeArquivo: 'pagina-1-imagem-1.png',
+        png: Buffer.from(''),
+      },
+    ])
+
+    const resultado = await converterPdfParaMarkdown(Buffer.from(''), {
+      salvarImagem: async () => 'https://storage.exemplo/img.png',
+    })
+
+    expect(resultado.paginasImagem).toEqual([1]) // vai pro fluxo de OCR
+    expect(resultado.paginasComImagem).toEqual([]) // não duplica aviso aqui
+  })
+})

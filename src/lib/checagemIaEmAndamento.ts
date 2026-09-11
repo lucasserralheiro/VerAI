@@ -15,6 +15,9 @@ export interface TrechoSuspeitoIa {
 export interface ResultadoChecagemIa {
   scoreExibido: number | null
   trechosSuspeitos: TrechoSuspeitoIa[]
+  /** Páginas com imagem de conteúdo embutida (possível tabela/gráfico que
+   *  não virou texto) — a IA não vê o pixel, só aponta onde olhar. */
+  paginasComImagem: number[]
 }
 
 export type EntradaChecagemIa =
@@ -43,7 +46,8 @@ export function iniciarChecagemIa(propostaId: string): Promise<ResultadoChecagem
     // corrompido pro resto do app; vira "sem score" em vez de derrubar a tela.
     const scoreExibido = typeof corpo?.scoreExibido === 'number' ? corpo.scoreExibido : null
     const trechosSuspeitos = Array.isArray(corpo?.trechosSuspeitos) ? corpo.trechosSuspeitos : []
-    return { scoreExibido, trechosSuspeitos }
+    const paginasComImagem = Array.isArray(corpo?.paginasComImagem) ? corpo.paginasComImagem : []
+    return { scoreExibido, trechosSuspeitos, paginasComImagem }
   })()
 
   cache.set(propostaId, { status: 'rodando', promise })

@@ -18,7 +18,7 @@ describe('checagemIaEmAndamento', () => {
   })
 
   it('iniciarChecagemIa chama a rota e vira status ok com o resultado', async () => {
-    mockFetch({ ok: true, body: { scoreExibido: 87, trechosSuspeitos: [] } })
+    mockFetch({ ok: true, body: { scoreExibido: 87, trechosSuspeitos: [], paginasComImagem: [2] } })
 
     const promise = iniciarChecagemIa('p1')
     expect(checagemIaAtual('p1')).toEqual({ status: 'rodando', promise })
@@ -27,13 +27,13 @@ describe('checagemIaEmAndamento', () => {
 
     expect(checagemIaAtual('p1')).toEqual({
       status: 'ok',
-      resultado: { scoreExibido: 87, trechosSuspeitos: [] },
+      resultado: { scoreExibido: 87, trechosSuspeitos: [], paginasComImagem: [2] },
     })
     expect(global.fetch).toHaveBeenCalledWith('/api/propostas-comerciais/p1/checagem-ia', { method: 'POST' })
   })
 
   it('chamar de novo enquanto roda devolve a MESMA promise', async () => {
-    mockFetch({ ok: true, body: { scoreExibido: 87, trechosSuspeitos: [] } })
+    mockFetch({ ok: true, body: { scoreExibido: 87, trechosSuspeitos: [], paginasComImagem: [] } })
 
     const p1 = iniciarChecagemIa('p1')
     const p2 = iniciarChecagemIa('p1')
@@ -48,5 +48,13 @@ describe('checagemIaEmAndamento', () => {
 
     await expect(iniciarChecagemIa('p1')).rejects.toThrow('deu ruim')
     expect(checagemIaAtual('p1')).toEqual({ status: 'erro', mensagem: 'deu ruim' })
+  })
+
+  it('resposta sem paginasComImagem (formato antigo) vira lista vazia, não quebra', async () => {
+    mockFetch({ ok: true, body: { scoreExibido: 87, trechosSuspeitos: [] } })
+
+    const resultado = await iniciarChecagemIa('p1')
+
+    expect(resultado.paginasComImagem).toEqual([])
   })
 })

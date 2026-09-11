@@ -46,7 +46,7 @@ describe('converterPdfParaMarkdown', () => {
       items: [[item({ str: 'Texto em negrito', x: 0, fontFamily: 'Helvetica-Bold', hasEOL: true })]],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe('**Texto em negrito**')
   })
@@ -57,7 +57,7 @@ describe('converterPdfParaMarkdown', () => {
       items: [[item({ str: 'Termo em itálico', x: 0, fontFamily: 'Helvetica-Oblique', hasEOL: true })]],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe('*Termo em itálico*')
   })
@@ -68,7 +68,7 @@ describe('converterPdfParaMarkdown', () => {
       items: [[item({ str: 'Muito importante', x: 0, fontFamily: 'Helvetica-BoldOblique', hasEOL: true })]],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe('***Muito importante***')
   })
@@ -85,7 +85,7 @@ describe('converterPdfParaMarkdown', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe(
       '# Proposta Comercial\n\nCorpo do texto normal.\n\nMais uma linha de corpo.'
@@ -103,7 +103,7 @@ describe('converterPdfParaMarkdown', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     // O `\.` é escape de Markdown: sai como parágrafo "1." em vez de virar
     // lista, justamente pra o renderizador não renumerar (ver abaixo).
@@ -124,7 +124,7 @@ describe('converterPdfParaMarkdown', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe('1\\. Das partes.\n\n2\\. Do objeto.\n\n4\\. Da vigência.')
   })
@@ -142,7 +142,7 @@ describe('converterPdfParaMarkdown', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe(
       '- Serviço contratado\n\n  - Detalhe do serviço\n\n- Outro serviço\n\n  - Detalhe do outro'
@@ -162,7 +162,7 @@ describe('converterPdfParaMarkdown', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe('| Item | Valor |\n| --- | --- |\n| Storage | R$ 100 |')
   })
@@ -170,7 +170,7 @@ describe('converterPdfParaMarkdown', () => {
   it('devolve string vazia quando não há texto extraído', async () => {
     ;(extractTextItems as jest.Mock).mockResolvedValue({ totalPages: 1, items: [[]] })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe('')
   })
@@ -187,7 +187,7 @@ describe('converterPdfParaMarkdown', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe(
       'Este é um parágrafo que quebra em várias linhas dentro do mesmo PDF e só termina aqui.'
@@ -210,7 +210,7 @@ describe('converterPdfParaMarkdown', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado.startsWith('#')).toBe(false)
     expect(resultado).toContain(fraseLonga)
@@ -227,7 +227,7 @@ describe('converterPdfParaMarkdown', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toContain('Page 1 of 15')
     expect(resultado).toBe('Texto da primeira página.\n\nPage 1 of 15.')
@@ -249,7 +249,7 @@ describe('converterPdfParaMarkdown', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toContain('| PRODUTO |')
     expect(resultado).toContain('| Storage | 10 | R$ 100 |')
@@ -264,7 +264,7 @@ describe('converterPdfParaMarkdown', () => {
       { segmentos: [{ x1: 0, y1: 98, x2: 120, y2: 98 }], fracaoAreaComImagem: 0 },
     ])
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe('<u>Cláusula sublinhada</u>')
   })
@@ -278,7 +278,7 @@ describe('converterPdfParaMarkdown', () => {
       { segmentos: [{ x1: 0, y1: 98, x2: 20, y2: 98 }], fracaoAreaComImagem: 0 },
     ])
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe('Texto normal')
   })
@@ -300,7 +300,7 @@ describe('converterPdfParaMarkdown', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe(
       '<h1 align="center">PROPOSTA COMERCIAL</h1>\n\nCorpo do texto que define a margem esquerda e direita do documento inteiro aqui.'
@@ -319,7 +319,7 @@ describe('converterPdfParaMarkdown', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe(
       '<p align="justify">Primeira linha que vai até a margem direita Segunda linha que também toca a mesma margem terceira e última linha, mais curta.</p>'
@@ -343,7 +343,7 @@ describe('converterPdfParaMarkdown', () => {
         ],
       })
 
-      const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+      const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
       expect(resultado).toBe(
         '## A - Sistemas De Informação\n\nTexto de apoio pra fixar o corpo do documento em 9pt aqui.'
@@ -362,7 +362,7 @@ describe('converterPdfParaMarkdown', () => {
         ],
       })
 
-      const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+      const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
       expect(resultado).not.toContain('##')
       expect(resultado).toContain(
@@ -382,7 +382,7 @@ describe('converterPdfParaMarkdown', () => {
         ],
       })
 
-      const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+      const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
       expect(resultado).not.toContain('##')
       expect(resultado).toBe(
@@ -406,7 +406,7 @@ describe('converterPdfParaMarkdown', () => {
         ],
       })
 
-      const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+      const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
       expect(resultado).not.toContain('##')
       expect(resultado).toContain('TÍTULO FALSO.')
@@ -439,7 +439,7 @@ describe('converterPdfParaMarkdown', () => {
       },
     ])
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe('| Item | Valor |\n| --- | --- |\n| Storage | R$ 100 |')
   })
@@ -484,7 +484,7 @@ describe('imagens do PDF no Markdown', () => {
   it('não toca no PDF em busca de imagem quando não recebe onde gravar', async () => {
     textoEmDuasLinhas()
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(extrairImagensDeConteudo).not.toHaveBeenCalled()
     expect(resultado).not.toContain('![')
@@ -494,7 +494,7 @@ describe('imagens do PDF no Markdown', () => {
     textoEmDuasLinhas()
     ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([imagem()])
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''), {
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''), {
       salvarImagem: async (img) => `https://storage.exemplo/${img.nomeArquivo}`,
     })
 
@@ -513,7 +513,7 @@ describe('imagens do PDF no Markdown', () => {
       imagem({ topo: 100, nomeArquivo: 'pagina-1-imagem-1.png' }),
     ])
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''), {
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''), {
       salvarImagem: async (img) => `https://storage.exemplo/${img.nomeArquivo}`,
     })
 
@@ -524,7 +524,7 @@ describe('imagens do PDF no Markdown', () => {
     textoEmDuasLinhas()
     ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([imagem()])
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''), { salvarImagem: async () => null })
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''), { salvarImagem: async () => null })
 
     expect(resultado).not.toContain('![')
     expect(resultado).toContain('Parágrafo antes da figura.')
@@ -534,7 +534,7 @@ describe('imagens do PDF no Markdown', () => {
     ;(extractTextItems as jest.Mock).mockResolvedValue({ totalPages: 1, items: [[]] })
     ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([imagem()])
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''), {
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''), {
       salvarImagem: async (img) => `https://storage.exemplo/${img.nomeArquivo}`,
     })
 
@@ -568,7 +568,7 @@ describe('tabela por posição (sem bordas desenhadas)', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).not.toContain('|')
     // E o parágrafo continua inteiro: antes, qualquer linha com vão largo
@@ -589,7 +589,7 @@ describe('tabela por posição (sem bordas desenhadas)', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe('| Papel | Quantidade |\n| --- | --- |\n| Gerente | 1 |')
   })
@@ -610,7 +610,7 @@ describe('tabela por posição (sem bordas desenhadas)', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toContain('| out/26 | R$ 636.663,98 |')
     expect(resultado).toContain('| nov/26 | R$ 930.663,56 |')
@@ -633,7 +633,7 @@ describe('tabela por posição (sem bordas desenhadas)', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
     const blocos = resultado.split('\n\n')
 
     expect(blocos[0]).toBe('| Papel | Qtd |\n| --- | --- |\n| Gerente | 1 |')
@@ -662,7 +662,7 @@ describe('ordem de leitura', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado.split('\n\n')).toEqual([
       'Introdução do documento.',
@@ -684,7 +684,7 @@ describe('ordem de leitura', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toContain('R$ 279.663,46')
     expect(resultado).not.toContain('279.663,46 R$')
@@ -703,7 +703,7 @@ describe('ordem de leitura', () => {
       ],
     })
 
-    const blocos = (await converterPdfParaMarkdown(Buffer.from(''))).split('\n\n')
+    const blocos = (await converterPdfParaMarkdown(Buffer.from(''))).markdown.split('\n\n')
 
     expect(blocos).toHaveLength(2)
     expect(blocos[0]).toContain('Periodo')
@@ -725,7 +725,7 @@ describe('ordem de leitura', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).toBe('Primeira frase.\n\nSegunda frase.\n\nTerceira frase.')
   })
@@ -758,8 +758,71 @@ describe('ordem de leitura', () => {
       ],
     })
 
-    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
 
     expect(resultado).not.toContain('<u>')
+  })
+})
+
+describe('detecção de página-imagem (fallback de OCR)', () => {
+  it('página sem texto e imagem cobrindo quase tudo entra como :::ocr-pendente na posição certa', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 2,
+      items: [
+        [item({ str: 'Texto normal da página 1.', x: 0, hasEOL: true })],
+        [], // página 2: escaneada, pdf.js não extrai texto nenhum
+      ],
+    })
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([
+      { segmentos: [], fracaoAreaComImagem: 0 },
+      { segmentos: [], fracaoAreaComImagem: 0.9 },
+    ])
+
+    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+    expect(resultado.paginasImagem).toEqual([2])
+    expect(resultado.markdown).toBe('Texto normal da página 1.\n\n:::ocr-pendente[pagina=2]\n_(aguardando OCR)_\n:::')
+  })
+
+  it('página com texto normal não entra em paginasImagem', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 1,
+      items: [[item({ str: 'Texto normal, bastante longo pra passar do limiar de caracteres.', x: 0, hasEOL: true })]],
+    })
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([{ segmentos: [], fracaoAreaComImagem: 0.9 }])
+
+    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+    expect(resultado.paginasImagem).toEqual([])
+  })
+
+  it('texto ralo (abaixo do limiar) sem imagem grande não é marcado', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 1,
+      items: [[item({ str: 'Pouco texto', x: 0, hasEOL: true })]],
+    })
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([{ segmentos: [], fracaoAreaComImagem: 0.1 }])
+
+    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+    expect(resultado.paginasImagem).toEqual([])
+  })
+
+  it('PDF 100% imagem não devolve markdown vazio — devolve um marcador por página', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 2,
+      items: [[], []],
+    })
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([
+      { segmentos: [], fracaoAreaComImagem: 1 },
+      { segmentos: [], fracaoAreaComImagem: 1 },
+    ])
+
+    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+    expect(resultado.markdown).toBe(
+      ':::ocr-pendente[pagina=1]\n_(aguardando OCR)_\n:::\n\n:::ocr-pendente[pagina=2]\n_(aguardando OCR)_\n:::'
+    )
+    expect(resultado.paginasImagem).toEqual([1, 2])
   })
 })

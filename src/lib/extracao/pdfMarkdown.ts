@@ -2,6 +2,7 @@ import { extractTextItems, getDocumentProxy, type StructuredTextItem } from 'unp
 import { extrairSegmentosRetosPorPagina, type SegmentoReto } from './pdfTracos'
 import { construirGradeDaPagina, detectarTabelaPorBordas, type GradeDeTabela } from './pdfTabelas'
 import { extrairImagensDeConteudo, type ImagemDeConteudo } from './pdfImagens'
+import { formatarBlocoOcrPendente } from '../ocr/marcadorOcrPendente'
 
 /** Diferença máxima de Y (em pontos) pra dois itens contarem como a MESMA
  *  linha da página impressa.
@@ -48,6 +49,15 @@ const LINHAS_PARA_CONFIRMAR_CORREDOR = 2
  *  vira título — título de verdade é curto; frase longa com fonte um pouco maior
  *  é ruído de medição da extração, não uma seção nova. */
 const LIMIAR_TAMANHO_TITULO = 80
+
+/** Abaixo desse tanto de caractere extraído na página, "não tem texto de
+ *  verdade ali" — candidata a página escaneada. Valor do design aprovado em
+ *  2026-08-31 (não medido neste projeto; ajustar com cautela). */
+const LIMIAR_CHARS_PAGINA_IMAGEM = 50
+
+/** Acima dessa fração de área da página coberta por imagem — combinado com
+ *  pouco texto acima — a página é tratada como escaneada. */
+const LIMIAR_COBERTURA_IMAGEM = 0.4
 
 /** Distância (em pontos) abaixo da linha de base do texto onde um traço de
  *  sublinhado costuma ser desenhado. */
@@ -192,11 +202,34 @@ export interface OpcoesConversaoPdf {
  * Markdown como `![](url)`, no meio do texto, na posição em que aparece na
  * página.
  */
-export async function converterPdfParaMarkdown(buffer: Buffer, opcoes: OpcoesConversaoPdf = {}): Promise<string> {
+export interface ResultadoConversaoPdf {
+  markdown: string
+  /** Páginas (1-indexadas) sem camada de texto reconhecível — candidatas a
+   *  OCR. Vazio pra qualquer PDF com texto normal. */
+  paginasImagem: number[]
+}
+
+export async function converterPdfParaMarkdown(
+  buffer: Buffer,
+  opcoes: OpcoesConversaoPdf = {}
+): Promise<ResultadoConversaoPdf> {
   const pdf = await getDocumentProxy(new Uint8Array(buffer))
   const { items, totalPages } = await extractTextItems(pdf)
   const segmentosPorPagina = await extrairSegmentosRetosPorPagina(pdf, totalPages)
   const imagens = await prepararImagens(pdf, totalPages, opcoes.salvarImagem)
+
+  const paginasImagem0 = new Set<number>()
+  for (let pagina = 0; pagina < totalPages; pagina++) {
+    const caracteresDaPagina = (items[pagina] ?? []).reduce((soma, item) => soma + (item.str?.length ?? 0), 0)
+    const cobertura = segmentosPorPagina[pagina]?.fracaoAreaComImagem ?? 0
+    if (caracteresDaPagina < LIMIAR_CHARS_PAGINA_IMAGEM && cobertura > LIMIAR_COBERTURA_IMAGEM) {
+      paginasImagem0.add(pagina)
+    }
+  }
+  const paginasImagem = [...paginasImagem0].sort((a, b) => a - b).map((p) => p + 1)
+  // A página escaneada não deve virar figura crua (![Imagem...]) — ela some
+  // como imagem e reaparece como marcador de OCR, na mesma posição.
+  const imagensFiltradas = imagens.filter((imagem) => !paginasImagem0.has(imagem.pagina))
 
   // A grade de bordas vem antes das linhas porque o detector de sublinhado
   // precisa saber quais traços são borda de tabela pra não confundir os dois.
@@ -213,19 +246,25 @@ export async function converterPdfParaMarkdown(buffer: Buffer, opcoes: OpcoesCon
     todasAsLinhas.push(...agruparEmLinhas(itensDaPagina, pagina, paraSublinhado))
   })
 
+  const paginasOcrOrdenadas = [...paginasImagem0].sort((a, b) => a - b)
+
   // Nenhuma linha é descartada — a Proposta Comercial exige que o texto final
   // seja idêntico ao original, então nem rodapé de paginação ("Page N of M",
   // "Página N de N") é removido: se estava no PDF, entra no Markdown.
   if (todasAsLinhas.length === 0) {
     // PDF só de imagem (página escaneada) não tem linha nenhuma, mas ainda tem
-    // conteúdo — devolver vazio aqui apagaria o documento inteiro.
-    return imagens.map((imagem) => imagem.markdown).join('\n\n')
+    // conteúdo — devolver vazio aqui apagaria o documento inteiro. Página
+    // marcada pra OCR vira o marcador; o resto (se houver) segue como figura.
+    const blocosOcr = paginasOcrOrdenadas.map((p) => formatarBlocoOcrPendente(p + 1))
+    const restante = imagensFiltradas.map((imagem) => imagem.markdown)
+    return { markdown: [...blocosOcr, ...restante].join('\n\n'), paginasImagem }
   }
 
   const tamanhoCorpo = calcularTamanhoCorpo(todasAsLinhas)
   const margens = calcularMargens(todasAsLinhas)
 
-  return montarMarkdown(todasAsLinhas, tamanhoCorpo, margens, gradesPorPagina, imagens)
+  const markdown = montarMarkdown(todasAsLinhas, tamanhoCorpo, margens, gradesPorPagina, imagensFiltradas, paginasOcrOrdenadas)
+  return { markdown, paginasImagem }
 }
 
 /** Extrai as imagens de conteúdo, manda gravar cada uma e devolve as que
@@ -779,12 +818,23 @@ function montarMarkdown(
   tamanhoCorpo: number,
   margens: Margens,
   gradesPorPagina: Map<number, GradeDeTabela>,
-  imagens: ImagemPosicionada[] = []
+  imagens: ImagemPosicionada[] = [],
+  paginasOcr: number[] = []
 ): string {
   const blocos: string[] = []
   const imagensPendentes = [...imagens]
+  const paginasOcrPendentes = [...paginasOcr]
   const ancorasDeMarcador = ancorasDeNivelDeMarcador(linhas)
   let i = 0
+
+  // Página marcada pra OCR não tem Linha nenhuma (é por isso que está
+  // marcada) — entra na posição certa comparando só o número da página, igual
+  // ao mecanismo de imagem logo abaixo.
+  const despejarOcrAntesDe = (pagina: number) => {
+    while (paginasOcrPendentes.length > 0 && paginasOcrPendentes[0] <= pagina) {
+      blocos.push(formatarBlocoOcrPendente(paginasOcrPendentes.shift()! + 1))
+    }
+  }
 
   // As imagens são despejadas nas quebras de bloco: assim uma figura nunca
   // parte um parágrafo ou uma tabela no meio, e mesmo assim cai no ponto certo
@@ -796,6 +846,7 @@ function montarMarkdown(
   }
 
   while (i < linhas.length) {
+    despejarOcrAntesDe(linhas[i].pagina)
     despejarImagensAntesDe(linhas[i])
 
     const grade = gradesPorPagina.get(linhas[i].pagina)
@@ -824,8 +875,9 @@ function montarMarkdown(
     i = proximoIndice
   }
 
-  // Imagem depois da última linha de texto do documento (figura de fechamento,
-  // anexo no fim) não pode ficar de fora.
+  // Página de OCR ou imagem depois da última linha de texto do documento
+  // (figura/anexo de fechamento) não pode ficar de fora.
+  for (const pagina of paginasOcrPendentes) blocos.push(formatarBlocoOcrPendente(pagina + 1))
   for (const imagem of imagensPendentes) blocos.push(imagem.markdown)
 
   return blocos.filter((bloco) => bloco.length > 0).join('\n\n')

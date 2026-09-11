@@ -202,11 +202,22 @@ export interface OpcoesConversaoPdf {
  * Markdown como `![](url)`, no meio do texto, na posição em que aparece na
  * página.
  */
+export interface PaginaConvertida {
+  /** 1-indexada, como `paginasImagem`. */
+  pagina: number
+  textoOriginal: string
+  markdown: string
+}
+
 export interface ResultadoConversaoPdf {
   markdown: string
   /** Páginas (1-indexadas) sem camada de texto reconhecível — candidatas a
    *  OCR. Vazio pra qualquer PDF com texto normal. */
   paginasImagem: number[]
+  /** Uma entrada por página com texto nativo (exclui as de `paginasImagem`) —
+   *  usada só pela checagem por IA, pra comparar texto original x Markdown
+   *  gerado sem precisar reler o PDF de novo em outro lugar. */
+  paginasConvertidas: PaginaConvertida[]
 }
 
 export async function converterPdfParaMarkdown(
@@ -257,14 +268,38 @@ export async function converterPdfParaMarkdown(
     // marcada pra OCR vira o marcador; o resto (se houver) segue como figura.
     const blocosOcr = paginasOcrOrdenadas.map((p) => formatarBlocoOcrPendente(p + 1))
     const restante = imagensFiltradas.map((imagem) => imagem.markdown)
-    return { markdown: [...blocosOcr, ...restante].join('\n\n'), paginasImagem }
+    return { markdown: [...blocosOcr, ...restante].join('\n\n'), paginasImagem, paginasConvertidas: [] }
   }
 
   const tamanhoCorpo = calcularTamanhoCorpo(todasAsLinhas)
   const margens = calcularMargens(todasAsLinhas)
 
-  const markdown = montarMarkdown(todasAsLinhas, tamanhoCorpo, margens, gradesPorPagina, imagensFiltradas, paginasOcrOrdenadas)
-  return { markdown, paginasImagem }
+  const { markdown, blocosPorPagina } = montarMarkdown(
+    todasAsLinhas,
+    tamanhoCorpo,
+    margens,
+    gradesPorPagina,
+    imagensFiltradas,
+    paginasOcrOrdenadas
+  )
+
+  const textoOriginalPorPagina = new Map<number, string[]>()
+  for (const linha of todasAsLinhas) {
+    const lista = textoOriginalPorPagina.get(linha.pagina) ?? []
+    lista.push(extrairTextoLinha(linha))
+    textoOriginalPorPagina.set(linha.pagina, lista)
+  }
+
+  const paginasConvertidas: PaginaConvertida[] = [...textoOriginalPorPagina.entries()]
+    .filter(([pagina]) => !paginasImagem0.has(pagina))
+    .map(([pagina, linhasTexto]) => ({
+      pagina: pagina + 1,
+      textoOriginal: linhasTexto.join('\n'),
+      markdown: (blocosPorPagina.get(pagina) ?? []).join('\n\n'),
+    }))
+    .sort((a, b) => a.pagina - b.pagina)
+
+  return { markdown, paginasImagem, paginasConvertidas }
 }
 
 /** Extrai as imagens de conteúdo, manda gravar cada uma e devolve as que
@@ -820,8 +855,19 @@ function montarMarkdown(
   gradesPorPagina: Map<number, GradeDeTabela>,
   imagens: ImagemPosicionada[] = [],
   paginasOcr: number[] = []
-): string {
+): { markdown: string; blocosPorPagina: Map<number, string[]> } {
   const blocos: string[] = []
+  const blocosPorPagina = new Map<number, string[]>()
+  // Registra o bloco na posição da página, além de empilhá-lo — é o que
+  // permite montar `paginasConvertidas` (texto original x markdown por
+  // página, usado pela checagem por IA) sem uma segunda passada.
+  const registrar = (pagina: number, bloco: string) => {
+    blocos.push(bloco)
+    if (bloco.length === 0) return
+    const lista = blocosPorPagina.get(pagina) ?? []
+    lista.push(bloco)
+    blocosPorPagina.set(pagina, lista)
+  }
   const imagensPendentes = [...imagens]
   const paginasOcrPendentes = [...paginasOcr]
   const ancorasDeMarcador = ancorasDeNivelDeMarcador(linhas)
@@ -829,7 +875,8 @@ function montarMarkdown(
 
   // Página marcada pra OCR não tem Linha nenhuma (é por isso que está
   // marcada) — entra na posição certa comparando só o número da página, igual
-  // ao mecanismo de imagem logo abaixo.
+  // ao mecanismo de imagem logo abaixo. Não entra em `blocosPorPagina`: não é
+  // conteúdo checável (a checagem por IA pula página de OCR).
   const despejarOcrAntesDe = (pagina: number) => {
     while (paginasOcrPendentes.length > 0 && paginasOcrPendentes[0] <= pagina) {
       blocos.push(formatarBlocoOcrPendente(paginasOcrPendentes.shift()! + 1))
@@ -841,7 +888,8 @@ function montarMarkdown(
   // do fluxo de leitura.
   const despejarImagensAntesDe = (linha: Linha) => {
     while (imagensPendentes.length > 0 && imagemVemAntesDaLinha(imagensPendentes[0], linha)) {
-      blocos.push(imagensPendentes.shift()!.markdown)
+      const imagem = imagensPendentes.shift()!
+      registrar(imagem.pagina, imagem.markdown)
     }
   }
 
@@ -852,33 +900,33 @@ function montarMarkdown(
     const grade = gradesPorPagina.get(linhas[i].pagina)
     const tabelaPorBordas = grade ? detectarTabelaPorBordas(linhas, i, grade) : null
     if (tabelaPorBordas) {
-      blocos.push(tabelaPorBordas.markdown)
+      registrar(linhas[i].pagina, tabelaPorBordas.markdown)
       i = tabelaPorBordas.proximoIndice
       continue
     }
 
     const tabelaPorPosicao = absorverTabelaPorPosicao(linhas, i)
     if (tabelaPorPosicao) {
-      blocos.push(tabelaPorPosicao.markdown)
+      registrar(linhas[i].pagina, tabelaPorPosicao.markdown)
       i = tabelaPorPosicao.proximoIndice
       continue
     }
 
     if (ehTitulo(linhas[i], tamanhoCorpo)) {
-      blocos.push(formatarTitulo(linhas[i], tamanhoCorpo, margens))
+      registrar(linhas[i].pagina, formatarTitulo(linhas[i], tamanhoCorpo, margens))
       i++
       continue
     }
 
     const { textos, linhasConsumidas, proximoIndice } = absorverBloco(linhas, i, tamanhoCorpo, gradesPorPagina)
-    blocos.push(formatarBlocoDeTexto(textos, linhasConsumidas, margens, ancorasDeMarcador))
+    registrar(linhas[i].pagina, formatarBlocoDeTexto(textos, linhasConsumidas, margens, ancorasDeMarcador))
     i = proximoIndice
   }
 
   // Página de OCR ou imagem depois da última linha de texto do documento
   // (figura/anexo de fechamento) não pode ficar de fora.
   for (const pagina of paginasOcrPendentes) blocos.push(formatarBlocoOcrPendente(pagina + 1))
-  for (const imagem of imagensPendentes) blocos.push(imagem.markdown)
+  for (const imagem of imagensPendentes) registrar(imagem.pagina, imagem.markdown)
 
-  return blocos.filter((bloco) => bloco.length > 0).join('\n\n')
+  return { markdown: blocos.filter((bloco) => bloco.length > 0).join('\n\n'), blocosPorPagina }
 }

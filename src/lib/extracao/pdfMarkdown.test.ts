@@ -826,3 +826,56 @@ describe('detecção de página-imagem (fallback de OCR)', () => {
     expect(resultado.paginasImagem).toEqual([1, 2])
   })
 })
+
+describe('paginasConvertidas (texto original x markdown, por página)', () => {
+  it('devolve texto original e markdown da página, pra página com texto normal', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 1,
+      items: [[item({ str: 'Texto original da página.', x: 0, hasEOL: true })]],
+    })
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([{ segmentos: [], fracaoAreaComImagem: 0 }])
+
+    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+    expect(resultado.paginasConvertidas).toEqual([
+      { pagina: 1, textoOriginal: 'Texto original da página.', markdown: 'Texto original da página.' },
+    ])
+  })
+
+  it('página marcada pra OCR não entra em paginasConvertidas', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 2,
+      items: [
+        [item({ str: 'Texto normal da página 1.', x: 0, hasEOL: true })],
+        [], // página 2: escaneada
+      ],
+    })
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([
+      { segmentos: [], fracaoAreaComImagem: 0 },
+      { segmentos: [], fracaoAreaComImagem: 0.9 },
+    ])
+
+    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+    expect(resultado.paginasConvertidas.map((p) => p.pagina)).toEqual([1])
+  })
+
+  it('duas páginas com texto normal geram duas entradas, na ordem', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 2,
+      items: [
+        [item({ str: 'Primeira.', x: 0, hasEOL: true })],
+        [item({ str: 'Segunda.', x: 0, hasEOL: true })],
+      ],
+    })
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([
+      { segmentos: [], fracaoAreaComImagem: 0 },
+      { segmentos: [], fracaoAreaComImagem: 0 },
+    ])
+
+    const resultado = await converterPdfParaMarkdown(Buffer.from(''))
+
+    expect(resultado.paginasConvertidas.map((p) => p.pagina)).toEqual([1, 2])
+    expect(resultado.paginasConvertidas[1].textoOriginal).toBe('Segunda.')
+  })
+})

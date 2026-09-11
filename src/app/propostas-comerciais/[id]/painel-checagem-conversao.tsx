@@ -98,35 +98,43 @@ export function PainelChecagemConversao({ propostaId, conteudoMarkdown, onConteu
     )
   }
 
-  const { scoreExibido, trechosSuspeitos } = estado.resultado
-
-  if (scoreExibido === null) {
-    return (
-      <p className="rounded-lg border border-border-grey bg-white p-4 text-sm text-mid-grey">
-        Sem páginas de texto nativo pra checar automaticamente — revise o conteúdo de OCR manualmente.
-      </p>
-    )
-  }
+  const { scoreExibido, trechosSuspeitos, paginasComImagem } = estado.resultado
 
   return (
     <div className="space-y-3 rounded-lg border border-border-grey bg-white p-4">
-      <p className="flex items-center gap-2 text-sm font-medium text-navy">
-        <ShieldCheck className="size-4 shrink-0" strokeWidth={2.25} />
-        {scoreExibido}% de confiabilidade (estimativa da IA) — confira os trechos abaixo antes de finalizar.
-      </p>
-      {trechosSuspeitos.length === 0 ? (
-        <p className="text-sm text-mid-grey">Nenhum trecho suspeito encontrado.</p>
+      {scoreExibido !== null ? (
+        <p className="flex items-center gap-2 text-sm font-medium text-navy">
+          <ShieldCheck className="size-4 shrink-0" strokeWidth={2.25} />
+          {scoreExibido}% de confiabilidade (estimativa da IA) — confira os trechos abaixo antes de finalizar.
+        </p>
       ) : (
-        <ul className="space-y-2">
-          {trechosSuspeitos.map((trecho, indice) => (
-            <li key={indice} className="rounded-lg border border-orange/30 bg-orange-light/40 p-2.5 text-sm text-navy">
-              <p className="font-medium">Página {trecho.pagina}</p>
-              <p className="text-mid-grey">&quot;{trecho.trecho}&quot;</p>
-              <p>{trecho.motivo}</p>
-            </li>
-          ))}
-        </ul>
+        <p className="text-sm text-mid-grey">
+          Sem páginas de texto nativo pra checar automaticamente — revise o conteúdo de OCR manualmente.
+        </p>
       )}
+
+      {paginasComImagem.length > 0 && (
+        <p className="flex items-start gap-2 rounded-lg border border-orange/30 bg-orange-light/40 p-2.5 text-sm text-navy">
+          <AlertCircle className="size-4 shrink-0 text-orange" strokeWidth={2.25} />
+          Página {paginasComImagem.join(', ')} {paginasComImagem.length > 1 ? 'têm' : 'tem'} imagem embutida — pode
+          ser uma tabela ou gráfico que não virou texto. Confira o PDF original nesses pontos.
+        </p>
+      )}
+
+      {scoreExibido !== null &&
+        (trechosSuspeitos.length === 0 ? (
+          <p className="text-sm text-mid-grey">Nenhum trecho suspeito encontrado.</p>
+        ) : (
+          <ul className="space-y-2">
+            {trechosSuspeitos.map((trecho, indice) => (
+              <li key={indice} className="rounded-lg border border-orange/30 bg-orange-light/40 p-2.5 text-sm text-navy">
+                <p className="font-medium">Página {trecho.pagina}</p>
+                <p className="text-mid-grey">&quot;{trecho.trecho}&quot;</p>
+                <p>{trecho.motivo}</p>
+              </li>
+            ))}
+          </ul>
+        ))}
     </div>
   )
 }

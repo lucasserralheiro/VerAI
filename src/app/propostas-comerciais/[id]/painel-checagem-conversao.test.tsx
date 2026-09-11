@@ -69,4 +69,25 @@ describe('PainelChecagemConversao', () => {
 
     await waitFor(() => expect(screen.getByText(/modelo indisponível/)).toBeInTheDocument())
   })
+
+  it('mostra aviso de página com imagem embutida quando paginasComImagem não é vazio', async () => {
+    mockFetch({
+      ok: true,
+      body: { scoreExibido: 90, trechosSuspeitos: [], paginasComImagem: [3, 8] },
+    })
+
+    render(<PainelChecagemConversao propostaId="p1" conteudoMarkdown="texto normal" onConteudoAtualizado={jest.fn()} />)
+
+    expect(await screen.findByText(/3, 8/)).toBeInTheDocument()
+    expect(screen.getByText(/imagem embutida/i)).toBeInTheDocument()
+  })
+
+  it('sem paginasComImagem, não mostra o aviso', async () => {
+    mockFetch({ ok: true, body: { scoreExibido: 90, trechosSuspeitos: [], paginasComImagem: [] } })
+
+    render(<PainelChecagemConversao propostaId="p1" conteudoMarkdown="texto normal" onConteudoAtualizado={jest.fn()} />)
+
+    await screen.findByText(/90%/)
+    expect(screen.queryByText(/imagem embutida/i)).not.toBeInTheDocument()
+  })
 })

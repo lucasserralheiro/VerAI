@@ -5,6 +5,7 @@ import { getAuthUser } from '@/lib/auth'
 import { buildImagemPath, buildUploadPath, putUpload } from '@/lib/storage'
 import { converterPdfParaMarkdown } from '@/lib/extracao/pdfMarkdown'
 import { converterParaMarkdownDeterministico } from '@/lib/extracao'
+import { reescreverComArquivoId } from '@/lib/ocr/marcadorOcrPendente'
 
 const TIPOS_ACEITOS = ['pdf', 'xlsx', 'csv', 'docx'] as const
 type TipoAceito = (typeof TIPOS_ACEITOS)[number]
@@ -93,22 +94,36 @@ export async function POST(request: NextRequest) {
     const caminhoRelativo = buildUploadPath(`${proposta.id}/${indice}`, tipo)
     const url = await putUpload(caminhoRelativo, buffer)
 
+    // A linha do arquivo é gravada ANTES de saber o Markdown final, pra já
+    // ter o `id` disponível — é ele que entra no marcador `:::ocr-pendente`
+    // (o conversor só sabe o número da página, não o arquivoId).
+    const arquivoRow = await prisma.propostaComercialArquivo.create({
+      data: {
+        propostaId: proposta.id,
+        nomeArquivo: arquivo.name,
+        tipo,
+        tamanhoBytes: buffer.length,
+        caminhoOriginal: url,
+        conteudoExtraido: null,
+        ordem: indice,
+      },
+    })
+
     let markdown: string | null = null
     try {
-      markdown =
-        tipo === 'pdf'
-          ? await converterPdfParaMarkdown(buffer, {
-              // Diagrama, print de tela e tabela que veio como figura não
-              // existem no texto do PDF: sem gravar a imagem e devolver a URL,
-              // eles sumiriam do Markdown sem deixar rastro.
-              salvarImagem: (imagem) =>
-                putUpload(
-                  buildImagemPath(`${proposta.id}/${indice}`, imagem.nomeArquivo),
-                  imagem.png,
-                  'image/png'
-                ),
-            })
-          : await converterParaMarkdownDeterministico(buffer, tipo)
+      if (tipo === 'pdf') {
+        const resultado = await converterPdfParaMarkdown(buffer, {
+          // Diagrama, print de tela e tabela que veio como figura não
+          // existem no texto do PDF: sem gravar a imagem e devolver a URL,
+          // eles sumiriam do Markdown sem deixar rastro.
+          salvarImagem: (imagem) =>
+            putUpload(buildImagemPath(`${proposta.id}/${indice}`, imagem.nomeArquivo), imagem.png, 'image/png'),
+        })
+        markdown =
+          resultado.paginasImagem.length > 0 ? reescreverComArquivoId(resultado.markdown, arquivoRow.id) : resultado.markdown
+      } else {
+        markdown = await converterParaMarkdownDeterministico(buffer, tipo)
+      }
       if (!markdown.trim()) {
         throw new Error(`não foi possível converter "${arquivo.name}" — arquivo sem conteúdo reconhecível`)
       }
@@ -116,16 +131,9 @@ export async function POST(request: NextRequest) {
       falhaConversao = error instanceof Error ? error.message : String(error)
     }
 
-    await prisma.propostaComercialArquivo.create({
-      data: {
-        propostaId: proposta.id,
-        nomeArquivo: arquivo.name,
-        tipo,
-        tamanhoBytes: buffer.length,
-        caminhoOriginal: url,
-        conteudoExtraido: markdown,
-        ordem: indice,
-      },
+    await prisma.propostaComercialArquivo.update({
+      where: { id: arquivoRow.id },
+      data: { conteudoExtraido: markdown },
     })
 
     if (markdown) {

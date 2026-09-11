@@ -14,7 +14,7 @@ import {
   type TamanhoCorpo,
 } from '@/lib/preferenciaFonteProposta'
 import { PainelRevisaoPortugues } from './painel-revisao-portugues'
-import { OcrRunner } from './ocr-runner'
+import { PainelChecagemConversao } from './painel-checagem-conversao'
 import { ArquivoOriginal, MenuArquivosOriginais, ModalArquivoOriginal } from './arquivos-originais'
 import { ConteudoEditavelProposta } from './conteudo-editavel-proposta'
 import { EditarComoTexto } from './editar-como-texto'
@@ -152,7 +152,7 @@ export function EditorMarkdown({ propostaId, conteudoInicial, arquivosOriginais,
         </div>
       </div>
 
-      <OcrRunner
+      <PainelChecagemConversao
         propostaId={propostaId}
         conteudoMarkdown={texto}
         onConteudoAtualizado={async (novo) => {

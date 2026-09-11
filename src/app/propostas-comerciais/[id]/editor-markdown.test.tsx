@@ -1,9 +1,20 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { EditorMarkdown } from './editor-markdown'
+import { limparChecagemIa } from '@/lib/checagemIaEmAndamento'
+import { limparOcr } from '@/lib/ocrEmAndamento'
 
 const UM_ARQUIVO = [{ id: 'arq1', nomeArquivo: 'proposta.pdf', tipo: 'pdf' }]
 
 describe('EditorMarkdown', () => {
+  beforeEach(() => {
+    // O painel de checagem por IA dispara sozinho ao montar (ver
+    // painel-checagem-conversao.tsx) — sem limpar o cache de sessão entre
+    // testes, um resultado (ou erro) de um teste anterior vazaria pro
+    // próximo, já que todos usam o mesmo propostaId "prop1".
+    limparChecagemIa('prop1')
+    limparOcr('prop1')
+  })
+
   it('abre na aba Visualizar mostrando o conteúdo renderizado', () => {
     render(
       <EditorMarkdown
@@ -125,7 +136,23 @@ describe('EditorMarkdown', () => {
   })
 
   it('sem :::ocr-pendente não mostra o OcrRunner', () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ scoreExibido: 90, trechosSuspeitos: [] }),
+    }) as jest.Mock
+
     render(<EditorMarkdown propostaId="prop1" conteudoInicial="texto normal" arquivosOriginais={[]} onSalvar={jest.fn()} />)
     expect(screen.queryByRole('button', { name: /Rodar OCR/ })).not.toBeInTheDocument()
+  })
+
+  it('mostra o resultado da checagem por IA quando não há OCR pendente', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ scoreExibido: 95, trechosSuspeitos: [] }),
+    }) as jest.Mock
+
+    render(<EditorMarkdown propostaId="prop1" conteudoInicial="texto normal" arquivosOriginais={[]} onSalvar={jest.fn()} />)
+
+    expect(await screen.findByText(/95%/)).toBeInTheDocument()
   })
 })

@@ -16,6 +16,7 @@ import {
 import { ConteudoEditavelProposta } from './conteudo-editavel-proposta'
 import { EditarComoTexto } from './editar-como-texto'
 import { PainelRevisaoPortugues } from './painel-revisao-portugues'
+import { PainelChecagemConversao } from './painel-checagem-conversao'
 import { SeletorFonteProposta } from './seletor-fonte-proposta'
 import { ArquivoOriginal, MenuArquivosOriginais, ModalArquivoOriginal } from './arquivos-originais'
 
@@ -148,6 +149,15 @@ export function PropostaFinal({ propostaId, conteudoMarkdown, arquivos, onSalvar
           )}
         </div>
       </div>
+
+      <PainelChecagemConversao
+        propostaId={propostaId}
+        conteudoMarkdown={markdown}
+        onConteudoAtualizado={async (novo) => {
+          handleMudarTexto(novo)
+          await onSalvar(novo)
+        }}
+      />
 
       {aba === 'visualizar' && (
         <div className="space-y-1.5">

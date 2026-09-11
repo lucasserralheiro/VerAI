@@ -38,7 +38,12 @@ export function iniciarChecagemIa(propostaId: string): Promise<ResultadoChecagem
     if (!resposta.ok) {
       throw new Error(corpo?.error ?? 'Não foi possível checar a conversão.')
     }
-    return corpo as ResultadoChecagemIa
+    // Normaliza a resposta na borda — um corpo inesperado (endpoint com
+    // versão diferente, mock de teste incompleto) não vira score/trecho
+    // corrompido pro resto do app; vira "sem score" em vez de derrubar a tela.
+    const scoreExibido = typeof corpo?.scoreExibido === 'number' ? corpo.scoreExibido : null
+    const trechosSuspeitos = Array.isArray(corpo?.trechosSuspeitos) ? corpo.trechosSuspeitos : []
+    return { scoreExibido, trechosSuspeitos }
   })()
 
   cache.set(propostaId, { status: 'rodando', promise })

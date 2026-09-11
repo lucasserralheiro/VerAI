@@ -1,6 +1,8 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { PropostaFinal } from './proposta-final'
 import { limparRevisao } from '@/lib/revisaoPortuguesEmAndamento'
+import { limparChecagemIa } from '@/lib/checagemIaEmAndamento'
+import { limparOcr } from '@/lib/ocrEmAndamento'
 
 class ClipboardItemFalso {
   constructor(public items: Record<string, Blob>) {}
@@ -17,6 +19,8 @@ describe('PropostaFinal', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     limparRevisao('p1')
+    limparChecagemIa('p1')
+    limparOcr('p1')
     ;(global as unknown as { ClipboardItem: typeof ClipboardItemFalso }).ClipboardItem = ClipboardItemFalso
     Object.assign(navigator, { clipboard: { write: jest.fn().mockResolvedValue(undefined) } })
   })
@@ -112,5 +116,16 @@ describe('PropostaFinal', () => {
 
     expect(await screen.findByRole('button', { name: /Revisar português/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Salvar alterações/ })).not.toBeInTheDocument()
+  })
+
+  it('mostra o resultado da checagem por IA quando não há OCR pendente', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ scoreExibido: 95, trechosSuspeitos: [] }),
+    }) as jest.Mock
+
+    render(<PropostaFinal {...propsBase} />)
+
+    expect(await screen.findByText(/95%/)).toBeInTheDocument()
   })
 })

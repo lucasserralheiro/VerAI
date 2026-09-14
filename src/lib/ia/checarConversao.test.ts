@@ -202,6 +202,48 @@ describe('checarConversao', () => {
     expect(opcoes.maxOutputTokens).toBeGreaterThan(4000)
   })
 
+  it('manda o documento (repetido em toda página) ANTES do trecho único da página — prefixo igual entre chamadas habilita cache do provedor', async () => {
+    // Custo real medido em produção: uma checagem de 45 páginas disparou 18
+    // chamadas, cada uma reenviando o documento inteiro (~38 mil tokens) —
+    // ~700 mil tokens de entrada num clique só. O provedor (DeepSeek, como a
+    // maioria) cacheia por PREFIXO: só ajuda se o início do prompt for
+    // idêntico entre chamadas. A parte que se repete em toda página da MESMA
+    // checagem é a instrução + o documento inteiro (`markdownAlvo` é o mesmo
+    // para todas); o que muda por página é só o texto original dela — por
+    // isso ele tem que vir por ÚLTIMO, não no meio do prefixo compartilhado.
+    ;(generateObject as jest.Mock)
+      .mockResolvedValueOnce({ object: { scoreConfianca: 0.5, trechosSuspeitos: [] } })
+      .mockResolvedValueOnce({ object: { scoreConfianca: 0.5, trechosSuspeitos: [] } })
+
+    await checarConversao(
+      [
+        { pagina: 1, textoOriginal: 'texto da pagina 1, nao bate no documento', markdown: '' },
+        { pagina: 2, textoOriginal: 'texto da pagina 2, tambem nao bate', markdown: '' },
+      ],
+      'DOCUMENTO_COMPARTILHADO_GRANDE'
+    )
+
+    const chamadas = (generateObject as jest.Mock).mock.calls
+    expect(chamadas).toHaveLength(2)
+    const prompt1 = chamadas[0][0].prompt as string
+    const prompt2 = chamadas[1][0].prompt as string
+
+    // O prefixo compartilhado (tudo até o texto único da página) é IDÊNTICO
+    // nas duas chamadas — é isso que o cache de prefixo do provedor precisa
+    // pra funcionar.
+    const indiceTexto1 = prompt1.indexOf('texto da pagina 1')
+    const prefixo1 = prompt1.slice(0, indiceTexto1)
+    const indiceTexto2 = prompt2.indexOf('texto da pagina 2')
+    const prefixo2 = prompt2.slice(0, indiceTexto2)
+    expect(indiceTexto1).toBeGreaterThan(-1)
+    expect(prefixo1).toBe(prefixo2)
+
+    // O documento grande faz parte desse prefixo compartilhado — vem antes
+    // do texto único da página, não depois.
+    expect(prefixo1).toContain('DOCUMENTO_COMPARTILHADO_GRANDE')
+    expect(prompt1.indexOf('DOCUMENTO_COMPARTILHADO_GRANDE')).toBeLessThan(indiceTexto1)
+  })
+
   it('descarta correcaoSugerida nula sem quebrar', async () => {
     ;(generateObject as jest.Mock).mockResolvedValueOnce({
       object: {

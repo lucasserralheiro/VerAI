@@ -436,7 +436,18 @@ async function checarPaginaComPrompt(
       ;({ object } = await generateObject({
         model: getModel(process.env.AI_REVISAO_MODEL || undefined),
         schema: schemaPagina,
-        prompt: `${prompt}\n\n---TEXTO ORIGINAL (página ${pagina.pagina})---\n${pagina.textoOriginal}\n\n---MARKDOWN---\n${markdownAlvo}`,
+        // O documento (`markdownAlvo`) é IDÊNTICO em toda chamada desta MESMA
+        // checagem (uma por página) — só o texto original da página muda.
+        // Por isso ele vem logo depois das instruções, e o texto único da
+        // página por ÚLTIMO, com um rótulo SEM o número da página (o modelo
+        // não precisa saber qual página é — só compara os dois textos): o
+        // prefixo do prompt fica byte a byte igual entre as chamadas, o que
+        // deixa o cache de prompt do provedor (cobra bem menos por tokens
+        // repetidos) funcionar. Antes o texto da página — e o próprio número
+        // dela no rótulo — vinha no meio, quebrando esse prefixo em toda
+        // chamada. Ver comentário no topo do arquivo sobre o custo de
+        // comparar contra o documento inteiro.
+        prompt: `${prompt}\n\n---MARKDOWN---\n${markdownAlvo}\n\n---TEXTO ORIGINAL DESTA PÁGINA---\n${pagina.textoOriginal}`,
         maxOutputTokens,
       }))
       break

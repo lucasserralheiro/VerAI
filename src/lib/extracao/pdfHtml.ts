@@ -260,13 +260,26 @@ export async function converterPdfParaHtml(
     }
   }
   const paginasImagem = [...paginasImagem0].sort((a, b) => a - b).map((p) => p + 1)
-  // A página escaneada não deve virar figura crua (![Imagem...]) — ela some
+  // A página escaneada não deve virar figura crua (<img>) — ela some
   // como imagem e reaparece como marcador de OCR, na mesma posição.
   const imagensFiltradas = imagens.filter((imagem) => !paginasImagem0.has(imagem.pagina))
   // Página com imagem de conteúdo (tabela/gráfico que virou figura) que NÃO é
   // de OCR — a checagem por IA usa isso pra avisar "confira essa página na
   // mão", já que ela não vê o pixel da imagem.
-  const paginasComImagem = [...new Set(imagensFiltradas.map((imagem) => imagem.pagina + 1))].sort((a, b) => a - b)
+  const paginasComImagemSet = new Set(imagensFiltradas.map((imagem) => imagem.pagina + 1))
+  const paginasComImagem = [...paginasComImagemSet].sort((a, b) => a - b)
+  // Imagem de conteúdo numa página de texto normal deixa de virar <img>
+  // muda — entra no mesmo fluxo de OCR + conferência das páginas
+  // escaneadas (só que sem discutir o resto do texto da página, que já
+  // está certo). Simplificação deliberada: o marcador aponta pra PÁGINA
+  // INTEIRA, sem recorte por região — o OCR pode reconhecer de novo texto
+  // que já está certo no resto da página; a conferência humana obrigatória
+  // descarta a repetição. Recorte preciso fica como melhoria futura.
+  const imagensParaOcr: ImagemPosicionada[] = imagensFiltradas.map((imagem) =>
+    paginasComImagemSet.has(imagem.pagina + 1)
+      ? { pagina: imagem.pagina, topo: imagem.topo, html: formatarBlocoOcrPendente(imagem.pagina + 1) }
+      : imagem
+  )
 
   // A grade de bordas vem antes das linhas porque o detector de sublinhado
   // precisa saber quais traços são borda de tabela pra não confundir os dois.
@@ -293,7 +306,7 @@ export async function converterPdfParaHtml(
     // conteúdo — devolver vazio aqui apagaria o documento inteiro. Página
     // marcada pra OCR vira o marcador; o resto (se houver) segue como figura.
     const blocosOcr = paginasOcrOrdenadas.map((p) => formatarBlocoOcrPendente(p + 1))
-    const restante = imagensFiltradas.map((imagem) => imagem.html)
+    const restante = imagensParaOcr.map((imagem) => imagem.html)
     return { html: [...blocosOcr, ...restante].join('\n\n'), paginasImagem, paginasConvertidas: [], paginasComImagem }
   }
 
@@ -305,7 +318,7 @@ export async function converterPdfParaHtml(
     tamanhoCorpo,
     margens,
     gradesPorPagina,
-    imagensFiltradas,
+    imagensParaOcr,
     paginasOcrOrdenadas
   )
 

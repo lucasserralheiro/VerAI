@@ -549,7 +549,11 @@ describe('imagens do PDF no HTML', () => {
     expect(resultado).not.toContain('<img')
   })
 
-  it('insere a figura entre os parágrafos, na posição em que ela aparece na página', async () => {
+  it('insere um marcador de OCR pendente na posição da figura, entre os parágrafos', async () => {
+    // A imagem está numa página com bastante texto ao redor
+    // (textoEmDuasLinhas) — cai em paginasComImagem, então vira marcador de
+    // OCR pendente em vez de <img> muda (ver describe abaixo, "cobertura
+    // estendida a imagem embutida").
     textoEmDuasLinhas()
     ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([imagem()])
 
@@ -560,13 +564,13 @@ describe('imagens do PDF no HTML', () => {
     expect(resultado).toBe(
       [
         '<p>Parágrafo antes da figura.</p>',
-        '<img alt="Imagem da página 1" src="https://storage.exemplo/pagina-1-imagem-1.png">',
+        '<div class="ocr-pendente" data-pagina="1"><p><em>(aguardando OCR)</em></p></div>',
         '<p>Parágrafo depois da figura.</p>',
       ].join('\n\n')
     )
   })
 
-  it('põe no fim a figura que vem depois da última linha de texto', async () => {
+  it('põe no fim o marcador da figura que vem depois da última linha de texto', async () => {
     textoEmDuasLinhas()
     ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([
       imagem({ topo: 100, nomeArquivo: 'pagina-1-imagem-1.png' }),
@@ -577,7 +581,7 @@ describe('imagens do PDF no HTML', () => {
     })
 
     expect(resultado.split('\n\n').at(-1)).toBe(
-      '<img alt="Imagem da página 1" src="https://storage.exemplo/pagina-1-imagem-1.png">'
+      '<div class="ocr-pendente" data-pagina="1"><p><em>(aguardando OCR)</em></p></div>'
     )
   })
 
@@ -588,10 +592,11 @@ describe('imagens do PDF no HTML', () => {
     const { html: resultado } = await converterPdfParaHtml(Buffer.from(''), { salvarImagem: async () => null })
 
     expect(resultado).not.toContain('<img')
+    expect(resultado).not.toContain('ocr-pendente')
     expect(resultado).toContain('Parágrafo antes da figura.')
   })
 
-  it('devolve as figuras do PDF sem texto nenhum — página escaneada não pode virar HTML vazio', async () => {
+  it('devolve o marcador da figura sem texto nenhum — página escaneada não pode virar HTML vazio', async () => {
     ;(extractTextItems as jest.Mock).mockResolvedValue({ totalPages: 1, items: [[]] })
     ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([imagem()])
 
@@ -599,7 +604,7 @@ describe('imagens do PDF no HTML', () => {
       salvarImagem: async (img) => `https://storage.exemplo/${img.nomeArquivo}`,
     })
 
-    expect(resultado).toBe('<img alt="Imagem da página 1" src="https://storage.exemplo/pagina-1-imagem-1.png">')
+    expect(resultado).toBe('<div class="ocr-pendente" data-pagina="1"><p><em>(aguardando OCR)</em></p></div>')
   })
 })
 
@@ -980,6 +985,35 @@ describe('paginasComImagem (aviso de imagem embutida)', () => {
     })
 
     expect(resultado.paginasComImagem).toEqual([1])
+  })
+
+  it('imagem de conteúdo (página com texto normal) vira marcador de OCR pendente, não <img> muda', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 1,
+      items: [[item({ str: 'Texto normal da página, com bastante conteúdo textual.', x: 0, hasEOL: true })]],
+    })
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([{ segmentos: [], fracaoAreaComImagem: 0 }])
+    ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([
+      {
+        pagina: 0,
+        x: 0,
+        y: 0,
+        largura: 200,
+        altura: 150,
+        topo: 150,
+        larguraPx: 400,
+        alturaPx: 300,
+        nomeArquivo: 'pagina-1-imagem-1.png',
+        png: Buffer.from(''),
+      },
+    ])
+
+    const resultado = await converterPdfParaHtml(Buffer.from(''), {
+      salvarImagem: async () => 'https://storage.exemplo/img.png',
+    })
+
+    expect(resultado.html).toContain('<div class="ocr-pendente" data-pagina="1">')
+    expect(resultado.html).not.toContain('<img')
   })
 
   it('página sem imagem não entra em paginasComImagem', async () => {

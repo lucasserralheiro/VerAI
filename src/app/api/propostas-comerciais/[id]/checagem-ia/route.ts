@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { getUpload } from '@/lib/storage'
-import { converterPdfParaMarkdown, type PaginaConvertida } from '@/lib/extracao/pdfHtml'
+import { converterPdfParaHtml, type PaginaConvertida } from '@/lib/extracao/pdfHtml'
 import { checarConversao } from '@/lib/ia/checarConversao'
 
 /** Impressão digital barata do documento auditado — mais barato que guardar
@@ -16,7 +16,7 @@ function hashDocumento(texto: string): string {
 
 /**
  * Checagem por IA da conversão — recalcula a conversão determinística de
- * cada PDF da proposta (o mesmo `converterPdfParaMarkdown` do upload) pra ter
+ * cada PDF da proposta (o mesmo `converterPdfParaHtml` do upload) pra ter
  * texto original por página, e manda pro modelo auditar contra o Markdown do
  * DOCUMENTO INTEIRO da proposta — sempre a mesma comparação, tenha ou não
  * edição (ver o comentário no topo de `checarConversao.ts` pra entender por
@@ -112,16 +112,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const paginasComImagem: number[] = []
   for (const arquivo of arquivosPdf) {
     const buffer = await getUpload(arquivo.caminhoOriginal)
-    const resultado = await converterPdfParaMarkdown(buffer)
+    const resultado = await converterPdfParaHtml(buffer)
     paginasConvertidas.push(...resultado.paginasConvertidas)
     paginasComImagem.push(...resultado.paginasComImagem)
   }
 
   try {
+    // `checarConversao` ainda espera o campo `markdown` (`PaginaParaChecar`) —
+    // a adaptação dessa checagem pro HTML nativo é uma fase própria, ainda não
+    // feita (ver docs/superpowers/specs/2026-09-14-html-nativo-ocr-proposta-comercial-design.md).
+    // Por ora só faz a ponte de nome de campo aqui, sem mexer em
+    // `checarConversao.ts`: o conteúdo comparado já é HTML por baixo, só o
+    // nome do campo continua `markdown`.
+    const paginasParaChecar = paginasConvertidas.map(({ html, ...resto }) => ({ ...resto, markdown: html }))
     const resultado =
       paginasConvertidas.length === 0
         ? { scoreExibido: null, trechosSuspeitos: [] }
-        : await checarConversao(paginasConvertidas, documentoAtual)
+        : await checarConversao(paginasParaChecar, documentoAtual)
     const checadoEm = new Date()
     // A marca "correção automática já usada" é sobre a PROPOSTA, não sobre
     // este resultado — uma auditoria nova sobrescreve o JSON inteiro, então

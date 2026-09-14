@@ -3,8 +3,9 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { buildImagemPath, buildUploadPath, deleteUpload, getUpload, putUpload } from '@/lib/storage'
-import { converterPdfParaMarkdown } from '@/lib/extracao/pdfHtml'
-import { converterParaMarkdownDeterministico } from '@/lib/extracao'
+import { converterPdfParaHtml } from '@/lib/extracao/pdfHtml'
+import { converterParaHtmlDeterministico } from '@/lib/extracao'
+import { escaparHtml } from '@/lib/extracao/escaparHtml'
 import { reescreverComArquivoId } from '@/lib/ocr/marcadorOcrPendente'
 
 /** Um arquivo já subido pra um caminho temporário no Vercel Blob (ver
@@ -102,13 +103,13 @@ export async function POST(request: NextRequest) {
     },
   })
 
-  // Conversão 100% determinística — sem IA. Cada arquivo vira Markdown pelo
-  // seu próprio conversor fiel (pdfHtml pro PDF, HTML do
+  // Conversão 100% determinística — sem IA. Cada arquivo vira HTML pelo
+  // seu próprio conversor fiel (pdfHtml pro PDF, HTML sanitizado do
   // mammoth pro Word, tabela completa pra planilha); nenhum dado é
   // reescrito, resumido ou inventado, só reformatado.
   interface ArquivoConvertido {
     nomeArquivo: string
-    markdown: string
+    html: string
   }
   const arquivosConvertidos: ArquivoConvertido[] = []
   let falhaConversao: string | null = null
@@ -136,9 +137,9 @@ export async function POST(request: NextRequest) {
     // sobra lixo no bucket temporário, sem afetar a proposta).
     await deleteUpload(arquivo.url).catch(() => {})
 
-    // A linha do arquivo é gravada ANTES de saber o Markdown final, pra já
-    // ter o `id` disponível — é ele que entra no marcador `:::ocr-pendente`
-    // (o conversor só sabe o número da página, não o arquivoId).
+    // A linha do arquivo é gravada ANTES de saber o HTML final, pra já ter o
+    // `id` disponível — é ele que entra no marcador de OCR pendente (o
+    // conversor só sabe o número da página, não o arquivoId).
     const arquivoRow = await prisma.propostaComercialArquivo.create({
       data: {
         propostaId: proposta.id,
@@ -151,22 +152,21 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    let markdown: string | null = null
+    let html: string | null = null
     try {
       if (tipo === 'pdf') {
-        const resultado = await converterPdfParaMarkdown(buffer, {
+        const resultado = await converterPdfParaHtml(buffer, {
           // Diagrama, print de tela e tabela que veio como figura não
           // existem no texto do PDF: sem gravar a imagem e devolver a URL,
-          // eles sumiriam do Markdown sem deixar rastro.
+          // eles sumiriam do HTML sem deixar rastro.
           salvarImagem: (imagem) =>
             putUpload(buildImagemPath(`${proposta.id}/${indice}`, imagem.nomeArquivo), imagem.png, 'image/png'),
         })
-        markdown =
-          resultado.paginasImagem.length > 0 ? reescreverComArquivoId(resultado.markdown, arquivoRow.id) : resultado.markdown
+        html = resultado.paginasImagem.length > 0 ? reescreverComArquivoId(resultado.html, arquivoRow.id) : resultado.html
       } else {
-        markdown = await converterParaMarkdownDeterministico(buffer, tipo)
+        html = await converterParaHtmlDeterministico(buffer, tipo)
       }
-      if (!markdown.trim()) {
+      if (!html.trim()) {
         throw new Error(`não foi possível converter "${arquivo.nomeArquivo}" — arquivo sem conteúdo reconhecível`)
       }
     } catch (error) {
@@ -175,11 +175,11 @@ export async function POST(request: NextRequest) {
 
     await prisma.propostaComercialArquivo.update({
       where: { id: arquivoRow.id },
-      data: { conteudoExtraido: markdown },
+      data: { conteudoExtraido: html },
     })
 
-    if (markdown) {
-      arquivosConvertidos.push({ nomeArquivo: arquivo.nomeArquivo, markdown })
+    if (html) {
+      arquivosConvertidos.push({ nomeArquivo: arquivo.nomeArquivo, html })
     }
   }
 
@@ -194,17 +194,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(propostaComErro, { status: 201 })
   }
 
-  // Um único arquivo vira o Markdown final direto. Mais de um arquivo é só
+  // Um único arquivo vira o HTML final direto. Mais de um arquivo é só
   // concatenado, cada um sob seu próprio título com o nome original — nunca
   // mesclado, reescrito ou reorganizado por IA.
-  const markdownFinal =
+  const htmlFinal =
     arquivosConvertidos.length === 1
-      ? arquivosConvertidos[0].markdown
-      : arquivosConvertidos.map((a) => `## ${a.nomeArquivo}\n\n${a.markdown}`).join('\n\n---\n\n')
+      ? arquivosConvertidos[0].html
+      : arquivosConvertidos.map((a) => `<h2>${escaparHtml(a.nomeArquivo)}</h2>${a.html}`).join('<hr>')
 
+  // Nome da coluna continua `conteudoMarkdown` nesta fase — o rename fica
+  // pra fase de migração de banco (ver
+  // docs/superpowers/specs/2026-09-14-html-nativo-ocr-proposta-comercial-design.md);
+  // o conteúdo gravado aqui já é HTML.
   const propostaFinal = await prisma.propostaComercial.update({
     where: { id: proposta.id },
-    data: { conteudoMarkdown: markdownFinal, status: 'rascunho' },
+    data: { conteudoMarkdown: htmlFinal, status: 'rascunho' },
   })
 
   return NextResponse.json(propostaFinal, { status: 201 })

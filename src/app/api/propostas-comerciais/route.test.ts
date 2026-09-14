@@ -18,14 +18,14 @@ jest.mock('@/lib/storage', () => ({
   getUpload: jest.fn(),
   deleteUpload: jest.fn().mockResolvedValue(undefined),
 }))
-jest.mock('@/lib/extracao/pdfHtml', () => ({ converterPdfParaMarkdown: jest.fn() }))
-jest.mock('@/lib/extracao', () => ({ converterParaMarkdownDeterministico: jest.fn() }))
-jest.mock('@/lib/ocr/marcadorOcrPendente', () => ({ reescreverComArquivoId: jest.fn((md: string) => md) }))
+jest.mock('@/lib/extracao/pdfHtml', () => ({ converterPdfParaHtml: jest.fn() }))
+jest.mock('@/lib/extracao', () => ({ converterParaHtmlDeterministico: jest.fn() }))
+jest.mock('@/lib/ocr/marcadorOcrPendente', () => ({ reescreverComArquivoId: jest.fn((html: string) => html) }))
 
 import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getUpload, deleteUpload } from '@/lib/storage'
-import { converterPdfParaMarkdown } from '@/lib/extracao/pdfHtml'
+import { converterPdfParaHtml } from '@/lib/extracao/pdfHtml'
 import { POST } from './route'
 
 const requisicao = (corpo: unknown) =>
@@ -44,7 +44,7 @@ describe('POST /api/propostas-comerciais — arquivos já subidos direto pro Blo
     ;(prisma.propostaComercialArquivo.create as jest.Mock).mockResolvedValue({ id: 'arq1' })
     ;(prisma.propostaComercialArquivo.update as jest.Mock).mockResolvedValue({})
     ;(getUpload as jest.Mock).mockResolvedValue(Buffer.from('conteudo do pdf'))
-    ;(converterPdfParaMarkdown as jest.Mock).mockResolvedValue({ markdown: '# Proposta convertida', paginasImagem: [] })
+    ;(converterPdfParaHtml as jest.Mock).mockResolvedValue({ html: '<h1>Proposta convertida</h1>', paginasImagem: [] })
   })
 
   it('sem autenticação devolve 401', async () => {
@@ -74,9 +74,11 @@ describe('POST /api/propostas-comerciais — arquivos já subidos direto pro Blo
     )
 
     expect(getUpload).toHaveBeenCalledWith('https://blob/tmp/proposta.pdf')
-    expect(converterPdfParaMarkdown).toHaveBeenCalled()
+    expect(converterPdfParaHtml).toHaveBeenCalled()
     expect(resposta.status).toBe(201)
-    await expect(resposta.json()).resolves.toEqual(expect.objectContaining({ conteudoMarkdown: '# Proposta convertida' }))
+    await expect(resposta.json()).resolves.toEqual(
+      expect.objectContaining({ conteudoMarkdown: '<h1>Proposta convertida</h1>' })
+    )
   })
 
   it('apaga o blob temporário depois de copiar o arquivo pro caminho final', async () => {

@@ -10,13 +10,13 @@ jest.mock('@/lib/prisma', () => ({
   prisma: { propostaComercial: { findUnique: jest.fn(), update: jest.fn() } },
 }))
 jest.mock('@/lib/storage', () => ({ getUpload: jest.fn() }))
-jest.mock('@/lib/extracao/pdfHtml', () => ({ converterPdfParaMarkdown: jest.fn() }))
+jest.mock('@/lib/extracao/pdfHtml', () => ({ converterPdfParaHtml: jest.fn() }))
 jest.mock('@/lib/ia/checarConversao', () => ({ checarConversao: jest.fn() }))
 
 import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getUpload } from '@/lib/storage'
-import { converterPdfParaMarkdown } from '@/lib/extracao/pdfHtml'
+import { converterPdfParaHtml } from '@/lib/extracao/pdfHtml'
 import { checarConversao } from '@/lib/ia/checarConversao'
 import { POST } from './route'
 
@@ -62,10 +62,10 @@ describe('POST /api/propostas-comerciais/[id]/checagem-ia', () => {
       ],
     })
     ;(getUpload as jest.Mock).mockResolvedValue(Buffer.from('fake'))
-    ;(converterPdfParaMarkdown as jest.Mock).mockResolvedValue({
-      markdown: 'x',
+    ;(converterPdfParaHtml as jest.Mock).mockResolvedValue({
+      html: 'x',
       paginasImagem: [],
-      paginasConvertidas: [{ pagina: 1, textoOriginal: 'original', markdown: 'gerado' }],
+      paginasConvertidas: [{ pagina: 1, textoOriginal: 'original', html: 'gerado' }],
       paginasComImagem: [3],
     })
     ;(checarConversao as jest.Mock).mockResolvedValue({ scoreExibido: 87, trechosSuspeitos: [] })
@@ -152,10 +152,10 @@ describe('POST /api/propostas-comerciais/[id]/checagem-ia', () => {
       arquivos: [{ id: 'a1', tipo: 'pdf', ordem: 0, caminhoOriginal: 'https://blob/a1.pdf' }],
     })
     ;(getUpload as jest.Mock).mockResolvedValue(Buffer.from('fake'))
-    ;(converterPdfParaMarkdown as jest.Mock).mockResolvedValue({
-      markdown: 'x',
+    ;(converterPdfParaHtml as jest.Mock).mockResolvedValue({
+      html: 'x',
       paginasImagem: [],
-      paginasConvertidas: [{ pagina: 1, textoOriginal: 'original', markdown: 'gerado' }],
+      paginasConvertidas: [{ pagina: 1, textoOriginal: 'original', html: 'gerado' }],
       paginasComImagem: [],
     })
     ;(checarConversao as jest.Mock).mockResolvedValue({ scoreExibido: 70, trechosSuspeitos: [] })
@@ -184,10 +184,10 @@ describe('POST /api/propostas-comerciais/[id]/checagem-ia', () => {
       arquivos: [{ id: 'a1', tipo: 'pdf', ordem: 0, caminhoOriginal: 'https://blob/a1.pdf' }],
     })
     ;(getUpload as jest.Mock).mockResolvedValue(Buffer.from('fake'))
-    ;(converterPdfParaMarkdown as jest.Mock).mockResolvedValue({
-      markdown: 'x',
+    ;(converterPdfParaHtml as jest.Mock).mockResolvedValue({
+      html: 'x',
       paginasImagem: [],
-      paginasConvertidas: [{ pagina: 1, textoOriginal: 'original', markdown: 'gerado' }],
+      paginasConvertidas: [{ pagina: 1, textoOriginal: 'original', html: 'gerado' }],
       paginasComImagem: [],
     })
     ;(checarConversao as jest.Mock).mockResolvedValue({ scoreExibido: 60, trechosSuspeitos: [] })
@@ -211,10 +211,10 @@ describe('POST /api/propostas-comerciais/[id]/checagem-ia', () => {
       arquivos: [{ id: 'a1', tipo: 'pdf', ordem: 0, caminhoOriginal: 'https://blob/a1.pdf' }],
     })
     ;(getUpload as jest.Mock).mockResolvedValue(Buffer.from('fake'))
-    ;(converterPdfParaMarkdown as jest.Mock).mockResolvedValue({
-      markdown: 'x',
+    ;(converterPdfParaHtml as jest.Mock).mockResolvedValue({
+      html: 'x',
       paginasImagem: [],
-      paginasConvertidas: [{ pagina: 1, textoOriginal: 'a', markdown: 'a' }],
+      paginasConvertidas: [{ pagina: 1, textoOriginal: 'a', html: 'a' }],
       paginasComImagem: [],
     })
     ;(checarConversao as jest.Mock).mockRejectedValue(new Error('modelo indisponível'))

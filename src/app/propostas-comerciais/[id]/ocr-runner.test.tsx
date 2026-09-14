@@ -46,7 +46,7 @@ describe('OcrRunner', () => {
     const onConteudoAtualizado = jest.fn().mockResolvedValue(undefined)
     const deps = {
       renderizarPagina: jest.fn().mockResolvedValue('data:image/png;base64,fake'),
-      reconhecer: jest.fn().mockResolvedValue('Texto reconhecido.'),
+      reconhecer: jest.fn().mockResolvedValue({ texto: 'Texto reconhecido.', palavras: [] }),
     }
 
     render(
@@ -61,7 +61,7 @@ describe('OcrRunner', () => {
 
     await waitFor(() =>
       expect(onConteudoAtualizado).toHaveBeenCalledWith(
-        '<p>X</p><div class="ocr-pendente" data-arquivo-id="a1" data-pagina="1">Texto reconhecido.</div><p>Y</p>'
+        '<p>X</p><div class="ocr-pendente" data-arquivo-id="a1" data-pagina="1"><p>Texto reconhecido.</p></div><p>Y</p>'
       )
     )
     expect(await screen.findByRole('button', { name: /Conferi este trecho/ })).toBeInTheDocument()
@@ -71,7 +71,7 @@ describe('OcrRunner', () => {
     const onConteudoAtualizado = jest.fn().mockResolvedValue(undefined)
     const deps = {
       renderizarPagina: jest.fn().mockResolvedValue('data:image/png;base64,fake'),
-      reconhecer: jest.fn().mockResolvedValue('Texto reconhecido.'),
+      reconhecer: jest.fn().mockResolvedValue({ texto: 'Texto reconhecido.', palavras: [] }),
     }
     render(
       <ControlledOcrRunner
@@ -87,7 +87,7 @@ describe('OcrRunner', () => {
     fireEvent.click(screen.getByRole('button', { name: /Conferi este trecho/ }))
 
     await waitFor(() =>
-      expect(onConteudoAtualizado).toHaveBeenLastCalledWith('<p>X</p>Texto reconhecido.<p>Y</p>')
+      expect(onConteudoAtualizado).toHaveBeenLastCalledWith('<p>X</p><p>Texto reconhecido.</p><p>Y</p>')
     )
   })
 

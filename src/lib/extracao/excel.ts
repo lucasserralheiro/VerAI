@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
 import { Readable } from 'node:stream'
+import { escaparHtml } from './escaparHtml'
 
 // Amostra que vai pro preview na tela (module 5) — limitado por performance do navegador.
 const PREVIEW_MAX_LINHAS = 30
@@ -162,38 +163,36 @@ export async function lerPlanilhaPreview(buffer: Buffer, tipo: 'xlsx' | 'csv'): 
   }
 }
 
-function escaparCelulaMarkdown(valor: string): string {
-  return valor.replace(/\|/g, '\\|').replace(/\r?\n+/g, ' ').trim()
+function celulaHtml(valor: string, tag: 'td' | 'th'): string {
+  return `<${tag}>${escaparHtml(valor)}</${tag}>`
 }
 
-/** Converte UMA aba numa tabela Markdown (todas as linhas, sem amostragem nem
+/** Converte UMA aba numa tabela HTML (todas as linhas, sem amostragem nem
  *  estatística). */
-function planilhaParaTabelaMarkdown({ cabecalho, linhas }: PlanilhaCarregada): string {
-  const cabecalhoFormatado = cabecalho.map((c) => escaparCelulaMarkdown(c || ''))
-  const linha = `| ${cabecalhoFormatado.join(' | ')} |`
-  const separador = `| ${cabecalho.map(() => '---').join(' | ')} |`
-  const corpo = linhas.map((l) => `| ${l.map((v) => escaparCelulaMarkdown(String(v ?? ''))).join(' | ')} |`)
-  return [linha, separador, ...corpo].join('\n')
+function planilhaParaTabelaHtml({ cabecalho, linhas }: PlanilhaCarregada): string {
+  const linhaCabecalho = `<tr>${cabecalho.map((c) => celulaHtml(c || '', 'th')).join('')}</tr>`
+  const linhasCorpo = linhas.map((l) => `<tr>${l.map((v) => celulaHtml(String(v ?? ''), 'td')).join('')}</tr>`).join('')
+  return `<table><thead>${linhaCabecalho}</thead><tbody>${linhasCorpo}</tbody></table>`
 }
 
 /** Converte a planilha inteira (todas as abas com dados, todas as linhas, sem
- *  amostragem nem estatística) em Markdown — determinístico, sem IA. Usado na
+ *  amostragem nem estatística) em HTML — determinístico, sem IA. Usado na
  *  Proposta Comercial, onde o conteúdo final tem que ser fiel ao original, só
  *  formatado. Com mais de uma aba, cada uma vira uma seção sob o próprio nome;
  *  nenhuma aba é descartada. */
-export async function converterPlanilhaParaMarkdown(buffer: Buffer, tipo: 'xlsx' | 'csv'): Promise<string> {
+export async function converterPlanilhaParaHtml(buffer: Buffer, tipo: 'xlsx' | 'csv'): Promise<string> {
   const abas = await carregarPlanilhasComDados(buffer, tipo)
   if (abas.length === 0) {
-    return '_Planilha vazia — nenhum dado encontrado._'
+    return '<p><em>Planilha vazia — nenhum dado encontrado.</em></p>'
   }
 
   if (abas.length === 1) {
-    return planilhaParaTabelaMarkdown(abas[0])
+    return planilhaParaTabelaHtml(abas[0])
   }
 
   return abas
-    .map((aba) => `## ${aba.planilha.name}\n\n${planilhaParaTabelaMarkdown(aba)}`)
-    .join('\n\n---\n\n')
+    .map((aba) => `<h2>${escaparHtml(aba.planilha.name)}</h2>${planilhaParaTabelaHtml(aba)}`)
+    .join('<hr>')
 }
 
 export async function extrairExcel(buffer: Buffer, tipo: 'xlsx' | 'csv'): Promise<string> {

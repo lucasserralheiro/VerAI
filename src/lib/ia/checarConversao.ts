@@ -431,9 +431,10 @@ async function checarPaginaComPrompt(
 }> {
   let ultimoErro: unknown
   let object: z.infer<typeof schemaPagina> | undefined
+  let usage: Awaited<ReturnType<typeof generateObject>>['usage'] | undefined
   for (let tentativa = 1; tentativa <= TENTATIVAS_POR_PAGINA; tentativa++) {
     try {
-      ;({ object } = await generateObject({
+      ;({ object, usage } = await generateObject({
         model: getModel(process.env.AI_REVISAO_MODEL || undefined),
         schema: schemaPagina,
         // O documento (`markdownAlvo`) é IDÊNTICO em toda chamada desta MESMA
@@ -456,6 +457,18 @@ async function checarPaginaComPrompt(
     }
   }
   if (!object) throw ultimoErro
+  // Evidência real de que o reordenamento do prompt (instruções + documento
+  // ANTES do trecho único da página — ver acima) está de fato economizando,
+  // não só habilitando: sem isto não tem como confirmar se o provedor está
+  // batendo cache, só supor. `cacheReadTokens` alto nas chamadas 2ª em
+  // diante de uma MESMA checagem confirma o ganho; perto de zero em todas
+  // significa que o provedor não está cacheando como esperado.
+  console.log('checagem por IA: uso de tokens', {
+    pagina: pagina.pagina,
+    inputTokens: usage?.inputTokens,
+    cacheReadTokens: usage?.inputTokenDetails?.cacheReadTokens,
+    outputTokens: usage?.outputTokens,
+  })
   return {
     pagina: pagina.pagina,
     // Byte a byte, calculado no código — não é `object.scoreConfianca`

@@ -244,6 +244,26 @@ describe('checarConversao', () => {
     expect(prompt1.indexOf('DOCUMENTO_COMPARTILHADO_GRANDE')).toBeLessThan(indiceTexto1)
   })
 
+  it('loga quanto do prompt veio do cache do provedor — evidência real de que o reordenamento (teste acima) está ECONOMIZANDO, não só habilitando', async () => {
+    // Sem isto não dá pra saber se o cache de prefixo do provedor está
+    // batendo de verdade (o teste acima só garante que o prompt ESTÁ no
+    // formato certo pra habilitar cache — não prova que o provedor está
+    // usando). Precisa do número real pra confirmar o ganho de custo.
+    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
+    ;(generateObject as jest.Mock).mockResolvedValueOnce({
+      object: { scoreConfianca: 0.5, trechosSuspeitos: [] },
+      usage: { inputTokens: 40000, inputTokenDetails: { cacheReadTokens: 38000 }, outputTokens: 120 },
+    })
+
+    await checarConversao([{ pagina: 3, textoOriginal: 'texto original', markdown: '' }], 'outro documento')
+
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining('checagem por IA'),
+      expect.objectContaining({ pagina: 3, inputTokens: 40000, cacheReadTokens: 38000, outputTokens: 120 })
+    )
+    consoleLogSpy.mockRestore()
+  })
+
   it('descarta correcaoSugerida nula sem quebrar', async () => {
     ;(generateObject as jest.Mock).mockResolvedValueOnce({
       object: {

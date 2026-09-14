@@ -149,6 +149,28 @@ describe('converterPdfParaMarkdown', () => {
     )
   })
 
+  it('quebra um bloco que cresce demais sem pontuação final em vez de virar um parágrafo só', async () => {
+    // Simula o caso real: uma tabela de preços que a detecção NÃO reconheceu
+    // (nem por borda, nem por corredor — cada linha aqui é UM item só, sem
+    // vão largo, de propósito, pra não disparar `temVaoLargo`) e cujas linhas
+    // não terminam em pontuação final (comum em linha de tabela com código,
+    // valor, quantidade). Sem a válvula de segurança, as 15 linhas virariam
+    // UM parágrafo só, ilegível ao colar no SEI.
+    const linhas = Array.from({ length: 15 }, (_, indice) =>
+      item({ str: `linha ${indice} do bloco sem fechar frase`, x: 0, y: 200 - indice * 10, hasEOL: true })
+    )
+    ;(extractTextItems as jest.Mock).mockResolvedValue({ totalPages: 1, items: [linhas] })
+
+    const { markdown: resultado } = await converterPdfParaMarkdown(Buffer.from(''))
+    const blocos = resultado.split('\n\n')
+
+    // 15 linhas, limite de 12 por bloco: quebra em dois parágrafos (12 + 3),
+    // não um bloco só de 15 linhas grudadas.
+    expect(blocos).toHaveLength(2)
+    expect(blocos[0].split(' linha ').length).toBe(12) // 12 linhas no primeiro bloco
+    expect(blocos[1].split(' linha ').length).toBe(3) // as 3 linhas restantes no segundo
+  })
+
   it('reconstrói tabela quando linhas consecutivas alinham em colunas', async () => {
     ;(extractTextItems as jest.Mock).mockResolvedValue({
       totalPages: 1,

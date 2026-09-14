@@ -7,6 +7,12 @@
 export const BTN_PRIMARY =
   'inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-orange px-3.5 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-orange-dark disabled:pointer-events-none disabled:opacity-50'
 
+/** Ação principal que não é a laranja da tela — ex.: a etapa 2 do painel de
+ *  revisão, que divide espaço com o "Corrigir" da etapa 1 e não pode sumir
+ *  do lado dele. */
+export const BTN_NAVY =
+  'inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-navy px-3.5 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-navy/90 disabled:pointer-events-none disabled:opacity-50'
+
 export const BTN_OUTLINE =
   'inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-navy/15 bg-white px-3.5 py-1.5 text-sm font-medium text-navy transition-colors duration-150 hover:border-navy/35 hover:bg-navy/[0.04] disabled:pointer-events-none disabled:opacity-50'
 

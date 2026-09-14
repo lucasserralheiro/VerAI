@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronDown, Download, FileSpreadsheet, FileText, File as FileIcon, Loader2, X } from 'lucide-react'
-import { BTN_OUTLINE } from '@/lib/ui'
-import { cn } from '@/lib/utils'
+import { Download, FileSpreadsheet, FileText, File as FileIcon, Loader2, X } from 'lucide-react'
+import { VisualizadorPdfTrecho } from './visualizador-pdf-trecho'
 
 export interface ArquivoOriginal {
   id: string
@@ -28,8 +27,24 @@ interface PreviewPlanilha {
  *  pré-visualizar: PDF abre a rota que já serve o binário inline, Word vira
  *  HTML renderizado (mesmo endpoint/lib já usados em "Relatórios dos
  *  clientes"), planilha vira uma tabela a partir do preview estruturado. */
-function ConteudoArquivoOriginal({ propostaId, arquivo }: { propostaId: string; arquivo: ArquivoOriginal }) {
+function ConteudoArquivoOriginal({
+  propostaId,
+  arquivo,
+  pagina,
+  destaque,
+  onUsarSelecao,
+}: {
+  propostaId: string
+  arquivo: ArquivoOriginal
+  pagina?: number
+  destaque?: string
+  /** Repassado pro visualizador — ver `VisualizadorPdfTrechoProps.onUsarSelecao`. */
+  onUsarSelecao?: (texto: string) => void
+}) {
   const [preview, setPreview] = useState<PreviewPlanilha | null>(null)
+  // Com página citada, o PDF abre no visualizador do app (acha e destaca o
+  // trecho); "Leitor completo" troca pro leitor do navegador.
+  const [leitorNavegador, setLeitorNavegador] = useState(false)
 
   useEffect(() => {
     setPreview(null)
@@ -41,9 +56,20 @@ function ConteudoArquivoOriginal({ propostaId, arquivo }: { propostaId: string; 
   }, [propostaId, arquivo.id, arquivo.tipo])
 
   if (arquivo.tipo === 'pdf') {
+    if (pagina && !leitorNavegador) {
+      return (
+        <VisualizadorPdfTrecho
+          url={`/api/propostas-comerciais/${propostaId}/arquivos/${arquivo.id}?modo=preview`}
+          pagina={pagina}
+          destaque={destaque}
+          onAbrirLeitorCompleto={() => setLeitorNavegador(true)}
+          onUsarSelecao={onUsarSelecao}
+        />
+      )
+    }
     return (
       <iframe
-        src={`/api/propostas-comerciais/${propostaId}/arquivos/${arquivo.id}?modo=preview`}
+        src={`/api/propostas-comerciais/${propostaId}/arquivos/${arquivo.id}?modo=preview${pagina ? `#page=${pagina}` : ''}`}
         className="h-full w-full rounded-lg border border-border-grey"
         title={arquivo.nomeArquivo}
       />
@@ -102,114 +128,33 @@ function ConteudoArquivoOriginal({ propostaId, arquivo }: { propostaId: string; 
   )
 }
 
-/** Botão que abre os arquivos originais — um único arquivo abre direto; mais
- *  de um vira um menu (não faz sentido listar tudo permanentemente na tela,
- *  isso só ocupava espaço sem servir de navegação de verdade). */
-export function MenuArquivosOriginais({
-  arquivos,
-  onAbrir,
-  onRemover,
-}: {
-  arquivos: ArquivoOriginal[]
-  onAbrir: (arquivo: ArquivoOriginal) => void
-  onRemover?: (arquivo: ArquivoOriginal) => void
-}) {
-  const [aberto, setAberto] = useState(false)
-
-  if (arquivos.length === 0) return null
-
-  if (arquivos.length === 1) {
-    return (
-      <button type="button" onClick={() => onAbrir(arquivos[0])} className={BTN_OUTLINE}>
-        <FileText className="size-3.5" strokeWidth={2.25} />
-        Arquivo original
-      </button>
-    )
-  }
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setAberto((a) => !a)}
-        aria-haspopup="menu"
-        aria-expanded={aberto}
-        className={BTN_OUTLINE}
-      >
-        <FileText className="size-3.5" strokeWidth={2.25} />
-        Arquivos originais ({arquivos.length})
-        <ChevronDown className={cn('size-3.5 transition-transform duration-150', aberto && 'rotate-180')} strokeWidth={2.25} />
-      </button>
-
-      {aberto && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setAberto(false)} />
-          <div
-            role="menu"
-            className="absolute right-0 top-full z-50 mt-1.5 w-72 rounded-xl border border-border-grey bg-white p-1.5 shadow-lg"
-          >
-            {arquivos.map((arquivo) => (
-              <div
-                key={arquivo.id}
-                role="menuitem"
-                tabIndex={0}
-                onClick={() => {
-                  onAbrir(arquivo)
-                  setAberto(false)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    onAbrir(arquivo)
-                    setAberto(false)
-                  }
-                }}
-                className="group flex cursor-pointer items-center gap-1 rounded-lg pr-1 text-sm text-navy transition-colors hover:bg-orange-light/40"
-              >
-                <span className="flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-2.5">
-                  <IconePorTipo tipo={arquivo.tipo} />
-                  <span className="min-w-0 flex-1 truncate">{arquivo.nomeArquivo}</span>
-                </span>
-                {onRemover && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onRemover(arquivo)
-                    }}
-                    aria-label={`Remover ${arquivo.nomeArquivo}`}
-                    title="Remover arquivo"
-                    className="flex size-6 shrink-0 items-center justify-center rounded-md text-mid-grey opacity-0 transition-colors group-hover:opacity-100 hover:bg-red-crit-light hover:text-red-crit focus-visible:opacity-100"
-                  >
-                    <X className="size-3.5" strokeWidth={2.25} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-/** Modal que abre um arquivo original — usado tanto pelo editor de rascunho
- *  quanto pela tela final. */
+/** Modal que abre um arquivo original. `pagina` (só PDF) abre direto na
+ *  página citada pela checagem — o visualizador do navegador entende `#page=N`. */
 export function ModalArquivoOriginal({
   propostaId,
   arquivo,
+  pagina,
+  destaque,
+  onUsarSelecao,
   onFechar,
 }: {
   propostaId: string
   arquivo: ArquivoOriginal
+  pagina?: number
+  /** Texto a destacar na página (trecho suspeito da checagem). */
+  destaque?: string
+  /** Repassado pro visualizador — ver `VisualizadorPdfTrechoProps.onUsarSelecao`. */
+  onUsarSelecao?: (texto: string) => void
   onFechar: () => void
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/50 p-4 backdrop-blur-sm">
-      <div className="flex h-[85vh] w-full max-w-4xl flex-col gap-3 rounded-2xl bg-white p-4 shadow-xl">
+      <div className="flex h-[90vh] w-full max-w-5xl flex-col gap-3 rounded-2xl bg-white p-4 shadow-xl">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-navy">
             <IconePorTipo tipo={arquivo.tipo} />
             {arquivo.nomeArquivo}
+            {pagina && arquivo.tipo === 'pdf' && <span className="font-normal text-mid-grey">· página {pagina}</span>}
           </h2>
           <div className="flex items-center gap-1">
             <a
@@ -231,7 +176,13 @@ export function ModalArquivoOriginal({
             </button>
           </div>
         </div>
-        <ConteudoArquivoOriginal propostaId={propostaId} arquivo={arquivo} />
+        <ConteudoArquivoOriginal
+          propostaId={propostaId}
+          arquivo={arquivo}
+          pagina={pagina}
+          destaque={destaque}
+          onUsarSelecao={onUsarSelecao}
+        />
       </div>
     </div>
   )

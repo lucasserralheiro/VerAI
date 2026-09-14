@@ -27,7 +27,13 @@ describe('checagemIaEmAndamento', () => {
 
     expect(checagemIaAtual('p1')).toEqual({
       status: 'ok',
-      resultado: { scoreExibido: 87, trechosSuspeitos: [], paginasComImagem: [2] },
+      resultado: {
+        scoreExibido: 87,
+        trechosSuspeitos: [],
+        paginasComImagem: [2],
+        checadoEm: null,
+        correcaoAutomaticaAplicada: false,
+      },
     })
     expect(global.fetch).toHaveBeenCalledWith('/api/propostas-comerciais/p1/checagem-ia', { method: 'POST' })
   })

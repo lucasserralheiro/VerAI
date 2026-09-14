@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { renderizarMarkdownProposta } from '@/lib/renderizarMarkdownProposta'
 import { htmlEditavelParaMarkdown } from '@/lib/propostaEditavel/htmlEditavelParaMarkdown'
+import { cn } from '@/lib/utils'
 
 export interface ConteudoEditavelPropostaProps {
   markdown: string
@@ -14,6 +15,9 @@ export interface ConteudoEditavelPropostaProps {
   /** Tamanho do corpo do texto em pontos — o título usa `tamanhoCorpo + 2`.
    *  Se omitido, `.markdown-preview` usa o padrão institucional (12pt/14pt). */
   tamanhoCorpo?: number
+  /** Classes de moldura (borda, padding, altura). Sem isso, fica a caixa
+   *  com borda e rolagem própria de antes. */
+  className?: string
 }
 
 const DEBOUNCE_MS = 400
@@ -35,7 +39,13 @@ const DEBOUNCE_MS = 400
  * fonte/tamanho em `SeletorFonteProposta`, sem precisar duplicar a folha de
  * estilos inteira por combinação de fonte.
  */
-export function ConteudoEditavelProposta({ markdown, onChange, fonte, tamanhoCorpo }: ConteudoEditavelPropostaProps) {
+export function ConteudoEditavelProposta({
+  markdown,
+  onChange,
+  fonte,
+  tamanhoCorpo,
+  className,
+}: ConteudoEditavelPropostaProps) {
   const ref = useRef<HTMLDivElement>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mudancaInternaRef = useRef(false)
@@ -94,7 +104,10 @@ export function ConteudoEditavelProposta({ markdown, onChange, fonte, tamanhoCor
       onPaste={handlePaste}
       onKeyDown={handleKeyDown}
       style={estiloFonte}
-      className="markdown-preview max-h-[70vh] min-h-[200px] overflow-auto rounded-lg border border-border-grey bg-white p-4 outline-none focus:border-orange"
+      className={cn(
+        'markdown-preview min-h-[200px] outline-none',
+        className ?? 'max-h-[70vh] overflow-auto rounded-lg border border-border-grey bg-white p-4 focus:border-orange'
+      )}
     />
   )
 }

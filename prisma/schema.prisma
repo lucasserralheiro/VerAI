@@ -117,6 +117,11 @@ model PropostaComercial {
   conteudoMarkdown String?   @db.Text // resumo consolidado final — null até concluir, ou quando status é "erro"
   status           String    @default("rascunho") // rascunho | concluido | erro
   mensagemErro     String?
+  // Resultado da checagem por IA da conversão (score, trechos suspeitos,
+  // páginas com imagem + ids dos PDFs checados). Só depende dos PDFs, então
+  // é reaproveitado até os arquivos mudarem ou alguém pedir "checar de novo".
+  checagemIa       Json?
+  checagemIaEm     DateTime?
   createdAt        DateTime  @default(now())
   arquivos         PropostaComercialArquivo[]
 }

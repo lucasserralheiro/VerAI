@@ -7,7 +7,7 @@ const markdownComPendente = 'X\n\n:::ocr-pendente[arquivoId=a1 pagina=1]\n_(agua
 
 /** `OcrRunner` é controlado por prop — o `conteudoMarkdown` só reflete o
  *  texto reconhecido depois que o PAI re-renderiza com o valor atualizado
- *  (é isso que `editor-markdown.tsx` faz de verdade via `setTexto`). Este
+ *  (é isso que `espaco-proposta.tsx` faz de verdade via `setTexto`). Este
  *  wrapper simula esse pai, guardando o estado e repassando pro spy. */
 function ControlledOcrRunner({
   onConteudoAtualizado,

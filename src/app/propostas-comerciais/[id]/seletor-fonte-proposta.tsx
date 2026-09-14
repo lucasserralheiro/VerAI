@@ -9,17 +9,16 @@ export interface SeletorFontePropostaProps {
 }
 
 const SELECT_CLASSNAME =
-  'rounded-xl border border-navy/15 bg-white py-1.5 pl-2.5 pr-7 text-sm font-medium text-navy outline-none transition-colors duration-150 hover:border-navy/35 focus:border-orange focus:ring-4 focus:ring-orange/12'
+  'h-8 rounded-xl border border-navy/15 bg-white py-0 pl-2.5 pr-7 text-sm text-navy outline-none transition-colors duration-150 hover:border-navy/35 focus:border-orange focus:ring-4 focus:ring-orange/12'
 
 /**
  * Fonte e tamanho da Proposta Comercial — controla o preview renderizado e o
  * HTML de "Copiar formatado" (ver `src/lib/preferenciaFonteProposta.ts`).
- * Compartilhado entre `EditorMarkdown` e `PropostaFinal`, que têm a mesma
- * barra de ações.
+ * Fica na barra do documento em `EspacoProposta`.
  */
 export function SeletorFonteProposta({ preferencia, onMudarFonte, onMudarTamanho }: SeletorFontePropostaProps) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex shrink-0 items-center gap-2.5" title="Vale pra visualização e pro texto copiado">
       <label className="sr-only" htmlFor="seletor-fonte-proposta">
         Fonte da proposta
       </label>

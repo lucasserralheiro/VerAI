@@ -1,10 +1,30 @@
-import { NextResponse } from 'next/server'
+import { createHash, timingSafeEqual } from 'node:crypto'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { criarSessao, AUTH_COOKIE_NAME, type Role } from '@/lib/auth'
 import { devAuthEnabled } from '@/lib/dev-auth'
 
-export async function POST() {
+/**
+ * Confere o token digitado na tela de login contra DEV_AUTH_TOKEN.
+ * O valor fica só no servidor (sem prefixo NEXT_PUBLIC_), então nunca vai
+ * parar no bundle do navegador. Sem token configurado, ninguém entra.
+ * A comparação é sobre o hash pra ter o mesmo tamanho dos dois lados e não
+ * vazar nada pelo tempo de resposta.
+ */
+function tokenValido(tokenInformado: unknown): boolean {
+  const esperado = process.env.DEV_AUTH_TOKEN ?? ''
+  if (!esperado || typeof tokenInformado !== 'string' || !tokenInformado) return false
+  const hash = (valor: string) => createHash('sha256').update(valor).digest()
+  return timingSafeEqual(hash(tokenInformado), hash(esperado))
+}
+
+export async function POST(request: NextRequest) {
   if (!devAuthEnabled()) {
+    return NextResponse.json({ error: 'token inválido' }, { status: 401 })
+  }
+
+  const body = await request.json().catch(() => null)
+  if (!tokenValido(body?.token)) {
     return NextResponse.json({ error: 'token inválido' }, { status: 401 })
   }
 

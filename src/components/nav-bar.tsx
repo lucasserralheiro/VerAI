@@ -357,7 +357,7 @@ export function NavBar() {
         )}
       </Link>
 
-      <div className="nav-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-2">
+      <div className="nav-scroll flex flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-3 py-2">
         <div className="flex flex-col gap-1">
           {expandida && (
             <span className="px-1.5 pb-0.5 text-[10px] font-bold tracking-[0.08em] text-white/30 uppercase">

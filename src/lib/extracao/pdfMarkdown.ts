@@ -89,6 +89,27 @@ const TOLERANCIA_MARGEM_JUSTIFICADO = 4
 const REGEX_LISTA_NUMERADA = /^(\d+)([.)])\s+(.*)$/
 const REGEX_LISTA_MARCADOR = /^[•\-*]\s+(.*)$/
 
+/** Trava de segurança pra `absorverBloco`: sem ela um bloco cresce enquanto a
+ *  última linha absorvida não terminar em pontuação final — e texto tabular
+ *  (preço, quantidade, código de item) raramente termina em ponto/vírgula
+ *  final. Quando a tabela correspondente NÃO é reconhecida (nem por borda, nem
+ *  por corredor — ver `iniciaTabela`), dezenas de linhas da tabela viram UM
+ *  parágrafo só, sem quebra nenhuma: é exatamente a "parede de texto" que sai
+ *  ilegível ao colar no SEI.
+ *
+ *  Diferente das constantes acima, este valor NÃO foi medido num corpus de
+ *  documentos — é uma válvula de segurança deliberadamente conservadora: força
+ *  uma quebra de parágrafo aqui (o restante ainda sai, sem coluna, mas pelo
+ *  menos separado linha a linha do PDF, em vez de uma única `<li>`/`<p>`
+ *  gigante) em vez de deixar o bloco crescer sem limite. Um parágrafo legítimo
+ *  raríssimo que precise de mais linhas do que isto pra fechar em pontuação
+ *  só perde a quebra "ideal" e vira dois parágrafos consecutivos — resultado
+ *  pior que o normal, mas muito melhor que uma tabela inteira grudada. Se for
+ *  afinar este número, use `scripts/diagnostico-conversao.mts` (métrica
+ *  "blocos-gigantes") no seu conjunto de documentos em vez de ajustar pelo
+ *  caso da vez. */
+const LIMITE_LINHAS_SEM_PONTUACAO = 12
+
 /** Distância (em pontos) dentro da qual dois marcadores de lista contam como o
  *  MESMO nível de indentação.
  *
@@ -770,6 +791,7 @@ function absorverBloco(
 
   while (j < linhas.length) {
     if (terminaComPontuacaoFinal(textos[textos.length - 1])) break
+    if (linhasConsumidas.length >= LIMITE_LINHAS_SEM_PONTUACAO) break
 
     const candidata = linhas[j]
     const textoCandidata = extrairTextoLinha(candidata)

@@ -24,6 +24,13 @@
  *                        meio pela detecção de tabela ou de título.
  *   imagens              figuras que entraram no Markdown.
  *   descartadas          imagens que ficaram de fora, agrupadas por motivo.
+ *   blocos-gigantes      parágrafo/item de lista comum (não tabela) grande
+ *                        demais e cheio de dígito — sinal de TABELA QUE NÃO
+ *                        FOI RECONHECIDA: várias linhas do PDF (código, valor,
+ *                        quantidade) viraram um bloco só de texto corrido, sem
+ *                        coluna nenhuma. É exatamente o "parede de texto"
+ *                        ilegível ao colar no SEI. Bandeira vermelha pra olhar
+ *                        na mão, não uma classificação definitiva.
  */
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { basename, extname, join, resolve } from 'node:path'
@@ -51,6 +58,8 @@ interface Metricas {
   exemploProsaEmTabela: string | null
   paragrafosCortados: number
   exemploParagrafoCortado: string | null
+  blocosGigantes: number
+  exemploBlocoGigante: string | null
   imagens: number
   descartadas: Record<string, number>
   milissegundos: number
@@ -110,6 +119,37 @@ function medirTabelas(blocos: string[]) {
   return { tabelas: tabelas.length, prosaEmTabela, exemplo }
 }
 
+/** Bloco "gigante": parágrafo ou item de lista comum (não tabela, título ou
+ *  imagem) grande demais e com muito dígito — sinal de que a tabela de origem
+ *  não foi detectada (nem por borda, nem por corredor — ver `iniciaTabela` em
+ *  `pdfMarkdown.ts`) e várias linhas do PDF colapsaram num bloco só de texto
+ *  corrido. Os dois limiares abaixo NÃO são medidos como as constantes de
+ *  `pdfMarkdown.ts` — são heurística de bandeira vermelha pra achar candidato
+ *  a olhar na mão, calibre com documento real se disparar demais/de menos. */
+const LIMIAR_PALAVRAS_BLOCO_GIGANTE = 60
+const LIMIAR_FRACAO_DIGITOS_BLOCO_GIGANTE = 0.15
+
+function medirBlocosGigantes(blocos: string[]) {
+  let gigantes = 0
+  let exemplo: string | null = null
+
+  for (const bloco of blocos) {
+    if (bloco.startsWith('|') || bloco.startsWith('#') || bloco.startsWith('![') || bloco.startsWith(':::')) continue
+
+    const texto = bloco.replace(/<[^>]+>/g, '').trim()
+    const palavras = texto.split(/\s+/).filter(Boolean)
+    if (palavras.length < LIMIAR_PALAVRAS_BLOCO_GIGANTE) continue
+
+    const digitos = (texto.match(/\d/g) ?? []).length
+    if (digitos / texto.length < LIMIAR_FRACAO_DIGITOS_BLOCO_GIGANTE) continue
+
+    gigantes++
+    exemplo ??= `${texto.slice(0, 90)}… (${palavras.length} palavras)`
+  }
+
+  return { gigantes, exemplo }
+}
+
 /** Parágrafo cortado: um bloco de texto que para no meio da frase e o bloco
  *  seguinte continua em minúscula. */
 function medirParagrafosCortados(blocos: string[]) {
@@ -139,7 +179,7 @@ async function medir(caminho: string): Promise<Metricas> {
   const buffer = await readFile(caminho)
   const inicio = Date.now()
 
-  const markdown = await converterPdfParaMarkdown(buffer, {
+  const { markdown } = await converterPdfParaMarkdown(buffer, {
     // Não grava nada: o diagnóstico só precisa saber que a figura entrou e onde.
     salvarImagem: async (imagem) => `imagens/${imagem.nomeArquivo}`,
   })
@@ -150,6 +190,7 @@ async function medir(caminho: string): Promise<Metricas> {
   const blocos = markdown.split('\n\n')
   const { tabelas, prosaEmTabela, exemplo } = medirTabelas(blocos)
   const { cortados, exemplo: exemploCorte } = medirParagrafosCortados(blocos)
+  const { gigantes, exemplo: exemploGigante } = medirBlocosGigantes(blocos)
 
   const porMotivo: Record<string, number> = {}
   for (const imagem of descartadas) {
@@ -166,6 +207,8 @@ async function medir(caminho: string): Promise<Metricas> {
     exemploProsaEmTabela: exemplo,
     paragrafosCortados: cortados,
     exemploParagrafoCortado: exemploCorte,
+    blocosGigantes: gigantes,
+    exemploBlocoGigante: exemploGigante,
     imagens: blocos.filter((bloco) => bloco.startsWith('![')).length,
     descartadas: porMotivo,
     milissegundos: Date.now() - inicio,
@@ -180,6 +223,7 @@ function imprimirTabela(medicoes: Metricas[]): void {
     ['tabelas', (m) => String(m.tabelas)],
     ['prosa-em-tabela', (m) => String(m.prosaEmTabela)],
     ['pár-cortados', (m) => String(m.paragrafosCortados)],
+    ['blocos-gigantes', (m) => String(m.blocosGigantes)],
     ['imagens', (m) => String(m.imagens)],
     ['ms', (m) => String(m.milissegundos)],
   ]
@@ -198,12 +242,13 @@ function imprimirDetalhes(medicoes: Metricas[]): void {
       .sort((a, b) => b[1] - a[1])
       .map(([motivo, quantas]) => `${motivo}=${quantas}`)
       .join(' ')
-    if (!descartes && !m.exemploProsaEmTabela && !m.exemploParagrafoCortado) continue
+    if (!descartes && !m.exemploProsaEmTabela && !m.exemploParagrafoCortado && !m.exemploBlocoGigante) continue
 
     console.log(`\n${m.arquivo}`)
     if (descartes) console.log(`  imagens descartadas: ${descartes}`)
     if (m.exemploProsaEmTabela) console.log(`  prosa dentro de tabela: "${m.exemploProsaEmTabela}"`)
     if (m.exemploParagrafoCortado) console.log(`  parágrafo cortado: "${m.exemploParagrafoCortado}"`)
+    if (m.exemploBlocoGigante) console.log(`  bloco gigante (tabela não reconhecida?): "${m.exemploBlocoGigante}"`)
   }
 }
 
@@ -242,6 +287,7 @@ if (comoJson) {
     `\n${medicoes.length} documento(s): ${total((m) => m.tabelas)} tabelas, ` +
       `${total((m) => m.prosaEmTabela)} linhas de prosa dentro de tabela, ` +
       `${total((m) => m.paragrafosCortados)} parágrafos cortados, ` +
+      `${total((m) => m.blocosGigantes)} blocos gigantes (candidato a tabela não reconhecida), ` +
       `${total((m) => m.imagens)} imagens.`
   )
 }

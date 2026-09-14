@@ -2,26 +2,38 @@
 
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, KeyRound } from 'lucide-react'
 import { BTN_PRIMARY } from '@/lib/ui'
 
+// O token não existe no front: vai digitado pro /api/auth/dev-login e quem
+// confere é o servidor, contra DEV_AUTH_TOKEN.
 export function DevLoginForm() {
   const router = useRouter()
+  const [token, setToken] = useState('')
+  const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setErro(null)
-    const response = await fetch('/api/auth/dev-login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    })
-    if (!response.ok) {
+    setEnviando(true)
+    try {
+      const response = await fetch('/api/auth/dev-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      })
+      if (!response.ok) {
+        setErro(response.status === 401 ? 'Token inválido' : 'Não foi possível entrar')
+        setToken('')
+        return
+      }
+      router.push('/clientes')
+    } catch {
       setErro('Não foi possível entrar')
-      return
+    } finally {
+      setEnviando(false)
     }
-    router.push('/clientes')
   }
 
   return (
@@ -40,8 +52,23 @@ export function DevLoginForm() {
 
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold text-navy">Entrar</h2>
-          <p className="text-sm text-mid-grey">Modo de desenvolvimento — acesso direto como administrador.</p>
+          <p className="text-sm text-mid-grey">Sistema em desenvolvimento — informe o token de acesso.</p>
         </div>
+
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium text-foreground">Token de acesso</span>
+          <span className="relative flex items-center">
+            <KeyRound className="pointer-events-none absolute left-3 size-4 text-mid-grey" strokeWidth={2} />
+            <input
+              type="password"
+              autoComplete="off"
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+              className="w-full rounded-lg border border-border-grey py-2.5 pr-3 pl-9 text-sm shadow-xs outline-none transition-all focus:border-orange focus:ring-4 focus:ring-orange/12"
+              required
+            />
+          </span>
+        </label>
 
         {erro && (
           <p className="flex items-center gap-1.5 rounded-lg bg-red-crit-light px-3 py-2 text-sm text-red-crit">
@@ -50,8 +77,8 @@ export function DevLoginForm() {
           </p>
         )}
 
-        <button type="submit" className={`${BTN_PRIMARY} w-full justify-center`}>
-          Entrar
+        <button type="submit" disabled={enviando} className={`${BTN_PRIMARY} w-full justify-center`}>
+          {enviando ? 'Entrando...' : 'Entrar'}
         </button>
       </form>
     </section>

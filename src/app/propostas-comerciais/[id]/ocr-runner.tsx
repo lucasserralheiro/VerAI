@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, AlertCircle, ScanText } from 'lucide-react'
 import { BTN_PRIMARY } from '@/lib/ui'
+import { cn } from '@/lib/utils'
 import { listarBlocosOcrPendente, removerWrapper, type BlocoOcrPendente } from '@/lib/ocr/marcadorOcrPendente'
 import { rodarOcrEmBlocos, type DepsRodarOcr } from '@/lib/ocr/rodarOcr'
 import { carregarDepsOcrPadrao } from '@/lib/ocr/depsOcrPadrao'
@@ -99,12 +100,12 @@ export function OcrRunner({ propostaId, conteudoMarkdown, onConteudoAtualizado, 
 
   if (estado.fase === 'inicial') {
     return (
-      <div className="space-y-3 rounded-lg border border-border-grey bg-white p-4">
-        <p className="text-sm text-mid-grey">
+      <div className="space-y-2.5">
+        <p className="text-[15px] text-mid-grey">
           {blocosPendentes.length} página{blocosPendentes.length > 1 ? 's são imagem' : ' é imagem'} — o texto não foi
           extraído automaticamente.
         </p>
-        <button type="button" onClick={rodar} className={BTN_PRIMARY}>
+        <button type="button" onClick={rodar} className={cn(BTN_PRIMARY, 'w-full justify-center')}>
           <ScanText className="size-3.5" strokeWidth={2.25} />
           Rodar OCR ({blocosPendentes.length} página{blocosPendentes.length > 1 ? 's' : ''})
         </button>
@@ -114,8 +115,8 @@ export function OcrRunner({ propostaId, conteudoMarkdown, onConteudoAtualizado, 
 
   if (estado.fase === 'rodando') {
     return (
-      <p className="flex items-center gap-2 rounded-lg border border-border-grey bg-white p-4 text-sm text-mid-grey">
-        <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
+      <p className="flex items-start gap-2 text-[15px] text-mid-grey">
+        <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" strokeWidth={2.25} />
         Rodando OCR... página {estado.pagina} de {estado.total}. Pode sair desta aba, continua rodando.
       </p>
     )
@@ -123,8 +124,8 @@ export function OcrRunner({ propostaId, conteudoMarkdown, onConteudoAtualizado, 
 
   if (estado.fase === 'erro') {
     return (
-      <p className="flex items-center gap-2 rounded-lg border border-red-crit/30 bg-red-crit-light p-4 text-sm text-red-crit">
-        <AlertCircle className="size-4 shrink-0" strokeWidth={2.25} />
+      <p className="flex items-start gap-2 text-[15px] text-red-crit">
+        <AlertCircle className="mt-0.5 size-4 shrink-0" strokeWidth={2.25} />
         {estado.mensagem}
       </p>
     )
@@ -146,7 +147,7 @@ function RevisaoOcr({
 
   const bloco = blocos[indice]
   if (!bloco) {
-    return <p className="text-sm text-navy">Todos os trechos de OCR foram conferidos.</p>
+    return <p className="text-[15px] text-navy">Todos os trechos de OCR foram conferidos.</p>
   }
 
   async function confirmar() {
@@ -159,18 +160,18 @@ function RevisaoOcr({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-border-grey bg-white p-4">
-      <p className="text-sm text-mid-grey">
+    <div className="space-y-2.5">
+      <p className="text-[15px] text-mid-grey">
         Confira o texto reconhecido contra a página original — trecho {indice + 1} de {blocos.length} (página {bloco.pagina}
         ).
       </p>
       <textarea
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
-        rows={10}
-        className="w-full rounded-lg border border-border-grey p-2 text-sm"
+        rows={12}
+        className="w-full rounded-lg border border-border-grey p-2.5 text-[15px] leading-relaxed outline-none focus:border-orange"
       />
-      <button type="button" onClick={confirmar} disabled={salvando} className={BTN_PRIMARY}>
+      <button type="button" onClick={confirmar} disabled={salvando} className={cn(BTN_PRIMARY, 'w-full justify-center')}>
         {salvando ? 'Salvando...' : 'Conferi este trecho'}
       </button>
     </div>

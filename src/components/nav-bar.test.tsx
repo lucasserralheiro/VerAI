@@ -38,7 +38,6 @@ describe('NavBar', () => {
     render(<NavBar />)
     expect(screen.getByRole('link', { name: 'Relatórios dos clientes' })).toHaveAttribute('href', '/clientes')
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).toHaveAttribute('href', '/')
-    expect(screen.getByRole('link', { name: 'Notificações' })).toHaveAttribute('href', '/notificacoes')
   })
 
   it('usa "Relatórios" como cabeçalho de seção, não mais "Análise de Documentos"', () => {
@@ -54,33 +53,27 @@ describe('NavBar', () => {
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).toBeInTheDocument()
   })
 
-  it('"Proposta Comercial (Conversão SEI)" é um link de verdade pro histórico, fora de "Relatórios", aberto por padrão', () => {
+  it('"Proposta Comercial" é um link de verdade pro histórico, fora de "Relatórios", aberto por padrão', () => {
     render(<NavBar />)
-    expect(screen.getByRole('link', { name: 'Proposta Comercial (Conversão SEI)' })).toHaveAttribute(
-      'href',
-      '/propostas-comerciais'
-    )
-    const botao = screen.getByRole('button', { name: 'Recolher Proposta Comercial (Conversão SEI)' })
+    expect(screen.getByRole('link', { name: 'Proposta Comercial' })).toHaveAttribute('href', '/propostas-comerciais')
+    const botao = screen.getByRole('button', { name: 'Recolher Proposta Comercial' })
     expect(botao).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('link', { name: 'Histórico' })).toHaveAttribute('href', '/propostas-comerciais')
   })
 
-  it('alterna o grupo "Proposta Comercial (Conversão SEI)" ao clicar no chevron, sem navegar', () => {
+  it('alterna o grupo "Proposta Comercial" ao clicar no chevron, sem navegar', () => {
     render(<NavBar />)
-    const botao = screen.getByRole('button', { name: 'Recolher Proposta Comercial (Conversão SEI)' })
+    const botao = screen.getByRole('button', { name: 'Recolher Proposta Comercial' })
 
     fireEvent.click(botao)
-    expect(screen.getByRole('button', { name: 'Expandir Proposta Comercial (Conversão SEI)' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Expandir Proposta Comercial' })).toHaveAttribute(
       'aria-expanded',
       'false'
     )
     expect(screen.queryByRole('link', { name: 'Histórico' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Proposta Comercial (Conversão SEI)' })).toHaveAttribute(
-      'href',
-      '/propostas-comerciais'
-    )
+    expect(screen.getByRole('link', { name: 'Proposta Comercial' })).toHaveAttribute('href', '/propostas-comerciais')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expandir Proposta Comercial (Conversão SEI)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir Proposta Comercial' }))
     expect(screen.getByRole('link', { name: 'Histórico' })).toBeInTheDocument()
   })
 
@@ -111,18 +104,45 @@ describe('NavBar', () => {
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).toBeInTheDocument()
   })
 
-  it('"Notificações" fica fora do grupo "Relatórios", como item solto', () => {
-    render(<NavBar />)
-    fireEvent.click(screen.getByRole('button', { name: 'Recolher Relatórios dos clientes' }))
-    expect(screen.getByRole('link', { name: 'Notificações' })).toHaveAttribute('href', '/notificacoes')
-  })
-
   it('não mostra a seção Configuração para quem não é admin', async () => {
     mockFetch('usuario')
     render(<NavBar />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/auth/me'))
     await act(async () => {})
     expect(screen.queryByRole('button', { name: 'Configuração' })).not.toBeInTheDocument()
+  })
+
+  it('faz logout e redireciona para /login ao clicar em Sair', async () => {
+    render(<NavBar />)
+    fireEvent.click(screen.getByText('Sair'))
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/auth/logout', { method: 'POST' }))
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/login'))
+  })
+
+  it('não renderiza nada na tela de login', () => {
+    pathnameMock = '/login'
+    const { container } = render(<NavBar />)
+    expect(container).toBeEmptyDOMElement()
+  })
+})
+
+// `MENU_SIMPLIFICADO = true` em nav-bar.tsx esconde "Notificações", a seção
+// "Configuração" (mesmo pra admin) e o seletor "Simular usuário" enquanto o
+// menu é reorganizado — reverter a flag pra `false` religa tudo isso, e
+// então é só trocar `describe.skip` por `describe` aqui embaixo de novo.
+describe.skip('NavBar — itens ocultos enquanto MENU_SIMPLIFICADO = true', () => {
+  beforeEach(() => {
+    pushMock.mockClear()
+    pathnameMock = '/'
+    localStorage.clear()
+    mockFetch('admin')
+  })
+
+  it('"Notificações" fica fora do grupo "Relatórios", como item solto', () => {
+    render(<NavBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher Relatórios dos clientes' }))
+    expect(screen.getByRole('link', { name: 'Notificações' })).toHaveAttribute('href', '/notificacoes')
   })
 
   it('mostra a seção Configuração fechada por padrão para admin em rota não-admin', async () => {
@@ -169,18 +189,23 @@ describe('NavBar', () => {
     expect(screen.getByRole('link', { name: 'Usuários' })).toHaveAttribute('href', '/admin/usuarios')
   })
 
-  it('faz logout e redireciona para /login ao clicar em Sair', async () => {
+  it('mostra o seletor "Simular usuário" para admin real com o modo ligado e chama switch ao escolher', async () => {
+    mockFetchComDevStatus('admin', {
+      enabled: true,
+      impersonating: false,
+      users: [{ id: 'u1', nome: 'Uploader Teste', email: 'up@verai.dev', role: 'uploader' }],
+    })
     render(<NavBar />)
-    fireEvent.click(screen.getByText('Sair'))
 
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/auth/logout', { method: 'POST' }))
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/login'))
-  })
+    const select = await screen.findByLabelText('Simular usuário')
+    fireEvent.change(select, { target: { value: 'u1' } })
 
-  it('não renderiza nada na tela de login', () => {
-    pathnameMock = '/login'
-    const { container } = render(<NavBar />)
-    expect(container).toBeEmptyDOMElement()
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/dev-auth/switch',
+        expect.objectContaining({ method: 'POST', body: JSON.stringify({ userId: 'u1' }) })
+      )
+    )
   })
 })
 
@@ -219,27 +244,8 @@ describe('NavBar — modo dev', () => {
   it('não mostra nada de dev-auth quando o modo está desligado', async () => {
     mockFetch('admin')
     render(<NavBar />)
-    await screen.findByRole('button', { name: 'Configuração' })
+    await screen.findByRole('link', { name: 'Relatórios dos clientes' })
     expect(screen.queryByText('Simular usuário')).not.toBeInTheDocument()
-  })
-
-  it('mostra o seletor "Simular usuário" para admin real com o modo ligado e chama switch ao escolher', async () => {
-    mockFetchComDevStatus('admin', {
-      enabled: true,
-      impersonating: false,
-      users: [{ id: 'u1', nome: 'Uploader Teste', email: 'up@verai.dev', role: 'uploader' }],
-    })
-    render(<NavBar />)
-
-    const select = await screen.findByLabelText('Simular usuário')
-    fireEvent.change(select, { target: { value: 'u1' } })
-
-    await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/dev-auth/switch',
-        expect.objectContaining({ method: 'POST', body: JSON.stringify({ userId: 'u1' }) })
-      )
-    )
   })
 
   it('mostra "Voltar para admin" quando está simulando um usuário e chama restore ao clicar', async () => {

@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { getUpload } from '@/lib/storage'
-import { converterPdfParaMarkdown, type PaginaConvertida } from '@/lib/extracao/pdfMarkdown'
+import { converterPdfParaMarkdown, type PaginaConvertida } from '@/lib/extracao/pdfHtml'
 import { checarConversao } from '@/lib/ia/checarConversao'
 
 /** Impressão digital barata do documento auditado — mais barato que guardar

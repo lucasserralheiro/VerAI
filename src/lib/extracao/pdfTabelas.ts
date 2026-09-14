@@ -1,5 +1,5 @@
-import type { Linha } from './pdfMarkdown'
-import { formatarTexto, montarTabelaMarkdown } from './pdfMarkdown'
+import type { Linha } from './pdfHtml'
+import { formatarTexto, montarTabelaMarkdown } from './pdfHtml'
 import type { SegmentoReto } from './pdfTracos'
 
 /** Grade de bordas visuais de uma página: posições Y das linhas horizontais

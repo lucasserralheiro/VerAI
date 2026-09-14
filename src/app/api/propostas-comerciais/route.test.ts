@@ -18,14 +18,14 @@ jest.mock('@/lib/storage', () => ({
   getUpload: jest.fn(),
   deleteUpload: jest.fn().mockResolvedValue(undefined),
 }))
-jest.mock('@/lib/extracao/pdfMarkdown', () => ({ converterPdfParaMarkdown: jest.fn() }))
+jest.mock('@/lib/extracao/pdfHtml', () => ({ converterPdfParaMarkdown: jest.fn() }))
 jest.mock('@/lib/extracao', () => ({ converterParaMarkdownDeterministico: jest.fn() }))
 jest.mock('@/lib/ocr/marcadorOcrPendente', () => ({ reescreverComArquivoId: jest.fn((md: string) => md) }))
 
 import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getUpload, deleteUpload } from '@/lib/storage'
-import { converterPdfParaMarkdown } from '@/lib/extracao/pdfMarkdown'
+import { converterPdfParaMarkdown } from '@/lib/extracao/pdfHtml'
 import { POST } from './route'
 
 const requisicao = (corpo: unknown) =>

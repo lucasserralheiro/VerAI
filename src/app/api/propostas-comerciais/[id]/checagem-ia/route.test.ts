@@ -10,13 +10,13 @@ jest.mock('@/lib/prisma', () => ({
   prisma: { propostaComercial: { findUnique: jest.fn(), update: jest.fn() } },
 }))
 jest.mock('@/lib/storage', () => ({ getUpload: jest.fn() }))
-jest.mock('@/lib/extracao/pdfMarkdown', () => ({ converterPdfParaMarkdown: jest.fn() }))
+jest.mock('@/lib/extracao/pdfHtml', () => ({ converterPdfParaMarkdown: jest.fn() }))
 jest.mock('@/lib/ia/checarConversao', () => ({ checarConversao: jest.fn() }))
 
 import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getUpload } from '@/lib/storage'
-import { converterPdfParaMarkdown } from '@/lib/extracao/pdfMarkdown'
+import { converterPdfParaMarkdown } from '@/lib/extracao/pdfHtml'
 import { checarConversao } from '@/lib/ia/checarConversao'
 import { POST } from './route'
 

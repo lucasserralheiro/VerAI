@@ -1,0 +1,44 @@
+/* Camada de texto do pdf.js por cima do canvas da página: os <span>/<br> ficam
+   com a cor transparente mas posicionados exatamente sobre o texto desenhado,
+   pra dar pra selecionar e copiar o texto real do PDF — sem isso o usuário só
+   vê pixels de canvas, sem jeito nenhum de copiar. */
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 1;
+  line-height: 1;
+  text-align: initial;
+  transform-origin: 0 0;
+}
+
+.textLayer :global(span),
+.textLayer :global(br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.textLayer :global(span.markedContent) {
+  top: 0;
+  height: 0;
+}
+
+.textLayer :global(.endOfContent) {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  user-select: none;
+}
+
+.textLayer :global(.endOfContent.active) {
+  top: 0;
+}
+
+.textLayer :global(::selection) {
+  background: rgba(255, 122, 0, 0.35);
+}

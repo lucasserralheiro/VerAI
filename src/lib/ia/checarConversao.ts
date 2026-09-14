@@ -14,7 +14,7 @@ import { getModel } from './modelo'
  * Sempre compara contra o DOCUMENTO INTEIRO, nunca contra a fatia de
  * Markdown de uma página só — mesmo na primeira checagem, antes de qualquer
  * edição. Não é só sobre reorganização pós-edição: o próprio conversor
- * determinístico (`pdfMarkdown.ts`) já pode atribuir um parágrafo que
+ * determinístico (`pdfHtml.ts`) já pode atribuir um parágrafo que
  * atravessa a quebra de página inteiro à página ANTERIOR (ver
  * `absorverBloco`), então mesmo sem nenhuma edição humana a fatia de uma
  * página isolada pode legitimamente não conter tudo que veio dela. Comparar

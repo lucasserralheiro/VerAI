@@ -16,7 +16,7 @@ jest.mock('./pdfImagens', () => ({
 import { extractTextItems } from 'unpdf'
 import { extrairSegmentosRetosPorPagina } from './pdfTracos'
 import { extrairImagensDeConteudo } from './pdfImagens'
-import { converterPdfParaMarkdown } from './pdfMarkdown'
+import { converterPdfParaMarkdown } from './pdfHtml'
 
 function item(overrides: Partial<StructuredTextItem>): StructuredTextItem {
   return {

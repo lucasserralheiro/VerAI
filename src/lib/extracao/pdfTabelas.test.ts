@@ -1,5 +1,5 @@
 import { construirGradeDaPagina, detectarTabelaPorBordas, type GradeDeTabela } from './pdfTabelas'
-import type { Linha } from './pdfMarkdown'
+import type { Linha } from './pdfHtml'
 
 function segmento(x1: number, y1: number, x2: number, y2: number) {
   return { x1, y1, x2, y2 }

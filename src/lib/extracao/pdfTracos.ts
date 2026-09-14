@@ -67,7 +67,7 @@ export interface PaginaComTracos {
 /**
  * Extrai, de cada página do PDF, os segmentos retos (horizontais/verticais)
  * desenhados com traço (linha) ou preenchimento fino (barra) — matéria-prima
- * pra detectar sublinhado (`pdfMarkdown.ts`) e bordas de tabela
+ * pra detectar sublinhado (`pdfHtml.ts`) e bordas de tabela
  * (`pdfTabelas.ts`) sem depender só da posição do texto — e a fração da área
  * da página coberta por imagem, usada pra detectar página escaneada.
  *

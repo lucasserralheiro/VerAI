@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { buildImagemPath, buildUploadPath, deleteUpload, getUpload, putUpload } from '@/lib/storage'
-import { converterPdfParaMarkdown } from '@/lib/extracao/pdfMarkdown'
+import { converterPdfParaMarkdown } from '@/lib/extracao/pdfHtml'
 import { converterParaMarkdownDeterministico } from '@/lib/extracao'
 import { reescreverComArquivoId } from '@/lib/ocr/marcadorOcrPendente'
 
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
   })
 
   // Conversão 100% determinística — sem IA. Cada arquivo vira Markdown pelo
-  // seu próprio conversor fiel (pdfMarkdown pro PDF, HTML→Markdown do
+  // seu próprio conversor fiel (pdfHtml pro PDF, HTML do
   // mammoth pro Word, tabela completa pra planilha); nenhum dado é
   // reescrito, resumido ou inventado, só reformatado.
   interface ArquivoConvertido {

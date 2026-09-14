@@ -28,11 +28,13 @@ describe('PATCH /api/propostas-comerciais/[id]', () => {
     ;(prisma.propostaComercial.findUnique as jest.Mock).mockResolvedValue({ id: 'p1' })
   })
 
-  it('markdown com :::ocr-pendente salva e mantém rascunho', async () => {
+  it('html com marcador de OCR pendente salva e mantém rascunho', async () => {
     ;(prisma.propostaComercial.update as jest.Mock).mockImplementation(({ data }) => ({ id: 'p1', ...data }))
 
     const resposta = await PATCH(
-      requisicao({ conteudoMarkdown: 'texto\n\n:::ocr-pendente[arquivoId=a1 pagina=2]\ncorpo\n:::' }),
+      requisicao({
+        conteudoMarkdown: '<p>texto</p><div class="ocr-pendente" data-arquivo-id="a1" data-pagina="2">corpo</div>',
+      }),
       contexto
     )
 

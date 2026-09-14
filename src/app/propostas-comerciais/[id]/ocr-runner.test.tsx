@@ -3,7 +3,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { OcrRunner, type OcrRunnerProps } from './ocr-runner'
 import { limparOcr } from '@/lib/ocrEmAndamento'
 
-const markdownComPendente = 'X\n\n:::ocr-pendente[arquivoId=a1 pagina=1]\n_(aguardando OCR)_\n:::\n\nY'
+const markdownComPendente =
+  '<p>X</p><div class="ocr-pendente" data-arquivo-id="a1" data-pagina="1"><p><em>(aguardando OCR)</em></p></div><p>Y</p>'
 
 /** `OcrRunner` é controlado por prop — o `conteudoMarkdown` só reflete o
  *  texto reconhecido depois que o PAI re-renderiza com o valor atualizado
@@ -60,7 +61,7 @@ describe('OcrRunner', () => {
 
     await waitFor(() =>
       expect(onConteudoAtualizado).toHaveBeenCalledWith(
-        'X\n\n:::ocr-pendente[arquivoId=a1 pagina=1]\nTexto reconhecido.\n:::\n\nY'
+        '<p>X</p><div class="ocr-pendente" data-arquivo-id="a1" data-pagina="1">Texto reconhecido.</div><p>Y</p>'
       )
     )
     expect(await screen.findByRole('button', { name: /Conferi este trecho/ })).toBeInTheDocument()
@@ -86,7 +87,7 @@ describe('OcrRunner', () => {
     fireEvent.click(screen.getByRole('button', { name: /Conferi este trecho/ }))
 
     await waitFor(() =>
-      expect(onConteudoAtualizado).toHaveBeenLastCalledWith('X\n\nTexto reconhecido.\n\nY')
+      expect(onConteudoAtualizado).toHaveBeenLastCalledWith('<p>X</p>Texto reconhecido.<p>Y</p>')
     )
   })
 

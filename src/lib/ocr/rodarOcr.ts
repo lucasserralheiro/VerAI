@@ -30,7 +30,11 @@ export async function rodarOcrEmBlocos(markdown: string, deps: DepsRodarOcr): Pr
       const texto = await deps.reconhecer(imagem)
       atual = substituirCorpo(atual, bloco, texto)
     } catch {
-      atual = substituirCorpo(atual, bloco, '_(OCR falhou nesta página — transcreva manualmente a partir do original)_')
+      atual = substituirCorpo(
+        atual,
+        bloco,
+        '<p><em>(OCR falhou nesta página — transcreva manualmente a partir do original)</em></p>'
+      )
     }
   }
 

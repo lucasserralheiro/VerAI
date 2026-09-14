@@ -8,97 +8,120 @@ import {
 } from './marcadorOcrPendente'
 
 describe('formatarBlocoOcrPendente', () => {
-  it('sem arquivoId gera só [pagina=N]', () => {
-    expect(formatarBlocoOcrPendente(3)).toBe(':::ocr-pendente[pagina=3]\n_(aguardando OCR)_\n:::')
+  it('sem arquivoId gera só data-pagina', () => {
+    expect(formatarBlocoOcrPendente(3)).toBe(
+      '<div class="ocr-pendente" data-pagina="3"><p><em>(aguardando OCR)</em></p></div>'
+    )
   })
 
-  it('com arquivoId gera [arquivoId=... pagina=N]', () => {
-    expect(formatarBlocoOcrPendente(3, 'arq1')).toBe(':::ocr-pendente[arquivoId=arq1 pagina=3]\n_(aguardando OCR)_\n:::')
+  it('com arquivoId gera data-arquivo-id e data-pagina', () => {
+    expect(formatarBlocoOcrPendente(3, 'arq1')).toBe(
+      '<div class="ocr-pendente" data-arquivo-id="arq1" data-pagina="3"><p><em>(aguardando OCR)</em></p></div>'
+    )
   })
 
   it('aceita corpo customizado', () => {
-    expect(formatarBlocoOcrPendente(1, 'arq1', 'texto reconhecido')).toBe(
-      ':::ocr-pendente[arquivoId=arq1 pagina=1]\ntexto reconhecido\n:::'
+    expect(formatarBlocoOcrPendente(1, 'arq1', '<p>texto reconhecido</p>')).toBe(
+      '<div class="ocr-pendente" data-arquivo-id="arq1" data-pagina="1"><p>texto reconhecido</p></div>'
     )
   })
 })
 
 describe('listarBlocosOcrPendente', () => {
   it('encontra um bloco no meio do texto e extrai arquivoId/pagina/corpo', () => {
-    const markdown = 'Antes.\n\n:::ocr-pendente[arquivoId=arq1 pagina=2]\n_(aguardando OCR)_\n:::\n\nDepois.'
+    const html =
+      '<p>Antes.</p>' +
+      '<div class="ocr-pendente" data-arquivo-id="arq1" data-pagina="2"><p><em>(aguardando OCR)</em></p></div>' +
+      '<p>Depois.</p>'
 
-    const blocos = listarBlocosOcrPendente(markdown)
+    const blocos = listarBlocosOcrPendente(html)
 
     expect(blocos).toEqual([
       {
-        blocoCompleto: ':::ocr-pendente[arquivoId=arq1 pagina=2]\n_(aguardando OCR)_\n:::',
+        blocoCompleto: '<div class="ocr-pendente" data-arquivo-id="arq1" data-pagina="2"><p><em>(aguardando OCR)</em></p></div>',
         arquivoId: 'arq1',
         pagina: 2,
-        corpo: '_(aguardando OCR)_',
+        corpo: '<p><em>(aguardando OCR)</em></p>',
       },
     ])
   })
 
   it('encontra vários blocos, em ordem', () => {
-    const markdown = ':::ocr-pendente[pagina=1]\nA\n:::\n\ntexto\n\n:::ocr-pendente[pagina=2]\nB\n:::'
+    const html =
+      '<div class="ocr-pendente" data-pagina="1">A</div>' +
+      '<p>texto</p>' +
+      '<div class="ocr-pendente" data-pagina="2">B</div>'
 
-    expect(listarBlocosOcrPendente(markdown).map((b) => b.pagina)).toEqual([1, 2])
+    expect(listarBlocosOcrPendente(html).map((b) => b.pagina)).toEqual([1, 2])
   })
 
   it('sem bloco nenhum devolve lista vazia', () => {
-    expect(listarBlocosOcrPendente('texto qualquer sem marcador')).toEqual([])
+    expect(listarBlocosOcrPendente('<p>texto qualquer sem marcador</p>')).toEqual([])
   })
 
   it('arquivoId ausente vira null', () => {
-    const markdown = ':::ocr-pendente[pagina=5]\ncorpo\n:::'
+    const html = '<div class="ocr-pendente" data-pagina="5">corpo</div>'
 
-    expect(listarBlocosOcrPendente(markdown)[0].arquivoId).toBeNull()
+    expect(listarBlocosOcrPendente(html)[0].arquivoId).toBeNull()
   })
 })
 
 describe('reescreverComArquivoId', () => {
   it('adiciona arquivoId a todos os blocos sem ele', () => {
-    const markdown = ':::ocr-pendente[pagina=1]\nA\n:::\n\n:::ocr-pendente[pagina=2]\nB\n:::'
+    const html = '<div class="ocr-pendente" data-pagina="1">A</div><div class="ocr-pendente" data-pagina="2">B</div>'
 
-    const resultado = reescreverComArquivoId(markdown, 'arq9')
+    const resultado = reescreverComArquivoId(html, 'arq9')
 
-    expect(resultado).toBe(':::ocr-pendente[arquivoId=arq9 pagina=1]\nA\n:::\n\n:::ocr-pendente[arquivoId=arq9 pagina=2]\nB\n:::')
+    expect(resultado).toBe(
+      '<div class="ocr-pendente" data-arquivo-id="arq9" data-pagina="1">A</div>' +
+        '<div class="ocr-pendente" data-arquivo-id="arq9" data-pagina="2">B</div>'
+    )
   })
 
   it('texto sem marcador não muda', () => {
-    expect(reescreverComArquivoId('texto normal', 'arq9')).toBe('texto normal')
+    expect(reescreverComArquivoId('<p>texto normal</p>', 'arq9')).toBe('<p>texto normal</p>')
   })
 })
 
 describe('substituirCorpo', () => {
   it('troca só o corpo, mantendo o wrapper e o arquivoId', () => {
-    const markdown = 'X\n\n:::ocr-pendente[arquivoId=arq1 pagina=2]\n_(aguardando OCR)_\n:::\n\nY'
-    const bloco = listarBlocosOcrPendente(markdown)[0]
+    const html =
+      '<p>X</p>' +
+      '<div class="ocr-pendente" data-arquivo-id="arq1" data-pagina="2"><p><em>(aguardando OCR)</em></p></div>' +
+      '<p>Y</p>'
+    const bloco = listarBlocosOcrPendente(html)[0]
 
-    const resultado = substituirCorpo(markdown, bloco, 'Texto reconhecido pelo OCR.')
+    const resultado = substituirCorpo(html, bloco, '<p>Texto reconhecido pelo OCR.</p>')
 
-    expect(resultado).toBe('X\n\n:::ocr-pendente[arquivoId=arq1 pagina=2]\nTexto reconhecido pelo OCR.\n:::\n\nY')
+    expect(resultado).toBe(
+      '<p>X</p>' +
+        '<div class="ocr-pendente" data-arquivo-id="arq1" data-pagina="2"><p>Texto reconhecido pelo OCR.</p></div>' +
+        '<p>Y</p>'
+    )
   })
 })
 
 describe('removerWrapper', () => {
-  it('substitui o bloco inteiro pelo texto final, sem sobrar marcador', () => {
-    const markdown = 'X\n\n:::ocr-pendente[arquivoId=arq1 pagina=2]\nTexto reconhecido.\n:::\n\nY'
-    const bloco = listarBlocosOcrPendente(markdown)[0]
+  it('substitui o bloco inteiro pelo HTML final, sem sobrar marcador', () => {
+    const html =
+      '<p>X</p>' +
+      '<div class="ocr-pendente" data-arquivo-id="arq1" data-pagina="2"><p>Texto reconhecido.</p></div>' +
+      '<p>Y</p>'
+    const bloco = listarBlocosOcrPendente(html)[0]
 
-    const resultado = removerWrapper(markdown, bloco, 'Texto reconhecido e conferido.')
+    const resultado = removerWrapper(html, bloco, '<p>Texto reconhecido e conferido.</p>')
 
-    expect(resultado).toBe('X\n\nTexto reconhecido e conferido.\n\nY')
+    expect(resultado).toBe('<p>X</p><p>Texto reconhecido e conferido.</p><p>Y</p>')
     expect(temBlocoOcrPendente(resultado)).toBe(false)
   })
 })
 
 describe('temBlocoOcrPendente', () => {
   it('true quando existe marcador', () => {
-    expect(temBlocoOcrPendente(':::ocr-pendente[pagina=1]\nA\n:::')).toBe(true)
+    expect(temBlocoOcrPendente('<div class="ocr-pendente" data-pagina="1">A</div>')).toBe(true)
   })
 
   it('false em texto normal', () => {
-    expect(temBlocoOcrPendente('texto qualquer')).toBe(false)
+    expect(temBlocoOcrPendente('<p>texto qualquer</p>')).toBe(false)
   })
 })

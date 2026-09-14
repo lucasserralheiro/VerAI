@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
-import { renderizarMarkdownProposta } from '@/lib/renderizarMarkdownProposta'
-import { htmlEditavelParaMarkdown } from '@/lib/propostaEditavel/htmlEditavelParaMarkdown'
+import { renderizarHtmlProposta } from '@/lib/renderizarHtmlProposta'
+import { sanitizarHtmlEditavel } from '@/lib/propostaEditavel/sanitizarHtmlEditavel'
 import { cn } from '@/lib/utils'
 
 export interface ConteudoEditavelPropostaProps {
@@ -55,7 +55,7 @@ export function ConteudoEditavelProposta({
       mudancaInternaRef.current = false
       return
     }
-    if (ref.current) ref.current.innerHTML = renderizarMarkdownProposta(markdown)
+    if (ref.current) ref.current.innerHTML = renderizarHtmlProposta(markdown)
   }, [markdown])
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export function ConteudoEditavelProposta({
     timeoutRef.current = setTimeout(() => {
       if (!ref.current) return
       mudancaInternaRef.current = true
-      onChange(htmlEditavelParaMarkdown(ref.current.innerHTML))
+      onChange(sanitizarHtmlEditavel(ref.current.innerHTML))
     }, DEBOUNCE_MS)
   }
 

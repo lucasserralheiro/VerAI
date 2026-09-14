@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, ClipboardCheck, ClipboardCopy, FileCode2, FileText, Loader2 } from 'lucide-react'
 import { BTN_OUTLINE, BTN_PRIMARY } from '@/lib/ui'
 import { cn } from '@/lib/utils'
-import { copiarMarkdownFormatado } from '@/lib/copiarMarkdownFormatado'
+import { copiarHtmlFormatado } from '@/lib/copiarHtmlFormatado'
 import { extrairTituloProposta } from '@/lib/extrairTituloProposta'
 import {
   carregarPreferenciaFonte,
@@ -179,7 +179,7 @@ export function EspacoProposta({
   }
 
   async function handleCopiarFormatado() {
-    await copiarMarkdownFormatado(markdown, {
+    await copiarHtmlFormatado(markdown, {
       familia: pilhaDaFonte(preferenciaFonte.fonte),
       tamanhoCorpo: preferenciaFonte.tamanhoCorpo,
     })

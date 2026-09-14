@@ -88,7 +88,7 @@ describe('EspacoProposta', () => {
     expect(p.onSalvar).not.toHaveBeenCalled()
 
     await esperar(AUTOSAVE_MS + 50)
-    await waitFor(() => expect(p.onSalvar).toHaveBeenCalledWith('# Proposta editada'))
+    await waitFor(() => expect(p.onSalvar).toHaveBeenCalledWith('<h1>Proposta editada</h1>'))
     // Salvo = estado parado, sem nada a avisar — o indicador some (ver
     // `StatusSalvamento`), não mostra "Salvo".
     await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())

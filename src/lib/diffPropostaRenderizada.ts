@@ -1,5 +1,5 @@
 import { diffWords } from 'diff'
-import { renderizarMarkdownProposta } from './renderizarMarkdownProposta'
+import { renderizarHtmlProposta } from './renderizarHtmlProposta'
 
 /**
  * Recebe o Markdown original e o corrigido pela IA e devolve o HTML do
@@ -9,11 +9,11 @@ import { renderizarMarkdownProposta } from './renderizarMarkdownProposta'
  * árvores renderizadas por posição e diffar par a par.
  */
 export function diffPropostaRenderizada(original: string, corrigido: string): string {
-  const htmlCorrigido = renderizarMarkdownProposta(corrigido)
+  const htmlCorrigido = renderizarHtmlProposta(corrigido)
 
   if (typeof DOMParser === 'undefined') return htmlCorrigido
 
-  const docOriginal = new DOMParser().parseFromString(renderizarMarkdownProposta(original), 'text/html')
+  const docOriginal = new DOMParser().parseFromString(renderizarHtmlProposta(original), 'text/html')
   const docCorrigido = new DOMParser().parseFromString(htmlCorrigido, 'text/html')
 
   const textosOriginal = coletarNosDeTexto(docOriginal.body, [])

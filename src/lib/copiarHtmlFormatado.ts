@@ -1,5 +1,3 @@
-import { marked } from 'marked'
-
 /** Fonte/tamanho institucional padrão — usados quando quem chama não passa
  *  `opcoesFonte` (compatibilidade) ou quando a preferência salva é inválida.
  *  Mesmos valores default de `.markdown-preview` em `src/app/globals.css`. */
@@ -27,7 +25,7 @@ export interface OpcoesFonteCopia {
 }
 
 /** Aplica a fonte/tamanho institucional como estilo inline em cada elemento
- *  do HTML gerado pelo Markdown — mutação in-place do `doc` recebido. */
+ *  do HTML — mutação in-place do `doc` recebido. */
 function aplicarFonteInstitucional(doc: Document, opcoes?: OpcoesFonteCopia): void {
   const familia = opcoes?.familia ?? FONTE_PADRAO
   const tamanhoCorpo = opcoes?.tamanhoCorpo ?? TAMANHO_CORPO_PADRAO
@@ -86,34 +84,41 @@ function aplicarEstiloTabela(doc: Document): void {
   })
 }
 
+/** Um bloco por linha — junta o `textContent` de cada elemento de bloco
+ *  direto (h1-h6/p/table/ul/ol) em vez de `doc.body.textContent` inteiro,
+ *  que colaria o texto de blocos diferentes sem separação nenhuma (HTML não
+ *  insere quebra de linha entre tags por conta própria — quem fazia isso
+ *  antes era o `\n` que o `marked` deixava entre blocos gerados a partir de
+ *  Markdown). */
+function textoSimplesDoDocumento(doc: Document): string {
+  return Array.from(doc.body.children)
+    .map((el) => el.textContent ?? '')
+    .join('\n')
+}
+
 /**
- * Copia Markdown pra área de transferência como HTML real (`text/html`, com
+ * Copia HTML pra área de transferência como HTML real (`text/html`, com
  * `text/plain` de fallback) — assim colar num Word/editor rico traz tabelas
- * e negrito de verdade, em vez do texto cru com `**` e `|` literais que sai
- * ao copiar direto do source Markdown (é esse o motivo de existir: colar a
- * partir do textarea de edição nunca vira formatação nenhuma, só o preview
- * renderizado carrega isso pro clipboard).
+ * e negrito de verdade. `html` já é o formato de armazenamento da proposta
+ * (ver docs/superpowers/specs/2026-09-14-html-nativo-ocr-proposta-comercial-design.md);
+ * antes desta função rodava `marked.parse` a partir de Markdown — isso saiu.
  *
- * Cada elemento sai com a fonte institucional (corpo `opcoesFonte.tamanhoCorpo`,
- * título `+2pt`, sempre negrito) já embutida no `style`, pra colar no Word/SEI
- * com a mesma formatação que aparece na tela — ver `aplicarFonteInstitucional`.
- * Tabelas saem com a mesma borda/cabeçalho navy/zebra do preview — ver
- * `aplicarEstiloTabela` — em vez de uma tabela sem estrutura nenhuma que
- * cada editor de destino (Word, SEI) desmonta do jeito que quiser.
- * Sem `opcoesFonte`, usa o padrão institucional (Aptos, 12pt/14pt).
+ * Cada elemento sai com a fonte institucional já embutida no `style` — ver
+ * `aplicarFonteInstitucional`. Tabelas saem com a mesma borda/cabeçalho
+ * navy/zebra do preview — ver `aplicarEstiloTabela`. Sem `opcoesFonte`, usa
+ * o padrão institucional (Aptos, 12pt/14pt).
  */
-export async function copiarMarkdownFormatado(markdown: string, opcoesFonte?: OpcoesFonteCopia): Promise<void> {
-  const htmlBruto = marked.parse(markdown) as string
-  const doc = new DOMParser().parseFromString(htmlBruto, 'text/html')
+export async function copiarHtmlFormatado(html: string, opcoesFonte?: OpcoesFonteCopia): Promise<void> {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
   aplicarFonteInstitucional(doc, opcoesFonte)
   aplicarEstiloTabela(doc)
 
-  const html = doc.body.innerHTML
-  const textoSimples = doc.body.textContent ?? markdown
+  const htmlFinal = doc.body.innerHTML
+  const textoSimples = textoSimplesDoDocumento(doc) || html
 
   await navigator.clipboard.write([
     new ClipboardItem({
-      'text/html': new Blob([html], { type: 'text/html' }),
+      'text/html': new Blob([htmlFinal], { type: 'text/html' }),
       'text/plain': new Blob([textoSimples], { type: 'text/plain' }),
     }),
   ])

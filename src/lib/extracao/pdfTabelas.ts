@@ -1,5 +1,5 @@
 import type { Linha } from './pdfHtml'
-import { formatarTexto, montarTabelaMarkdown } from './pdfHtml'
+import { formatarTexto, montarTabelaHtml } from './pdfHtml'
 import type { SegmentoReto } from './pdfTracos'
 
 /** Grade de bordas visuais de uma página: posições Y das linhas horizontais
@@ -72,7 +72,7 @@ export function construirGradeDaPagina(segmentos: SegmentoReto[]): GradeDeTabela
   // é uma MOLDURA decorativa em volta de um bloco de texto corrido (comum em
   // proposta comercial pra destacar uma seção). Sem essa checagem, todo o
   // texto ali dentro — que pode ser várias frases e itens de lista — vira
-  // uma única célula de uma tabela Markdown de 1 linha, perdendo a separação
+  // uma única célula de uma tabela HTML de 1 linha, perdendo a separação
   // em parágrafos. Tabela de dados de verdade sempre tem pelo menos 2 linhas
   // OU 2 colunas (cabeçalho + dado, ou várias colunas numa linha só).
   if (y.length < 3 && x.length < 3) return null
@@ -119,7 +119,7 @@ function indiceDaFaixa(valor: number, limites: number[]): number | null {
 }
 
 /**
- * Tenta montar uma tabela Markdown a partir das bordas visuais desenhadas no
+ * Tenta montar uma tabela HTML a partir das bordas visuais desenhadas no
  * PDF, em vez de só posição de texto — bem mais confiável quando a tabela tem
  * linhas/colunas desenhadas (a maioria das tabelas em proposta comercial).
  * Devolve `null` quando a linha em `indiceInicial` não está dentro da área da
@@ -129,7 +129,7 @@ export function detectarTabelaPorBordas(
   linhas: Linha[],
   indiceInicial: number,
   grade: GradeDeTabela
-): { markdown: string; proximoIndice: number } | null {
+): { html: string; proximoIndice: number } | null {
   const primeiraLinha = linhas[indiceInicial]
   const limiteSuperior = grade.y[0]
   const limiteInferior = grade.y[grade.y.length - 1]
@@ -169,12 +169,12 @@ export function detectarTabelaPorBordas(
   // Guarda contra "grade de layout": um formulário (ficha SEI, etc.) tem
   // bordas por toda a página só pra organizar visualmente os campos — não é
   // uma tabela de dados. Sem essa checagem, a página inteira vira uma tabela
-  // Markdown gigante e quase vazia, e todo o texto (títulos, pares
+  // HTML gigante e quase vazia, e todo o texto (títulos, pares
   // rótulo:valor, parágrafos) é picotado entre células. Uma tabela de dados
   // de verdade tem a maioria das células preenchida; uma grade de layout, não.
   const totalCelulas = numLinhas * numColunas
   const celulasComTexto = celulas.reduce((soma, linha) => soma + linha.filter(Boolean).length, 0)
   if (celulasComTexto / totalCelulas < FRACAO_MINIMA_CELULAS_PREENCHIDAS) return null
 
-  return { markdown: montarTabelaMarkdown(celulas), proximoIndice: j }
+  return { html: montarTabelaHtml(celulas), proximoIndice: j }
 }

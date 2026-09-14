@@ -3,6 +3,7 @@ import { extrairSegmentosRetosPorPagina, type SegmentoReto } from './pdfTracos'
 import { construirGradeDaPagina, detectarTabelaPorBordas, type GradeDeTabela } from './pdfTabelas'
 import { extrairImagensDeConteudo, type ImagemDeConteudo } from './pdfImagens'
 import { formatarBlocoOcrPendente } from '../ocr/marcadorOcrPendente'
+import { escaparHtml } from './escaparHtml'
 
 /** Diferença máxima de Y (em pontos) pra dois itens contarem como a MESMA
  *  linha da página impressa.
@@ -181,18 +182,18 @@ interface Margens {
   direita: number
 }
 
-/** Imagem já gravada no storage, pronta pra entrar no Markdown: guarda o
- *  Markdown final (`![...](url)`) e a posição na página que decide em que ponto
- *  do texto ela entra. */
+/** Imagem já gravada no storage, pronta pra entrar no HTML: guarda o HTML
+ *  final (`<img alt="..." src="...">`) e a posição na página que decide em
+ *  que ponto do texto ela entra. */
 interface ImagemPosicionada {
   pagina: number
   topo: number
-  markdown: string
+  html: string
 }
 
 export interface OpcoesConversaoPdf {
   /** Grava a imagem em algum lugar (storage, disco, banco) e devolve a URL que
-   *  vai no `![](url)` do Markdown. É a única forma de as imagens do PDF
+   *  vai no `src` do `<img>`. É a única forma de as imagens do PDF
    *  aparecerem no resultado: sem esta função, elas são ignoradas — o
    *  conversor não decide sozinho onde gravar arquivo nenhum.
    *
@@ -201,7 +202,7 @@ export interface OpcoesConversaoPdf {
 }
 
 /**
- * Converte o conteúdo de um PDF em Markdown, preservando negrito, itálico,
+ * Converte o conteúdo de um PDF em HTML, preservando negrito, itálico,
  * sublinhado, alinhamento, título, lista, tabela e IMAGEM detectados a partir
  * da fonte, posição, traços vetoriais e operações de desenho de cada página —
  * sem usar IA. É uma extração best-effort: negrito/itálico/título são
@@ -217,26 +218,25 @@ export interface OpcoesConversaoPdf {
  *
  * Sobre imagem: texto e imagem são canais separados dentro do PDF, e ler só o
  * texto significa perder diagrama, print de tela e tabela que veio como figura
- * sem nenhum aviso — o Markdown sai "completo" e faltando uma página inteira de
+ * sem nenhum aviso — o HTML sai "completo" e faltando uma página inteira de
  * conteúdo. Passando `opcoes.salvarImagem`, cada imagem de conteúdo (ver
  * `pdfImagens.ts`, que separa figura de logo/rodapé/capa) é gravada e entra no
- * Markdown como `![](url)`, no meio do texto, na posição em que aparece na
- * página.
+ * HTML como `<img>`, no meio do texto, na posição em que aparece na página.
  */
 export interface PaginaConvertida {
   /** 1-indexada, como `paginasImagem`. */
   pagina: number
   textoOriginal: string
-  markdown: string
+  html: string
 }
 
 export interface ResultadoConversaoPdf {
-  markdown: string
+  html: string
   /** Páginas (1-indexadas) sem camada de texto reconhecível — candidatas a
    *  OCR. Vazio pra qualquer PDF com texto normal. */
   paginasImagem: number[]
   /** Uma entrada por página com texto nativo (exclui as de `paginasImagem`) —
-   *  usada só pela checagem por IA, pra comparar texto original x Markdown
+   *  usada só pela checagem por IA, pra comparar texto original x HTML
    *  gerado sem precisar reler o PDF de novo em outro lugar. */
   paginasConvertidas: PaginaConvertida[]
   /** Páginas (1-indexadas) com pelo menos uma imagem de CONTEÚDO embutida
@@ -246,7 +246,7 @@ export interface ResultadoConversaoPdf {
   paginasComImagem: number[]
 }
 
-export async function converterPdfParaMarkdown(
+export async function converterPdfParaHtml(
   buffer: Buffer,
   opcoes: OpcoesConversaoPdf = {}
 ): Promise<ResultadoConversaoPdf> {
@@ -291,20 +291,20 @@ export async function converterPdfParaMarkdown(
 
   // Nenhuma linha é descartada — a Proposta Comercial exige que o texto final
   // seja idêntico ao original, então nem rodapé de paginação ("Page N of M",
-  // "Página N de N") é removido: se estava no PDF, entra no Markdown.
+  // "Página N de N") é removido: se estava no PDF, entra no HTML.
   if (todasAsLinhas.length === 0) {
     // PDF só de imagem (página escaneada) não tem linha nenhuma, mas ainda tem
     // conteúdo — devolver vazio aqui apagaria o documento inteiro. Página
     // marcada pra OCR vira o marcador; o resto (se houver) segue como figura.
     const blocosOcr = paginasOcrOrdenadas.map((p) => formatarBlocoOcrPendente(p + 1))
-    const restante = imagensFiltradas.map((imagem) => imagem.markdown)
-    return { markdown: [...blocosOcr, ...restante].join('\n\n'), paginasImagem, paginasConvertidas: [], paginasComImagem }
+    const restante = imagensFiltradas.map((imagem) => imagem.html)
+    return { html: [...blocosOcr, ...restante].join('\n\n'), paginasImagem, paginasConvertidas: [], paginasComImagem }
   }
 
   const tamanhoCorpo = calcularTamanhoCorpo(todasAsLinhas)
   const margens = calcularMargens(todasAsLinhas)
 
-  const { markdown, blocosPorPagina } = montarMarkdown(
+  const { html, blocosPorPagina } = montarHtml(
     todasAsLinhas,
     tamanhoCorpo,
     margens,
@@ -325,11 +325,11 @@ export async function converterPdfParaMarkdown(
     .map(([pagina, linhasTexto]) => ({
       pagina: pagina + 1,
       textoOriginal: linhasTexto.join('\n'),
-      markdown: (blocosPorPagina.get(pagina) ?? []).join('\n\n'),
+      html: agruparListasEmHtml(blocosPorPagina.get(pagina) ?? []).join('\n\n'),
     }))
     .sort((a, b) => a.pagina - b.pagina)
 
-  return { markdown, paginasImagem, paginasConvertidas, paginasComImagem }
+  return { html, paginasImagem, paginasConvertidas, paginasComImagem }
 }
 
 /** Extrai as imagens de conteúdo, manda gravar cada uma e devolve as que
@@ -348,7 +348,7 @@ async function prepararImagens(
     posicionadas.push({
       pagina: imagem.pagina,
       topo: imagem.topo,
-      markdown: `![Imagem da página ${imagem.pagina + 1}](${url})`,
+      html: `<img alt="Imagem da página ${imagem.pagina + 1}" src="${escaparHtml(url)}">`,
     })
   }
   return posicionadas
@@ -633,12 +633,15 @@ function corredoresDoBloco(linhas: Linha[], larguraMinima: number): Intervalo[] 
 
 /** Aplica negrito/itálico/sublinhado a um trecho de texto — fonte única desse
  *  formato, reaproveitada tanto pra parágrafo comum quanto pra célula de
- *  tabela (posição ou borda). */
+ *  tabela (posição ou borda). `item.texto` é escapado (`escaparHtml`) ANTES
+ *  de entrar em qualquer tag — é o único ponto do conversor que toca texto
+ *  bruto do PDF, então é aqui que a blindagem contra `&`/`<`/`>` tem que
+ *  acontecer. */
 export function formatarTexto(item: ItemLinha): string {
-  let texto = item.texto
-  if (item.negrito && item.italico) texto = `***${texto}***`
-  else if (item.negrito) texto = `**${texto}**`
-  else if (item.italico) texto = `*${texto}*`
+  let texto = escaparHtml(item.texto)
+  if (item.negrito && item.italico) texto = `<strong><em>${texto}</em></strong>`
+  else if (item.negrito) texto = `<strong>${texto}</strong>`
+  else if (item.italico) texto = `<em>${texto}</em>`
   if (item.sublinhado) texto = `<u>${texto}</u>`
   return texto
 }
@@ -657,10 +660,13 @@ function linhaParaColunas(linha: Linha, divisores: number[]): string[] {
   return celulas
 }
 
-export function montarTabelaMarkdown(linhas: string[][]): string {
+/** Célula já chega como HTML inline pronto (via `formatarTexto`) — nunca
+ *  escapar de novo aqui, só encaixar na tag de linha/célula certa. */
+export function montarTabelaHtml(linhas: string[][]): string {
   const [cabecalho, ...resto] = linhas
-  const separador = cabecalho.map(() => '---')
-  return [cabecalho, separador, ...resto].map((linha) => `| ${linha.join(' | ')} |`).join('\n')
+  const linhaCabecalho = `<tr>${cabecalho.map((c) => `<th>${c}</th>`).join('')}</tr>`
+  const linhasCorpo = resto.map((linha) => `<tr>${linha.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
+  return `<table><thead>${linhaCabecalho}</thead><tbody>${linhasCorpo}</tbody></table>`
 }
 
 function extrairTextoLinha(linha: Linha): string {
@@ -700,10 +706,8 @@ function ehTitulo(linha: Linha, tamanhoCorpo: number): boolean {
 function formatarTitulo(linha: Linha, tamanhoCorpo: number, margens: Margens): string {
   const texto = extrairTextoLinha(linha)
   const nivel = linha.fontSizeMedio >= tamanhoCorpo * 1.5 ? 1 : 2
-  if (ehCentralizado(linha, margens)) {
-    return `<h${nivel} align="center">${texto}</h${nivel}>`
-  }
-  return `${'#'.repeat(nivel)} ${texto}`
+  const estilo = ehCentralizado(linha, margens) ? ' style="text-align:center"' : ''
+  return `<h${nivel}${estilo}>${texto}</h${nivel}>`
 }
 
 /**
@@ -744,6 +748,82 @@ function nivelDoMarcador(x: number, ancoras: number[]): number {
   return Math.max(0, nivel)
 }
 
+const REGEX_LI_COM_NIVEL = /^<li data-nivel="(\d+)">([\s\S]*)<\/li>$/
+
+/** Depois que `montarHtml` monta todos os blocos da página, uma rodada de
+ *  `<li data-nivel="N">` consecutivos precisa virar UMA lista aninhada — sem
+ *  essa segunda passada, cada item de lista fica solto (HTML inválido, sem
+ *  marcador nenhum ao colar no SEI). Isso substitui o que o `marked` fazia de
+ *  graça a partir de sintaxe Markdown: em HTML nativo não existe mais esse
+ *  passo de renderização, o próprio conversor tem que produzir a lista já
+ *  aninhada. Constrói a árvore com uma pilha de nível: abre `<ul>` novo
+ *  quando o nível sobe, fecha quando desce, mantém aberto quando repete. */
+export function agruparListasEmHtml(blocos: string[]): string[] {
+  const resultado: string[] = []
+  let partesLista: string[] = []
+  const pilha: number[] = [] // níveis abertos, do mais externo pro mais interno
+
+  // Fecha o <li> aberto (o do último item deste nível — pode ter um <ul>
+  // aninhado dentro, já fechado antes de chegar aqui) e o <ul> do nível no
+  // topo da pilha.
+  function fecharNivel() {
+    partesLista.push('</li></ul>')
+    pilha.pop()
+  }
+
+  // Fecha a lista corrente (se houver) e empilha ela como UM bloco só no
+  // resultado — assim, quando `montarHtml` junta todos os blocos da página
+  // com o separador de sempre, a lista fica atômica, do mesmo jeito que um
+  // `<table>` ou um `<p>` já são um bloco só.
+  function encerrarListaSeHouver() {
+    if (partesLista.length === 0) return
+    while (pilha.length > 0) fecharNivel()
+    resultado.push(partesLista.join(''))
+    partesLista = []
+  }
+
+  for (const bloco of blocos) {
+    const item = bloco.match(REGEX_LI_COM_NIVEL)
+    if (!item) {
+      encerrarListaSeHouver()
+      resultado.push(bloco)
+      continue
+    }
+    const nivel = Number(item[1])
+    if (pilha.length === 0 || nivel > pilha[pilha.length - 1]) {
+      // Nível mais fundo: aninha DENTRO do <li> anterior, que por isso NUNCA
+      // fecha antes de abrir este <ul> — produz <li>Pai<ul>...</ul></li> em
+      // vez de <ul> como irmão de <li> dentro do <ul> pai (HTML não aceita
+      // <ul> direto ali, só dentro de um <li>).
+      partesLista.push('<ul>')
+      pilha.push(nivel)
+    } else {
+      // Mesmo nível ou nível mais raso: fecha o <li> aberto de cada nível
+      // mais fundo que este (e o <ul> correspondente) antes de decidir o
+      // que fazer com o nível atual.
+      while (pilha.length > 0 && pilha[pilha.length - 1] > nivel) fecharNivel()
+      if (pilha.length > 0 && pilha[pilha.length - 1] === nivel) {
+        // Item irmão do anterior neste mesmo nível — fecha o <li> anterior.
+        partesLista.push('</li>')
+      } else {
+        // Nível novo na raiz (não deveria acontecer com `nivelDoMarcador`,
+        // que nunca pula nível — mantido como fallback defensivo).
+        partesLista.push('<ul>')
+        pilha.push(nivel)
+      }
+    }
+    // <li> fica ABERTO de propósito (sem `</li>` aqui) — só fecha quando o
+    // próximo item (irmão, nível mais raso, ou fim da lista) decidir que
+    // não há mais nada pra aninhar dentro dele.
+    partesLista.push(`<li>${item[2]}`)
+  }
+  encerrarListaSeHouver()
+  return resultado
+}
+
+/** `textos`/`textoCompleto` já chegam como HTML inline pronto (negrito/
+ *  itálico/sublinhado via `formatarTexto`) — nunca escapar de novo aqui, só
+ *  envolver na tag de bloco certa. */
 function formatarBlocoDeTexto(
   textos: string[],
   linhasDoBloco: Linha[],
@@ -752,27 +832,32 @@ function formatarBlocoDeTexto(
 ): string {
   const textoCompleto = textos.join(' ')
 
-  // O número da cláusula é escapado (`1\.`) de propósito, pra sair como
-  // parágrafo e não como lista Markdown: numa lista quem numera é o
-  // renderizador, e uma sequência que no PDF é 1, 2, 4, 5 seria reescrita como
-  // 1, 2, 3, 4. Em contrato, trocar o número da cláusula é trocar o conteúdo.
+  // Cláusula numerada (1., 2., 4., 5. — número real do PDF, não sequencial)
+  // vira parágrafo com o número LITERAL: um <ol> de verdade é renumerado
+  // pelo navegador a partir de 1, o que apagaria o número original da
+  // cláusula. Diferente do Markdown, HTML não precisa escapar "1." — texto
+  // literal nunca é reinterpretado como marcação de lista.
   const numerada = textoCompleto.match(REGEX_LISTA_NUMERADA)
-  if (numerada) return `${numerada[1]}\\${numerada[2]} ${numerada[3]}`
+  if (numerada) return `<p>${numerada[1]}${numerada[2]} ${numerada[3]}</p>`
 
   const marcada = textoCompleto.match(REGEX_LISTA_MARCADOR)
   if (marcada) {
     const x = linhasDoBloco[0]?.itens[0]?.x ?? 0
-    return `${'  '.repeat(nivelDoMarcador(x, ancorasDeMarcador))}- ${marcada[1]}`
+    const nivel = nivelDoMarcador(x, ancorasDeMarcador)
+    // Marcador temporário de nível — `agruparListasEmHtml`, rodada final
+    // sobre os blocos da página, junta rodadas consecutivas destes <li> em
+    // <ul> aninhado por nível e remove o atributo.
+    return `<li data-nivel="${nivel}">${marcada[1]}</li>`
   }
 
   if (linhasDoBloco.length === 1 && ehCentralizado(linhasDoBloco[0], margens)) {
-    return `<p align="center">${textoCompleto}</p>`
+    return `<p style="text-align:center">${textoCompleto}</p>`
   }
   if (linhasDoBloco.length >= 2 && ehJustificado(linhasDoBloco, margens)) {
-    return `<p align="justify">${textoCompleto}</p>`
+    return `<p style="text-align:justify">${textoCompleto}</p>`
   }
 
-  return textoCompleto
+  return `<p>${textoCompleto}</p>`
 }
 
 /** Reúne, a partir de `indiceInicial`, todas as linhas que ainda fazem parte do
@@ -831,7 +916,7 @@ function absorverBloco(
 function absorverTabelaPorPosicao(
   linhas: Linha[],
   indiceInicial: number
-): { markdown: string; proximoIndice: number } | null {
+): { html: string; proximoIndice: number } | null {
   if (!temVaoLargo(linhas[indiceInicial])) return null
 
   const linhasDaTabela: Linha[] = [linhas[indiceInicial]]
@@ -854,7 +939,7 @@ function absorverTabelaPorPosicao(
 
   const divisores = corredores.map((corredor) => (corredor.inicio + corredor.fim) / 2).sort((a, b) => a - b)
   const linhasFormatadas = linhasDaTabela.map((linha) => linhaParaColunas(linha, divisores))
-  return { markdown: montarTabelaMarkdown(linhasFormatadas), proximoIndice: j }
+  return { html: montarTabelaHtml(linhasFormatadas), proximoIndice: j }
 }
 
 /** Uma tabela (por bordas ou por posição) começa exatamente nesta linha? É o
@@ -871,7 +956,7 @@ function iniciaTabela(
   return absorverTabelaPorPosicao(linhas, indice) !== null
 }
 
-/** Uma imagem entra no Markdown ANTES de uma linha quando está numa página
+/** Uma imagem entra no HTML ANTES de uma linha quando está numa página
  *  anterior, ou quando o TOPO dela fica acima da linha de base do texto na mesma
  *  página — ou seja, quando na página impressa ela vem antes daquela linha. */
 function imagemVemAntesDaLinha(imagem: ImagemPosicionada, linha: Linha): boolean {
@@ -879,18 +964,18 @@ function imagemVemAntesDaLinha(imagem: ImagemPosicionada, linha: Linha): boolean
   return imagem.topo >= linha.y
 }
 
-function montarMarkdown(
+function montarHtml(
   linhas: Linha[],
   tamanhoCorpo: number,
   margens: Margens,
   gradesPorPagina: Map<number, GradeDeTabela>,
   imagens: ImagemPosicionada[] = [],
   paginasOcr: number[] = []
-): { markdown: string; blocosPorPagina: Map<number, string[]> } {
+): { html: string; blocosPorPagina: Map<number, string[]> } {
   const blocos: string[] = []
   const blocosPorPagina = new Map<number, string[]>()
   // Registra o bloco na posição da página, além de empilhá-lo — é o que
-  // permite montar `paginasConvertidas` (texto original x markdown por
+  // permite montar `paginasConvertidas` (texto original x HTML por
   // página, usado pela checagem por IA) sem uma segunda passada.
   const registrar = (pagina: number, bloco: string) => {
     blocos.push(bloco)
@@ -920,7 +1005,7 @@ function montarMarkdown(
   const despejarImagensAntesDe = (linha: Linha) => {
     while (imagensPendentes.length > 0 && imagemVemAntesDaLinha(imagensPendentes[0], linha)) {
       const imagem = imagensPendentes.shift()!
-      registrar(imagem.pagina, imagem.markdown)
+      registrar(imagem.pagina, imagem.html)
     }
   }
 
@@ -931,14 +1016,14 @@ function montarMarkdown(
     const grade = gradesPorPagina.get(linhas[i].pagina)
     const tabelaPorBordas = grade ? detectarTabelaPorBordas(linhas, i, grade) : null
     if (tabelaPorBordas) {
-      registrar(linhas[i].pagina, tabelaPorBordas.markdown)
+      registrar(linhas[i].pagina, tabelaPorBordas.html)
       i = tabelaPorBordas.proximoIndice
       continue
     }
 
     const tabelaPorPosicao = absorverTabelaPorPosicao(linhas, i)
     if (tabelaPorPosicao) {
-      registrar(linhas[i].pagina, tabelaPorPosicao.markdown)
+      registrar(linhas[i].pagina, tabelaPorPosicao.html)
       i = tabelaPorPosicao.proximoIndice
       continue
     }
@@ -957,7 +1042,8 @@ function montarMarkdown(
   // Página de OCR ou imagem depois da última linha de texto do documento
   // (figura/anexo de fechamento) não pode ficar de fora.
   for (const pagina of paginasOcrPendentes) blocos.push(formatarBlocoOcrPendente(pagina + 1))
-  for (const imagem of imagensPendentes) registrar(imagem.pagina, imagem.markdown)
+  for (const imagem of imagensPendentes) registrar(imagem.pagina, imagem.html)
 
-  return { markdown: blocos.filter((bloco) => bloco.length > 0).join('\n\n'), blocosPorPagina }
+  const blocosFiltrados = blocos.filter((bloco) => bloco.length > 0)
+  return { html: agruparListasEmHtml(blocosFiltrados).join('\n\n'), blocosPorPagina }
 }

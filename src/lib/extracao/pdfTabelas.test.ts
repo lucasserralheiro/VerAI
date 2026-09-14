@@ -72,7 +72,7 @@ describe('construirGradeDaPagina', () => {
     // nenhuma linha/coluna interna) em volta de um bloco de texto corrido pra
     // destacar uma seção da proposta. Sem essa checagem, o bloco inteiro —
     // que pode ter várias frases e itens de lista — vira uma única célula de
-    // uma "tabela" Markdown de 1 linha e 1 coluna, perdendo a separação em
+    // uma "tabela" HTML de 1 linha e 1 coluna, perdendo a separação em
     // parágrafos.
     const segmentos = [
       segmento(0, 500, 400, 500), // topo
@@ -103,7 +103,7 @@ describe('construirGradeDaPagina', () => {
 describe('detectarTabelaPorBordas', () => {
   const grade: GradeDeTabela = { y: [100, 80, 60], x: [0, 100, 200] }
 
-  it('encaixa o texto nas células da grade e monta a tabela Markdown', () => {
+  it('encaixa o texto nas células da grade e monta a tabela HTML', () => {
     const linhas: Linha[] = [
       linha(
         [
@@ -123,7 +123,9 @@ describe('detectarTabelaPorBordas', () => {
 
     const resultado = detectarTabelaPorBordas(linhas, 0, grade)
 
-    expect(resultado?.markdown).toBe('| Item | Valor |\n| --- | --- |\n| Storage | R$ 100 |')
+    expect(resultado?.html).toBe(
+      '<table><thead><tr><th>Item</th><th>Valor</th></tr></thead><tbody><tr><td>Storage</td><td>R$ 100</td></tr></tbody></table>'
+    )
     expect(resultado?.proximoIndice).toBe(2)
   })
 
@@ -171,8 +173,9 @@ describe('mapeamento de item pra coluna da grade', () => {
 
     const tabela = detectarTabelaPorBordas(linhas, 0, grade)
 
-    expect(tabela?.markdown).toBe(
-      '| Periodo | A - SISTEMAS DE INFORMAÇÃO |\n| --- | --- |\n| out/26 | R$ 277.663,04 |'
+    expect(tabela?.html).toBe(
+      '<table><thead><tr><th>Periodo</th><th>A - SISTEMAS DE INFORMAÇÃO</th></tr></thead>' +
+        '<tbody><tr><td>out/26</td><td>R$ 277.663,04</td></tr></tbody></table>'
     )
   })
 
@@ -187,7 +190,7 @@ describe('mapeamento de item pra coluna da grade', () => {
 
     const tabela = detectarTabelaPorBordas(linhas, 0, grade)
 
-    expect(tabela?.markdown).toContain('| Dado | 10 |')
+    expect(tabela?.html).toContain('<td>Dado</td><td>10</td>')
   })
 })
 

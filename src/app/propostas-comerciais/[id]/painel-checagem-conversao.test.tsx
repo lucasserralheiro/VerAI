@@ -18,13 +18,15 @@ describe('PainelChecagemConversao', () => {
     limparOcr('p1')
   })
 
-  it('com :::ocr-pendente mostra o OcrRunner e NÃO inicia a checagem por IA', () => {
+  it('com marcador de OCR pendente mostra o OcrRunner e NÃO inicia a checagem por IA', () => {
     mockFetch({ ok: true, body: { scoreExibido: 90, trechosSuspeitos: [] } })
 
     render(
       <PainelChecagemConversao
         propostaId="p1"
-        conteudoMarkdown={'texto\n\n:::ocr-pendente[arquivoId=a1 pagina=1]\n_(aguardando OCR)_\n:::'}
+        conteudoMarkdown={
+          '<p>texto</p><div class="ocr-pendente" data-arquivo-id="a1" data-pagina="1"><p><em>(aguardando OCR)</em></p></div>'
+        }
         onConteudoAtualizado={jest.fn()}
       />
     )

@@ -173,10 +173,13 @@ describe('EspacoProposta', () => {
     )
   })
 
-  it('com :::ocr-pendente, a etapa 1 mostra o OCR', () => {
+  it('com marcador de OCR pendente, a etapa 1 mostra o OCR', () => {
     render(
       <EspacoProposta
-        {...props({ conteudoInicial: 'texto\n\n:::ocr-pendente[arquivoId=a1 pagina=1]\n_(aguardando OCR)_\n:::' })}
+        {...props({
+          conteudoInicial:
+            '<p>texto</p><div class="ocr-pendente" data-arquivo-id="a1" data-pagina="1"><p><em>(aguardando OCR)</em></p></div>',
+        })}
       />
     )
     expect(screen.getByRole('button', { name: /Rodar OCR/ })).toBeInTheDocument()

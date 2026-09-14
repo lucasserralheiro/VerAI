@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { upload } from '@vercel/blob/client'
 import { AlertCircle, Loader2, UploadCloud } from 'lucide-react'
 import { BTN_PRIMARY_LG } from '@/lib/ui'
 import { MultiFileDropzone, type ArquivoProposta } from '@/components/multi-file-dropzone'
@@ -22,12 +23,37 @@ export default function NovaPropostaComercialPage() {
     setEnviando(true)
     setErro(null)
 
-    const formData = new FormData()
-    for (const { file } of arquivos) {
-      formData.append('arquivos', file)
+    // Cada arquivo sobe DIRETO pro Vercel Blob, do navegador — nunca passa
+    // pelo corpo desta (ou de qualquer) requisição pro nosso servidor. Isso
+    // existe porque uma função serverless da Vercel rejeita (413) qualquer
+    // corpo de requisição acima de 4,5 MB, e PDF de proposta real passa
+    // disso com frequência (caso real: 413 num PDF de ~6 MB). O token pra
+    // esse upload direto vem de `/api/propostas-comerciais/upload-token`;
+    // quem processa o arquivo de verdade (`/api/propostas-comerciais`,
+    // abaixo) só recebe a URL de onde baixá-lo, não o binário.
+    let arquivosEnviados: { nomeArquivo: string; url: string; tamanhoBytes: number }[]
+    try {
+      arquivosEnviados = await Promise.all(
+        arquivos.map(async ({ file }) => {
+          const blob = await upload(`tmp-uploads/${crypto.randomUUID()}-${file.name}`, file, {
+            access: 'public',
+            handleUploadUrl: '/api/propostas-comerciais/upload-token',
+            multipart: true,
+          })
+          return { nomeArquivo: file.name, url: blob.url, tamanhoBytes: file.size }
+        })
+      )
+    } catch (error) {
+      setEnviando(false)
+      setErro(error instanceof Error ? error.message : 'Falha ao enviar os arquivos.')
+      return
     }
 
-    const response = await fetch('/api/propostas-comerciais', { method: 'POST', body: formData })
+    const response = await fetch('/api/propostas-comerciais', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ arquivos: arquivosEnviados }),
+    })
     const resultado = await response.json().catch(() => null)
 
     if (!response.ok) {

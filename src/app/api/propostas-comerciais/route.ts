@@ -2,10 +2,32 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
-import { buildImagemPath, buildUploadPath, putUpload } from '@/lib/storage'
+import { buildImagemPath, buildUploadPath, deleteUpload, getUpload, putUpload } from '@/lib/storage'
 import { converterPdfParaMarkdown } from '@/lib/extracao/pdfMarkdown'
 import { converterParaMarkdownDeterministico } from '@/lib/extracao'
 import { reescreverComArquivoId } from '@/lib/ocr/marcadorOcrPendente'
+
+/** Um arquivo já subido pra um caminho temporário no Vercel Blob (ver
+ *  `/api/propostas-comerciais/upload-token`) — o navegador manda direto pro
+ *  Blob, sem passar pelo corpo desta requisição. Isso existe porque uma
+ *  função serverless da Vercel rejeita (413) qualquer corpo de requisição
+ *  acima de 4,5 MB — PDF de proposta real passa disso com frequência. */
+interface ArquivoRecebido {
+  nomeArquivo: string
+  url: string
+  /** Tamanho conhecido do navegador (antes do upload) — só pra exibição na
+   *  lista de propostas; se ausente, usa o tamanho real do buffer baixado. */
+  tamanhoBytes?: number
+}
+
+function arquivoRecebidoValido(v: unknown): v is ArquivoRecebido {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as ArquivoRecebido).nomeArquivo === 'string' &&
+    typeof (v as ArquivoRecebido).url === 'string'
+  )
+}
 
 const TIPOS_ACEITOS = ['pdf', 'xlsx', 'csv', 'docx'] as const
 type TipoAceito = (typeof TIPOS_ACEITOS)[number]
@@ -48,30 +70,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'não autenticado' }, { status: 401 })
   }
 
-  const formData = await request.formData().catch(() => null)
-  const arquivosEnviados = formData?.getAll('arquivos').filter((v): v is File => v instanceof File) ?? []
+  const corpo = (await request.json().catch(() => null)) as { arquivos?: unknown } | null
+  const bruto: unknown[] = Array.isArray(corpo?.arquivos) ? corpo.arquivos : []
+  const arquivosEnviados: ArquivoRecebido[] = bruto.filter(arquivoRecebidoValido)
 
   if (arquivosEnviados.length === 0) {
     return NextResponse.json({ error: 'envie ao menos um arquivo' }, { status: 400 })
   }
 
   for (const arquivo of arquivosEnviados) {
-    if (!tipoDoArquivo(arquivo.name)) {
+    if (!tipoDoArquivo(arquivo.nomeArquivo)) {
       return NextResponse.json(
-        { error: `tipo de arquivo não suportado: "${arquivo.name}" — aceitos: PDF, Excel (.xlsx/.csv) e Word (.docx)` },
+        {
+          error: `tipo de arquivo não suportado: "${arquivo.nomeArquivo}" — aceitos: PDF, Excel (.xlsx/.csv) e Word (.docx)`,
+        },
         { status: 400 }
       )
     }
   }
 
-  const tamanhoBytesTotal = arquivosEnviados.reduce((acc, a) => acc + a.size, 0)
+  const tamanhoBytesTotal = arquivosEnviados.reduce((acc, a) => acc + (a.tamanhoBytes ?? 0), 0)
 
   // A proposta nasce em rascunho com o nome do primeiro arquivo — o registro
   // de cada arquivo individual (buffer, extração) só é anexado depois de
   // criada, pra já ter o propostaId pro caminho de upload no storage.
   const proposta = await prisma.propostaComercial.create({
     data: {
-      nomeArquivo: arquivosEnviados[0].name,
+      nomeArquivo: arquivosEnviados[0].nomeArquivo,
       tamanhoBytes: tamanhoBytesTotal,
       status: 'rascunho',
     },
@@ -89,10 +114,27 @@ export async function POST(request: NextRequest) {
   let falhaConversao: string | null = null
 
   for (const [indice, arquivo] of arquivosEnviados.entries()) {
-    const tipo = tipoDoArquivo(arquivo.name)!
-    const buffer = Buffer.from(await arquivo.arrayBuffer())
+    const tipo = tipoDoArquivo(arquivo.nomeArquivo)!
+
+    // O arquivo já está no Blob (upload direto do navegador — ver
+    // `/api/propostas-comerciais/upload-token`), só num caminho TEMPORÁRIO.
+    // Baixa daqui (servidor-a-servidor, sem o limite de 4,5 MB de corpo de
+    // requisição da função serverless) pra rodar a conversão e, com sucesso,
+    // copia pro caminho FINAL (`buildUploadPath`, o mesmo de sempre).
+    let buffer: Buffer
+    try {
+      buffer = await getUpload(arquivo.url)
+    } catch (error) {
+      falhaConversao = error instanceof Error ? error.message : String(error)
+      continue
+    }
+
     const caminhoRelativo = buildUploadPath(`${proposta.id}/${indice}`, tipo)
     const url = await putUpload(caminhoRelativo, buffer)
+    // Best-effort: o blob temporário não deveria mais ser referenciado por
+    // ninguém a partir daqui — se a limpeza falhar, não derruba o upload (só
+    // sobra lixo no bucket temporário, sem afetar a proposta).
+    await deleteUpload(arquivo.url).catch(() => {})
 
     // A linha do arquivo é gravada ANTES de saber o Markdown final, pra já
     // ter o `id` disponível — é ele que entra no marcador `:::ocr-pendente`
@@ -100,7 +142,7 @@ export async function POST(request: NextRequest) {
     const arquivoRow = await prisma.propostaComercialArquivo.create({
       data: {
         propostaId: proposta.id,
-        nomeArquivo: arquivo.name,
+        nomeArquivo: arquivo.nomeArquivo,
         tipo,
         tamanhoBytes: buffer.length,
         caminhoOriginal: url,
@@ -125,7 +167,7 @@ export async function POST(request: NextRequest) {
         markdown = await converterParaMarkdownDeterministico(buffer, tipo)
       }
       if (!markdown.trim()) {
-        throw new Error(`não foi possível converter "${arquivo.name}" — arquivo sem conteúdo reconhecível`)
+        throw new Error(`não foi possível converter "${arquivo.nomeArquivo}" — arquivo sem conteúdo reconhecível`)
       }
     } catch (error) {
       falhaConversao = error instanceof Error ? error.message : String(error)
@@ -137,7 +179,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (markdown) {
-      arquivosConvertidos.push({ nomeArquivo: arquivo.name, markdown })
+      arquivosConvertidos.push({ nomeArquivo: arquivo.nomeArquivo, markdown })
     }
   }
 

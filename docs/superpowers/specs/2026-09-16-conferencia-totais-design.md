@@ -21,9 +21,15 @@ lista de trechos suspeitos, é um atalho a mais focado no que tem maior risco.
 
 ## Escopo
 
-- Só linhas de **total/resultado geral** (rótulo tipo "total", "subtotal", "valor total", "total
-  geral", "resultado geral" perto de um valor monetário) — não cada célula de tabela. Célula a célula
-  já é coberto (com IA) pela checagem existente; duplicar isso aqui seria escopo redundante.
+- ~~Só linhas de total/resultado geral~~ — **atualizado em 2026-09-16, pós-implementação**: pedido
+  explícito do usuário depois de testar com documento real ("preciso que ache tudo de números e
+  valores"). Restringir a rótulo com palavra-chave de total deixava de fora item de preço comum sem
+  "total"/"subtotal" no texto ("Analista de Informação (Complexidade 1) ... R$ 490.656,00"), e numa
+  proposta com tabela de preço extensa esses itens também precisam de conferência. Hoje **todo** valor
+  em formato monetário BR vira candidato — PDF/Word usam o texto que vem antes do valor como rótulo de
+  exibição; planilha usa a primeira célula de texto da linha (ou o cabeçalho da coluna, sem isso). Essa
+  mudança também sobrepõe em parte com o que a checagem por IA já cobre (célula de tabela), mas
+  continua valendo como atalho mais rápido e determinístico — a IA não some, os dois convivem.
 - **100% determinístico, sem IA** — mesma filosofia do resto do módulo (`calcularCoberturaPagina`,
   `correcaoEhSegura` etc. em `checarConversao.ts`): regex/parsing de texto, nunca uma chamada de
   modelo. Rápido, grátis, sem risco de alucinação — e não compete por escopo com a checagem por IA.

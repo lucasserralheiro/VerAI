@@ -122,6 +122,11 @@ model PropostaComercial {
   // é reaproveitado até os arquivos mudarem ou alguém pedir "checar de novo".
   checagemIa       Json?
   checagemIaEm     DateTime?
+  // Resultado da conferência determinística (sem IA) dos valores de total/
+  // resultado geral do PDF contra o documento — atalho rápido, separado da
+  // checagem por IA (ver docs/superpowers/specs/2026-09-16-conferencia-totais-design.md).
+  conferenciaTotais   Json?
+  conferenciaTotaisEm DateTime?
   createdAt        DateTime  @default(now())
   arquivos         PropostaComercialArquivo[]
 }

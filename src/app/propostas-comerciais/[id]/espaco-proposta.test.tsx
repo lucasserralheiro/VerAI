@@ -64,6 +64,12 @@ describe('EspacoProposta', () => {
     expect(screen.queryByRole('button', { name: /Correção da IA/ })).not.toBeInTheDocument()
   })
 
+  it('mostra o card de conferência de totais junto do painel de checagem', async () => {
+    render(<EspacoProposta {...props()} />)
+
+    expect(await screen.findByText('Conferência de totais')).toBeInTheDocument()
+  })
+
   it('título vem do heading da proposta, não do nome do arquivo', () => {
     render(<EspacoProposta {...props({ conteudoInicial: '## Proposta Comercial: PC-1\n\n# TERMOS' })} />)
     expect(screen.getByRole('heading', { level: 1, name: 'Proposta Comercial: PC-1' })).toBeInTheDocument()

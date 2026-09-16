@@ -17,6 +17,7 @@ import {
 import { ArquivoOriginal, ModalArquivoOriginal } from './arquivos-originais'
 import { BotaoExcluirProposta, CabecalhoProposta } from './cabecalho-proposta'
 import { ConteudoEditavelProposta } from './conteudo-editavel-proposta'
+import { CardConferenciaTotais } from './card-conferencia-totais'
 import { PainelChecagemConversao } from './painel-checagem-conversao'
 import { SeletorFonteProposta } from './seletor-fonte-proposta'
 
@@ -297,6 +298,7 @@ export function EspacoProposta({
           className="order-first flex min-w-0 flex-col overflow-y-auto overscroll-contain rounded-lg border border-border-grey bg-white p-4 @4xl:sticky @4xl:top-4 @4xl:order-none @4xl:max-h-[calc(100vh-2rem)]"
         >
           <div className="space-y-4">
+            <CardConferenciaTotais propostaId={propostaId} onVerPagina={verPaginaNoOriginal} />
             <PainelChecagemConversao
               propostaId={propostaId}
               conteudoMarkdown={markdown}

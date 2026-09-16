@@ -12,6 +12,17 @@ describe('conferirTotais', () => {
     ])
   })
 
+  it('acha o total quando o rótulo vem em negrito no PDF — textoOriginal tem <strong> embutido (formatarTexto/extrairTextoLinha em pdfHtml.ts, rótulo de total é quase sempre destacado no PDF original)', () => {
+    const paginas = [{ pagina: 3, textoOriginal: '<strong>Total Geral</strong>: R$ 279.663,46' }]
+    const documento = '<p><strong>Total Geral</strong>: R$ 279.663,46</p>'
+
+    const resultado = conferirTotais(paginas, documento)
+
+    expect(resultado).toEqual([
+      { pagina: 3, rotulo: 'Total Geral', valorNoPdf: 'R$ 279.663,46', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
+    ])
+  })
+
   it('marca como não encontrado quando o valor não aparece no documento', () => {
     const paginas = [{ pagina: 1, textoOriginal: 'Valor Total: R$ 1.234,56' }]
     const documento = '<p>Documento sem esse valor</p>'

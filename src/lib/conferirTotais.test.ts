@@ -1,4 +1,4 @@
-import { conferirTotais } from './conferirTotais'
+import { conferirTotais, conferirTotaisPlanilha } from './conferirTotais'
 
 describe('conferirTotais', () => {
   it('acha um total simples que bate com o documento (PDF: origem é a página)', () => {
@@ -159,5 +159,45 @@ describe('conferirTotais', () => {
 
     expect(resultado).toHaveLength(3)
     expect(resultado.every((t) => t.encontradoNoDocumento)).toBe(true)
+  })
+})
+
+describe('conferirTotaisPlanilha', () => {
+  it('acha o valor da célula quando ele aparece IDÊNTICO (formato JS, não BR) no documento', () => {
+    // `celulaHtml` (excel.ts) renderiza a célula com `String(valor)` — sem
+    // separador de milhar, ponto no lugar de vírgula. É assim que o número
+    // aparece no HTML final, não "279.663,46".
+    const candidatos = [{ rotulo: 'Total Geral', valor: 279663.46 }]
+    const documento = '<table><tr><td>Total Geral</td><td>279663.46</td></tr></table>'
+
+    const resultado = conferirTotaisPlanilha('precos.xlsx', candidatos, documento)
+
+    expect(resultado).toEqual([
+      {
+        origem: 'precos.xlsx',
+        pagina: null,
+        rotulo: 'Total Geral',
+        valorNoOriginal: '279.663,46',
+        encontradoNoDocumento: true,
+        ocorrenciasNoDocumento: 1,
+      },
+    ])
+  })
+
+  it('marca como não encontrado quando o valor não está no documento', () => {
+    const candidatos = [{ rotulo: 'Subtotal', valor: 500 }]
+
+    const resultado = conferirTotaisPlanilha('precos.xlsx', candidatos, '<p>documento sem esse valor</p>')
+
+    expect(resultado[0].encontradoNoDocumento).toBe(false)
+  })
+
+  it('correspondência exata — "63.46" não casa dentro de "279663.46"', () => {
+    const candidatos = [{ rotulo: 'Total', valor: 63.46 }]
+    const documento = '<td>279663.46</td>'
+
+    const resultado = conferirTotaisPlanilha('precos.xlsx', candidatos, documento)
+
+    expect(resultado[0].encontradoNoDocumento).toBe(false)
   })
 })

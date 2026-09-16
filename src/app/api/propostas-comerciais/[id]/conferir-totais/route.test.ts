@@ -12,14 +12,16 @@ jest.mock('@/lib/prisma', () => ({
 jest.mock('@/lib/storage', () => ({ getUpload: jest.fn() }))
 jest.mock('@/lib/extracao/pdfHtml', () => ({ converterPdfParaHtml: jest.fn() }))
 jest.mock('@/lib/extracao/docx', () => ({ extrairDocx: jest.fn() }))
-jest.mock('@/lib/conferirTotais', () => ({ conferirTotais: jest.fn() }))
+jest.mock('@/lib/extracao/excel', () => ({ extrairTotaisDePlanilha: jest.fn() }))
+jest.mock('@/lib/conferirTotais', () => ({ conferirTotais: jest.fn(), conferirTotaisPlanilha: jest.fn() }))
 
 import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getUpload } from '@/lib/storage'
 import { converterPdfParaHtml } from '@/lib/extracao/pdfHtml'
 import { extrairDocx } from '@/lib/extracao/docx'
-import { conferirTotais } from '@/lib/conferirTotais'
+import { extrairTotaisDePlanilha } from '@/lib/extracao/excel'
+import { conferirTotais, conferirTotaisPlanilha } from '@/lib/conferirTotais'
 import { POST } from './route'
 
 function hashDocumento(texto: string): string {
@@ -35,6 +37,8 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
     jest.clearAllMocks()
     ;(getAuthUser as jest.Mock).mockResolvedValue({ id: 'u1', role: 'admin' })
     ;(prisma.propostaComercial.update as jest.Mock).mockResolvedValue({})
+    ;(conferirTotais as jest.Mock).mockReturnValue([])
+    ;(conferirTotaisPlanilha as jest.Mock).mockReturnValue([])
   })
 
   it('retorna 401 sem autenticação', async () => {
@@ -47,7 +51,7 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
     expect((await POST(requisicao(), contexto)).status).toBe(404)
   })
 
-  it('junta páginas de PDF (com origem "Página N") e o texto do Word (origem = nome do arquivo), ignora xlsx', async () => {
+  it('junta páginas de PDF (origem "Página N") e texto do Word (origem = nome do arquivo)', async () => {
     ;(prisma.propostaComercial.findUnique as jest.Mock).mockResolvedValue({
       id: 'p1',
       conteudoMarkdown: 'Documento salvo',
@@ -55,7 +59,6 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
       conferenciaTotaisEm: null,
       arquivos: [
         { id: 'a1', tipo: 'pdf', ordem: 0, caminhoOriginal: 'https://blob/a1.pdf', nomeArquivo: 'proposta.pdf' },
-        { id: 'a2', tipo: 'xlsx', ordem: 1, caminhoOriginal: 'https://blob/a2.xlsx', nomeArquivo: 'precos.xlsx' },
         { id: 'a3', tipo: 'docx', ordem: 2, caminhoOriginal: 'https://blob/a3.docx', nomeArquivo: 'anexo.docx' },
       ],
     })
@@ -73,7 +76,7 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
 
     const resposta = await POST(requisicao(), contexto)
 
-    expect(getUpload).toHaveBeenCalledTimes(2) // pdf + docx, não o xlsx
+    expect(getUpload).toHaveBeenCalledTimes(2) // pdf + docx
     expect(extrairDocx).toHaveBeenCalledWith(Buffer.from('fake'))
     expect(conferirTotais).toHaveBeenCalledWith(
       [
@@ -96,7 +99,50 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
     )
   })
 
-  it('serve do cache quando os arquivos (pdf+docx) e o documento salvo batem com a última conferência', async () => {
+  it('confere planilha (xlsx/csv) com extração e comparação próprias, concatenado com o resto', async () => {
+    ;(prisma.propostaComercial.findUnique as jest.Mock).mockResolvedValue({
+      id: 'p1',
+      conteudoMarkdown: 'Documento salvo',
+      conferenciaTotais: null,
+      conferenciaTotaisEm: null,
+      arquivos: [
+        { id: 'a1', tipo: 'pdf', ordem: 0, caminhoOriginal: 'https://blob/a1.pdf', nomeArquivo: 'proposta.pdf' },
+        { id: 'a2', tipo: 'xlsx', ordem: 1, caminhoOriginal: 'https://blob/a2.xlsx', nomeArquivo: 'precos.xlsx' },
+        { id: 'a4', tipo: 'csv', ordem: 3, caminhoOriginal: 'https://blob/a4.csv', nomeArquivo: 'custos.csv' },
+      ],
+    })
+    ;(getUpload as jest.Mock).mockResolvedValue(Buffer.from('fake'))
+    ;(converterPdfParaHtml as jest.Mock).mockResolvedValue({
+      html: 'x',
+      paginasImagem: [],
+      paginasConvertidas: [],
+      paginasComImagem: [],
+    })
+    ;(extrairTotaisDePlanilha as jest.Mock)
+      .mockResolvedValueOnce([{ rotulo: 'Total Geral', valor: 279663.46 }]) // xlsx
+      .mockResolvedValueOnce([{ rotulo: 'Subtotal', valor: 500 }]) // csv
+    ;(conferirTotaisPlanilha as jest.Mock)
+      .mockReturnValueOnce([
+        { origem: 'precos.xlsx', pagina: null, rotulo: 'Total Geral', valorNoOriginal: '279.663,46', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
+      ])
+      .mockReturnValueOnce([
+        { origem: 'custos.csv', pagina: null, rotulo: 'Subtotal', valorNoOriginal: '500,00', encontradoNoDocumento: false, ocorrenciasNoDocumento: 0 },
+      ])
+
+    const resposta = await POST(requisicao(), contexto)
+
+    expect(extrairTotaisDePlanilha).toHaveBeenNthCalledWith(1, Buffer.from('fake'), 'xlsx')
+    expect(extrairTotaisDePlanilha).toHaveBeenNthCalledWith(2, Buffer.from('fake'), 'csv')
+    expect(conferirTotaisPlanilha).toHaveBeenNthCalledWith(1, 'precos.xlsx', [{ rotulo: 'Total Geral', valor: 279663.46 }], 'Documento salvo')
+    expect(conferirTotaisPlanilha).toHaveBeenNthCalledWith(2, 'custos.csv', [{ rotulo: 'Subtotal', valor: 500 }], 'Documento salvo')
+    const corpo = await resposta.json()
+    expect(corpo.totais).toEqual([
+      { origem: 'precos.xlsx', pagina: null, rotulo: 'Total Geral', valorNoOriginal: '279.663,46', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
+      { origem: 'custos.csv', pagina: null, rotulo: 'Subtotal', valorNoOriginal: '500,00', encontradoNoDocumento: false, ocorrenciasNoDocumento: 0 },
+    ])
+  })
+
+  it('serve do cache quando os arquivos (pdf+docx+planilha) e o documento salvo batem com a última conferência', async () => {
     const documentoSalvo = 'Documento salvo'
     ;(prisma.propostaComercial.findUnique as jest.Mock).mockResolvedValue({
       id: 'p1',
@@ -113,6 +159,7 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
     const resposta = await POST(requisicao(), contexto)
 
     expect(conferirTotais).not.toHaveBeenCalled()
+    expect(extrairTotaisDePlanilha).not.toHaveBeenCalled()
     expect(getUpload).not.toHaveBeenCalled()
     const corpo = await resposta.json()
     expect(corpo.totais).toEqual([
@@ -139,7 +186,6 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
       paginasConvertidas: [{ pagina: 1, textoOriginal: 'a', html: 'a' }],
       paginasComImagem: [],
     })
-    ;(conferirTotais as jest.Mock).mockReturnValue([])
 
     const resposta = await POST(requisicao(), contexto)
 
@@ -167,7 +213,6 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
       paginasConvertidas: [{ pagina: 1, textoOriginal: 'a', html: 'a' }],
       paginasComImagem: [],
     })
-    ;(conferirTotais as jest.Mock).mockReturnValue([])
 
     const resposta = await POST(requisicao(), contexto)
 
@@ -175,15 +220,14 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
     expect(resposta.status).toBe(200)
   })
 
-  it('sem nenhum arquivo pdf/docx chama conferirTotais com lista vazia de fontes', async () => {
+  it('sem nenhum arquivo relevante chama conferirTotais com lista vazia de fontes', async () => {
     ;(prisma.propostaComercial.findUnique as jest.Mock).mockResolvedValue({
       id: 'p1',
       conteudoMarkdown: null,
       conferenciaTotais: null,
       conferenciaTotaisEm: null,
-      arquivos: [{ id: 'a2', tipo: 'xlsx', ordem: 0, caminhoOriginal: 'https://blob/a2.xlsx', nomeArquivo: 'precos.xlsx' }],
+      arquivos: [],
     })
-    ;(conferirTotais as jest.Mock).mockReturnValue([])
 
     const resposta = await POST(requisicao(), contexto)
 

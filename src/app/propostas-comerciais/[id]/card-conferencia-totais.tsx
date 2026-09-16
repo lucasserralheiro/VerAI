@@ -165,7 +165,7 @@ export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenc
       {aberta && (
         <JanelaRevisao
           titulo={`${totais.length} ${totais.length === 1 ? 'total conferido' : 'totais conferidos'}`}
-          subtitulo="Rótulo e valor extraídos do PDF/Word, conferidos contra o documento inteiro."
+          subtitulo="Rótulo e valor extraídos do PDF/Word/planilha, conferidos contra o documento inteiro."
           onFechar={() => setAberta(false)}
         >
           <table className="w-full text-left text-[15px]">

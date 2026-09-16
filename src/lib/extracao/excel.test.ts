@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import ExcelJS from 'exceljs'
-import { extrairExcel, converterPlanilhaParaHtml } from './excel'
+import { extrairExcel, converterPlanilhaParaHtml, extrairTotaisDePlanilha } from './excel'
 
 async function gerarBuffer(montar: (wb: ExcelJS.Workbook) => void): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook()
@@ -228,5 +228,77 @@ describe('converterPlanilhaParaHtml', () => {
     }
 
     expect(linhas[1]).toBe('<td>100</td><td>Bronze até 100</td><td></td><td></td>')
+  })
+})
+
+describe('extrairTotaisDePlanilha', () => {
+  it('acha a linha de total: rótulo na célula de texto, valor na última célula numérica', async () => {
+    const buffer = await gerarBuffer((wb) => {
+      const sheet = wb.addWorksheet('Preços')
+      sheet.addRow(['Item', 'Valor'])
+      sheet.addRow(['Storage', 11200])
+      sheet.addRow(['Total Geral', 11200])
+    })
+
+    const candidatos = await extrairTotaisDePlanilha(buffer, 'xlsx')
+
+    expect(candidatos).toEqual([{ rotulo: 'Total Geral', valor: 11200 }])
+  })
+
+  it('linha comum (sem palavra-chave de total) não vira candidato', async () => {
+    const buffer = await gerarBuffer((wb) => {
+      const sheet = wb.addWorksheet('Preços')
+      sheet.addRow(['Item', 'Valor'])
+      sheet.addRow(['Storage Premium', 11200])
+      sheet.addRow(['Backup diário', 2500])
+    })
+
+    const candidatos = await extrairTotaisDePlanilha(buffer, 'xlsx')
+
+    expect(candidatos).toEqual([])
+  })
+
+  it('vários totais em linhas diferentes (subtotal por lote + total geral) — todos viram candidato', async () => {
+    const buffer = await gerarBuffer((wb) => {
+      const sheet = wb.addWorksheet('Preços')
+      sheet.addRow(['Item', 'Valor'])
+      sheet.addRow(['Storage', 10000])
+      sheet.addRow(['Subtotal Lote 1', 10000])
+      sheet.addRow(['VM', 20000])
+      sheet.addRow(['Subtotal Lote 2', 20000])
+      sheet.addRow(['Total Geral', 30000])
+    })
+
+    const candidatos = await extrairTotaisDePlanilha(buffer, 'xlsx')
+
+    expect(candidatos).toEqual([
+      { rotulo: 'Subtotal Lote 1', valor: 10000 },
+      { rotulo: 'Subtotal Lote 2', valor: 20000 },
+      { rotulo: 'Total Geral', valor: 30000 },
+    ])
+  })
+
+  it('linha de total sem nenhuma célula numérica não vira candidato', async () => {
+    const buffer = await gerarBuffer((wb) => {
+      const sheet = wb.addWorksheet('Preços')
+      sheet.addRow(['Item', 'Observação'])
+      sheet.addRow(['Total Geral', 'ver anexo separado'])
+    })
+
+    const candidatos = await extrairTotaisDePlanilha(buffer, 'xlsx')
+
+    expect(candidatos).toEqual([])
+  })
+
+  it('pega a última célula numérica da linha quando há mais de uma (quantidade e valor, por exemplo)', async () => {
+    const buffer = await gerarBuffer((wb) => {
+      const sheet = wb.addWorksheet('Preços')
+      sheet.addRow(['Item', 'Quantidade', 'Valor'])
+      sheet.addRow(['Total Geral', 3, 279663.46])
+    })
+
+    const candidatos = await extrairTotaisDePlanilha(buffer, 'xlsx')
+
+    expect(candidatos).toEqual([{ rotulo: 'Total Geral', valor: 279663.46 }])
   })
 })

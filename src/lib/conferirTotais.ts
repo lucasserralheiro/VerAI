@@ -169,3 +169,56 @@ export function conferirTotais(fontes: TextoParaConferirTotal[], documentoAtual:
 
   return totais
 }
+
+/** Número da planilha aparece no HTML final EXATAMENTE como `String(valor)`
+ *  produz (célula renderizada por `celulaHtml` em `excel.ts`) — sem
+ *  separador de milhar, ponto no lugar de vírgula (ex.: 1234.5 vira
+ *  "1234.5"). Comparar contra `indexarValoresDoDocumento` (formato BR) não
+ *  serviria de nada aqui — formato diferente. Confere por igualdade exata
+ *  do literal, com fronteira de dígito/ponto pros dois lados — sem isso,
+ *  "63.46" casaria como substring dentro de "279663.46". */
+function ocorrenciasDoNumeroLiteral(documentoAtual: string, valor: number): number {
+  const literal = String(valor).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`(?<![\\d.])${literal}(?![\\d.])`, 'g')
+  return [...documentoAtual.matchAll(regex)].length
+}
+
+/** Formata pro "Valor no original" da tela — "1234.5" fica "1.234,50",
+ *  mais fácil de bater o olho que o literal cru do JavaScript. */
+function formatarValorBr(valor: number): string {
+  return valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+/**
+ * Mesma ideia de `conferirTotais`, mas pra candidato de planilha
+ * (`extrairTotaisDePlanilha`, `excel.ts`) — célula numérica lida direto,
+ * não regex sobre texto, e comparação por igualdade exata do literal
+ * JavaScript (ver `ocorrenciasDoNumeroLiteral`), não do número BR
+ * normalizado que `conferirTotais` usa pra PDF/Word.
+ */
+export function conferirTotaisPlanilha(
+  origem: string,
+  candidatos: { rotulo: string; valor: number }[],
+  documentoAtual: string
+): TotalConferido[] {
+  const vistos = new Set<string>()
+  const totais: TotalConferido[] = []
+
+  for (const candidato of candidatos) {
+    const chave = chaveDoTotal(candidato.rotulo, String(candidato.valor))
+    if (vistos.has(chave)) continue
+    vistos.add(chave)
+
+    const ocorrenciasNoDocumento = ocorrenciasDoNumeroLiteral(documentoAtual, candidato.valor)
+    totais.push({
+      origem,
+      pagina: null,
+      rotulo: candidato.rotulo,
+      valorNoOriginal: formatarValorBr(candidato.valor),
+      encontradoNoDocumento: ocorrenciasNoDocumento > 0,
+      ocorrenciasNoDocumento,
+    })
+  }
+
+  return totais
+}

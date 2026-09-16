@@ -6,23 +6,24 @@ import { getAuthUser } from '@/lib/auth'
 import { getUpload } from '@/lib/storage'
 import { converterPdfParaHtml } from '@/lib/extracao/pdfHtml'
 import { extrairDocx } from '@/lib/extracao/docx'
-import { conferirTotais, type TextoParaConferirTotal, type TotalConferido } from '@/lib/conferirTotais'
+import { extrairTotaisDePlanilha } from '@/lib/extracao/excel'
+import { conferirTotais, conferirTotaisPlanilha, type TextoParaConferirTotal, type TotalConferido } from '@/lib/conferirTotais'
 
 function hashDocumento(texto: string): string {
   return createHash('sha256').update(texto).digest('hex')
 }
 
 /**
- * Conferência determinística (sem IA) dos totais do PDF e do Word da
- * proposta contra o documento — separada da checagem por IA de propósito: é
- * praticamente grátis (regex + comparação de número), não pode ficar refém
- * da latência da checagem por IA (chamada de modelo por página). Sempre
- * roda contra o Markdown/HTML JÁ SALVO da proposta. Ver
+ * Conferência determinística (sem IA) dos totais do PDF, Word e planilha
+ * (.xlsx/.csv) da proposta contra o documento — separada da checagem por IA
+ * de propósito: é praticamente grátis (regex + comparação de número), não
+ * pode ficar refém da latência da checagem por IA (chamada de modelo por
+ * página). Sempre roda contra o Markdown/HTML JÁ SALVO da proposta. Ver
  * docs/superpowers/specs/2026-09-16-conferencia-totais-design.md.
  *
- * Planilha (`.xlsx`/`.csv`) não entra aqui — número de célula não sai
- * formatado em BR no HTML final (sai como `String()` do JavaScript), então
- * precisa de extração e comparação próprias (ver `conferirTotaisPlanilha`).
+ * Planilha usa extração e comparação PRÓPRIAS (`extrairTotaisDePlanilha` +
+ * `conferirTotaisPlanilha`) — número de célula não sai formatado em BR no
+ * HTML final, sai como `String()` do JavaScript.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const usuario = await getAuthUser(request)
@@ -41,7 +42,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const arquivosPdf = proposta.arquivos.filter((arquivo) => arquivo.tipo === 'pdf').sort((a, b) => a.ordem - b.ordem)
   const arquivosDocx = proposta.arquivos.filter((arquivo) => arquivo.tipo === 'docx').sort((a, b) => a.ordem - b.ordem)
-  const idsRelevantes = [...arquivosPdf, ...arquivosDocx].map((arquivo) => arquivo.id)
+  const arquivosPlanilha = proposta.arquivos
+    .filter((arquivo) => arquivo.tipo === 'xlsx' || arquivo.tipo === 'csv')
+    .sort((a, b) => a.ordem - b.ordem)
+  const idsRelevantes = [...arquivosPdf, ...arquivosDocx, ...arquivosPlanilha].map((arquivo) => arquivo.id)
   const documentoAtual = proposta.conteudoMarkdown ?? ''
 
   const salva = lerConferenciaSalva(proposta.conferenciaTotais)
@@ -64,6 +68,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const totais = conferirTotais(fontes, documentoAtual)
+  for (const arquivo of arquivosPlanilha) {
+    const buffer = await getUpload(arquivo.caminhoOriginal)
+    const candidatos = await extrairTotaisDePlanilha(buffer, arquivo.tipo as 'xlsx' | 'csv')
+    totais.push(...conferirTotaisPlanilha(arquivo.nomeArquivo, candidatos, documentoAtual))
+  }
+
   const checadoEm = new Date()
   const paraSalvar: ConferenciaSalva = {
     totais,
@@ -85,7 +95,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 interface ConferenciaSalva {
   totais: TotalConferido[]
-  /** Ids dos arquivos PDF + Word conferidos — se a proposta ganhar/perder
+  /** Ids dos arquivos PDF + Word + planilha conferidos — se a proposta ganhar/perder
    *  algum, o cache não vale mais (ver `mesmoDocumento`). */
   arquivosRelevantes: string[]
   documentoHash: string
@@ -105,7 +115,7 @@ function lerConferenciaSalva(valor: unknown): ConferenciaSalva | null {
   }
 }
 
-/** O cache só vale quando os arquivos conferidos (PDF + Word) continuam os
+/** O cache só vale quando os arquivos conferidos (PDF + Word + planilha) continuam os
  *  mesmos E o documento contra o qual a última conferência rodou é
  *  EXATAMENTE o que está salvo agora — mesmo critério de
  *  `checagem-ia/route.ts` (`mesmoDocumento`). */

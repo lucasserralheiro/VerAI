@@ -65,15 +65,26 @@ export interface TotalConferido {
   valorNoOriginal: string
   encontradoNoDocumento: boolean
   ocorrenciasNoDocumento: number
+  /** Trecho do documento final ao redor da PRIMEIRA ocorrência do valor —
+   *  pra pessoa comparar visualmente, lado a lado, sem precisar confiar só
+   *  no rótulo "Achado"/"Não achado". `undefined` quando não achou nenhuma. */
+  contextoNoDocumento?: string
 }
 
 export interface CelulaConferida {
   texto: string
   /** `true` quando a célula bate o padrão de valor monetário — só essas têm
-   *  `encontradoNoDocumento` preenchido; célula de texto (descrição, código,
-   *  unidade) é só exibida, sem comparação nenhuma. */
+   *  `encontradoNoDocumento`/contexto preenchido; célula de texto (descrição,
+   *  código, unidade) é só exibida, sem comparação nenhuma. */
   ehValor: boolean
   encontradoNoDocumento?: boolean
+  /** Linha INTEIRA de origem (todas as células dessa linha, na ordem, "no
+   *  PDF") — o lado "no original" da comparação lado a lado, só nas células
+   *  de valor. */
+  contextoOriginal?: string
+  /** Trecho do documento final ao redor da PRIMEIRA ocorrência do valor —
+   *  o lado "no documento" da comparação. `undefined` quando não achou. */
+  contextoNoDocumento?: string
 }
 
 /** Uma tabela inteira do documento original, reconstruída linha por linha —
@@ -136,15 +147,45 @@ function semMarcacaoHtml(texto: string): string {
   return texto.replace(/<[^>]+>/g, ' ')
 }
 
-/** Quantas vezes cada valor normalizado aparece no documento inteiro —
- *  calculado uma vez só (não por total encontrado), pra não repetir a
- *  varredura do documento inteiro pra cada total (documento grande x
- *  poucas dezenas de totais: O(documento), não O(totais × documento)). */
-function indexarValoresDoDocumento(documentoAtual: string): Map<string, number> {
-  const indice = new Map<string, number>()
+/** Quantos caracteres pra cada lado do valor achado entram no "contexto" —
+ *  dá pra pessoa reconhecer o trecho (rótulo/linha ao redor) sem precisar
+ *  abrir o documento inteiro procurando. */
+const JANELA_CONTEXTO = 100
+
+/** Trecho de texto puro (sem tag, espaço normalizado) ao redor de uma
+ *  posição do documento — o "no documento" da comparação lado a lado. */
+function extrairContexto(documentoAtual: string, indice: number, tamanho: number): string {
+  const inicio = Math.max(0, indice - JANELA_CONTEXTO)
+  const fim = Math.min(documentoAtual.length, indice + tamanho + JANELA_CONTEXTO)
+  return semMarcacaoHtml(documentoAtual.slice(inicio, fim)).replace(/\s+/g, ' ').trim()
+}
+
+interface EntradaIndiceDocumento {
+  ocorrencias: number
+  /** Contexto da PRIMEIRA ocorrência achada — não recalcula pra cada
+   *  ocorrência repetida, só a primeira já serve pra pessoa reconhecer o
+   *  trecho. */
+  contexto: string
+}
+
+/** Quantas vezes cada valor normalizado aparece no documento inteiro, e o
+ *  contexto da primeira ocorrência — calculado uma vez só (não por total
+ *  encontrado), pra não repetir a varredura do documento inteiro pra cada
+ *  total (documento grande x poucas dezenas de totais: O(documento), não
+ *  O(totais × documento)). */
+function indexarValoresDoDocumento(documentoAtual: string): Map<string, EntradaIndiceDocumento> {
+  const indice = new Map<string, EntradaIndiceDocumento>()
   for (const match of documentoAtual.matchAll(REGEX_QUALQUER_VALOR)) {
     const chave = normalizarValor(match[0])
-    indice.set(chave, (indice.get(chave) ?? 0) + 1)
+    const atual = indice.get(chave)
+    if (atual) {
+      atual.ocorrencias += 1
+    } else {
+      indice.set(chave, {
+        ocorrencias: 1,
+        contexto: extrairContexto(documentoAtual, match.index ?? 0, match[0].length),
+      })
+    }
   }
   return indice
 }
@@ -226,14 +267,22 @@ export function extrairTabelasConferidas(fontes: TextoParaConferirTotal[], docum
       tabelas.push({
         origem: fonte.origem,
         pagina: fonte.pagina,
-        linhas: linhas.map((celulas) =>
-          celulas.map((texto) => {
+        linhas: linhas.map((celulas) => {
+          const contextoOriginal = celulas.join(' | ')
+          return celulas.map((texto) => {
             const match = texto.match(REGEX_VALOR)
             if (!match) return { texto, ehValor: false }
             const valorNormalizado = normalizarValor(match[2])
-            return { texto, ehValor: true, encontradoNoDocumento: (indiceDocumento.get(valorNormalizado) ?? 0) > 0 }
+            const entrada = indiceDocumento.get(valorNormalizado)
+            return {
+              texto,
+              ehValor: true,
+              encontradoNoDocumento: (entrada?.ocorrencias ?? 0) > 0,
+              contextoOriginal,
+              contextoNoDocumento: entrada?.contexto,
+            }
           })
-        ),
+        }),
       })
     }
   }
@@ -265,14 +314,15 @@ export function conferirTotais(fontes: TextoParaConferirTotal[], documentoAtual:
       if (vistos.has(chave)) continue
       vistos.add(chave)
 
-      const ocorrenciasNoDocumento = indiceDocumento.get(achado.valorNormalizado) ?? 0
+      const entrada = indiceDocumento.get(achado.valorNormalizado)
       totais.push({
         origem: fonte.origem,
         pagina: fonte.pagina,
         rotulo: achado.rotulo,
         valorNoOriginal: achado.valorTexto,
-        encontradoNoDocumento: ocorrenciasNoDocumento > 0,
-        ocorrenciasNoDocumento,
+        encontradoNoDocumento: (entrada?.ocorrencias ?? 0) > 0,
+        ocorrenciasNoDocumento: entrada?.ocorrencias ?? 0,
+        contextoNoDocumento: entrada?.contexto,
       })
     }
   }
@@ -287,10 +337,15 @@ export function conferirTotais(fontes: TextoParaConferirTotal[], documentoAtual:
  *  serviria de nada aqui — formato diferente. Confere por igualdade exata
  *  do literal, com fronteira de dígito/ponto pros dois lados — sem isso,
  *  "63.46" casaria como substring dentro de "279663.46". */
-function ocorrenciasDoNumeroLiteral(documentoAtual: string, valor: number): number {
+function encontrarNumeroLiteral(documentoAtual: string, valor: number): EntradaIndiceDocumento {
   const literal = String(valor).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const regex = new RegExp(`(?<![\\d.])${literal}(?![\\d.])`, 'g')
-  return [...documentoAtual.matchAll(regex)].length
+  const ocorrencias = [...documentoAtual.matchAll(regex)]
+  const primeira = ocorrencias[0]
+  return {
+    ocorrencias: ocorrencias.length,
+    contexto: primeira ? extrairContexto(documentoAtual, primeira.index ?? 0, primeira[0].length) : '',
+  }
 }
 
 /** Formata pro "Valor no original" da tela — "1234.5" fica "1.234,50",
@@ -319,14 +374,15 @@ export function conferirTotaisPlanilha(
     if (vistos.has(chave)) continue
     vistos.add(chave)
 
-    const ocorrenciasNoDocumento = ocorrenciasDoNumeroLiteral(documentoAtual, candidato.valor)
+    const entrada = encontrarNumeroLiteral(documentoAtual, candidato.valor)
     totais.push({
       origem,
       pagina: null,
       rotulo: candidato.rotulo,
       valorNoOriginal: formatarValorBr(candidato.valor),
-      encontradoNoDocumento: ocorrenciasNoDocumento > 0,
-      ocorrenciasNoDocumento,
+      encontradoNoDocumento: entrada.ocorrencias > 0,
+      ocorrenciasNoDocumento: entrada.ocorrencias,
+      contextoNoDocumento: entrada.ocorrencias > 0 ? entrada.contexto : undefined,
     })
   }
 

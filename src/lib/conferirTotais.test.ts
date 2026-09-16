@@ -15,7 +15,7 @@ describe('conferirTotais — fonte com tabela é ignorada (coberta por extrairTa
 
     const resultado = conferirTotais(fontes, '<p>Valor Total: R$ 279.663,46</p>')
 
-    expect(resultado).toEqual([
+    expect(resultado).toMatchObject([
       { origem: 'Página 5', pagina: 5, rotulo: 'Valor Total', valorNoOriginal: 'R$ 279.663,46', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
     ])
   })
@@ -47,7 +47,7 @@ describe('extrairTabelasConferidas', () => {
 
     const resultado = extrairTabelasConferidas(fontes, documento)
 
-    expect(resultado).toEqual([
+    expect(resultado).toMatchObject([
       {
         origem: 'Página 38',
         pagina: 38,
@@ -75,6 +75,24 @@ describe('extrairTabelasConferidas', () => {
     ])
   })
 
+  it('célula de valor carrega o contexto: a linha inteira "no original" e o trecho "no documento" onde bateu', () => {
+    const html =
+      '<table><tbody><tr><td>ANALISTA DE INFORMAÇÃO</td><td>HORA/HOMEM</td><td>R$ 269,00</td></tr></tbody></table>'
+    const fontes = [{ origem: 'Página 38', pagina: 38, textoOriginal: '', html }]
+    const documento = '<p>Descrição do serviço: preço unitário R$ 269,00 por hora.</p>'
+
+    const resultado = extrairTabelasConferidas(fontes, documento)
+
+    const celulaValor = resultado[0].linhas[0][2]
+    expect(celulaValor).toMatchObject({
+      texto: 'R$ 269,00',
+      ehValor: true,
+      encontradoNoDocumento: true,
+      contextoOriginal: 'ANALISTA DE INFORMAÇÃO | HORA/HOMEM | R$ 269,00',
+    })
+    expect(celulaValor.contextoNoDocumento).toContain('269,00')
+  })
+
   it('fonte sem <table> no html não vira nenhuma TabelaConferida', () => {
     const fontes = [{ origem: 'Página 5', pagina: 5, textoOriginal: 'Valor Total: R$ 279.663,46' }]
 
@@ -92,8 +110,8 @@ describe('extrairTabelasConferidas', () => {
     const resultado = extrairTabelasConferidas(fontes, '<p>R$ 10,00 e R$ 20,00</p>')
 
     expect(resultado).toHaveLength(2)
-    expect(resultado[0].linhas).toEqual([[{ texto: 'Lote 1', ehValor: false }, { texto: 'R$ 10,00', ehValor: true, encontradoNoDocumento: true }]])
-    expect(resultado[1].linhas).toEqual([[{ texto: 'Lote 2', ehValor: false }, { texto: 'R$ 20,00', ehValor: true, encontradoNoDocumento: true }]])
+    expect(resultado[0].linhas).toMatchObject([[{ texto: 'Lote 1', ehValor: false }, { texto: 'R$ 10,00', ehValor: true, encontradoNoDocumento: true }]])
+    expect(resultado[1].linhas).toMatchObject([[{ texto: 'Lote 2', ehValor: false }, { texto: 'R$ 20,00', ehValor: true, encontradoNoDocumento: true }]])
   })
 })
 
@@ -122,7 +140,7 @@ describe('conferirTotais', () => {
 
     const resultado = conferirTotais(fontes, documento)
 
-    expect(resultado).toEqual([
+    expect(resultado).toMatchObject([
       {
         origem: 'Página 12',
         pagina: 12,
@@ -140,7 +158,7 @@ describe('conferirTotais', () => {
 
     const resultado = conferirTotais(fontes, documento)
 
-    expect(resultado).toEqual([
+    expect(resultado).toMatchObject([
       {
         origem: 'Página 3',
         pagina: 3,
@@ -158,7 +176,7 @@ describe('conferirTotais', () => {
 
     const resultado = conferirTotais(fontes, documento)
 
-    expect(resultado).toEqual([
+    expect(resultado).toMatchObject([
       {
         origem: 'proposta.docx',
         pagina: null,
@@ -176,7 +194,7 @@ describe('conferirTotais', () => {
 
     const resultado = conferirTotais(fontes, documento)
 
-    expect(resultado).toEqual([
+    expect(resultado).toMatchObject([
       {
         origem: 'Página 3',
         pagina: 3,
@@ -202,6 +220,7 @@ describe('conferirTotais', () => {
         valorNoOriginal: 'R$ 1.234,56',
         encontradoNoDocumento: false,
         ocorrenciasNoDocumento: 0,
+        contextoNoDocumento: undefined,
       },
     ])
   })
@@ -269,7 +288,7 @@ describe('conferirTotais', () => {
 
     const resultado = conferirTotais(fontes, documento)
 
-    expect(resultado).toEqual([
+    expect(resultado).toMatchObject([
       { origem: 'Página 4', pagina: 4, rotulo: '1     Implantação', valorNoOriginal: 'R$ 45.000,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
       { origem: 'Página 4', pagina: 4, rotulo: '2     Manutenção mensal', valorNoOriginal: 'R$ 12.500,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
       {
@@ -335,7 +354,7 @@ describe('conferirTotaisPlanilha', () => {
 
     const resultado = conferirTotaisPlanilha('precos.xlsx', candidatos, documento)
 
-    expect(resultado).toEqual([
+    expect(resultado).toMatchObject([
       {
         origem: 'precos.xlsx',
         pagina: null,

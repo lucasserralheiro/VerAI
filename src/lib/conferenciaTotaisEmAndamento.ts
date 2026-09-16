@@ -16,12 +16,21 @@ export interface TotalConferidoCliente {
   valorNoOriginal: string
   encontradoNoDocumento: boolean
   ocorrenciasNoDocumento: number
+  /** Trecho do documento final ao redor da primeira ocorrência — pra
+   *  comparação lado a lado (PDF × documento). `undefined` quando não achou. */
+  contextoNoDocumento?: string
 }
 
 export interface CelulaConferidaCliente {
   texto: string
   ehValor: boolean
   encontradoNoDocumento?: boolean
+  /** Linha inteira de origem (todas as células, "no PDF") — só nas células
+   *  de valor. */
+  contextoOriginal?: string
+  /** Trecho do documento final ao redor da primeira ocorrência — "no
+   *  documento" da comparação. `undefined` quando não achou. */
+  contextoNoDocumento?: string
 }
 
 /** Tabela reconstruída (mesma linha/coluna do original), pra pessoa bater o

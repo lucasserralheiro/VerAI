@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, Calculator, CircleCheck, ExternalLink, Loader2, X } from 'lucide-react'
+import { AlertCircle, Calculator, CircleCheck, ChevronLeft, ExternalLink, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BTN_OUTLINE } from '@/lib/ui'
 import {
@@ -14,6 +14,7 @@ import {
 } from '@/lib/conferenciaTotaisEmAndamento'
 import { JanelaRevisao } from './janela-revisao'
 import { TituloSecao } from './titulo-secao'
+import { BlocoComparacao } from './painel-checagem-conversao'
 
 export interface CardConferenciaTotaisProps {
   propostaId: string
@@ -26,6 +27,20 @@ type Estado =
   | { fase: 'pronta'; resultado: ResultadoConferenciaTotais }
   | { fase: 'erro'; mensagem: string }
 
+/** Item escolhido pra comparação lado a lado (PDF × documento) — vem tanto
+ *  de célula de tabela quanto de linha da lista achatada, por isso é a
+ *  forma comum entre as duas: "no PDF" é sempre o texto de origem (linha
+ *  inteira, na tabela; rótulo + valor, na lista), "no documento" é o
+ *  trecho ao redor de onde bateu (ou nada, se não achou). */
+interface ItemSelecionado {
+  origem: string
+  pagina: number | null
+  valorNoOriginal: string
+  contextoOriginal: string
+  contextoNoDocumento?: string
+  encontradoNoDocumento: boolean
+}
+
 /**
  * Conferência rápida (sem IA, determinística) dos valores do PDF/Word/
  * planilha contra o documento — atalho a mais além da checagem por IA
@@ -37,6 +52,7 @@ type Estado =
 export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenciaTotaisProps) {
   const [estado, setEstado] = useState<Estado>({ fase: 'carregando' })
   const [aberta, setAberta] = useState(false)
+  const [selecionado, setSelecionado] = useState<ItemSelecionado | null>(null)
   const montado = useRef(true)
 
   useEffect(() => {
@@ -91,6 +107,11 @@ export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenc
   function tentarDeNovo() {
     limparConferenciaTotais(propostaId)
     disparar()
+  }
+
+  function fecharJanela() {
+    setAberta(false)
+    setSelecionado(null)
   }
 
   const titulo = <TituloSecao icone={Calculator}>Conferência de totais</TituloSecao>
@@ -168,15 +189,57 @@ export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenc
         )}
       </button>
 
-      {aberta && (
+      {aberta && selecionado && (
+        <JanelaRevisao
+          titulo={selecionado.valorNoOriginal}
+          subtitulo={`${selecionado.origem} — comparação lado a lado, igual à checagem por IA.`}
+          onFechar={fecharJanela}
+          rodape={
+            <button type="button" onClick={() => setSelecionado(null)} className={BTN_OUTLINE}>
+              <ChevronLeft className="size-3.5" strokeWidth={2.25} />
+              Voltar pra lista
+            </button>
+          }
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            <BlocoComparacao rotulo={`No PDF · ${selecionado.origem}`} cor="navy">
+              {selecionado.contextoOriginal}
+            </BlocoComparacao>
+            <BlocoComparacao
+              rotulo="No documento"
+              cor={selecionado.encontradoNoDocumento ? 'verde' : 'vermelho'}
+              acao={
+                !selecionado.encontradoNoDocumento && onVerPagina && selecionado.pagina !== null ? (
+                  <button
+                    type="button"
+                    onClick={() => onVerPagina(selecionado.pagina as number, selecionado.valorNoOriginal)}
+                    className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-navy-3 underline-offset-2 hover:text-orange hover:underline"
+                  >
+                    <ExternalLink className="size-3.5" strokeWidth={2.25} />
+                    Ver no PDF
+                  </button>
+                ) : undefined
+              }
+            >
+              {selecionado.encontradoNoDocumento ? (
+                selecionado.contextoNoDocumento
+              ) : (
+                <span className="text-red-crit">Não encontrado no documento — confira se o valor foi digitado certo.</span>
+              )}
+            </BlocoComparacao>
+          </div>
+        </JanelaRevisao>
+      )}
+
+      {aberta && !selecionado && (
         <JanelaRevisao
           titulo={`${totalValores} ${totalValores === 1 ? 'total conferido' : 'totais conferidos'}`}
-          subtitulo="Tabela reconstruída como está no original — verde bate com o documento, vermelho não achou."
-          onFechar={() => setAberta(false)}
+          subtitulo="Tabela reconstruída como está no original — clique num valor pra comparar lado a lado com o documento."
+          onFechar={fecharJanela}
         >
           <div className="space-y-6">
             {tabelas.map((tabela, indice) => (
-              <TabelaReconstruida key={indice} tabela={tabela} onVerPagina={onVerPagina} />
+              <TabelaReconstruida key={indice} tabela={tabela} onSelecionar={setSelecionado} />
             ))}
 
             {totais.length > 0 && (
@@ -189,12 +252,11 @@ export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenc
                       <th className="py-2 pr-3 font-medium">Rótulo</th>
                       <th className="py-2 pr-3 font-medium">Valor no original</th>
                       <th className="py-2 pr-3 font-medium">No documento</th>
-                      <th className="py-2" />
                     </tr>
                   </thead>
                   <tbody>
                     {totais.map((total, indice) => (
-                      <LinhaTotal key={indice} total={total} onVerPagina={onVerPagina} />
+                      <LinhaTotal key={indice} total={total} onSelecionar={setSelecionado} />
                     ))}
                   </tbody>
                 </table>
@@ -210,39 +272,29 @@ export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenc
 /** Tabela reconstruída, exatamente como está no PDF/planilha original —
  *  mesma linha, mesma coluna, mesma célula — com cada valor destacado
  *  achado/não achado no documento final. Célula de descrição/código (não
- *  valor) só é exibida, sem cor nenhuma — comparar não faz sentido pra ela. */
+ *  valor) só é exibida, sem cor nenhuma — comparar não faz sentido pra ela.
+ *  Célula de VALOR é clicável — abre a comparação lado a lado com onde ela
+ *  bateu (ou não) no documento. */
 function TabelaReconstruida({
   tabela,
-  onVerPagina,
+  onSelecionar,
 }: {
   tabela: TabelaConferidaCliente
-  onVerPagina?: (pagina: number, destaque?: string, onUsarSelecao?: (texto: string) => void) => void
+  onSelecionar: (item: ItemSelecionado) => void
 }) {
   const celulasDeValor = tabela.linhas.flat().filter((c) => c.ehValor)
   const divergentes = celulasDeValor.filter((c) => !c.encontradoNoDocumento).length
 
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[15px] font-semibold text-navy">
-          {tabela.origem}
-          {divergentes > 0 && (
-            <span className="ml-2 font-normal text-red-crit">
-              {divergentes} {divergentes === 1 ? 'valor não bate' : 'valores não batem'}
-            </span>
-          )}
-        </p>
-        {onVerPagina && tabela.pagina !== null && (
-          <button
-            type="button"
-            onClick={() => onVerPagina(tabela.pagina as number)}
-            className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-navy-3 underline-offset-2 hover:text-orange hover:underline"
-          >
-            <ExternalLink className="size-3.5" strokeWidth={2.25} />
-            Ver no PDF
-          </button>
+      <p className="text-[15px] font-semibold text-navy">
+        {tabela.origem}
+        {divergentes > 0 && (
+          <span className="ml-2 font-normal text-red-crit">
+            {divergentes} {divergentes === 1 ? 'valor não bate' : 'valores não batem'}
+          </span>
         )}
-      </div>
+      </p>
       <div className="overflow-x-auto rounded-lg border border-border-grey">
         <table className="w-full min-w-max text-left text-sm">
           <tbody>
@@ -251,9 +303,21 @@ function TabelaReconstruida({
                 {celulas.map((celula, indiceCelula) => (
                   <td
                     key={indiceCelula}
+                    onClick={() =>
+                      celula.ehValor &&
+                      onSelecionar({
+                        origem: tabela.origem,
+                        pagina: tabela.pagina,
+                        valorNoOriginal: celula.texto,
+                        contextoOriginal: celula.contextoOriginal ?? celula.texto,
+                        contextoNoDocumento: celula.contextoNoDocumento,
+                        encontradoNoDocumento: celula.encontradoNoDocumento ?? false,
+                      })
+                    }
                     className={cn(
                       'px-3 py-1.5 align-top whitespace-nowrap',
                       celula.ehValor && 'tabular-nums font-medium',
+                      celula.ehValor && 'cursor-pointer transition-opacity hover:opacity-70',
                       celula.ehValor && celula.encontradoNoDocumento && 'bg-green-ok-light/40 text-navy',
                       celula.ehValor && !celula.encontradoNoDocumento && 'bg-red-crit-light/40 text-red-crit'
                     )}
@@ -270,15 +334,21 @@ function TabelaReconstruida({
   )
 }
 
-function LinhaTotal({
-  total,
-  onVerPagina,
-}: {
-  total: TotalConferidoCliente
-  onVerPagina?: (pagina: number, destaque?: string, onUsarSelecao?: (texto: string) => void) => void
-}) {
+function LinhaTotal({ total, onSelecionar }: { total: TotalConferidoCliente; onSelecionar: (item: ItemSelecionado) => void }) {
   return (
-    <tr className="border-b border-border-grey last:border-0">
+    <tr
+      onClick={() =>
+        onSelecionar({
+          origem: total.origem,
+          pagina: total.pagina,
+          valorNoOriginal: total.valorNoOriginal,
+          contextoOriginal: `${total.rotulo}: ${total.valorNoOriginal}`,
+          contextoNoDocumento: total.contextoNoDocumento,
+          encontradoNoDocumento: total.encontradoNoDocumento,
+        })
+      }
+      className="cursor-pointer border-b border-border-grey transition-colors last:border-0 hover:bg-navy/[0.03]"
+    >
       <td className="py-2 pr-3">{total.origem}</td>
       <td className="py-2 pr-3">{total.rotulo}</td>
       <td className="py-2 pr-3 tabular-nums">{total.valorNoOriginal}</td>
@@ -291,18 +361,6 @@ function LinhaTotal({
           <span className="inline-flex items-center gap-1 text-red-crit">
             <X className="size-4" strokeWidth={2.25} /> Não achado
           </span>
-        )}
-      </td>
-      <td className="py-2">
-        {!total.encontradoNoDocumento && onVerPagina && total.pagina !== null && (
-          <button
-            type="button"
-            onClick={() => onVerPagina(total.pagina as number, total.valorNoOriginal)}
-            className="inline-flex items-center gap-1 text-sm font-medium text-navy-3 underline-offset-2 hover:text-orange hover:underline"
-          >
-            <ExternalLink className="size-3.5" strokeWidth={2.25} />
-            Ver no PDF
-          </button>
         )}
       </td>
     </tr>

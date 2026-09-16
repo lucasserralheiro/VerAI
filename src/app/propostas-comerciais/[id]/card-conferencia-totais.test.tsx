@@ -54,7 +54,7 @@ describe('CardConferenciaTotais', () => {
     expect(await screen.findByText('1 total conferido')).toBeInTheDocument()
   })
 
-  it('com divergência mostra quantos não batem e a janela detalha com "Ver no PDF"', async () => {
+  it('com divergência mostra quantos não batem, e clicar na linha abre a comparação lado a lado com "Ver no PDF"', async () => {
     mockFetch({
       ok: true,
       body: {
@@ -87,11 +87,17 @@ describe('CardConferenciaTotais', () => {
     expect(screen.getByText('R$ 279.663,46')).toBeInTheDocument()
     expect(screen.getByText('Não achado')).toBeInTheDocument()
 
+    fireEvent.click(screen.getByText('Total Geral'))
+
+    expect(screen.getByText(/Não encontrado no documento/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Ver no PDF/ }))
     expect(onVerPagina).toHaveBeenCalledWith(3, 'R$ 279.663,46')
+
+    fireEvent.click(screen.getByRole('button', { name: /Voltar pra lista/ }))
+    expect(screen.getByText('Subtotal')).toBeInTheDocument()
   })
 
-  it('total sem página (origem é arquivo Word) não mostra "Ver no PDF"', async () => {
+  it('total sem página (origem é arquivo Word) não mostra "Ver no PDF" na comparação', async () => {
     mockFetch({
       ok: true,
       body: {
@@ -113,6 +119,8 @@ describe('CardConferenciaTotais', () => {
     fireEvent.click(await screen.findByText('1 de 1 total não bate'))
 
     expect(screen.getByText('anexo.docx')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('anexo.docx'))
+
     expect(screen.queryByRole('button', { name: /Ver no PDF/ })).not.toBeInTheDocument()
   })
 
@@ -156,8 +164,11 @@ describe('CardConferenciaTotais', () => {
     expect(screen.getByText('R$ 490.656,00')).toBeInTheDocument()
     expect(screen.getByText('1 valor não bate')).toBeInTheDocument()
 
+    fireEvent.click(screen.getByText('R$ 490.656,00'))
+
+    expect(screen.getByText(/Não encontrado no documento/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Ver no PDF/ }))
-    expect(onVerPagina).toHaveBeenCalledWith(38)
+    expect(onVerPagina).toHaveBeenCalledWith(38, 'R$ 490.656,00')
   })
 
   it('tabela e "outros valores" (totais soltos) aparecem juntos na mesma janela, sem duplicar contagem', async () => {

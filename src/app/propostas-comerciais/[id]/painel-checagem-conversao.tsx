@@ -1519,8 +1519,9 @@ function jaCorrigido(trecho: TrechoSuspeitoIa, markdown: string): boolean {
 
 /** Coluna da comparação na janela: "no PDF" (navy), "como está"
  *  (vermelho) ou "como deveria ficar" (verde). Ocupa a altura da coluna e
- *  rola por dentro quando o texto é longo. */
-function BlocoComparacao({
+ *  rola por dentro quando o texto é longo. Exportado pra reaproveitar o
+ *  mesmo padrão visual em `card-conferencia-totais.tsx`. */
+export function BlocoComparacao({
   rotulo,
   cor,
   acao,

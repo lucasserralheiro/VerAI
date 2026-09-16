@@ -32,7 +32,15 @@ lista de trechos suspeitos, é um atalho a mais focado no que tem maior risco.
   total pode coincidir com o valor de outra seção errada; a pessoa vê o contexto ao lado antes de
   confiar. Não é resolvido agora (YAGNI) — se motivar problema real, revisita depois com guarda-rail
   específico, como `trocaConteudoSobRotuloAmbiguo` já faz para texto.
-- Só PDF (mesmo escopo de origem da checagem por IA — `.xlsx`/`.docx` não entram).
+- ~~Só PDF~~ — **atualizado em 2026-09-16, pós-implementação**: PDF, Word (`.docx`) e planilha
+  (`.xlsx`/`.csv`) entram todos. Uma proposta comercial real costuma ter tabela de preço espalhada
+  em vários arquivos de formatos diferentes; limitar a checagem a PDF deixava de fora exatamente os
+  totais de outros anexos. PDF/Word compartilham o mesmo caminho (regex sobre texto — Word não tem
+  o risco de heurística de posição do PDF, mas o texto dele é igualmente sujeito a erro de conversão
+  do `mammoth`, então vale conferir do mesmo jeito). Planilha tem extração e comparação PRÓPRIAS
+  (`conferirTotaisPlanilha`, `src/lib/conferirTotais.ts`): número de célula sai no HTML final como
+  `String()` do JavaScript (ex. "1234.56"), não em formato BR — comparar por regex de "1.234,56"
+  nunca bateria.
 - Nunca bloqueia nada — puramente informativo, mesmo princípio do resto do módulo.
 
 ## Extração e verificação (`src/lib/conferirTotais.ts`)

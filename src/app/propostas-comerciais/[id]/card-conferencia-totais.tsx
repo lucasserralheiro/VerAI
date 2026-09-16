@@ -165,15 +165,15 @@ export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenc
       {aberta && (
         <JanelaRevisao
           titulo={`${totais.length} ${totais.length === 1 ? 'total conferido' : 'totais conferidos'}`}
-          subtitulo="Rótulo e valor extraídos do PDF, conferidos contra o documento inteiro."
+          subtitulo="Rótulo e valor extraídos do PDF/Word, conferidos contra o documento inteiro."
           onFechar={() => setAberta(false)}
         >
           <table className="w-full text-left text-[15px]">
             <thead>
               <tr className="border-b border-border-grey text-sm text-mid-grey">
-                <th className="py-2 pr-3 font-medium">Página</th>
+                <th className="py-2 pr-3 font-medium">Origem</th>
                 <th className="py-2 pr-3 font-medium">Rótulo</th>
-                <th className="py-2 pr-3 font-medium">Valor no PDF</th>
+                <th className="py-2 pr-3 font-medium">Valor no original</th>
                 <th className="py-2 pr-3 font-medium">No documento</th>
                 <th className="py-2" />
               </tr>
@@ -199,9 +199,9 @@ function LinhaTotal({
 }) {
   return (
     <tr className="border-b border-border-grey last:border-0">
-      <td className="py-2 pr-3 tabular-nums">{total.pagina}</td>
+      <td className="py-2 pr-3">{total.origem}</td>
       <td className="py-2 pr-3">{total.rotulo}</td>
-      <td className="py-2 pr-3 tabular-nums">{total.valorNoPdf}</td>
+      <td className="py-2 pr-3 tabular-nums">{total.valorNoOriginal}</td>
       <td className="py-2 pr-3">
         {total.encontradoNoDocumento ? (
           <span className="inline-flex items-center gap-1 text-green-ok">
@@ -214,10 +214,10 @@ function LinhaTotal({
         )}
       </td>
       <td className="py-2">
-        {!total.encontradoNoDocumento && onVerPagina && (
+        {!total.encontradoNoDocumento && onVerPagina && total.pagina !== null && (
           <button
             type="button"
-            onClick={() => onVerPagina(total.pagina, total.valorNoPdf)}
+            onClick={() => onVerPagina(total.pagina as number, total.valorNoOriginal)}
             className="inline-flex items-center gap-1 text-sm font-medium text-navy-3 underline-offset-2 hover:text-orange hover:underline"
           >
             <ExternalLink className="size-3.5" strokeWidth={2.25} />

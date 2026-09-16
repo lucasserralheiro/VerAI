@@ -29,7 +29,9 @@ describe('conferenciaTotaisEmAndamento', () => {
     mockFetch({
       ok: true,
       body: {
-        totais: [{ pagina: 1, rotulo: 'Total', valorNoPdf: 'R$ 10,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 }],
+        totais: [
+          { origem: 'Página 1', pagina: 1, rotulo: 'Total', valorNoOriginal: 'R$ 10,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
+        ],
         checadoEm: '2026-09-16T00:00:00.000Z',
       },
     })

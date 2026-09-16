@@ -37,7 +37,14 @@ describe('CardConferenciaTotais', () => {
       ok: true,
       body: {
         totais: [
-          { pagina: 3, rotulo: 'Total Geral', valorNoPdf: 'R$ 279.663,46', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
+          {
+            origem: 'Página 3',
+            pagina: 3,
+            rotulo: 'Total Geral',
+            valorNoOriginal: 'R$ 279.663,46',
+            encontradoNoDocumento: true,
+            ocorrenciasNoDocumento: 1,
+          },
         ],
       },
     })
@@ -52,8 +59,22 @@ describe('CardConferenciaTotais', () => {
       ok: true,
       body: {
         totais: [
-          { pagina: 3, rotulo: 'Total Geral', valorNoPdf: 'R$ 279.663,46', encontradoNoDocumento: false, ocorrenciasNoDocumento: 0 },
-          { pagina: 4, rotulo: 'Subtotal', valorNoPdf: 'R$ 100,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
+          {
+            origem: 'Página 3',
+            pagina: 3,
+            rotulo: 'Total Geral',
+            valorNoOriginal: 'R$ 279.663,46',
+            encontradoNoDocumento: false,
+            ocorrenciasNoDocumento: 0,
+          },
+          {
+            origem: 'Página 4',
+            pagina: 4,
+            rotulo: 'Subtotal',
+            valorNoOriginal: 'R$ 100,00',
+            encontradoNoDocumento: true,
+            ocorrenciasNoDocumento: 1,
+          },
         ],
       },
     })
@@ -68,6 +89,31 @@ describe('CardConferenciaTotais', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Ver no PDF/ }))
     expect(onVerPagina).toHaveBeenCalledWith(3, 'R$ 279.663,46')
+  })
+
+  it('total sem página (origem é arquivo Word) não mostra "Ver no PDF"', async () => {
+    mockFetch({
+      ok: true,
+      body: {
+        totais: [
+          {
+            origem: 'anexo.docx',
+            pagina: null,
+            rotulo: 'Total Geral',
+            valorNoOriginal: 'R$ 500,00',
+            encontradoNoDocumento: false,
+            ocorrenciasNoDocumento: 0,
+          },
+        ],
+      },
+    })
+    const onVerPagina = jest.fn()
+
+    render(<CardConferenciaTotais propostaId="p1" onVerPagina={onVerPagina} />)
+    fireEvent.click(await screen.findByText('1 de 1 total não bate'))
+
+    expect(screen.getByText('anexo.docx')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Ver no PDF/ })).not.toBeInTheDocument()
   })
 
   it('erro na resposta mostra a mensagem e "Tentar de novo"', async () => {

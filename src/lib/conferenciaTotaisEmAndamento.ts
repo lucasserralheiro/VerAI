@@ -7,9 +7,13 @@
  */
 
 export interface TotalConferidoCliente {
-  pagina: number
+  /** Rótulo de exibição da fonte: "Página 3" (PDF) ou nome do arquivo (Word). */
+  origem: string
+  /** Número real da página — só quando a fonte é uma página de PDF (usado
+   *  pra abrir "Ver no PDF"); `null` nos outros formatos. */
+  pagina: number | null
   rotulo: string
-  valorNoPdf: string
+  valorNoOriginal: string
   encontradoNoDocumento: boolean
   ocorrenciasNoDocumento: number
 }

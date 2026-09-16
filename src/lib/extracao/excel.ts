@@ -200,15 +200,15 @@ export interface TotalCandidatoPlanilha {
   valor: number
 }
 
-const REGEX_ROTULO_PLANILHA = /total\s+geral|valor\s+total|subtotal|resultado\s+geral|total/i
-
 /**
- * Candidatos a total/subtotal de uma planilha — pra conferência determinística
- * contra o documento final (ver `conferirTotaisPlanilha` em
- * `conferirTotais.ts`). Convenção de tabela de preço: rótulo numa célula de
- * TEXTO da linha ("Total Geral", "Subtotal"...) e o valor na célula NUMÉRICA
- * mais à direita da mesma linha — a MESMA linha lida por
- * `processarPlanilha`, então uma linha com célula de fórmula (ex.:
+ * Candidatos a conferência de uma planilha — TODA célula numérica de toda
+ * linha com dado, não só linha com rótulo de total. Pedido explícito:
+ * restringir a "total"/"subtotal" deixava de fora item de preço comum
+ * ("Storage Premium", 11200) — o mesmo raciocínio já aplicado a
+ * PDF/Word em `conferirTotais.ts`. Rótulo é a primeira célula de TEXTO da
+ * própria linha (o "nome" da linha, tipo a descrição do item); sem
+ * nenhuma célula de texto, cai pro cabeçalho da coluna. A MESMA linha
+ * lida por `processarPlanilha`, então uma célula de fórmula (ex.:
  * `=SOMA(...)`) já chega aqui com o resultado calculado
  * (`normalizarValorCelula`), não a fórmula em texto.
  */
@@ -216,15 +216,15 @@ export async function extrairTotaisDePlanilha(buffer: Buffer, tipo: 'xlsx' | 'cs
   const abas = await carregarPlanilhasComDados(buffer, tipo)
   const candidatos: TotalCandidatoPlanilha[] = []
 
-  for (const { linhas } of abas) {
+  for (const { cabecalho, linhas } of abas) {
     for (const linha of linhas) {
-      const rotuloCelula = linha.find((v): v is string => typeof v === 'string' && REGEX_ROTULO_PLANILHA.test(v))
-      if (!rotuloCelula) continue
+      const rotuloLinha = linha.find((v): v is string => typeof v === 'string' && v.trim().length > 0)
 
-      const valoresNumericos = linha.filter((v): v is number => typeof v === 'number')
-      if (valoresNumericos.length === 0) continue
-
-      candidatos.push({ rotulo: rotuloCelula.trim(), valor: valoresNumericos[valoresNumericos.length - 1] })
+      linha.forEach((valor, indice) => {
+        if (typeof valor !== 'number') return
+        const rotulo = rotuloLinha ?? cabecalho[indice] ?? `coluna ${indice + 1}`
+        candidatos.push({ rotulo: rotulo.trim(), valor })
+      })
     }
   }
 

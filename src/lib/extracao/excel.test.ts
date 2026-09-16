@@ -232,53 +232,65 @@ describe('converterPlanilhaParaHtml', () => {
 })
 
 describe('extrairTotaisDePlanilha', () => {
-  it('acha a linha de total: rótulo na célula de texto, valor na última célula numérica', async () => {
+  it('toda célula numérica da linha vira candidato, não só linha de total — item comum incluído', async () => {
     const buffer = await gerarBuffer((wb) => {
       const sheet = wb.addWorksheet('Preços')
       sheet.addRow(['Item', 'Valor'])
-      sheet.addRow(['Storage', 11200])
+      sheet.addRow(['Storage Premium', 11200])
       sheet.addRow(['Total Geral', 11200])
     })
 
     const candidatos = await extrairTotaisDePlanilha(buffer, 'xlsx')
 
-    expect(candidatos).toEqual([{ rotulo: 'Total Geral', valor: 11200 }])
+    expect(candidatos).toEqual([
+      { rotulo: 'Storage Premium', valor: 11200 },
+      { rotulo: 'Total Geral', valor: 11200 },
+    ])
   })
 
-  it('linha comum (sem palavra-chave de total) não vira candidato', async () => {
+  it('linha com mais de uma célula numérica vira mais de um candidato (quantidade e valor, por exemplo)', async () => {
     const buffer = await gerarBuffer((wb) => {
       const sheet = wb.addWorksheet('Preços')
-      sheet.addRow(['Item', 'Valor'])
-      sheet.addRow(['Storage Premium', 11200])
-      sheet.addRow(['Backup diário', 2500])
-    })
-
-    const candidatos = await extrairTotaisDePlanilha(buffer, 'xlsx')
-
-    expect(candidatos).toEqual([])
-  })
-
-  it('vários totais em linhas diferentes (subtotal por lote + total geral) — todos viram candidato', async () => {
-    const buffer = await gerarBuffer((wb) => {
-      const sheet = wb.addWorksheet('Preços')
-      sheet.addRow(['Item', 'Valor'])
-      sheet.addRow(['Storage', 10000])
-      sheet.addRow(['Subtotal Lote 1', 10000])
-      sheet.addRow(['VM', 20000])
-      sheet.addRow(['Subtotal Lote 2', 20000])
-      sheet.addRow(['Total Geral', 30000])
+      sheet.addRow(['Item', 'Quantidade', 'Valor'])
+      sheet.addRow(['Storage Premium', 3, 279663.46])
     })
 
     const candidatos = await extrairTotaisDePlanilha(buffer, 'xlsx')
 
     expect(candidatos).toEqual([
-      { rotulo: 'Subtotal Lote 1', valor: 10000 },
-      { rotulo: 'Subtotal Lote 2', valor: 20000 },
-      { rotulo: 'Total Geral', valor: 30000 },
+      { rotulo: 'Storage Premium', valor: 3 },
+      { rotulo: 'Storage Premium', valor: 279663.46 },
     ])
   })
 
-  it('linha de total sem nenhuma célula numérica não vira candidato', async () => {
+  it('rótulo é a primeira célula de TEXTO da própria linha, não a coluna', async () => {
+    const buffer = await gerarBuffer((wb) => {
+      const sheet = wb.addWorksheet('Preços')
+      sheet.addRow(['Código', 'Item', 'Valor'])
+      sheet.addRow(['SKU-01', 'Storage Premium', 11200])
+    })
+
+    const candidatos = await extrairTotaisDePlanilha(buffer, 'xlsx')
+
+    expect(candidatos).toEqual([{ rotulo: 'SKU-01', valor: 11200 }])
+  })
+
+  it('linha sem nenhuma célula de texto usa o cabeçalho da coluna como rótulo', async () => {
+    const buffer = await gerarBuffer((wb) => {
+      const sheet = wb.addWorksheet('Preços')
+      sheet.addRow(['Quantidade', 'Valor'])
+      sheet.addRow([3, 11200])
+    })
+
+    const candidatos = await extrairTotaisDePlanilha(buffer, 'xlsx')
+
+    expect(candidatos).toEqual([
+      { rotulo: 'Quantidade', valor: 3 },
+      { rotulo: 'Valor', valor: 11200 },
+    ])
+  })
+
+  it('linha sem nenhuma célula numérica não vira candidato', async () => {
     const buffer = await gerarBuffer((wb) => {
       const sheet = wb.addWorksheet('Preços')
       sheet.addRow(['Item', 'Observação'])
@@ -288,17 +300,5 @@ describe('extrairTotaisDePlanilha', () => {
     const candidatos = await extrairTotaisDePlanilha(buffer, 'xlsx')
 
     expect(candidatos).toEqual([])
-  })
-
-  it('pega a última célula numérica da linha quando há mais de uma (quantidade e valor, por exemplo)', async () => {
-    const buffer = await gerarBuffer((wb) => {
-      const sheet = wb.addWorksheet('Preços')
-      sheet.addRow(['Item', 'Quantidade', 'Valor'])
-      sheet.addRow(['Total Geral', 3, 279663.46])
-    })
-
-    const candidatos = await extrairTotaisDePlanilha(buffer, 'xlsx')
-
-    expect(candidatos).toEqual([{ rotulo: 'Total Geral', valor: 279663.46 }])
   })
 })

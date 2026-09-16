@@ -58,7 +58,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const buffer = await getUpload(arquivo.caminhoOriginal)
     const resultado = await converterPdfParaHtml(buffer)
     for (const pagina of resultado.paginasConvertidas) {
-      fontes.push({ origem: `Página ${pagina.pagina}`, pagina: pagina.pagina, textoOriginal: pagina.textoOriginal })
+      fontes.push({
+        origem: `Página ${pagina.pagina}`,
+        pagina: pagina.pagina,
+        textoOriginal: pagina.textoOriginal,
+        html: pagina.html,
+      })
     }
   }
   for (const arquivo of arquivosDocx) {

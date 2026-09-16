@@ -1,5 +1,83 @@
 import { conferirTotais, conferirTotaisPlanilha } from './conferirTotais'
 
+describe('conferirTotais — fonte com tabela (html), prioriza célula sobre texto corrido', () => {
+  it('caso real: tabela de preço com VÁRIAS linhas — cada célula vira um candidato limpo, mesmo com textoOriginal bagunçado (colunas coladas sem separador)', () => {
+    // textoOriginal é EXATAMENTE o tipo de parede de texto que a extração
+    // real do PDF produziu quando a tabela não separou colunas — se
+    // conferirTotais caísse pra ele, "00" e "12BRL" apareceriam como
+    // rótulo/valor quebrados (bug real já visto em produção). Com `html`
+    // presente (a mesma tabela, já detectada pelo conversor), nem chega a
+    // olhar pro textoOriginal.
+    const textoOriginalBagunçado =
+      'CÓD.PRODUTOUNIDADEPREÇO LISTA (R$)QUANTPERÍODOTOTAL (R$)10.050.00065.00ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)HORA/HOMEMBRL 269,00001.824,0012BRL 490.656,00'
+    const html = [
+      '<table><thead><tr><th>Código</th><th>Produto</th><th>Unidade</th><th>Preço</th><th>Quant</th><th>Período</th><th>Total</th></tr></thead>',
+      '<tbody><tr>',
+      '<td>10.050.00065.00</td>',
+      '<td>ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)</td>',
+      '<td>HORA/HOMEM</td>',
+      '<td>BRL 269,00</td>',
+      '<td>1.824,00</td>',
+      '<td>12</td>',
+      '<td>BRL 490.656,00</td>',
+      '</tr></tbody></table>',
+    ].join('')
+    const fontes = [{ origem: 'Página 38', pagina: 38, textoOriginal: textoOriginalBagunçado, html }]
+    const documento =
+      '<table><tr><td>ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)</td><td>R$ 269,00</td><td>1.824,00</td><td>R$ 490.656,00</td></tr></table>'
+
+    const resultado = conferirTotais(fontes, documento)
+
+    expect(resultado).toEqual([
+      {
+        origem: 'Página 38',
+        pagina: 38,
+        rotulo: 'ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)',
+        valorNoOriginal: 'BRL 269,00',
+        encontradoNoDocumento: true,
+        ocorrenciasNoDocumento: 1,
+      },
+      {
+        origem: 'Página 38',
+        pagina: 38,
+        rotulo: 'ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)',
+        valorNoOriginal: '1.824,00',
+        encontradoNoDocumento: true,
+        ocorrenciasNoDocumento: 1,
+      },
+      {
+        origem: 'Página 38',
+        pagina: 38,
+        rotulo: 'ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)',
+        valorNoOriginal: 'BRL 490.656,00',
+        encontradoNoDocumento: true,
+        ocorrenciasNoDocumento: 1,
+      },
+    ])
+  })
+
+  it('linha da tabela sem nenhuma célula de texto (só código e números) usa "(sem rótulo)"', () => {
+    const html = '<table><tbody><tr><td>10.050.00065.00</td><td>1.824,00</td></tr></tbody></table>'
+    const fontes = [{ origem: 'Página 1', pagina: 1, textoOriginal: '', html }]
+
+    const resultado = conferirTotais(fontes, '<p>1.824,00</p>')
+
+    expect(resultado).toEqual([
+      { origem: 'Página 1', pagina: 1, rotulo: '(sem rótulo)', valorNoOriginal: '1.824,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
+    ])
+  })
+
+  it('fonte SEM html (ou sem tabela nele) continua usando o texto puro, linha por linha', () => {
+    const fontes = [{ origem: 'Página 5', pagina: 5, textoOriginal: 'Valor Total: R$ 279.663,46' }]
+
+    const resultado = conferirTotais(fontes, '<p>Valor Total: R$ 279.663,46</p>')
+
+    expect(resultado).toEqual([
+      { origem: 'Página 5', pagina: 5, rotulo: 'Valor Total', valorNoOriginal: 'R$ 279.663,46', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
+    ])
+  })
+})
+
 describe('conferirTotais', () => {
   it('zero à esquerda sobrando não impede o match — "015,00" é o mesmo valor que "15,00" no documento', () => {
     // Acontece quando um valor real vem colado a outro sem separador (ex.:

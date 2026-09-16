@@ -80,7 +80,7 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
     expect(extrairDocx).toHaveBeenCalledWith(Buffer.from('fake'))
     expect(conferirTotais).toHaveBeenCalledWith(
       [
-        { origem: 'Página 1', pagina: 1, textoOriginal: 'Total: R$ 10,00' },
+        { origem: 'Página 1', pagina: 1, textoOriginal: 'Total: R$ 10,00', html: '<p>x</p>' },
         { origem: 'anexo.docx', pagina: null, textoOriginal: 'Total do anexo: R$ 20,00' },
       ],
       'Documento salvo'

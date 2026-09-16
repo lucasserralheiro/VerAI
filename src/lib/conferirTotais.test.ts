@@ -160,6 +160,29 @@ describe('conferirTotais', () => {
     expect(resultado).toHaveLength(3)
     expect(resultado.every((t) => t.encontradoNoDocumento)).toBe(true)
   })
+
+  it('caso real: várias linhas de tabela saem GRUDADAS numa textoOriginal só (extração do PDF não separou), acha TODOS os totais, não só o primeiro', () => {
+    // Reprodução simplificada de uma proposta real: a tabela de preço por
+    // seção (A, B, C...) saiu sem quebra de linha entre uma seção e outra.
+    const fontes = [
+      {
+        origem: 'Página 43',
+        pagina: 43,
+        textoOriginal:
+          'A - SISTEMAS DE INFORMAÇÃO TOTAL: R$ 3.626.691,20B - SERVIÇOS DE REDES E CONECTIVIDADES TOTAL: R$ 89.531,95C - SOLUÇÕES DE SERVIÇOS DE COMUNICAÇÃO TOTAL: R$ 1.466.325,75',
+      },
+    ]
+    const documento = [
+      '<p>A - SISTEMAS DE INFORMAÇÃO TOTAL: R$ 3.626.691,20</p>',
+      '<p>B - SERVIÇOS DE REDES E CONECTIVIDADES TOTAL: R$ 89.531,95</p>',
+      '<p>C - SOLUÇÕES DE SERVIÇOS DE COMUNICAÇÃO TOTAL: R$ 1.466.325,75</p>',
+    ].join('\n\n')
+
+    const resultado = conferirTotais(fontes, documento)
+
+    expect(resultado.map((t) => t.valorNoOriginal)).toEqual(['R$ 3.626.691,20', 'R$ 89.531,95', 'R$ 1.466.325,75'])
+    expect(resultado.every((t) => t.encontradoNoDocumento)).toBe(true)
+  })
 })
 
 describe('conferirTotaisPlanilha', () => {

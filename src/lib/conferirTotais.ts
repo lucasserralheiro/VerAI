@@ -111,35 +111,61 @@ interface RotuloEValor {
   valorNormalizado: string
 }
 
-/** Acha a palavra-chave de total na linha e, DEPOIS dela (dentro de
- *  `JANELA_BUSCA_VALOR`), o primeiro valor monetário — `rotulo` é tudo
- *  entre o início da palavra-chave e o início do valor (ex.: "Subtotal do
- *  Lote 1", não só "Subtotal"), sem pontuação/espaço sobrando na ponta.
- *  `null` quando a linha não tem palavra-chave, ou tem mas nenhum valor
- *  perto o bastante dela. */
-function extrairRotuloEValor(linha: string): RotuloEValor | null {
-  const matchRotulo = linha.match(REGEX_ROTULO)
-  if (!matchRotulo || matchRotulo.index === undefined) return null
+/** Acha TODA palavra-chave de total na linha (não só a primeira) e, DEPOIS de
+ *  cada uma (dentro de `JANELA_BUSCA_VALOR`), o valor monetário mais
+ *  próximo — `rotulo` é tudo entre o início da palavra-chave e o início do
+ *  valor (ex.: "Subtotal do Lote 1", não só "Subtotal"), sem pontuação/
+ *  espaço sobrando na ponta.
+ *
+ *  Por que TODA palavra-chave, não só a primeira: numa proposta comercial
+ *  real, a tabela de preço tem MAIS de um total — subtotal por lote/seção
+ *  ("A - Sistemas de Informação TOTAL: ...", "B - Redes e Conectividade
+ *  TOTAL: ...") — e quando a extração do PDF (`pdfHtml.ts`) não separa bem
+ *  as linhas dessa tabela, várias delas caem juntas na MESMA
+ *  `textoOriginal`, sem quebra entre uma e outra. Pegar só a primeira
+ *  ocorrência por linha reportaria só 1 total de um documento com vários —
+ *  caso real que motivou esta função. */
+function extrairTodosRotuloEValor(linha: string): RotuloEValor[] {
+  const resultados: RotuloEValor[] = []
+  let cursor = 0
 
-  const inicioResto = matchRotulo.index + matchRotulo[0].length
-  const resto = linha.slice(inicioResto, inicioResto + JANELA_BUSCA_VALOR)
-  const matchValor = resto.match(REGEX_VALOR)
-  if (!matchValor || matchValor.index === undefined) return null
+  while (cursor < linha.length) {
+    const restante = linha.slice(cursor)
+    const matchRotulo = restante.match(REGEX_ROTULO)
+    if (!matchRotulo || matchRotulo.index === undefined) break
 
-  const rotulo = linha
-    .slice(matchRotulo.index, inicioResto + matchValor.index)
-    .replace(/[\s.\-:]+$/, '')
-    .trim()
-  const valorTexto = matchValor[1] ? `${matchValor[1]} ${matchValor[2]}` : matchValor[2]
-  return { rotulo, valorTexto, valorNormalizado: normalizarValor(matchValor[2]) }
+    const inicioResto = matchRotulo.index + matchRotulo[0].length
+    const resto = restante.slice(inicioResto, inicioResto + JANELA_BUSCA_VALOR)
+    const matchValor = resto.match(REGEX_VALOR)
+    if (!matchValor || matchValor.index === undefined) {
+      // Palavra-chave sem valor perto — avança só até o fim dela, pra não
+      // reexaminar o mesmo trecho de novo (evita loop infinito).
+      cursor += matchRotulo.index + matchRotulo[0].length
+      continue
+    }
+
+    const rotulo = restante
+      .slice(matchRotulo.index, inicioResto + matchValor.index)
+      .replace(/[\s.\-:]+$/, '')
+      .trim()
+    const valorTexto = matchValor[1] ? `${matchValor[1]} ${matchValor[2]}` : matchValor[2]
+    resultados.push({ rotulo, valorTexto, valorNormalizado: normalizarValor(matchValor[2]) })
+
+    // Continua a busca DEPOIS do valor achado — pro próximo total da mesma
+    // linha (se houver) ser achado também, não só o primeiro.
+    cursor += inicioResto + matchValor.index + matchValor[0].length
+  }
+
+  return resultados
 }
 
 /**
- * Pra cada fonte (página de PDF ou arquivo Word inteiro), acha a primeira
- * linha com rótulo de total perto de um valor monetário, e confere se o
- * MESMO valor (correspondência EXATA do número normalizado, nunca substring
- * — "663,46" não pode casar dentro de "279.663,46") aparece em algum lugar
- * do documento inteiro.
+ * Pra cada fonte (página de PDF ou arquivo Word inteiro), acha TODA linha
+ * com rótulo de total perto de um valor monetário — mais de um por linha,
+ * se houver (ver `extrairTodosRotuloEValor`) — e confere se o MESMO valor
+ * (correspondência EXATA do número normalizado, nunca substring — "663,46"
+ * não pode casar dentro de "279.663,46") aparece em algum lugar do
+ * documento inteiro.
  */
 export function conferirTotais(fontes: TextoParaConferirTotal[], documentoAtual: string): TotalConferido[] {
   const indiceDocumento = indexarValoresDoDocumento(documentoAtual)
@@ -148,22 +174,22 @@ export function conferirTotais(fontes: TextoParaConferirTotal[], documentoAtual:
 
   for (const fonte of fontes) {
     for (const linha of fonte.textoOriginal.split('\n')) {
-      const achado = extrairRotuloEValor(semMarcacaoHtml(linha))
-      if (!achado) continue
+      const achados = extrairTodosRotuloEValor(semMarcacaoHtml(linha))
+      for (const achado of achados) {
+        const chave = chaveDoTotal(achado.rotulo, achado.valorNormalizado)
+        if (vistos.has(chave)) continue
+        vistos.add(chave)
 
-      const chave = chaveDoTotal(achado.rotulo, achado.valorNormalizado)
-      if (vistos.has(chave)) continue
-      vistos.add(chave)
-
-      const ocorrenciasNoDocumento = indiceDocumento.get(achado.valorNormalizado) ?? 0
-      totais.push({
-        origem: fonte.origem,
-        pagina: fonte.pagina,
-        rotulo: achado.rotulo,
-        valorNoOriginal: achado.valorTexto,
-        encontradoNoDocumento: ocorrenciasNoDocumento > 0,
-        ocorrenciasNoDocumento,
-      })
+        const ocorrenciasNoDocumento = indiceDocumento.get(achado.valorNormalizado) ?? 0
+        totais.push({
+          origem: fonte.origem,
+          pagina: fonte.pagina,
+          rotulo: achado.rotulo,
+          valorNoOriginal: achado.valorTexto,
+          encontradoNoDocumento: ocorrenciasNoDocumento > 0,
+          ocorrenciasNoDocumento,
+        })
+      }
     }
   }
 

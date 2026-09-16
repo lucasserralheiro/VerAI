@@ -124,4 +124,74 @@ describe('CardConferenciaTotais', () => {
     expect(await screen.findByText('falhou')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Tentar de novo/ })).toBeInTheDocument()
   })
+
+  it('com tabela, mostra a contagem combinando célula de valor + totais soltos, e a janela reconstrói a tabela', async () => {
+    mockFetch({
+      ok: true,
+      body: {
+        totais: [],
+        tabelas: [
+          {
+            origem: 'Página 38',
+            pagina: 38,
+            linhas: [
+              [
+                { texto: 'ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)', ehValor: false },
+                { texto: 'R$ 269,00', ehValor: true, encontradoNoDocumento: true },
+                { texto: 'R$ 490.656,00', ehValor: true, encontradoNoDocumento: false },
+              ],
+            ],
+          },
+        ],
+      },
+    })
+    const onVerPagina = jest.fn()
+
+    render(<CardConferenciaTotais propostaId="p1" onVerPagina={onVerPagina} />)
+    fireEvent.click(await screen.findByText('1 de 2 totais não batem'))
+
+    expect(screen.getByText('Página 38')).toBeInTheDocument()
+    expect(screen.getByText('ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)')).toBeInTheDocument()
+    expect(screen.getByText('R$ 269,00')).toBeInTheDocument()
+    expect(screen.getByText('R$ 490.656,00')).toBeInTheDocument()
+    expect(screen.getByText('1 valor não bate')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Ver no PDF/ }))
+    expect(onVerPagina).toHaveBeenCalledWith(38)
+  })
+
+  it('tabela e "outros valores" (totais soltos) aparecem juntos na mesma janela, sem duplicar contagem', async () => {
+    mockFetch({
+      ok: true,
+      body: {
+        totais: [
+          {
+            origem: 'Página 5',
+            pagina: 5,
+            rotulo: 'Valor Total',
+            valorNoOriginal: 'R$ 100,00',
+            encontradoNoDocumento: true,
+            ocorrenciasNoDocumento: 1,
+          },
+        ],
+        tabelas: [
+          {
+            origem: 'Página 38',
+            pagina: 38,
+            linhas: [[{ texto: 'Item', ehValor: false }, { texto: 'R$ 50,00', ehValor: true, encontradoNoDocumento: true }]],
+          },
+        ],
+      },
+    })
+
+    render(<CardConferenciaTotais propostaId="p1" />)
+
+    expect(await screen.findByText('2 totais conferidos')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('2 totais conferidos'))
+
+    expect(screen.getByText('Outros valores (fora de tabela)')).toBeInTheDocument()
+    expect(screen.getByText('Valor Total')).toBeInTheDocument()
+    expect(screen.getByText('Item')).toBeInTheDocument()
+  })
 })

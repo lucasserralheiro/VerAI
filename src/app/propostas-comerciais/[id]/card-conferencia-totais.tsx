@@ -9,6 +9,7 @@ import {
   iniciarConferenciaTotais,
   limparConferenciaTotais,
   type ResultadoConferenciaTotais,
+  type TabelaConferidaCliente,
   type TotalConferidoCliente,
 } from '@/lib/conferenciaTotaisEmAndamento'
 import { JanelaRevisao } from './janela-revisao'
@@ -26,12 +27,11 @@ type Estado =
   | { fase: 'erro'; mensagem: string }
 
 /**
- * Conferência rápida (sem IA, determinística) dos valores de total/
- * resultado geral do PDF contra o documento — atalho a mais além da
- * checagem por IA (`painel-checagem-conversao.tsx`), pra bater o olho nos
- * números de maior risco financeiro sem esperar chamada de modelo nenhuma.
- * Dispara sozinho ao montar (diferente da checagem por IA, que espera
- * clique) — é praticamente instantâneo. Ver
+ * Conferência rápida (sem IA, determinística) dos valores do PDF/Word/
+ * planilha contra o documento — atalho a mais além da checagem por IA
+ * (`painel-checagem-conversao.tsx`), pra bater o olho nos números sem
+ * esperar chamada de modelo nenhuma. Dispara sozinho ao montar (diferente
+ * da checagem por IA, que espera clique) — é praticamente instantâneo. Ver
  * docs/superpowers/specs/2026-09-16-conferencia-totais-design.md.
  */
 export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenciaTotaisProps) {
@@ -122,10 +122,16 @@ export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenc
     )
   }
 
-  const { totais } = estado.resultado
-  const divergentes = totais.filter((t) => !t.encontradoNoDocumento)
+  const { totais, tabelas } = estado.resultado
+  // Total de valores conferidos = os de tabela (dentro de `tabelas`, célula
+  // a célula) + os de texto corrido (`totais`, fonte sem tabela detectada)
+  // — as duas fontes juntas, nunca contam o mesmo valor duas vezes (ver
+  // `conferirTotais.ts`: fonte com tabela nunca entra em `totais`).
+  const celulasDeValor = tabelas.flatMap((tabela) => tabela.linhas.flat().filter((c) => c.ehValor))
+  const totalValores = totais.length + celulasDeValor.length
+  const divergentes = totais.filter((t) => !t.encontradoNoDocumento).length + celulasDeValor.filter((c) => !c.encontradoNoDocumento).length
 
-  if (totais.length === 0) {
+  if (totalValores === 0) {
     return (
       <section className="space-y-1">
         {titulo}
@@ -144,49 +150,123 @@ export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenc
         onClick={() => setAberta(true)}
         className={cn(
           'flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-[15px] font-medium transition-colors',
-          divergentes.length > 0
+          divergentes > 0
             ? 'border-red-crit/30 bg-red-crit-light/40 text-red-crit hover:bg-red-crit-light/60'
             : 'border-green-ok/30 bg-green-ok-light/40 text-navy hover:bg-green-ok-light/60'
         )}
       >
-        {divergentes.length > 0 ? (
+        {divergentes > 0 ? (
           <>
             <AlertCircle className="size-4 shrink-0" strokeWidth={2.25} />
-            {divergentes.length} de {totais.length} {totais.length === 1 ? 'total não bate' : 'totais não batem'}
+            {divergentes} de {totalValores} {totalValores === 1 ? 'total não bate' : 'totais não batem'}
           </>
         ) : (
           <>
             <CircleCheck className="size-4 shrink-0 text-green-ok" strokeWidth={2.25} />
-            {totais.length} {totais.length === 1 ? 'total conferido' : 'totais conferidos'}
+            {totalValores} {totalValores === 1 ? 'total conferido' : 'totais conferidos'}
           </>
         )}
       </button>
 
       {aberta && (
         <JanelaRevisao
-          titulo={`${totais.length} ${totais.length === 1 ? 'total conferido' : 'totais conferidos'}`}
-          subtitulo="Rótulo e valor extraídos do PDF/Word/planilha, conferidos contra o documento inteiro."
+          titulo={`${totalValores} ${totalValores === 1 ? 'total conferido' : 'totais conferidos'}`}
+          subtitulo="Tabela reconstruída como está no original — verde bate com o documento, vermelho não achou."
           onFechar={() => setAberta(false)}
         >
-          <table className="w-full text-left text-[15px]">
-            <thead>
-              <tr className="border-b border-border-grey text-sm text-mid-grey">
-                <th className="py-2 pr-3 font-medium">Origem</th>
-                <th className="py-2 pr-3 font-medium">Rótulo</th>
-                <th className="py-2 pr-3 font-medium">Valor no original</th>
-                <th className="py-2 pr-3 font-medium">No documento</th>
-                <th className="py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {totais.map((total, indice) => (
-                <LinhaTotal key={indice} total={total} onVerPagina={onVerPagina} />
-              ))}
-            </tbody>
-          </table>
+          <div className="space-y-6">
+            {tabelas.map((tabela, indice) => (
+              <TabelaReconstruida key={indice} tabela={tabela} onVerPagina={onVerPagina} />
+            ))}
+
+            {totais.length > 0 && (
+              <div className="space-y-2">
+                {tabelas.length > 0 && <h3 className="text-[15px] font-semibold text-navy">Outros valores (fora de tabela)</h3>}
+                <table className="w-full text-left text-[15px]">
+                  <thead>
+                    <tr className="border-b border-border-grey text-sm text-mid-grey">
+                      <th className="py-2 pr-3 font-medium">Origem</th>
+                      <th className="py-2 pr-3 font-medium">Rótulo</th>
+                      <th className="py-2 pr-3 font-medium">Valor no original</th>
+                      <th className="py-2 pr-3 font-medium">No documento</th>
+                      <th className="py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {totais.map((total, indice) => (
+                      <LinhaTotal key={indice} total={total} onVerPagina={onVerPagina} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </JanelaRevisao>
       )}
     </section>
+  )
+}
+
+/** Tabela reconstruída, exatamente como está no PDF/planilha original —
+ *  mesma linha, mesma coluna, mesma célula — com cada valor destacado
+ *  achado/não achado no documento final. Célula de descrição/código (não
+ *  valor) só é exibida, sem cor nenhuma — comparar não faz sentido pra ela. */
+function TabelaReconstruida({
+  tabela,
+  onVerPagina,
+}: {
+  tabela: TabelaConferidaCliente
+  onVerPagina?: (pagina: number, destaque?: string, onUsarSelecao?: (texto: string) => void) => void
+}) {
+  const celulasDeValor = tabela.linhas.flat().filter((c) => c.ehValor)
+  const divergentes = celulasDeValor.filter((c) => !c.encontradoNoDocumento).length
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[15px] font-semibold text-navy">
+          {tabela.origem}
+          {divergentes > 0 && (
+            <span className="ml-2 font-normal text-red-crit">
+              {divergentes} {divergentes === 1 ? 'valor não bate' : 'valores não batem'}
+            </span>
+          )}
+        </p>
+        {onVerPagina && tabela.pagina !== null && (
+          <button
+            type="button"
+            onClick={() => onVerPagina(tabela.pagina as number)}
+            className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-navy-3 underline-offset-2 hover:text-orange hover:underline"
+          >
+            <ExternalLink className="size-3.5" strokeWidth={2.25} />
+            Ver no PDF
+          </button>
+        )}
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-border-grey">
+        <table className="w-full min-w-max text-left text-sm">
+          <tbody>
+            {tabela.linhas.map((celulas, indiceLinha) => (
+              <tr key={indiceLinha} className="border-b border-border-grey last:border-0">
+                {celulas.map((celula, indiceCelula) => (
+                  <td
+                    key={indiceCelula}
+                    className={cn(
+                      'px-3 py-1.5 align-top whitespace-nowrap',
+                      celula.ehValor && 'tabular-nums font-medium',
+                      celula.ehValor && celula.encontradoNoDocumento && 'bg-green-ok-light/40 text-navy',
+                      celula.ehValor && !celula.encontradoNoDocumento && 'bg-red-crit-light/40 text-red-crit'
+                    )}
+                  >
+                    {celula.texto || '—'}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 

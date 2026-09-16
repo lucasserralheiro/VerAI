@@ -7,7 +7,14 @@ import { getUpload } from '@/lib/storage'
 import { converterPdfParaHtml } from '@/lib/extracao/pdfHtml'
 import { extrairDocx } from '@/lib/extracao/docx'
 import { extrairTotaisDePlanilha } from '@/lib/extracao/excel'
-import { conferirTotais, conferirTotaisPlanilha, type TextoParaConferirTotal, type TotalConferido } from '@/lib/conferirTotais'
+import {
+  conferirTotais,
+  conferirTotaisPlanilha,
+  extrairTabelasConferidas,
+  type TabelaConferida,
+  type TextoParaConferirTotal,
+  type TotalConferido,
+} from '@/lib/conferirTotais'
 
 function hashDocumento(texto: string): string {
   return createHash('sha256').update(texto).digest('hex')
@@ -50,7 +57,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const salva = lerConferenciaSalva(proposta.conferenciaTotais)
   if (salva && mesmoDocumento(salva, idsRelevantes, documentoAtual)) {
-    return NextResponse.json({ totais: salva.totais, checadoEm: proposta.conferenciaTotaisEm?.toISOString() ?? null })
+    return NextResponse.json({
+      totais: salva.totais,
+      tabelas: salva.tabelas,
+      checadoEm: proposta.conferenciaTotaisEm?.toISOString() ?? null,
+    })
   }
 
   const fontes: TextoParaConferirTotal[] = []
@@ -73,6 +84,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const totais = conferirTotais(fontes, documentoAtual)
+  const tabelas = extrairTabelasConferidas(fontes, documentoAtual)
   for (const arquivo of arquivosPlanilha) {
     const buffer = await getUpload(arquivo.caminhoOriginal)
     const candidatos = await extrairTotaisDePlanilha(buffer, arquivo.tipo as 'xlsx' | 'csv')
@@ -82,6 +94,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const checadoEm = new Date()
   const paraSalvar: ConferenciaSalva = {
     totais,
+    tabelas,
     arquivosRelevantes: idsRelevantes,
     documentoHash: hashDocumento(documentoAtual),
   }
@@ -95,11 +108,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
     .catch((erro) => console.error('conferência de totais: não foi possível salvar o resultado —', erro))
 
-  return NextResponse.json({ totais, checadoEm: checadoEm.toISOString() })
+  return NextResponse.json({ totais, tabelas, checadoEm: checadoEm.toISOString() })
 }
 
 interface ConferenciaSalva {
   totais: TotalConferido[]
+  /** Tabela reconstruída (célula a célula) de cada fonte que tinha `<table>`
+   *  no HTML — ver `extrairTabelasConferidas`. */
+  tabelas: TabelaConferida[]
   /** Ids dos arquivos PDF + Word + planilha conferidos — se a proposta ganhar/perder
    *  algum, o cache não vale mais (ver `mesmoDocumento`). */
   arquivosRelevantes: string[]
@@ -107,14 +123,22 @@ interface ConferenciaSalva {
 }
 
 /** Lê o JSON salvo com cuidado — coluna pode estar vazia, ou salva antes do
- *  campo se chamar `arquivosRelevantes` (era `arquivosPdf`); nesses casos
- *  trata como "nunca conferido" e conta de novo. */
+ *  campo se chamar `arquivosRelevantes` (era `arquivosPdf`) ou antes de
+ *  existir `tabelas`; nesses casos trata como "nunca conferido" e conta de
+ *  novo. */
 function lerConferenciaSalva(valor: unknown): ConferenciaSalva | null {
   if (!valor || typeof valor !== 'object') return null
   const v = valor as Partial<ConferenciaSalva>
-  if (!Array.isArray(v.totais) || !Array.isArray(v.arquivosRelevantes) || typeof v.documentoHash !== 'string') return null
+  if (
+    !Array.isArray(v.totais) ||
+    !Array.isArray(v.tabelas) ||
+    !Array.isArray(v.arquivosRelevantes) ||
+    typeof v.documentoHash !== 'string'
+  )
+    return null
   return {
     totais: v.totais,
+    tabelas: v.tabelas,
     arquivosRelevantes: v.arquivosRelevantes.filter((x): x is string => typeof x === 'string'),
     documentoHash: v.documentoHash,
   }

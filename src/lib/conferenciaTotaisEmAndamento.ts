@@ -18,8 +18,24 @@ export interface TotalConferidoCliente {
   ocorrenciasNoDocumento: number
 }
 
+export interface CelulaConferidaCliente {
+  texto: string
+  ehValor: boolean
+  encontradoNoDocumento?: boolean
+}
+
+/** Tabela reconstruída (mesma linha/coluna do original), pra pessoa bater o
+ *  olho na mesma forma visual da tabela do PDF/planilha, não numa lista
+ *  achatada de valor solto. */
+export interface TabelaConferidaCliente {
+  origem: string
+  pagina: number | null
+  linhas: CelulaConferidaCliente[][]
+}
+
 export interface ResultadoConferenciaTotais {
   totais: TotalConferidoCliente[]
+  tabelas: TabelaConferidaCliente[]
   checadoEm: string | null
 }
 
@@ -47,8 +63,9 @@ export function iniciarConferenciaTotais(propostaId: string): Promise<ResultadoC
     // Normaliza na borda — corpo inesperado vira "sem totais" em vez de
     // corromper o resto da tela (mesmo padrão de `iniciarChecagemIa`).
     const totais = Array.isArray(corpo?.totais) ? corpo.totais : []
+    const tabelas = Array.isArray(corpo?.tabelas) ? corpo.tabelas : []
     const checadoEm = typeof corpo?.checadoEm === 'string' ? corpo.checadoEm : null
-    return { totais, checadoEm }
+    return { totais, tabelas, checadoEm }
   })()
 
   cache.set(propostaId, { status: 'rodando', promise })

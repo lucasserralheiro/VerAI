@@ -13,7 +13,11 @@ jest.mock('@/lib/storage', () => ({ getUpload: jest.fn() }))
 jest.mock('@/lib/extracao/pdfHtml', () => ({ converterPdfParaHtml: jest.fn() }))
 jest.mock('@/lib/extracao/docx', () => ({ extrairDocx: jest.fn() }))
 jest.mock('@/lib/extracao/excel', () => ({ extrairTotaisDePlanilha: jest.fn() }))
-jest.mock('@/lib/conferirTotais', () => ({ conferirTotais: jest.fn(), conferirTotaisPlanilha: jest.fn() }))
+jest.mock('@/lib/conferirTotais', () => ({
+  conferirTotais: jest.fn(),
+  conferirTotaisPlanilha: jest.fn(),
+  extrairTabelasConferidas: jest.fn(),
+}))
 
 import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -21,7 +25,7 @@ import { getUpload } from '@/lib/storage'
 import { converterPdfParaHtml } from '@/lib/extracao/pdfHtml'
 import { extrairDocx } from '@/lib/extracao/docx'
 import { extrairTotaisDePlanilha } from '@/lib/extracao/excel'
-import { conferirTotais, conferirTotaisPlanilha } from '@/lib/conferirTotais'
+import { conferirTotais, conferirTotaisPlanilha, extrairTabelasConferidas } from '@/lib/conferirTotais'
 import { POST } from './route'
 
 function hashDocumento(texto: string): string {
@@ -39,6 +43,7 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
     ;(prisma.propostaComercial.update as jest.Mock).mockResolvedValue({})
     ;(conferirTotais as jest.Mock).mockReturnValue([])
     ;(conferirTotaisPlanilha as jest.Mock).mockReturnValue([])
+    ;(extrairTabelasConferidas as jest.Mock).mockReturnValue([])
   })
 
   it('retorna 401 sem autenticação', async () => {
@@ -73,19 +78,24 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
     ;(conferirTotais as jest.Mock).mockReturnValue([
       { origem: 'Página 1', pagina: 1, rotulo: 'Total', valorNoOriginal: 'R$ 10,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
     ])
+    ;(extrairTabelasConferidas as jest.Mock).mockReturnValue([
+      { origem: 'Página 1', pagina: 1, linhas: [[{ texto: 'Total', ehValor: false }, { texto: 'R$ 10,00', ehValor: true, encontradoNoDocumento: true }]] },
+    ])
 
     const resposta = await POST(requisicao(), contexto)
 
     expect(getUpload).toHaveBeenCalledTimes(2) // pdf + docx
     expect(extrairDocx).toHaveBeenCalledWith(Buffer.from('fake'))
-    expect(conferirTotais).toHaveBeenCalledWith(
-      [
-        { origem: 'Página 1', pagina: 1, textoOriginal: 'Total: R$ 10,00', html: '<p>x</p>' },
-        { origem: 'anexo.docx', pagina: null, textoOriginal: 'Total do anexo: R$ 20,00' },
-      ],
-      'Documento salvo'
-    )
+    const fontesEsperadas = [
+      { origem: 'Página 1', pagina: 1, textoOriginal: 'Total: R$ 10,00', html: '<p>x</p>' },
+      { origem: 'anexo.docx', pagina: null, textoOriginal: 'Total do anexo: R$ 20,00' },
+    ]
+    expect(conferirTotais).toHaveBeenCalledWith(fontesEsperadas, 'Documento salvo')
+    expect(extrairTabelasConferidas).toHaveBeenCalledWith(fontesEsperadas, 'Documento salvo')
     const corpo = await resposta.json()
+    expect(corpo.tabelas).toEqual([
+      { origem: 'Página 1', pagina: 1, linhas: [[{ texto: 'Total', ehValor: false }, { texto: 'R$ 10,00', ehValor: true, encontradoNoDocumento: true }]] },
+    ])
     expect(typeof corpo.checadoEm).toBe('string')
     expect(prisma.propostaComercial.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -150,6 +160,7 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
       conferenciaTotaisEm: new Date('2026-09-01T00:00:00.000Z'),
       conferenciaTotais: {
         totais: [{ origem: 'Página 1', pagina: 1, rotulo: 'Total', valorNoOriginal: 'R$ 10,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 }],
+        tabelas: [{ origem: 'Página 1', pagina: 1, linhas: [] }],
         arquivosRelevantes: ['a1'],
         documentoHash: hashDocumento(documentoSalvo),
       },
@@ -159,12 +170,14 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
     const resposta = await POST(requisicao(), contexto)
 
     expect(conferirTotais).not.toHaveBeenCalled()
+    expect(extrairTabelasConferidas).not.toHaveBeenCalled()
     expect(extrairTotaisDePlanilha).not.toHaveBeenCalled()
     expect(getUpload).not.toHaveBeenCalled()
     const corpo = await resposta.json()
     expect(corpo.totais).toEqual([
       { origem: 'Página 1', pagina: 1, rotulo: 'Total', valorNoOriginal: 'R$ 10,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
     ])
+    expect(corpo.tabelas).toEqual([{ origem: 'Página 1', pagina: 1, linhas: [] }])
   })
 
   it('refaz quando o documento salvo mudou desde a última conferência (cache não vale mais)', async () => {

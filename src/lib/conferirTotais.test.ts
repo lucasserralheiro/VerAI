@@ -1,13 +1,32 @@
-import { conferirTotais, conferirTotaisPlanilha } from './conferirTotais'
+import { conferirTotais, conferirTotaisPlanilha, extrairTabelasConferidas } from './conferirTotais'
 
-describe('conferirTotais — fonte com tabela (html), prioriza célula sobre texto corrido', () => {
-  it('caso real: tabela de preço com VÁRIAS linhas — cada célula vira um candidato limpo, mesmo com textoOriginal bagunçado (colunas coladas sem separador)', () => {
+describe('conferirTotais — fonte com tabela é ignorada (coberta por extrairTabelasConferidas)', () => {
+  it('fonte com html contendo <table> não entra na lista achatada', () => {
+    const html = '<table><tbody><tr><td>Total Geral</td><td>R$ 279.663,46</td></tr></tbody></table>'
+    const fontes = [{ origem: 'Página 1', pagina: 1, textoOriginal: 'texto qualquer', html }]
+
+    const resultado = conferirTotais(fontes, html)
+
+    expect(resultado).toEqual([])
+  })
+
+  it('fonte SEM html (ou sem tabela nele) continua usando o texto puro, linha por linha', () => {
+    const fontes = [{ origem: 'Página 5', pagina: 5, textoOriginal: 'Valor Total: R$ 279.663,46' }]
+
+    const resultado = conferirTotais(fontes, '<p>Valor Total: R$ 279.663,46</p>')
+
+    expect(resultado).toEqual([
+      { origem: 'Página 5', pagina: 5, rotulo: 'Valor Total', valorNoOriginal: 'R$ 279.663,46', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
+    ])
+  })
+})
+
+describe('extrairTabelasConferidas', () => {
+  it('caso real: tabela de preço reconstruída LINHA POR LINHA, célula por célula, mesmo com textoOriginal bagunçado (colunas coladas sem separador)', () => {
     // textoOriginal é EXATAMENTE o tipo de parede de texto que a extração
-    // real do PDF produziu quando a tabela não separou colunas — se
-    // conferirTotais caísse pra ele, "00" e "12BRL" apareceriam como
-    // rótulo/valor quebrados (bug real já visto em produção). Com `html`
-    // presente (a mesma tabela, já detectada pelo conversor), nem chega a
-    // olhar pro textoOriginal.
+    // real do PDF produziu quando a tabela não separou colunas — a
+    // reconstrução usa só `html` (a mesma tabela, já detectada pelo
+    // conversor), nem chega a olhar pro textoOriginal.
     const textoOriginalBagunçado =
       'CÓD.PRODUTOUNIDADEPREÇO LISTA (R$)QUANTPERÍODOTOTAL (R$)10.050.00065.00ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)HORA/HOMEMBRL 269,00001.824,0012BRL 490.656,00'
     const html = [
@@ -24,57 +43,57 @@ describe('conferirTotais — fonte com tabela (html), prioriza célula sobre tex
     ].join('')
     const fontes = [{ origem: 'Página 38', pagina: 38, textoOriginal: textoOriginalBagunçado, html }]
     const documento =
-      '<table><tr><td>ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)</td><td>R$ 269,00</td><td>1.824,00</td><td>R$ 490.656,00</td></tr></table>'
+      '<table><tr><td>ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)</td><td>R$ 269,00</td><td>1.824,00</td><td>R$ 88,88</td></tr></table>' // TOTAL de propósito diferente, pra provar que dá pra ver célula a célula qual bateu
 
-    const resultado = conferirTotais(fontes, documento)
+    const resultado = extrairTabelasConferidas(fontes, documento)
 
     expect(resultado).toEqual([
       {
         origem: 'Página 38',
         pagina: 38,
-        rotulo: 'ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)',
-        valorNoOriginal: 'BRL 269,00',
-        encontradoNoDocumento: true,
-        ocorrenciasNoDocumento: 1,
-      },
-      {
-        origem: 'Página 38',
-        pagina: 38,
-        rotulo: 'ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)',
-        valorNoOriginal: '1.824,00',
-        encontradoNoDocumento: true,
-        ocorrenciasNoDocumento: 1,
-      },
-      {
-        origem: 'Página 38',
-        pagina: 38,
-        rotulo: 'ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)',
-        valorNoOriginal: 'BRL 490.656,00',
-        encontradoNoDocumento: true,
-        ocorrenciasNoDocumento: 1,
+        linhas: [
+          [
+            { texto: 'Código', ehValor: false },
+            { texto: 'Produto', ehValor: false },
+            { texto: 'Unidade', ehValor: false },
+            { texto: 'Preço', ehValor: false },
+            { texto: 'Quant', ehValor: false },
+            { texto: 'Período', ehValor: false },
+            { texto: 'Total', ehValor: false },
+          ],
+          [
+            { texto: '10.050.00065.00', ehValor: false },
+            { texto: 'ANALISTA DE INFORMAÇÃO (COMPLEXIDADE 1)', ehValor: false },
+            { texto: 'HORA/HOMEM', ehValor: false },
+            { texto: 'BRL 269,00', ehValor: true, encontradoNoDocumento: true },
+            { texto: '1.824,00', ehValor: true, encontradoNoDocumento: true },
+            { texto: '12', ehValor: false },
+            { texto: 'BRL 490.656,00', ehValor: true, encontradoNoDocumento: false },
+          ],
+        ],
       },
     ])
   })
 
-  it('linha da tabela sem nenhuma célula de texto (só código e números) usa "(sem rótulo)"', () => {
-    const html = '<table><tbody><tr><td>10.050.00065.00</td><td>1.824,00</td></tr></tbody></table>'
-    const fontes = [{ origem: 'Página 1', pagina: 1, textoOriginal: '', html }]
-
-    const resultado = conferirTotais(fontes, '<p>1.824,00</p>')
-
-    expect(resultado).toEqual([
-      { origem: 'Página 1', pagina: 1, rotulo: '(sem rótulo)', valorNoOriginal: '1.824,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
-    ])
-  })
-
-  it('fonte SEM html (ou sem tabela nele) continua usando o texto puro, linha por linha', () => {
+  it('fonte sem <table> no html não vira nenhuma TabelaConferida', () => {
     const fontes = [{ origem: 'Página 5', pagina: 5, textoOriginal: 'Valor Total: R$ 279.663,46' }]
 
-    const resultado = conferirTotais(fontes, '<p>Valor Total: R$ 279.663,46</p>')
+    const resultado = extrairTabelasConferidas(fontes, '<p>Valor Total: R$ 279.663,46</p>')
 
-    expect(resultado).toEqual([
-      { origem: 'Página 5', pagina: 5, rotulo: 'Valor Total', valorNoOriginal: 'R$ 279.663,46', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
-    ])
+    expect(resultado).toEqual([])
+  })
+
+  it('mais de uma tabela na mesma fonte vira mais de uma TabelaConferida, nunca misturadas', () => {
+    const html =
+      '<table><tbody><tr><td>Lote 1</td><td>R$ 10,00</td></tr></tbody></table>' +
+      '<table><tbody><tr><td>Lote 2</td><td>R$ 20,00</td></tr></tbody></table>'
+    const fontes = [{ origem: 'Página 1', pagina: 1, textoOriginal: '', html }]
+
+    const resultado = extrairTabelasConferidas(fontes, '<p>R$ 10,00 e R$ 20,00</p>')
+
+    expect(resultado).toHaveLength(2)
+    expect(resultado[0].linhas).toEqual([[{ texto: 'Lote 1', ehValor: false }, { texto: 'R$ 10,00', ehValor: true, encontradoNoDocumento: true }]])
+    expect(resultado[1].linhas).toEqual([[{ texto: 'Lote 2', ehValor: false }, { texto: 'R$ 20,00', ehValor: true, encontradoNoDocumento: true }]])
   })
 })
 

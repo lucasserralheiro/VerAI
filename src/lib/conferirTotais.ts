@@ -10,22 +10,25 @@
  * exige que PAREÇA um valor monetário BR (milhar com ponto, decimal com
  * vírgula de 2 dígitos).
  *
- * DUAS fontes de candidato, escolhidas por PÁGINA, nunca as duas juntas:
+ * DUAS formas de conferir, escolhidas por PÁGINA/fonte, nunca as duas
+ * juntas pra não mostrar o mesmo valor duas vezes:
  *
- * 1. `html` da própria página/fonte (quando tem `<table>`) — extrai
- *    direto das células (`extrairTodosRotuloEValorDeTabelas`). Preferida
- *    sempre que existe: célula de `<td>` tem limite de verdade (a mesma
- *    detecção de tabela, já calibrada contra documento real, que constrói
- *    o HTML final — ver `montarTabelaHtml` em `pdfHtml.ts`), então não tem
- *    ambiguidade de onde um campo acaba e o próximo começa.
- * 2. `textoOriginal`, linha por linha (`extrairTodosRotuloEValor`) — só
- *    quando a página NÃO tem tabela detectada. Bom pra frase solta
- *    ("Valor Total: R$ 279.663,46" no meio de um parágrafo), mas quando a
- *    origem é uma TABELA que a extração do PDF não conseguiu segmentar em
- *    linha/coluna, esse texto vira uma parede de números colados sem
- *    separador ("BRL 269,00001.824,0012BRL 490.656,00") — tentar adivinhar
- *    limite de campo nisso com regex é ambíguo por natureza e quebra de um
- *    jeito NOVO a cada documento diferente (caso real que motivou trocar de
+ * 1. `html` da própria página/fonte (quando tem `<table>`) — `<td>` tem
+ *    limite de verdade (a mesma detecção de tabela, já calibrada contra
+ *    documento real, que constrói o HTML final — ver `montarTabelaHtml` em
+ *    `pdfHtml.ts`), então não tem ambiguidade de onde um campo acaba e o
+ *    próximo começa. `extrairTabelasConferidas` reconstrói a tabela INTEIRA
+ *    (pra pessoa ver a mesma forma visual do original e bater célula por
+ *    célula) — é a forma preferida sempre que existe.
+ * 2. `textoOriginal`, linha por linha (`conferirTotais`/
+ *    `extrairTodosRotuloEValor`) — só quando a fonte NÃO tem tabela
+ *    detectada. Bom pra frase solta ("Valor Total: R$ 279.663,46" no meio
+ *    de um parágrafo), mas quando a origem é uma TABELA que a extração do
+ *    PDF não conseguiu segmentar em linha/coluna, esse texto vira uma
+ *    parede de números colados sem separador
+ *    ("BRL 269,00001.824,0012BRL 490.656,00") — tentar adivinhar limite de
+ *    campo nisso com regex é ambíguo por natureza e quebra de um jeito NOVO
+ *    a cada documento diferente (caso real que motivou trocar de
  *    abordagem, não só ajustar o regex de novo).
  *
  * Cobre texto/HTML puro — planilha (`.xlsx`/`.csv`) usa uma extração e
@@ -62,6 +65,28 @@ export interface TotalConferido {
   valorNoOriginal: string
   encontradoNoDocumento: boolean
   ocorrenciasNoDocumento: number
+}
+
+export interface CelulaConferida {
+  texto: string
+  /** `true` quando a célula bate o padrão de valor monetário — só essas têm
+   *  `encontradoNoDocumento` preenchido; célula de texto (descrição, código,
+   *  unidade) é só exibida, sem comparação nenhuma. */
+  ehValor: boolean
+  encontradoNoDocumento?: boolean
+}
+
+/** Uma tabela inteira do documento original, reconstruída linha por linha —
+ *  exatamente como ela está lá (mesmas células, mesma ordem), com cada
+ *  célula de valor marcada achada/não achada no documento final. Pedido
+ *  explícito: a pessoa quer ver a tabela MONTADA, não uma lista achatada de
+ *  valores soltos — assim dá pra bater o olho na mesma forma visual da
+ *  tabela do PDF/planilha original e comparar número por número, célula por
+ *  célula, na posição em que cada um realmente está. */
+export interface TabelaConferida {
+  origem: string
+  pagina: number | null
+  linhas: CelulaConferida[][]
 }
 
 /** Valor monetário BR (milhar com ponto, decimal com vírgula de 2 dígitos),
@@ -145,8 +170,7 @@ interface RotuloEValor {
  *  no início da linha).
  *
  *  Só serve pra texto de PROSE (linha de parágrafo, não linha de tabela sem
- *  separador entre campo — ver `extrairTodosRotuloEValorDeTabelas` pra
- *  isso). */
+ *  separador entre campo — ver `extrairTabelasConferidas` pra isso). */
 function extrairTodosRotuloEValor(linha: string): RotuloEValor[] {
   const resultados: RotuloEValor[] = []
   let cursor = 0
@@ -168,58 +192,63 @@ function extrairTodosRotuloEValor(linha: string): RotuloEValor[] {
   return resultados
 }
 
-/** Linhas (`<tr>`) de cada `<table>` do HTML, uma célula de TEXTO PURO
- *  (`<td>`/`<th>`, sem marcação) por posição — pode ter mais de uma tabela
- *  no mesmo HTML (uma página de PDF com duas tabelas, por exemplo). */
-function extrairLinhasDeTabelas(html: string): string[][] {
-  const linhas: string[][] = []
+/** Cada `<table>` do HTML, como uma lista de linhas (`<tr>`) de célula de
+ *  TEXTO PURO (`<td>`/`<th>`, sem marcação) — pode ter mais de uma tabela no
+ *  mesmo HTML (uma página de PDF com duas tabelas, por exemplo); cada uma
+ *  vira sua PRÓPRIA entrada, nunca mescladas. */
+function extrairTabelas(html: string): string[][][] {
+  const tabelas: string[][][] = []
   for (const matchTabela of html.matchAll(/<table[^>]*>([\s\S]*?)<\/table>/gi)) {
+    const linhas: string[][] = []
     for (const matchLinha of matchTabela[1].matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
       const celulas = [...matchLinha[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) =>
         semMarcacaoHtml(m[1]).trim()
       )
       if (celulas.length > 0) linhas.push(celulas)
     }
+    if (linhas.length > 0) tabelas.push(linhas)
   }
-  return linhas
+  return tabelas
 }
 
-/** Rótulo tem que ter pelo menos uma letra — só assim "10.050.00065.00"
- *  (código de produto: dígito e ponto, sem letra nenhuma) nunca vira rótulo
- *  no lugar da célula de descrição de verdade da mesma linha. */
-const REGEX_TEM_LETRA = /[a-zà-öø-ÿ]/i
+/** Reconstrói CADA tabela de CADA fonte (`html` com `<table>`) — uma
+ *  `TabelaConferida` por `<table>`, célula a célula, na MESMA ordem/forma em
+ *  que está no original (ver `TabelaConferida`). Fonte sem `html`/tabela não
+ *  entra aqui — segue coberta pela lista achatada (`conferirTotais`). */
+export function extrairTabelasConferidas(fontes: TextoParaConferirTotal[], documentoAtual: string): TabelaConferida[] {
+  const indiceDocumento = indexarValoresDoDocumento(documentoAtual)
+  const tabelas: TabelaConferida[] = []
 
-/** Mesma ideia de `extrairTodosRotuloEValor`, mas pra linha de TABELA
- *  (célula por célula, sem a ambiguidade de campo colado sem separador —
- *  ver o comentário no topo do arquivo). Rótulo da linha inteira é a
- *  primeira célula com letra que não é, ela mesma, um valor monetário
- *  (tipicamente a coluna de descrição do item) — toda célula que BATE o
- *  padrão de valor monetário vira um candidato separado, com esse mesmo
- *  rótulo. */
-function extrairTodosRotuloEValorDeTabelas(html: string): RotuloEValor[] {
-  const resultados: RotuloEValor[] = []
+  for (const fonte of fontes) {
+    if (!fonte.html?.includes('<table')) continue
 
-  for (const celulas of extrairLinhasDeTabelas(html)) {
-    const rotulo = celulas.find((c) => REGEX_TEM_LETRA.test(c) && !REGEX_VALOR.test(c)) ?? '(sem rótulo)'
-
-    for (const celula of celulas) {
-      for (const match of celula.matchAll(REGEX_VALOR_GLOBAL)) {
-        const valorTexto = match[1] ? `${match[1]} ${match[2]}` : match[2]
-        resultados.push({ rotulo, valorTexto, valorNormalizado: normalizarValor(match[2]) })
-      }
+    for (const linhas of extrairTabelas(fonte.html)) {
+      tabelas.push({
+        origem: fonte.origem,
+        pagina: fonte.pagina,
+        linhas: linhas.map((celulas) =>
+          celulas.map((texto) => {
+            const match = texto.match(REGEX_VALOR)
+            if (!match) return { texto, ehValor: false }
+            const valorNormalizado = normalizarValor(match[2])
+            return { texto, ehValor: true, encontradoNoDocumento: (indiceDocumento.get(valorNormalizado) ?? 0) > 0 }
+          })
+        ),
+      })
     }
   }
 
-  return resultados
+  return tabelas
 }
 
 /**
- * Pra cada fonte, acha TODO valor monetário — de dentro de `<table>` do
- * HTML próprio da fonte quando ele existe (célula por célula, sem
- * ambiguidade), senão linha por linha do texto puro — e confere se o MESMO
- * valor (correspondência EXATA do número normalizado, nunca substring —
- * "663,46" não pode casar dentro de "279.663,46") aparece em algum lugar do
- * documento inteiro.
+ * Pra cada fonte SEM tabela detectada, acha TODO valor monetário linha por
+ * linha do texto puro, e confere se o MESMO valor (correspondência EXATA do
+ * número normalizado, nunca substring — "663,46" não pode casar dentro de
+ * "279.663,46") aparece em algum lugar do documento inteiro. Fonte COM
+ * tabela é pulada aqui de propósito — ela já é coberta, célula a célula, por
+ * `extrairTabelasConferidas` (essa lista achatada e a tabela reconstruída
+ * nunca mostram o mesmo valor duas vezes).
  */
 export function conferirTotais(fontes: TextoParaConferirTotal[], documentoAtual: string): TotalConferido[] {
   const indiceDocumento = indexarValoresDoDocumento(documentoAtual)
@@ -227,10 +256,9 @@ export function conferirTotais(fontes: TextoParaConferirTotal[], documentoAtual:
   const totais: TotalConferido[] = []
 
   for (const fonte of fontes) {
-    const temTabela = fonte.html?.includes('<table') ?? false
-    const achados = temTabela
-      ? extrairTodosRotuloEValorDeTabelas(fonte.html as string)
-      : fonte.textoOriginal.split('\n').flatMap((linha) => extrairTodosRotuloEValor(semMarcacaoHtml(linha)))
+    if (fonte.html?.includes('<table')) continue
+
+    const achados = fonte.textoOriginal.split('\n').flatMap((linha) => extrairTodosRotuloEValor(semMarcacaoHtml(linha)))
 
     for (const achado of achados) {
       const chave = chaveDoTotal(achado.rotulo, achado.valorNormalizado)

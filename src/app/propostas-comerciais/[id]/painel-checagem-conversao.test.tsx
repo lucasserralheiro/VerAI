@@ -11,6 +11,12 @@ function mockFetch(resposta: { ok: boolean; body: unknown }) {
   }) as jest.Mock
 }
 
+/** A checagem não inicia sozinha (ver painel-checagem-conversao.tsx) — todo
+ *  teste que precisa do resultado clica em "Checar com IA" primeiro. */
+function iniciarChecagem() {
+  fireEvent.click(screen.getByRole('button', { name: /Checar com IA/ }))
+}
+
 describe('PainelChecagemConversao', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -35,10 +41,20 @@ describe('PainelChecagemConversao', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('sem marcador pendente, inicia a checagem sozinha e mostra "Verificando com IA..."', () => {
+  it('sem marcador pendente, mostra "Checar com IA" e NÃO inicia sozinha', () => {
     mockFetch({ ok: true, body: { scoreExibido: 90, trechosSuspeitos: [] } })
 
     render(<PainelChecagemConversao propostaId="p1" conteudoMarkdown="texto normal" onConteudoAtualizado={jest.fn()} />)
+
+    expect(screen.getByRole('button', { name: /Checar com IA/ })).toBeInTheDocument()
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('clicar em "Checar com IA" dispara a checagem e mostra "Verificando com IA..."', () => {
+    mockFetch({ ok: true, body: { scoreExibido: 90, trechosSuspeitos: [] } })
+
+    render(<PainelChecagemConversao propostaId="p1" conteudoMarkdown="texto normal" onConteudoAtualizado={jest.fn()} />)
+    iniciarChecagem()
 
     expect(screen.getByText(/Verificando com IA/)).toBeInTheDocument()
     expect(global.fetch).toHaveBeenCalledWith('/api/propostas-comerciais/p1/checagem-ia', { method: 'POST' })
@@ -51,6 +67,7 @@ describe('PainelChecagemConversao', () => {
     })
 
     render(<PainelChecagemConversao propostaId="p1" conteudoMarkdown="texto normal" onConteudoAtualizado={jest.fn()} />)
+    iniciarChecagem()
 
     expect(await screen.findByText(/87%/)).toBeInTheDocument()
     expect(screen.getByText(/estimativa da IA/i)).toBeInTheDocument()
@@ -63,6 +80,7 @@ describe('PainelChecagemConversao', () => {
     mockFetch({ ok: true, body: { scoreExibido: null, trechosSuspeitos: [] } })
 
     render(<PainelChecagemConversao propostaId="p1" conteudoMarkdown="texto normal" onConteudoAtualizado={jest.fn()} />)
+    iniciarChecagem()
 
     expect(await screen.findByText(/Sem páginas de texto nativo/)).toBeInTheDocument()
   })
@@ -71,6 +89,7 @@ describe('PainelChecagemConversao', () => {
     mockFetch({ ok: false, body: { error: 'modelo indisponível' } })
 
     render(<PainelChecagemConversao propostaId="p1" conteudoMarkdown="texto normal" onConteudoAtualizado={jest.fn()} />)
+    iniciarChecagem()
 
     await waitFor(() => expect(screen.getByText(/modelo indisponível/)).toBeInTheDocument())
   })
@@ -82,6 +101,7 @@ describe('PainelChecagemConversao', () => {
     })
 
     render(<PainelChecagemConversao propostaId="p1" conteudoMarkdown="texto normal" onConteudoAtualizado={jest.fn()} />)
+    iniciarChecagem()
 
     expect(await screen.findByText(/3, 8/)).toBeInTheDocument()
     expect(screen.getByText(/imagem embutida/i)).toBeInTheDocument()
@@ -91,6 +111,7 @@ describe('PainelChecagemConversao', () => {
     mockFetch({ ok: true, body: { scoreExibido: 90, trechosSuspeitos: [], paginasComImagem: [] } })
 
     render(<PainelChecagemConversao propostaId="p1" conteudoMarkdown="texto normal" onConteudoAtualizado={jest.fn()} />)
+    iniciarChecagem()
 
     await screen.findByText(/90%/)
     expect(screen.queryByText(/imagem embutida/i)).not.toBeInTheDocument()
@@ -124,6 +145,7 @@ describe('PainelChecagemConversao', () => {
       mockFetch({ ok: true, body: { scoreExibido: 80, trechosSuspeitos: [CORRIGIVEL] } })
 
       render(<PainelChecagemConversao propostaId="p1" conteudoMarkdown={TEXTO} onConteudoAtualizado={jest.fn()} />)
+      iniciarChecagem()
 
       expect(await screen.findByRole('button', { name: /Corrigir 1 automaticamente/ })).toBeInTheDocument()
       expect(screen.getByText(/1 com correção automática/)).toBeInTheDocument()
@@ -133,6 +155,7 @@ describe('PainelChecagemConversao', () => {
       mockFetch({ ok: true, body: { scoreExibido: 80, trechosSuspeitos: [{ ...CORRIGIVEL, correcaoSugerida: null }] } })
 
       render(<PainelChecagemConversao propostaId="p1" conteudoMarkdown={TEXTO} onConteudoAtualizado={jest.fn()} />)
+      iniciarChecagem()
 
       // Resumo único no topo (substitui a antiga frase separada por
       // categoria) — "1 diferença entre o PDF e o documento".
@@ -143,7 +166,7 @@ describe('PainelChecagemConversao', () => {
       expect(await screen.findByText(/número suspeito/)).toBeInTheDocument()
     })
 
-    it('trecho que só diverge no marcador de lista (• no relato da IA vs "-" no Markdown) consegue aplicar — antes ficava travado', async () => {
+    it('trecho que só diverge no marcador de lista (• no relato da IA vs "-" no documento) consegue aplicar — antes ficava travado', async () => {
       const onSalvar = jest.fn().mockResolvedValue(undefined)
       const DOC = '- Item ainda errado no documento\n- outro item qualquer'
       const SUSPEITO = {
@@ -157,10 +180,11 @@ describe('PainelChecagemConversao', () => {
       mockFetch({ ok: true, body: { scoreExibido: 70, trechosSuspeitos: [SUSPEITO] } })
 
       render(<Editor inicial={DOC} onSalvar={onSalvar} />)
+      iniciarChecagem()
       fireEvent.click(await screen.findByRole('button', { name: /^Conferir$/ }))
       // Muda o rascunho pro texto do PDF — só aí "Como vai ficar" difere do
       // documento (editado=true) e o botão passa a depender só de achar o
-      // trecho no Markdown, que é o que este teste cobre.
+      // trecho no documento, que é o que este teste cobre.
       fireEvent.click(await screen.findByRole('button', { name: 'PDF' }))
 
       const aplicar = await screen.findByRole('button', { name: /Aplicar no documento/ })
@@ -178,6 +202,7 @@ describe('PainelChecagemConversao', () => {
       mockFetch({ ok: true, body: { scoreExibido: 80, trechosSuspeitos: [CORRIGIVEL] } })
 
       render(<Editor inicial={TEXTO} onSalvar={onSalvar} />)
+      iniciarChecagem()
       fireEvent.click(await screen.findByRole('button', { name: /Corrigir 1 automaticamente/ }))
 
       await waitFor(() => expect(onSalvar).toHaveBeenCalledWith(CORRIGIDO))
@@ -190,11 +215,12 @@ describe('PainelChecagemConversao', () => {
       expect(document.querySelector('ins')).toHaveTextContent('1.000')
     })
 
-    it('"Desfazer" num item volta aquele trecho pro Markdown de antes e salva de novo', async () => {
+    it('"Desfazer" num item volta aquele trecho pro documento de antes e salva de novo', async () => {
       const onSalvar = jest.fn().mockResolvedValue(undefined)
       mockFetch({ ok: true, body: { scoreExibido: 80, trechosSuspeitos: [CORRIGIVEL] } })
 
       render(<Editor inicial={TEXTO} onSalvar={onSalvar} />)
+      iniciarChecagem()
       fireEvent.click(await screen.findByRole('button', { name: /Corrigir 1 automaticamente/ }))
       await waitFor(() => expect(onSalvar).toHaveBeenCalledWith(CORRIGIDO))
 
@@ -218,6 +244,7 @@ describe('PainelChecagemConversao', () => {
       mockFetch({ ok: true, body: { scoreExibido: 80, trechosSuspeitos: [CORRIGIVEL] } })
 
       render(<Editor inicial={TEXTO} onSalvar={onSalvar} />)
+      iniciarChecagem()
       fireEvent.click(await screen.findByRole('button', { name: /Corrigir 1 automaticamente/ }))
       await waitFor(() => expect(onSalvar).toHaveBeenCalledWith(CORRIGIDO))
 
@@ -238,6 +265,7 @@ describe('PainelChecagemConversao', () => {
       mockFetch({ ok: true, body: { scoreExibido: 80, trechosSuspeitos: [CORRIGIVEL] } })
 
       render(<Editor inicial={TEXTO} onSalvar={onSalvar} />)
+      iniciarChecagem()
       fireEvent.click(await screen.findByRole('button', { name: /Corrigir 1 automaticamente/ }))
       await waitFor(() => expect(onSalvar).toHaveBeenCalledWith(CORRIGIDO))
 
@@ -275,6 +303,7 @@ describe('PainelChecagemConversao', () => {
       global.fetch = fetchMock as unknown as typeof fetch
 
       render(<Editor inicial={TEXTO} onSalvar={onSalvar} />)
+      iniciarChecagem()
       fireEvent.click(await screen.findByRole('button', { name: /Corrigir 1 automaticamente/ }))
       await waitFor(() => expect(onSalvar).toHaveBeenCalledWith(CORRIGIDO))
 
@@ -297,6 +326,7 @@ describe('PainelChecagemConversao', () => {
       // sem estado: o texto recebido continua o antigo, como se a pessoa
       // tivesse mexido no documento depois da correção
       render(<PainelChecagemConversao propostaId="p1" conteudoMarkdown={TEXTO} onConteudoAtualizado={onConteudoAtualizado} />)
+      iniciarChecagem()
       fireEvent.click(await screen.findByRole('button', { name: /Corrigir 1 automaticamente/ }))
 
       expect(await screen.findByText(/o desfazer foi desligado/)).toBeInTheDocument()
@@ -309,6 +339,7 @@ describe('PainelChecagemConversao', () => {
       mockFetch({ ok: true, body: { scoreExibido: 80, trechosSuspeitos: [CORRIGIVEL] } })
 
       render(<Editor inicial={TEXTO} onSalvar={onSalvar} />)
+      iniciarChecagem()
       fireEvent.click(await screen.findByRole('button', { name: /Corrigir 1 automaticamente/ }))
       await waitFor(() => expect(onSalvar).toHaveBeenCalledWith(CORRIGIDO))
 
@@ -323,7 +354,7 @@ describe('PainelChecagemConversao', () => {
       const onSalvar = jest.fn().mockResolvedValue(undefined)
       // "Prazo: 30 dias" precisa existir DE VERDADE no texto pra ficar
       // "localizável" (`mudancasDaChecagem` exige achar `trecho` literal no
-      // Markdown atual — ver `mudancasTexto.ts`); sem isso o achado cai
+      // documento atual — ver `mudancasTexto.ts`); sem isso o achado cai
       // pra "não localizado" em vez de "correção pronta, só falta aplicar".
       const TEXTO_COM_PRAZO = `${TEXTO} Prazo: 30 dias`
       const CORRIGIDO_COM_PRAZO = `${CORRIGIDO} Prazo: 30 dias`
@@ -345,6 +376,7 @@ describe('PainelChecagemConversao', () => {
       global.fetch = fetchMock as unknown as typeof fetch
 
       render(<Editor inicial={TEXTO_COM_PRAZO} onSalvar={onSalvar} />)
+      iniciarChecagem()
       fireEvent.click(await screen.findByRole('button', { name: /Corrigir 1 automaticamente/ }))
       await waitFor(() => expect(onSalvar).toHaveBeenCalledWith(CORRIGIDO_COM_PRAZO))
 

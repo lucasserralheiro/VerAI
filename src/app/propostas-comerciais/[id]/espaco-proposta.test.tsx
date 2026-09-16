@@ -32,7 +32,8 @@ function props(extra: Partial<ComponentProps<typeof EspacoProposta>> = {}) {
   }
 }
 
-/** Checagem por IA dispara sozinha ao montar — responde "sem pendências". */
+/** Resposta da checagem por IA quando a pessoa clica em "Checar com IA" —
+ *  "sem pendências". */
 function mockChecagemOk(score = 95) {
   global.fetch = jest.fn().mockResolvedValue({
     ok: true,
@@ -60,6 +61,7 @@ describe('EspacoProposta', () => {
     render(<EspacoProposta {...props()} />)
 
     expect(screen.getByRole('textbox', { name: 'Conteúdo da proposta' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Checar com IA/ }))
     expect(await screen.findByText(/95%/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Correção da IA/ })).not.toBeInTheDocument()
   })

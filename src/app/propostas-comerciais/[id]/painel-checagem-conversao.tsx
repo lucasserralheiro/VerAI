@@ -45,6 +45,7 @@ export interface PainelChecagemConversaoProps {
 }
 
 type Estado =
+  | { fase: 'nao-iniciada' }
   | { fase: 'carregando' }
   | { fase: 'pronta'; resultado: ResultadoChecagemIa }
   | { fase: 'erro'; mensagem: string }
@@ -85,7 +86,7 @@ export function PainelChecagemConversao({
   onVerPagina,
 }: PainelChecagemConversaoProps) {
   const temOcrPendente = temBlocoOcrPendente(conteudoMarkdown)
-  const [estado, setEstado] = useState<Estado>({ fase: 'carregando' })
+  const [estado, setEstado] = useState<Estado>({ fase: 'nao-iniciada' })
   const [aplicacao, setAplicacao] = useState<Aplicacao | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [erroSalvar, setErroSalvar] = useState<string | null>(null)
@@ -127,6 +128,11 @@ export function PainelChecagemConversao({
     )
   }
 
+  // Restaura o que já existir em cache (checagem pronta, com erro, ou ainda
+  // rodando de um clique anterior — trocar de aba e voltar não perde o
+  // trabalho) — mas NUNCA dispara uma checagem nova sozinho: só a pessoa
+  // clicando em "Checar com IA" (ou "Tentar de novo"/"Auditar PDF depois das
+  // mudanças") inicia uma chamada de IA.
   useEffect(() => {
     if (temOcrPendente) return
 
@@ -139,8 +145,21 @@ export function PainelChecagemConversao({
       setEstado({ fase: 'erro', mensagem: atual.mensagem })
       return
     }
-    acompanhar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (atual?.status === 'rodando') {
+      setEstado({ fase: 'carregando' })
+      atual.promise.then(
+        (resultado) => {
+          if (montado.current) setEstado({ fase: 'pronta', resultado })
+        },
+        (erro) => {
+          if (montado.current) {
+            setEstado({ fase: 'erro', mensagem: erro instanceof Error ? erro.message : 'Não foi possível checar a conversão.' })
+          }
+        }
+      )
+      return
+    }
+    setEstado({ fase: 'nao-iniciada' })
   }, [propostaId, temOcrPendente])
 
   /** Roda a checagem inicial de novo — usado só pelo "Tentar de novo" da
@@ -277,6 +296,22 @@ export function PainelChecagemConversao({
             await onConteudoAtualizado(novo)
           }}
         />
+      </section>
+    )
+  }
+
+  if (estado.fase === 'nao-iniciada') {
+    return (
+      <section className="space-y-2.5">
+        {titulo}
+        <p className="text-[15px] text-mid-grey">
+          Compara cada página do PDF com o documento inteiro e revisa ortografia/acentuação — só roda
+          quando você pedir.
+        </p>
+        <button type="button" onClick={() => acompanhar()} className={cn(BTN_PRIMARY, 'w-full justify-center')}>
+          <ShieldCheck className="size-3.5" strokeWidth={2.25} />
+          Checar com IA
+        </button>
       </section>
     )
   }

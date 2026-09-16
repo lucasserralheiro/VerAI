@@ -13,9 +13,14 @@ jest.mock('./pdfImagens', () => ({
   extrairImagensDeConteudo: jest.fn().mockResolvedValue([]),
 }))
 
+jest.mock('./pdfFontes', () => ({
+  obterEstilosDeFontePorPagina: jest.fn().mockResolvedValue([]),
+}))
+
 import { extractTextItems } from 'unpdf'
 import { extrairSegmentosRetosPorPagina } from './pdfTracos'
 import { extrairImagensDeConteudo } from './pdfImagens'
+import { obterEstilosDeFontePorPagina } from './pdfFontes'
 import { converterPdfParaHtml, agruparListasEmHtml } from './pdfHtml'
 
 function item(overrides: Partial<StructuredTextItem>): StructuredTextItem {
@@ -68,10 +73,14 @@ describe('converterPdfParaHtml', () => {
   it('envolve trecho com fonte em negrito em <strong>...</strong>', async () => {
     // Texto escolhido de propósito pra não ter cara de título (ver describe
     // 'título com fonte igual ao corpo do texto' abaixo) e isolar só o negrito.
+    // Negrito/itálico vêm de `pdfFontes.ts` (nome real da fonte, resolvido via
+    // `commonObjs` do pdf.js) — não do `fontFamily` do `unpdf`, que é só uma
+    // classificação CSS genérica (sans-serif/serif) sem peso nem estilo.
     ;(extractTextItems as jest.Mock).mockResolvedValue({
       totalPages: 1,
-      items: [[item({ str: 'Texto em negrito', x: 0, fontFamily: 'Helvetica-Bold', hasEOL: true })]],
+      items: [[item({ str: 'Texto em negrito', x: 0, hasEOL: true })]],
     })
+    ;(obterEstilosDeFontePorPagina as jest.Mock).mockResolvedValueOnce([[{ negrito: true, italico: false }]])
 
     const { html: resultado } = await converterPdfParaHtml(Buffer.from(''))
 
@@ -81,8 +90,9 @@ describe('converterPdfParaHtml', () => {
   it('envolve trecho em itálico com <em>...</em>', async () => {
     ;(extractTextItems as jest.Mock).mockResolvedValue({
       totalPages: 1,
-      items: [[item({ str: 'Termo em itálico', x: 0, fontFamily: 'Helvetica-Oblique', hasEOL: true })]],
+      items: [[item({ str: 'Termo em itálico', x: 0, hasEOL: true })]],
     })
+    ;(obterEstilosDeFontePorPagina as jest.Mock).mockResolvedValueOnce([[{ negrito: false, italico: true }]])
 
     const { html: resultado } = await converterPdfParaHtml(Buffer.from(''))
 
@@ -92,8 +102,9 @@ describe('converterPdfParaHtml', () => {
   it('combina negrito e itálico em <strong><em>...</em></strong> quando os dois batem no mesmo trecho', async () => {
     ;(extractTextItems as jest.Mock).mockResolvedValue({
       totalPages: 1,
-      items: [[item({ str: 'Muito importante', x: 0, fontFamily: 'Helvetica-BoldOblique', hasEOL: true })]],
+      items: [[item({ str: 'Muito importante', x: 0, hasEOL: true })]],
     })
+    ;(obterEstilosDeFontePorPagina as jest.Mock).mockResolvedValueOnce([[{ negrito: true, italico: true }]])
 
     const { html: resultado } = await converterPdfParaHtml(Buffer.from(''))
 

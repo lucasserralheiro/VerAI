@@ -2,6 +2,7 @@ import { extractTextItems, getDocumentProxy, type StructuredTextItem } from 'unp
 import { extrairSegmentosRetosPorPagina, type SegmentoReto } from './pdfTracos'
 import { construirGradeDaPagina, detectarTabelaPorBordas, type GradeDeTabela } from './pdfTabelas'
 import { extrairImagensDeConteudo, type ImagemDeConteudo } from './pdfImagens'
+import { obterEstilosDeFontePorPagina, type EstiloDeFonte } from './pdfFontes'
 import { formatarBlocoOcrPendente } from '../ocr/marcadorOcrPendente'
 import { escaparHtml } from './escaparHtml'
 import { corredoresDoBloco, type Intervalo } from './corredores'
@@ -83,7 +84,14 @@ const LARGURA_MAXIMA_CENTRALIZADO = 0.85
  *  margem direita do documento — sinal de parágrafo justificado. */
 const TOLERANCIA_MARGEM_JUSTIFICADO = 4
 
-const REGEX_LISTA_NUMERADA = /^(\d+)([.)])\s+(.*)$/
+// Grupo 1 é o PREFIXO LITERAL inteiro (número + separador + espaço,
+// exatamente como está no PDF) — formato mais comum é "1." / "1)", mas a
+// proposta de referência numera os sistemas abrangidos como "1 - CG0101...",
+// com espaço antes do traço. Manter o prefixo como um grupo só (em vez de
+// número/separador separados) preserva esse espaçamento literal ao remontar
+// o parágrafo em `formatarBlocoDeTexto`, sem inventar formatação que não
+// estava no original.
+const REGEX_LISTA_NUMERADA = /^(\d+\s*[.)-]\s+)(.*)$/
 const REGEX_LISTA_MARCADOR = /^[•\-*]\s+(.*)$/
 
 /** Trava de segurança pra `absorverBloco`: sem ela um bloco cresce enquanto a
@@ -165,6 +173,12 @@ export interface ItemLinha {
   italico: boolean
   sublinhado: boolean
 }
+
+/** `StructuredTextItem` do `unpdf` + negrito/itálico já resolvidos pelo nome
+ *  real da fonte (`pdfFontes.ts`) — anexado ANTES de agrupar em linhas, pra
+ *  sobreviver às reordenações (`ordenarPorX`, `separarPorFaixaDeY`) sem
+ *  depender de índice de array. */
+type ItemComEstilo = StructuredTextItem & EstiloDeFonte
 
 export interface Linha {
   itens: ItemLinha[]
@@ -249,7 +263,15 @@ export async function converterPdfParaHtml(
   const pdf = await getDocumentProxy(new Uint8Array(buffer))
   const { items, totalPages } = await extractTextItems(pdf)
   const segmentosPorPagina = await extrairSegmentosRetosPorPagina(pdf, totalPages)
+  const estilosPorPagina = await obterEstilosDeFontePorPagina(pdf, totalPages)
   const imagens = await prepararImagens(pdf, totalPages, opcoes.salvarImagem)
+  const itemsComEstilo: ItemComEstilo[][] = items.map((itensDaPagina, pagina) => {
+    const estilosDaPagina = estilosPorPagina[pagina] ?? []
+    return itensDaPagina.map((item, indice) => ({
+      ...item,
+      ...(estilosDaPagina[indice] ?? { negrito: false, italico: false }),
+    }))
+  })
 
   const paginasImagem0 = new Set<number>()
   for (let pagina = 0; pagina < totalPages; pagina++) {
@@ -290,7 +312,7 @@ export async function converterPdfParaHtml(
   })
 
   const todasAsLinhas: Linha[] = []
-  items.forEach((itensDaPagina, pagina) => {
+  itemsComEstilo.forEach((itensDaPagina, pagina) => {
     const segmentos = segmentosPorPagina[pagina]?.segmentos ?? []
     const paraSublinhado = segmentosSemBordaDeTabela(segmentos, gradesPorPagina.get(pagina))
     todasAsLinhas.push(...agruparEmLinhas(itensDaPagina, pagina, paraSublinhado))
@@ -387,9 +409,9 @@ async function prepararImagens(
  * A ordenação é estável e só reordena o que está fora de ordem de fato — itens
  * sem posição distinta (mesmo Y, mesmo X) mantêm a ordem em que chegaram.
  */
-function agruparEmLinhas(itens: StructuredTextItem[], pagina: number, segmentosDaPagina: SegmentoReto[]): Linha[] {
-  const trechos: StructuredTextItem[][] = []
-  let atual: StructuredTextItem[] = []
+function agruparEmLinhas(itens: ItemComEstilo[], pagina: number, segmentosDaPagina: SegmentoReto[]): Linha[] {
+  const trechos: ItemComEstilo[][] = []
+  let atual: ItemComEstilo[] = []
 
   for (const item of itens) {
     if (item.str.trim().length === 0 && atual.length === 0) continue
@@ -411,11 +433,11 @@ function agruparEmLinhas(itens: StructuredTextItem[], pagina: number, segmentosD
 
 /** Quebra um trecho desenhado em uma lista por faixa de Y — na prática só faz
  *  algo quando o PDF desenhou, num trecho só, texto de alturas diferentes. */
-function separarPorFaixaDeY(trecho: StructuredTextItem[]): StructuredTextItem[][] {
+function separarPorFaixaDeY(trecho: ItemComEstilo[]): ItemComEstilo[][] {
   const comTexto = trecho.filter((item) => item.str.trim().length > 0)
   if (comTexto.length <= 1) return comTexto.length === 1 ? [trecho] : []
 
-  const faixas: StructuredTextItem[][] = []
+  const faixas: ItemComEstilo[][] = []
   for (const item of comTexto) {
     const faixa = faixas.find((candidata) => Math.abs(candidata[0].y - item.y) <= TOLERANCIA_MESMA_LINHA)
     if (faixa) faixa.push(item)
@@ -427,7 +449,7 @@ function separarPorFaixaDeY(trecho: StructuredTextItem[]): StructuredTextItem[][
 /** Ordem horizontal dentro da linha. Sem isso, uma célula desenhada fora de
  *  ordem sai com os pedaços trocados — foi o que gerou "279.663,46 R$" no
  *  lugar de "R$ 279.663,46" na tabela do cronograma. */
-function ordenarPorX(itens: StructuredTextItem[]): StructuredTextItem[] {
+function ordenarPorX(itens: ItemComEstilo[]): ItemComEstilo[] {
   return [...itens].sort((a, b) => a.x - b.x)
 }
 
@@ -441,7 +463,7 @@ function ordenarPorLeitura(linhas: Linha[]): Linha[] {
   })
 }
 
-function construirLinha(itensBrutos: StructuredTextItem[], pagina: number, segmentosDaPagina: SegmentoReto[]): Linha {
+function construirLinha(itensBrutos: ItemComEstilo[], pagina: number, segmentosDaPagina: SegmentoReto[]): Linha {
   const itensComTexto = itensBrutos.filter((item) => item.str.trim().length > 0)
   const y = itensComTexto[0]?.y ?? 0
 
@@ -449,8 +471,8 @@ function construirLinha(itensBrutos: StructuredTextItem[], pagina: number, segme
     texto: item.str,
     x: item.x,
     width: item.width,
-    negrito: /bold|negrito/i.test(item.fontFamily),
-    italico: /italic|oblique|itálico/i.test(item.fontFamily),
+    negrito: item.negrito,
+    italico: item.italico,
     sublinhado: temTracoDeSublinhado(item, y, segmentosDaPagina),
   }))
   const fontSizeMedio =
@@ -613,12 +635,52 @@ function extrairTextoLinha(linha: Linha): string {
   return linha.itens.map((item) => formatarTexto(item)).join(' ').trim()
 }
 
+/** Texto puro da linha, SEM as tags de `formatarTexto` (`<strong>`/`<em>`/`<u>`).
+ *  Existe separado de `extrairTextoLinha` porque análise estrutural (é
+ *  título? termina em pontuação? começa com marcador de lista?) precisa olhar
+ *  pro CONTEÚDO, não pra marcação — sobre texto já formatado, um título em
+ *  negrito vira `<strong>Título</strong>`, e a primeira letra de verdade que
+ *  `pareceTituloPelaCapitalizacao` encontra é o "s" minúsculo de "strong", não
+ *  o "T" de "Título" (quebra a checagem de Title Case); pela mesma razão, uma
+ *  frase em negrito terminando em ponto fecha a tag ANTES do ".", e
+ *  `terminaComPontuacaoFinal` para de reconhecer o fim de frase. Esse bug
+ *  ficava invisível enquanto negrito nunca era detectado de verdade (ver
+ *  `pdfFontes.ts`) — reapareceu assim que passou a funcionar. */
+function extrairTextoPlanoLinha(linha: Linha): string {
+  return linha.itens.map((item) => item.texto).join(' ').trim()
+}
+
 function terminaComPontuacaoFinal(texto: string): boolean {
   return REGEX_PONTUACAO_FINAL.test(texto.trim())
 }
 
 function ehMarcadorDeLista(texto: string): boolean {
   return REGEX_LISTA_NUMERADA.test(texto) || REGEX_LISTA_MARCADOR.test(texto)
+}
+
+/** Acima desse número de repetições VERBATIM no documento inteiro, uma linha
+ *  candidata a título (mesmo tamanho de fonte do corpo + Title Case/CAIXA
+ *  ALTA) deixa de contar como título — é rótulo de campo repetido pelo
+ *  template ("Disponibilidade", "Suporte ao Serviço", "Como solicitar"),
+ *  não uma seção nova. Medido na proposta de referência: um título de
+ *  verdade nesse tamanho de fonte (ex. "Do Reajuste de Preços") aparece
+ *  UMA vez; os rótulos de template do descritivo de cada serviço repetem
+ *  de 9 a 15+ vezes, sempre com o texto idêntico. 3 fica bem abaixo da
+ *  menor repetição de rótulo observada e acima de qualquer coincidência
+ *  plausível (ex. mesmo título em sumário + seção, no máximo 2). */
+const LIMIAR_REPETICOES_ROTULO_TEMPLATE = 3
+
+/** Conta quantas vezes cada texto de linha (sem formatação, só o texto puro
+ *  do PDF) se repete no documento inteiro — usado só pra desambiguar título
+ *  na faixa "mesmo tamanho do corpo" de `ehTitulo`. */
+function contarRepeticoesDeTexto(linhas: Linha[]): Map<string, number> {
+  const contagem = new Map<string, number>()
+  for (const linha of linhas) {
+    const texto = extrairTextoPlanoLinha(linha)
+    if (!texto) continue
+    contagem.set(texto, (contagem.get(texto) ?? 0) + 1)
+  }
+  return contagem
 }
 
 /** Título de verdade é curto (ver `LIMIAR_TAMANHO_TITULO`) — frase longa com fonte
@@ -632,15 +694,19 @@ function ehMarcadorDeLista(texto: string): boolean {
  *  resto do documento — nesse caso comparar só o tamanho da fonte classificaria
  *  toda frase comum daquela seção como título. Por isso, fonte apenas igual ou um
  *  pouco maior (>= 0.95x) só conta como título se o TEXTO também tiver cara de
- *  título (Title Case ou TUDO EM MAIÚSCULAS) — ver `pareceTituloPelaCapitalizacao`. */
-function ehTitulo(linha: Linha, tamanhoCorpo: number): boolean {
-  const texto = extrairTextoLinha(linha)
+ *  título (Title Case ou TUDO EM MAIÚSCULAS) — ver `pareceTituloPelaCapitalizacao`
+ *  — E não for um rótulo de template repetido — ver `LIMIAR_REPETICOES_ROTULO_TEMPLATE`. */
+function ehTitulo(linha: Linha, tamanhoCorpo: number, repeticoes: Map<string, number>): boolean {
+  const texto = extrairTextoPlanoLinha(linha)
   if (texto.length === 0 || texto.length > LIMIAR_TAMANHO_TITULO) return false
   if (ehMarcadorDeLista(texto)) return false
   if (terminaComPontuacaoFinal(texto)) return false
 
   if (linha.fontSizeMedio >= tamanhoCorpo * 1.3) return true
-  return linha.fontSizeMedio >= tamanhoCorpo * 0.95 && pareceTituloPelaCapitalizacao(texto)
+  if (linha.fontSizeMedio < tamanhoCorpo * 0.95) return false
+  if (!pareceTituloPelaCapitalizacao(texto)) return false
+
+  return (repeticoes.get(texto) ?? 0) < LIMIAR_REPETICOES_ROTULO_TEMPLATE
 }
 
 function formatarTitulo(linha: Linha, tamanhoCorpo: number, margens: Margens): string {
@@ -778,7 +844,7 @@ function formatarBlocoDeTexto(
   // cláusula. Diferente do Markdown, HTML não precisa escapar "1." — texto
   // literal nunca é reinterpretado como marcação de lista.
   const numerada = textoCompleto.match(REGEX_LISTA_NUMERADA)
-  if (numerada) return `<p>${numerada[1]}${numerada[2]} ${numerada[3]}</p>`
+  if (numerada) return `<p>${numerada[1]}${numerada[2]}</p>`
 
   const marcada = textoCompleto.match(REGEX_LISTA_MARCADOR)
   if (marcada) {
@@ -808,23 +874,29 @@ function absorverBloco(
   linhas: Linha[],
   indiceInicial: number,
   tamanhoCorpo: number,
-  gradesPorPagina: Map<number, GradeDeTabela>
+  gradesPorPagina: Map<number, GradeDeTabela>,
+  repeticoes: Map<string, number>
 ): { textos: string[]; linhasConsumidas: Linha[]; proximoIndice: number } {
   const linhasConsumidas = [linhas[indiceInicial]]
   const textos = [extrairTextoLinha(linhas[indiceInicial])]
+  // Paralelo SEM tag de formatação — as checagens abaixo (fim de frase,
+  // marcador de lista) olham pro conteúdo, não pra marcação; ver
+  // `extrairTextoPlanoLinha`.
+  const textosPlanos = [extrairTextoPlanoLinha(linhas[indiceInicial])]
   let j = indiceInicial + 1
 
   while (j < linhas.length) {
-    if (terminaComPontuacaoFinal(textos[textos.length - 1])) break
+    if (terminaComPontuacaoFinal(textosPlanos[textosPlanos.length - 1])) break
     if (linhasConsumidas.length >= LIMITE_LINHAS_SEM_PONTUACAO) break
 
     const candidata = linhas[j]
-    const textoCandidata = extrairTextoLinha(candidata)
-    if (ehMarcadorDeLista(textoCandidata)) break
-    if (ehTitulo(candidata, tamanhoCorpo)) break
+    const textoCandidataPlano = extrairTextoPlanoLinha(candidata)
+    if (ehMarcadorDeLista(textoCandidataPlano)) break
+    if (ehTitulo(candidata, tamanhoCorpo, repeticoes)) break
     if (iniciaTabela(linhas, j, gradesPorPagina)) break
 
-    textos.push(textoCandidata)
+    textos.push(extrairTextoLinha(candidata))
+    textosPlanos.push(textoCandidataPlano)
     linhasConsumidas.push(candidata)
     j++
   }
@@ -927,6 +999,7 @@ function montarHtml(
   const imagensPendentes = [...imagens]
   const paginasOcrPendentes = [...paginasOcr]
   const ancorasDeMarcador = ancorasDeNivelDeMarcador(linhas)
+  const repeticoes = contarRepeticoesDeTexto(linhas)
   let i = 0
 
   // Página marcada pra OCR não tem Linha nenhuma (é por isso que está
@@ -968,13 +1041,13 @@ function montarHtml(
       continue
     }
 
-    if (ehTitulo(linhas[i], tamanhoCorpo)) {
+    if (ehTitulo(linhas[i], tamanhoCorpo, repeticoes)) {
       registrar(linhas[i].pagina, formatarTitulo(linhas[i], tamanhoCorpo, margens))
       i++
       continue
     }
 
-    const { textos, linhasConsumidas, proximoIndice } = absorverBloco(linhas, i, tamanhoCorpo, gradesPorPagina)
+    const { textos, linhasConsumidas, proximoIndice } = absorverBloco(linhas, i, tamanhoCorpo, gradesPorPagina, repeticoes)
     registrar(linhas[i].pagina, formatarBlocoDeTexto(textos, linhasConsumidas, margens, ancorasDeMarcador))
     i = proximoIndice
   }

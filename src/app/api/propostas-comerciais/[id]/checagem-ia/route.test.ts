@@ -78,7 +78,7 @@ describe('POST /api/propostas-comerciais/[id]/checagem-ia', () => {
     // salvo na proposta (sempre o documento INTEIRO, nunca a fatia de uma
     // página — ver o comentário no topo de checarConversao.ts).
     expect(checarConversao).toHaveBeenCalledWith(
-      [{ pagina: 1, textoOriginal: 'original', markdown: 'gerado' }],
+      [{ pagina: 1, textoOriginal: 'original', html: 'gerado' }],
       'Markdown salvo da proposta'
     )
     const corpo = await resposta.json()
@@ -195,7 +195,7 @@ describe('POST /api/propostas-comerciais/[id]/checagem-ia', () => {
     const resposta = await POST(requisicao({ conteudoMarkdown: 'Markdown de agora, com edição ainda não salva' }), contexto)
 
     expect(checarConversao).toHaveBeenCalledWith(
-      [{ pagina: 1, textoOriginal: 'original', markdown: 'gerado' }],
+      [{ pagina: 1, textoOriginal: 'original', html: 'gerado' }],
       'Markdown de agora, com edição ainda não salva'
     )
     const corpo = await resposta.json()

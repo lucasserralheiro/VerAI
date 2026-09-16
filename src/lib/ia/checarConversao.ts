@@ -6,13 +6,14 @@ import { getModel } from './modelo'
 /**
  * Checagem por IA da conversão de PDF — pra CADA página do PDF, confere se o
  * texto ORIGINAL dela (extraído pelo `pdf.js`) está correto e completo em
- * ALGUM lugar do Markdown do DOCUMENTO INTEIRO da proposta, e sinaliza erro
- * de ortografia/acentuação do Markdown gerado. Nunca vê a imagem da página —
+ * ALGUM lugar do HTML do DOCUMENTO INTEIRO da proposta, e sinaliza erro
+ * de ortografia/acentuação do HTML gerado. Nunca vê a imagem da página —
  * só texto. Score e trechos suspeitos nunca bloqueiam nada (ver
- * docs/superpowers/specs/2026-09-11-checagem-ia-conversao-design.md).
+ * docs/superpowers/specs/2026-09-11-checagem-ia-conversao-design.md e
+ * docs/superpowers/specs/2026-09-14-html-nativo-ocr-proposta-comercial-design.md).
  *
  * Sempre compara contra o DOCUMENTO INTEIRO, nunca contra a fatia de
- * Markdown de uma página só — mesmo na primeira checagem, antes de qualquer
+ * HTML de uma página só — mesmo na primeira checagem, antes de qualquer
  * edição. Não é só sobre reorganização pós-edição: o próprio conversor
  * determinístico (`pdfHtml.ts`) já pode atribuir um parágrafo que
  * atravessa a quebra de página inteiro à página ANTERIOR (ver
@@ -90,12 +91,12 @@ export interface ResultadoChecagem {
 export interface PaginaParaChecar {
   pagina: number
   textoOriginal: string
-  markdown: string
+  html: string
 }
 
 const PROMPT_CHECAGEM = [
   'Você audita se o TEXTO ORIGINAL de uma página de um PDF está correto e',
-  'INTEGRALMENTE presente no MARKDOWN do documento abaixo — o conteúdo pode',
+  'INTEGRALMENTE presente no HTML do documento abaixo — o conteúdo pode',
   'estar em qualquer posição do documento (reorganização, mescla com outro',
   'arquivo, parágrafo que atravessou a quebra de página). Isso não é',
   'problema; o que importa é o CONTEÚDO estar certo e completo em ALGUM',
@@ -108,15 +109,15 @@ const PROMPT_CHECAGEM = [
   '',
   'Aponte SÓ divergência real de conteúdo — texto que sumiu, número ou data',
   'trocado, célula de tabela faltando. NUNCA aponte estilo, escolha de',
-  'formatação Markdown (títulos, negrito, listas), reordenação cosmética',
+  'tag HTML (títulos, negrito, listas), reordenação cosmética',
   'do texto, OU numeração de página / cabeçalho / rodapé repetido (ex.:',
   '"Page 2 of 45", "Página 2 de 45") — isso é ruído de paginação do PDF,',
   'nunca conteúdo relevante do contrato, mesmo que a posição dele no',
-  'Markdown pareça estranha (ex.: colado no fim de um item de lista).',
+  'HTML pareça estranha (ex.: colado no fim de um item de lista).',
   'Nada disso é erro de conversão.',
   '',
   'Além de divergência de conteúdo, aponte também erro de ORTOGRAFIA e',
-  'ACENTUAÇÃO do português do Brasil no MARKDOWN (acento que sumiu ou está',
+  'ACENTUAÇÃO do português do Brasil no HTML (acento que sumiu ou está',
   'errado, letra trocada, palavra grudada ou separada errado) — mesmo',
   'quando isso não muda o sentido do texto. A "correcaoSugerida" desses',
   'itens segue a MESMA regra de baixo: só é aceita se a forma certa da',
@@ -128,18 +129,18 @@ const PROMPT_CHECAGEM = [
   'desta página no documento (1 = tudo presente e certo — erro de',
   'ortografia sozinho não derruba essa nota).',
   '"trechosSuspeitos": um item por divergência encontrada, com:',
-  '- "trecho": cópia exata do pedaço do MARKDOWN onde está o problema. Se',
-  '  o conteúdo da página sumiu inteiro do documento, copie o trecho ao',
-  '  redor de onde ele deveria estar.',
+  '- "trecho": cópia exata do pedaço do HTML onde está o problema (inclua',
+  '  as tags, não só o texto). Se o conteúdo da página sumiu inteiro do',
+  '  documento, copie o trecho ao redor de onde ele deveria estar.',
   '- "motivo": curto, em português, explicando a suspeita.',
   '- "trechoOriginal": o pedaço do TEXTO ORIGINAL que corresponde ao',
   '  trecho, copiado LITERALMENTE (é o que o PDF diz ali). null se não',
   '  houver correspondente no original.',
-  '- "correcaoSugerida": como o trecho deve ficar no Markdown. Palavras,',
-  '  números e pontuação têm que ser copiados LITERALMENTE do TEXTO',
-  '  ORIGINAL — nunca invente, reescreva ou traduza. Quando o problema for',
-  '  de estrutura (item de lista no nível errado, título, linha de tabela),',
-  '  ajuste só a marcação Markdown (-, #, |) mantendo o texto do original.',
+  '- "correcaoSugerida": como o trecho deve ficar no HTML (com as mesmas',
+  '  tags do trecho original). Palavras, números e pontuação têm que ser',
+  '  copiados LITERALMENTE do TEXTO ORIGINAL — nunca invente, reescreva ou',
+  '  traduza. Quando o problema for de estrutura (item de lista, título,',
+  '  linha de tabela), ajuste só a tag HTML mantendo o texto do original.',
   '  Se não for possível corrigir assim (ex.: o conteúdo sumiu e não',
   '  sobrou rastro de onde entra, ou o problema é ambíguo), devolva null',
   '  nesse campo — não force uma correção.',
@@ -164,17 +165,14 @@ function normalizar(texto: string): string {
     .trim()
 }
 
-/** Tira só a MARCAÇÃO Markdown (item de lista, título, citação, negrito,
- *  tabela) — o texto fica. Assim uma correção de estrutura ("item no nível
- *  errado") passa pela mesma ancoragem no original que uma de texto, sem
- *  abrir brecha pra palavra ou número inventado. Lista numerada não entra:
- *  o número do item é conteúdo e tem que estar no original. */
-function semMarcacaoMarkdown(texto: string): string {
-  return texto
-    .replace(/^\s*\|?[\s:|-]*-{3,}[\s:|-]*\|?\s*$/gm, ' ')
-    .replace(/^\s*(?:#{1,6}|>|[-*+])\s+/gm, '')
-    .replace(/\*\*|__|`/g, '')
-    .replace(/\|/g, ' ')
+/** Tira só a MARCAÇÃO HTML (tag de item de lista, título, tabela, negrito)
+ *  — o texto fica. Assim uma correção de estrutura ("item no nível errado")
+ *  passa pela mesma ancoragem no original que uma de texto, sem abrir
+ *  brecha pra palavra ou número inventado. Cláusula numerada não é afetada:
+ *  o número fica como texto literal dentro do `<p>` (não é tag), então
+ *  continua sendo conteúdo que tem que estar no original. */
+function semMarcacaoHtml(texto: string): string {
+  return texto.replace(/<[^>]+>/g, ' ')
 }
 
 /** Só letras e números — ignora quebra de linha, hifenização, aspas,
@@ -273,21 +271,26 @@ function ancoradoNoOriginal(texto: string, textoOriginal: string): boolean {
   return normalizar(textoOriginal).includes(normalizado)
 }
 
-/** Um título Markdown "de verdade" — curto, é só o título mesmo. Acima
- *  desse tamanho a linha já não parece um título de seção; é sinal de que
- *  o `#`/`##` colou por engano na mesma linha de um parágrafo inteiro (bug
- *  da própria conversão) — nesse caso a linha inteira é o conteúdo com
- *  problema, não um título separado que precisa sobreviver à correção. */
+/** Um título HTML "de verdade" — curto, é só o título mesmo. Acima desse
+ *  tamanho o conteúdo dentro da tag `<h1>`-`<h6>` já não parece um título de
+ *  seção; é sinal de que a tag envolveu por engano um parágrafo inteiro
+ *  (bug da própria conversão) — nesse caso o conteúdo inteiro é o problema,
+ *  não um título separado que precisa sobreviver à correção. */
 const TAMANHO_MAX_TITULO = 100
 
-/** Títulos Markdown (#, ##...) que aparecem como LINHA do trecho, curtos o
- *  bastante pra serem título de seção de verdade (ver `TAMANHO_MAX_TITULO`). */
+const REGEX_TAG_TITULO = /<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi
+
+/** Títulos (`<h1>`-`<h6>`) que aparecem no trecho, curtos o bastante pra
+ *  serem título de seção de verdade (ver `TAMANHO_MAX_TITULO`) — o conteúdo
+ *  da tag é lido sem NENHUMA outra marcação (`<strong>` etc. dentro do
+ *  título não impede o casamento). */
 function titulosDoTrecho(texto: string): string[] {
-  return texto
-    .split('\n')
-    .map((linha) => linha.match(/^\s*#{1,6}\s+(.+)$/))
-    .filter((m): m is RegExpMatchArray => m !== null && m[1].length <= TAMANHO_MAX_TITULO)
-    .map((m) => normalizar(m[1]))
+  const titulos: string[] = []
+  for (const m of texto.matchAll(REGEX_TAG_TITULO)) {
+    const conteudo = semMarcacaoHtml(m[1]).trim()
+    if (conteudo.length > 0 && conteudo.length <= TAMANHO_MAX_TITULO) titulos.push(normalizar(conteudo))
+  }
+  return titulos
 }
 
 /**
@@ -323,26 +326,42 @@ function preservaTitulos(trecho: string, correcaoSugerida: string): boolean {
  */
 export function correcaoEhSegura(correcaoSugerida: string | null, textoOriginal: string, trecho?: string): boolean {
   if (!correcaoSugerida) return false
-  if (!ancoradoNoOriginal(semMarcacaoMarkdown(correcaoSugerida), textoOriginal)) return false
+  if (!ancoradoNoOriginal(semMarcacaoHtml(correcaoSugerida), textoOriginal)) return false
   return trecho === undefined || preservaTitulos(trecho, correcaoSugerida)
 }
 
+/** Blocos de um trecho HTML — mesmo separador (`\n\n`) que `montarHtml`/
+ *  `agruparListasEmHtml` usam entre blocos de nível superior (parágrafo,
+ *  título, lista, tabela). */
+function blocosDoTrecho(texto: string): string[] {
+  return texto.split('\n\n')
+}
+
+/** Conteúdo de um bloco que é exatamente UM `<p>...</p>` OU `<h1>`-`<h6>`
+ *  simples — `null` quando o bloco é outra coisa (lista, tabela, ou
+ *  mistura). Título conta como rótulo tanto quanto parágrafo: nestes
+ *  contratos uma subseção repetida pode vir marcada como título de verdade
+ *  ("Gestão de faturamento" como `<h2>`) ou só como parágrafo solto. */
+function textoDeBlocoRotulo(bloco: string): string | null {
+  const p = bloco.match(/^<p(?:\s[^>]*)?>([\s\S]*)<\/p>$/)
+  if (p) return semMarcacaoHtml(p[1]).trim()
+  const h = bloco.match(/^<h[1-6](?:\s[^>]*)?>([\s\S]*)<\/h[1-6]>$/)
+  if (h) return semMarcacaoHtml(h[1]).trim()
+  return null
+}
+
 /** Um "rótulo" — texto curto e isolado que funciona como título de
- *  subseção mesmo sem marcação Markdown (comum nestes contratos: "Gestão
- *  de faturamento", "Não faz parte do escopo do Serviço" aparecem como
- *  linha solta, sem "#"). Só conta quando o trecho tem MAIS de uma linha —
- *  um trecho de uma linha só é sempre o próprio conteúdo sendo corrigido,
- *  nunca um "rótulo seguido de corpo" (isso evita marcar toda correção de
- *  linha única — o caso mais comum da tela — como candidata a este
- *  guarda-rail). */
+ *  subseção. Só conta quando o trecho tem MAIS de um bloco — um trecho de
+ *  um bloco só é sempre o próprio conteúdo sendo corrigido, nunca um
+ *  "rótulo seguido de corpo" (isso evita marcar toda correção de bloco
+ *  único — o caso mais comum da tela — como candidata a este guarda-rail). */
 function rotuloDoTrecho(trecho: string): string | null {
-  const linhas = trecho.split('\n')
-  if (linhas.length < 2) return null
-  const primeira = linhas[0].trim()
-  if (!primeira || primeira.length > TAMANHO_MAX_TITULO) return null
-  if (/^\s*[-*+•]\s/.test(primeira) || /^\d+[.)]\s/.test(primeira)) return null
-  if (linhas[1].trim() !== '') return null // só conta se for isolado (linha em branco depois)
-  return normalizar(primeira.replace(/^\s*#{1,6}\s+/, ''))
+  const blocos = blocosDoTrecho(trecho)
+  if (blocos.length < 2) return null
+  const rotulo = textoDeBlocoRotulo(blocos[0])
+  if (!rotulo || rotulo.length > TAMANHO_MAX_TITULO) return null
+  if (/^\d+[.)]\s/.test(rotulo)) return null // cláusula numerada, não é rótulo
+  return normalizar(rotulo)
 }
 
 /** `rotulo` aparece mais de uma vez no documento-alvo? Contrato com vários
@@ -448,7 +467,7 @@ async function checarPaginaComPrompt(
         // dela no rótulo — vinha no meio, quebrando esse prefixo em toda
         // chamada. Ver comentário no topo do arquivo sobre o custo de
         // comparar contra o documento inteiro.
-        prompt: `${prompt}\n\n---MARKDOWN---\n${markdownAlvo}\n\n---TEXTO ORIGINAL DESTA PÁGINA---\n${pagina.textoOriginal}`,
+        prompt: `${prompt}\n\n---HTML---\n${markdownAlvo}\n\n---TEXTO ORIGINAL DESTA PÁGINA---\n${pagina.textoOriginal}`,
         maxOutputTokens,
       }))
       break

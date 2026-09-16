@@ -15,20 +15,20 @@ describe('checarConversao', () => {
   })
 
   it('agrega o score (média) e marca a página nos trechos suspeitos', async () => {
-    // `documentoAtual` é o Markdown do DOCUMENTO INTEIRO — aqui, a "junção"
+    // `documentoAtual` é o HTML do DOCUMENTO INTEIRO — aqui, a "junção"
     // do que cada página contribuiu. Página 1 bate 100% nele (texto
     // idêntico) -> pula a IA, cobertura 1. Página 2 não bate nada ("Valor:
     // R$ 1.000" não aparece em lugar nenhum de `documentoAtual`) -> chama a
     // IA (só ela consome o mock abaixo).
-    const documentoAtual = 'Texto da página 1\n\nValor: R$ 100'
+    const documentoAtual = '<p>Texto da página 1</p>\n\n<p>Valor: R$ 100</p>'
     ;(generateObject as jest.Mock).mockResolvedValueOnce({
-      object: { scoreConfianca: 0.6, trechosSuspeitos: [{ trecho: 'Valor: R$ 100', motivo: 'número pode ter trocado' }] },
+      object: { scoreConfianca: 0.6, trechosSuspeitos: [{ trecho: '<p>Valor: R$ 100</p>', motivo: 'número pode ter trocado' }] },
     })
 
     const resultado = await checarConversao(
       [
-        { pagina: 1, textoOriginal: 'Texto da página 1', markdown: 'Texto da página 1' },
-        { pagina: 2, textoOriginal: 'Valor: R$ 1.000', markdown: 'Valor: R$ 100' },
+        { pagina: 1, textoOriginal: 'Texto da página 1', html: '<p>Texto da página 1</p>' },
+        { pagina: 2, textoOriginal: 'Valor: R$ 1.000', html: '<p>Valor: R$ 100</p>' },
       ],
       documentoAtual
     )
@@ -41,7 +41,7 @@ describe('checarConversao', () => {
     expect(resultado.trechosSuspeitos).toEqual([
       {
         pagina: 2,
-        trecho: 'Valor: R$ 100',
+        trecho: '<p>Valor: R$ 100</p>',
         motivo: 'número pode ter trocado',
         correcaoSugerida: null,
         trechoOriginal: 'Valor: R$ 1.000',
@@ -55,7 +55,7 @@ describe('checarConversao', () => {
     // 'x' é curto demais pra `calcularCoberturaPagina` julgar sozinho
     // (< TAMANHO_MIN_LINHA_COBERTURA) -> não penaliza -> cobertura 1,
     // pula a IA -> 99% (nunca 100%, teto aplicado no código).
-    const resultado = await checarConversao([{ pagina: 1, textoOriginal: 'x', markdown: 'x' }], 'x')
+    const resultado = await checarConversao([{ pagina: 1, textoOriginal: 'x', html: 'x' }], 'x')
 
     expect(resultado.scoreExibido).toBe(99)
   })
@@ -72,8 +72,8 @@ describe('checarConversao', () => {
 
     const resultado = await checarConversao(
       [
-        { pagina: 1, textoOriginal: textoOriginalFalha, markdown: '' },
-        { pagina: 2, textoOriginal: textoOriginalOk, markdown: '' },
+        { pagina: 1, textoOriginal: textoOriginalFalha, html: '' },
+        { pagina: 2, textoOriginal: textoOriginalOk, html: '' },
       ],
       documentoAtual
     )
@@ -98,7 +98,7 @@ describe('checarConversao', () => {
       })
 
     const resultado = await checarConversao(
-      [{ pagina: 1, textoOriginal: 'texto original', markdown: '' }],
+      [{ pagina: 1, textoOriginal: 'texto original', html: '' }],
       'achado na 2a tentativa'
     )
 
@@ -112,7 +112,7 @@ describe('checarConversao', () => {
     const textoOriginal = 'Texto original desta página, que não aparece no documento final de jeito nenhum.'
     const documentoAtual = 'Documento completamente diferente, sem nenhuma relação com o texto original desta página.'
 
-    await expect(checarConversao([{ pagina: 1, textoOriginal, markdown: '' }], documentoAtual)).rejects.toThrow(
+    await expect(checarConversao([{ pagina: 1, textoOriginal, html: '' }], documentoAtual)).rejects.toThrow(
       'não foi possível checar nenhuma página'
     )
   })
@@ -122,17 +122,17 @@ describe('checarConversao', () => {
       object: {
         scoreConfianca: 0.6,
         trechosSuspeitos: [
-          { trecho: 'Valor: R$ 100', motivo: 'número trocado', correcaoSugerida: 'Valor: R$ 1.000' },
+          { trecho: '<p>Valor: R$ 100</p>', motivo: 'número trocado', correcaoSugerida: '<p>Valor: R$ 1.000</p>' },
         ],
       },
     })
 
     const resultado = await checarConversao(
-      [{ pagina: 1, textoOriginal: 'O Valor: R$ 1.000 é o total.', markdown: 'Valor: R$ 100' }],
-      'Valor: R$ 100'
+      [{ pagina: 1, textoOriginal: 'O Valor: R$ 1.000 é o total.', html: '<p>Valor: R$ 100</p>' }],
+      '<p>Valor: R$ 100</p>'
     )
 
-    expect(resultado.trechosSuspeitos[0].correcaoSugerida).toBe('Valor: R$ 1.000')
+    expect(resultado.trechosSuspeitos[0].correcaoSugerida).toBe('<p>Valor: R$ 1.000</p>')
   })
 
   it('descarta correcaoSugerida que não aparece no texto original (não confia só na IA)', async () => {
@@ -140,14 +140,14 @@ describe('checarConversao', () => {
       object: {
         scoreConfianca: 0.6,
         trechosSuspeitos: [
-          { trecho: 'Valor: R$ 100', motivo: 'número trocado', correcaoSugerida: 'Valor: R$ 999.999' },
+          { trecho: '<p>Valor: R$ 100</p>', motivo: 'número trocado', correcaoSugerida: '<p>Valor: R$ 999.999</p>' },
         ],
       },
     })
 
     const resultado = await checarConversao(
-      [{ pagina: 1, textoOriginal: 'O Valor: R$ 1.000 é o total.', markdown: 'Valor: R$ 100' }],
-      'Valor: R$ 100'
+      [{ pagina: 1, textoOriginal: 'O Valor: R$ 1.000 é o total.', html: '<p>Valor: R$ 100</p>' }],
+      '<p>Valor: R$ 100</p>'
     )
 
     expect(resultado.trechosSuspeitos[0].correcaoSugerida).toBeNull()
@@ -180,8 +180,8 @@ describe('checarConversao', () => {
 
     const resultado = await checarConversao(
       [
-        { pagina: 1, textoOriginal, markdown: '' },
-        { pagina: 8, textoOriginal, markdown: '' },
+        { pagina: 1, textoOriginal, html: '' },
+        { pagina: 8, textoOriginal, html: '' },
       ],
       documentoAtual
     )
@@ -196,7 +196,7 @@ describe('checarConversao', () => {
     // cortada no meio de uma string -> JSON inválido -> página descartada.
     ;(generateObject as jest.Mock).mockResolvedValueOnce({ object: { scoreConfianca: 0.5, trechosSuspeitos: [] } })
 
-    await checarConversao([{ pagina: 1, textoOriginal: 'texto original', markdown: '' }], 'outro documento')
+    await checarConversao([{ pagina: 1, textoOriginal: 'texto original', html: '' }], 'outro documento')
 
     const opcoes = (generateObject as jest.Mock).mock.calls[0][0]
     expect(opcoes.maxOutputTokens).toBeGreaterThan(4000)
@@ -217,8 +217,8 @@ describe('checarConversao', () => {
 
     await checarConversao(
       [
-        { pagina: 1, textoOriginal: 'texto da pagina 1, nao bate no documento', markdown: '' },
-        { pagina: 2, textoOriginal: 'texto da pagina 2, tambem nao bate', markdown: '' },
+        { pagina: 1, textoOriginal: 'texto da pagina 1, nao bate no documento', html: '' },
+        { pagina: 2, textoOriginal: 'texto da pagina 2, tambem nao bate', html: '' },
       ],
       'DOCUMENTO_COMPARTILHADO_GRANDE'
     )
@@ -255,7 +255,7 @@ describe('checarConversao', () => {
       usage: { inputTokens: 40000, inputTokenDetails: { cacheReadTokens: 38000 }, outputTokens: 120 },
     })
 
-    await checarConversao([{ pagina: 3, textoOriginal: 'texto original', markdown: '' }], 'outro documento')
+    await checarConversao([{ pagina: 3, textoOriginal: 'texto original', html: '' }], 'outro documento')
 
     expect(consoleLogSpy).toHaveBeenCalledWith(
       expect.stringContaining('checagem por IA'),
@@ -276,7 +276,7 @@ describe('checarConversao', () => {
       },
     })
 
-    const resultado = await checarConversao([{ pagina: 1, textoOriginal: 'texto original', markdown: '' }], 'texto ambíguo aqui')
+    const resultado = await checarConversao([{ pagina: 1, textoOriginal: 'texto original', html: '' }], 'texto ambíguo aqui')
 
     expect(resultado.trechosSuspeitos[0].correcaoSugerida).toBeNull()
   })
@@ -305,12 +305,13 @@ describe('correcaoEhSegura', () => {
   // duas linhas de título de seção só porque estavam vizinhas da linha de
   // código de serviço com o problema de verdade — a correção sugerida trazia
   // só a linha do código, sem os dois títulos. Aplicar automaticamente teria
-  // apagado "## C7. SD-WAN" e "## C7.3. SERVIÇO..." do documento; a auditoria
-  // seguinte acharia essas seções "sumidas" e ofereceria correção pra
-  // reinserir — o botão "Corrigir automaticamente" nunca parava de voltar.
+  // apagado "<h2>C7. SD-WAN</h2>" e "<h2>C7.3. SERVIÇO...</h2>" do
+  // documento; a auditoria seguinte acharia essas seções "sumidas" e
+  // ofereceria correção pra reinserir — o botão "Corrigir automaticamente"
+  // nunca parava de voltar.
   it('rejeita quando a correção apaga um título de seção que estava no trecho', () => {
     const trecho =
-      '## C7. SD-WAN\n\n## C7.3. SERVIÇO DE COMUNICAÇÃO DE DADOS – SD-WAN (SOLUÇÃO: SERVIÇO E GESTÃO)\n\n12.074.00005.00 - código'
+      '<h2>C7. SD-WAN</h2>\n\n<h2>C7.3. SERVIÇO DE COMUNICAÇÃO DE DADOS – SD-WAN (SOLUÇÃO: SERVIÇO E GESTÃO)</h2>\n\n<p>12.074.00005.00 - código</p>'
     const correcao = '12.074.00005.00 - código'
     const textoOriginal = 'Texto da página com 12.074.00005.00 - código no meio'
 
@@ -318,8 +319,8 @@ describe('correcaoEhSegura', () => {
   })
 
   it('aceita quando os títulos do trecho continuam (mod caixa/acento) na correção', () => {
-    const trecho = '## H - Produtos Customizados Por Orgão\n\nresto do trecho'
-    const correcao = '## H - Produtos Customizados Por Órgão\n\nresto do trecho'
+    const trecho = '<h2>H - Produtos Customizados Por Orgão</h2>\n\n<p>resto do trecho</p>'
+    const correcao = '<h2>H - Produtos Customizados Por Órgão</h2>\n\n<p>resto do trecho</p>'
     const textoOriginal = 'H - Produtos Customizados Por Órgão resto do trecho'
 
     expect(correcaoEhSegura(correcao, textoOriginal, trecho)).toBe(true)
@@ -329,16 +330,16 @@ describe('correcaoEhSegura', () => {
     expect(correcaoEhSegura('Valor: R$ 1.000', 'Texto: Valor: R$ 1.000 aqui')).toBe(true)
   })
 
-  it('título glued com parágrafo (linha malformada da própria conversão) não trava a correção', () => {
-    // Caso real, mesma proposta: "## E5.5. CENTRAL DE SERVIÇOS" veio colado
-    // na mesma linha de um parágrafo inteiro (bug da conversão) — o trecho
-    // reportado é essa linha longa demais pra ser um título de verdade, e a
-    // correção troca o parágrafo errado por outra linha, mantendo só o
-    // título curto. Isso é a correção fazendo o trabalho certo, não
-    // apagando seção — não pode ser rejeitado.
+  it('título glued com parágrafo (bloco malformado da própria conversão) não trava a correção', () => {
+    // Caso real, mesma proposta: "E5.5. CENTRAL DE SERVIÇOS" veio colado no
+    // mesmo <h2> de um parágrafo inteiro (bug da conversão) — o trecho
+    // reportado é essa tag longa demais pra ser um título de verdade, e a
+    // correção separa o título curto do parágrafo. Isso é a correção
+    // fazendo o trabalho certo, não apagando seção — não pode ser rejeitado.
     const trecho =
-      '## E5.5. CENTRAL DE SERVIÇOS Observabilidade é a capacidade de medir o estado atual de um sistema com base nos dados que ele gera, como logs, métricas e rastreamentos de requisições.'
-    const correcao = '## E5.5. CENTRAL DE SERVIÇOS\n\n14.026.00003.00 - CENTRAL DE SERVIÇOS (LOTE DE 100 CHAMADOS)'
+      '<h2>E5.5. CENTRAL DE SERVIÇOS Observabilidade é a capacidade de medir o estado atual de um sistema com base nos dados que ele gera, como logs, métricas e rastreamentos de requisições.</h2>'
+    const correcao =
+      '<h2>E5.5. CENTRAL DE SERVIÇOS</h2>\n\n<p>14.026.00003.00 - CENTRAL DE SERVIÇOS (LOTE DE 100 CHAMADOS)</p>'
     const textoOriginal = 'E5.5. CENTRAL DE SERVIÇOS\n14.026.00003.00 - CENTRAL DE SERVIÇOS (LOTE DE 100 CHAMADOS)'
 
     expect(correcaoEhSegura(correcao, textoOriginal, trecho)).toBe(true)
@@ -354,13 +355,19 @@ describe('trocaConteudoSobRotuloAmbiguo', () => {
   // sobrescrevê-la com o texto padrão — apagando os itens de escopo de
   // internet que já estavam certos ali.
   const trechoInternet =
-    'Gestão de faturamento\n\n- Fornecimento de Banda de Internet, exceto para os previstos por meio das funcionalidades de SD-WAN.\n\n- Disponibilização de Internet para publicação de sites e aplicações.'
+    '<p>Gestão de faturamento</p>\n\n' +
+    '<ul><li>Fornecimento de Banda de Internet, exceto para os previstos por meio das funcionalidades de SD-WAN.</li>' +
+    '<li>Disponibilização de Internet para publicação de sites e aplicações.</li></ul>'
   const correcaoPadraoFaturamento =
-    'Gestão de faturamento\n- A PRODAM recebe e analisa as faturas de contratos dos fornecedores, verifica se as características dos equipamentos ou links informados, como capacidade, tempo disponível de acordo com seus registros de incidentes, estão corretas, antes de repassar ao cliente, e ajustes são feitos pelo fornecedor caso haja divergência.\nNão faz parte do escopo do Serviço'
+    '<p>Gestão de faturamento</p>\n\n' +
+    '<ul><li>A PRODAM recebe e analisa as faturas de contratos dos fornecedores, verifica se as características dos equipamentos ou links informados, como capacidade, tempo disponível de acordo com seus registros de incidentes, estão corretas, antes de repassar ao cliente, e ajustes são feitos pelo fornecedor caso haja divergência.</li></ul>\n\n' +
+    '<p>Não faz parte do escopo do Serviço</p>'
   const documento = [
-    'Seção de Internet\n\n' + trechoInternet,
-    'Seção de Link Dedicado\n\nGestão de faturamento\n\n- A PRODAM recebe e analisa as faturas de contratos dos fornecedores.\n\nNão faz parte do escopo do Serviço',
-    'Seção de SD-WAN\n\nGestão de faturamento\n\n- A PRODAM recebe e analisa as faturas de contratos dos fornecedores.\n\nNão faz parte do escopo do Serviço',
+    '<h2>Seção de Internet</h2>\n\n' + trechoInternet,
+    '<h2>Seção de Link Dedicado</h2>\n\n<p>Gestão de faturamento</p>\n\n' +
+      '<ul><li>A PRODAM recebe e analisa as faturas de contratos dos fornecedores.</li></ul>\n\n<p>Não faz parte do escopo do Serviço</p>',
+    '<h2>Seção de SD-WAN</h2>\n\n<p>Gestão de faturamento</p>\n\n' +
+      '<ul><li>A PRODAM recebe e analisa as faturas de contratos dos fornecedores.</li></ul>\n\n<p>Não faz parte do escopo do Serviço</p>',
   ].join('\n\n')
 
   it('rejeita quando o rótulo se repete no documento e a correção joga fora quase todo o conteúdo original', () => {
@@ -370,13 +377,19 @@ describe('trocaConteudoSobRotuloAmbiguo', () => {
   it('aceita reformatação (bullet, espaçamento) sob o mesmo rótulo repetido, sem perder o conteúdo', () => {
     // Caso real: "Análise de Negócio" também se repete várias vezes no
     // documento (contrato com vários lotes de serviço parecidos) — mas essa
-    // correção só troca "•" por "-" e ajusta espaçamento, mantendo o mesmo
+    // correção só reformata (tag de lista, espaçamento), mantendo o mesmo
     // conteúdo. Rótulo repetido sozinho não pode travar isso.
     const trecho =
-      '## Análise de Negócio\n\n- Métricas em tempo real para apoio a tomada de decisões estratégicas.\n\n- Resultado: Insights sobre o consumo de produtos ou serviços, receita e impacto financeiro de incidentes.\n\n## Gestão de Desempenho'
+      '<h2>Análise de Negócio</h2>\n\n' +
+      '<ul><li>Métricas em tempo real para apoio a tomada de decisões estratégicas.</li>' +
+      '<li>Resultado: Insights sobre o consumo de produtos ou serviços, receita e impacto financeiro de incidentes.</li></ul>\n\n' +
+      '<h2>Gestão de Desempenho</h2>'
     const correcao =
-      'Análise de Negócio\n\n- Métricas em tempo real para apoio a tomada de decisões estratégicas.\n\n- Resultado: Insights sobre o consumo de produtos ou serviços, receita e impacto financeiro de incidentes.\n\nGestão de Desempenho'
-    const documentoComRepeticao = `${trecho}\n\n---\n\nAnálise de Negócio\n\n- Outra coisa completamente diferente aqui.`
+      '<h2>Análise de Negócio</h2>\n\n' +
+      '<p>Métricas em tempo real para apoio a tomada de decisões estratégicas.</p>\n\n' +
+      '<p>Resultado: Insights sobre o consumo de produtos ou serviços, receita e impacto financeiro de incidentes.</p>\n\n' +
+      '<h2>Gestão de Desempenho</h2>'
+    const documentoComRepeticao = `${trecho}\n\n<hr>\n\n<h2>Análise de Negócio</h2>\n\n<p>Outra coisa completamente diferente aqui.</p>`
 
     expect(trocaConteudoSobRotuloAmbiguo(trecho, correcao, documentoComRepeticao)).toBe(false)
   })
@@ -385,25 +398,30 @@ describe('trocaConteudoSobRotuloAmbiguo', () => {
     expect(trocaConteudoSobRotuloAmbiguo(trechoInternet, correcaoPadraoFaturamento, trechoInternet)).toBe(false)
   })
 
-  it('trecho de uma linha só nunca vira "rótulo" — correção de linha única continua liberada', () => {
-    const trecho = 'Prazo de entrega: 30 dias'
-    const documentoComRepeticao = `${trecho}\n\nPrazo de entrega: 30 dias (repetido em outra cláusula)`
+  it('trecho de um bloco só nunca vira "rótulo" — correção de bloco único continua liberada', () => {
+    const trecho = '<p>Prazo de entrega: 30 dias</p>'
+    const documentoComRepeticao = `${trecho}\n\n<p>Prazo de entrega: 30 dias (repetido em outra cláusula)</p>`
 
-    expect(trocaConteudoSobRotuloAmbiguo(trecho, 'Prazo de entrega: 60 dias', documentoComRepeticao)).toBe(false)
+    expect(trocaConteudoSobRotuloAmbiguo(trecho, '<p>Prazo de entrega: 60 dias</p>', documentoComRepeticao)).toBe(false)
   })
 })
 
 describe('checarConversao — troca de conteúdo entre ocorrências do mesmo rótulo', () => {
   it('descarta a correção que sobrescreveria a seção certa com o texto de outra seção', async () => {
     const trechoInternet =
-      'Gestão de faturamento\n\n- Fornecimento de Banda de Internet, exceto para os previstos por meio das funcionalidades de SD-WAN.\n\n- Disponibilização de Internet para publicação de sites e aplicações.'
+      '<p>Gestão de faturamento</p>\n\n' +
+      '<ul><li>Fornecimento de Banda de Internet, exceto para os previstos por meio das funcionalidades de SD-WAN.</li>' +
+      '<li>Disponibilização de Internet para publicação de sites e aplicações.</li></ul>'
     const correcaoPadraoFaturamento =
-      'Gestão de faturamento\n- A PRODAM recebe e analisa as faturas de contratos dos fornecedores, verifica se as características dos equipamentos ou links informados, como capacidade, tempo disponível de acordo com seus registros de incidentes, estão corretas, antes de repassar ao cliente, e ajustes são feitos pelo fornecedor caso haja divergência.\nNão faz parte do escopo do Serviço'
+      '<p>Gestão de faturamento</p>\n\n' +
+      '<ul><li>A PRODAM recebe e analisa as faturas de contratos dos fornecedores, verifica se as características dos equipamentos ou links informados, como capacidade, tempo disponível de acordo com seus registros de incidentes, estão corretas, antes de repassar ao cliente, e ajustes são feitos pelo fornecedor caso haja divergência.</li></ul>\n\n' +
+      '<p>Não faz parte do escopo do Serviço</p>'
     const textoOriginalPagina =
       'Gestão de faturamento\n• A PRODAM recebe e analisa as faturas de contratos dos fornecedores, verifica se as características dos equipamentos ou links informados, como capacidade, tempo disponível de acordo com seus registros de incidentes, estão corretas, antes de repassar ao cliente, e ajustes são feitos pelo fornecedor caso haja divergência.\nNão faz parte do escopo do Serviço'
     const documentoFinal = [
-      'Seção de Internet\n\n' + trechoInternet,
-      'Seção de Link Dedicado\n\nGestão de faturamento\n\n- A PRODAM recebe e analisa as faturas de contratos dos fornecedores.\n\nNão faz parte do escopo do Serviço',
+      '<h2>Seção de Internet</h2>\n\n' + trechoInternet,
+      '<h2>Seção de Link Dedicado</h2>\n\n<p>Gestão de faturamento</p>\n\n' +
+        '<ul><li>A PRODAM recebe e analisa as faturas de contratos dos fornecedores.</li></ul>\n\n<p>Não faz parte do escopo do Serviço</p>',
     ].join('\n\n')
 
     ;(generateObject as jest.Mock).mockResolvedValueOnce({
@@ -413,7 +431,7 @@ describe('checarConversao — troca de conteúdo entre ocorrências do mesmo ró
       },
     })
 
-    const resultado = await checarConversao([{ pagina: 5, textoOriginal: textoOriginalPagina, markdown: '' }], documentoFinal)
+    const resultado = await checarConversao([{ pagina: 5, textoOriginal: textoOriginalPagina, html: '' }], documentoFinal)
 
     expect(resultado.trechosSuspeitos[0].correcaoSugerida).toBeNull()
     expect(resultado.trechosSuspeitos[0].correcaoDescartada).toBe(true)
@@ -432,7 +450,7 @@ describe('checarConversao — pula a IA quando a página já bate quase 100% no 
     // redor (o resto do documento, sem relação com esta página).
     const documentoAtual = `Introdução qualquer.\n\n${textoOriginal}\n\nOutra cláusula qualquer.`
 
-    const resultado = await checarConversao([{ pagina: 3, textoOriginal, markdown: '' }], documentoAtual)
+    const resultado = await checarConversao([{ pagina: 3, textoOriginal, html: '' }], documentoAtual)
 
     expect(generateObject).not.toHaveBeenCalled()
     expect(resultado.trechosSuspeitos).toEqual([])
@@ -445,7 +463,7 @@ describe('checarConversao — pula a IA quando a página já bate quase 100% no 
     })
 
     const resultado = await checarConversao(
-      [{ pagina: 3, textoOriginal: 'Texto que sumiu do documento final inteiramente, nada bate aqui.', markdown: '' }],
+      [{ pagina: 3, textoOriginal: 'Texto que sumiu do documento final inteiramente, nada bate aqui.', html: '' }],
       'Documento final sem relação nenhuma com o texto original desta página.'
     )
 

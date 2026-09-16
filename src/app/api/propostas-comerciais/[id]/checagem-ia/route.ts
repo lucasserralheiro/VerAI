@@ -118,17 +118,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   try {
-    // `checarConversao` ainda espera o campo `markdown` (`PaginaParaChecar`) —
-    // a adaptação dessa checagem pro HTML nativo é uma fase própria, ainda não
-    // feita (ver docs/superpowers/specs/2026-09-14-html-nativo-ocr-proposta-comercial-design.md).
-    // Por ora só faz a ponte de nome de campo aqui, sem mexer em
-    // `checarConversao.ts`: o conteúdo comparado já é HTML por baixo, só o
-    // nome do campo continua `markdown`.
-    const paginasParaChecar = paginasConvertidas.map(({ html, ...resto }) => ({ ...resto, markdown: html }))
     const resultado =
       paginasConvertidas.length === 0
         ? { scoreExibido: null, trechosSuspeitos: [] }
-        : await checarConversao(paginasParaChecar, documentoAtual)
+        : await checarConversao(paginasConvertidas, documentoAtual)
     const checadoEm = new Date()
     // A marca "correção automática já usada" é sobre a PROPOSTA, não sobre
     // este resultado — uma auditoria nova sobrescreve o JSON inteiro, então

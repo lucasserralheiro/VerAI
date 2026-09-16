@@ -1,6 +1,42 @@
 import { conferirTotais, conferirTotaisPlanilha } from './conferirTotais'
 
 describe('conferirTotais', () => {
+  it('zero à esquerda sobrando não impede o match — "015,00" é o mesmo valor que "15,00" no documento', () => {
+    // Acontece quando um valor real vem colado a outro sem separador (ex.:
+    // coluna de tabela grudada com a próxima) e o "0" sobrando de um match
+    // anterior vira prefixo do próximo — ver `normalizarValor`.
+    const fontes = [{ origem: 'Página 1', pagina: 1, textoOriginal: 'Quantidade: 015,00' }]
+    const documento = '<td>15,00</td>'
+
+    const resultado = conferirTotais(fontes, documento)
+
+    expect(resultado[0].encontradoNoDocumento).toBe(true)
+  })
+
+  it('acha valor monetário SEM nenhuma palavra-chave de total no rótulo — pedido explícito: confere todo item de preço, não só o total', () => {
+    const fontes = [
+      {
+        origem: 'Página 12',
+        pagina: 12,
+        textoOriginal: 'Analista de Informação (Complexidade 1) HORA/HOMEM R$ 490.656,00',
+      },
+    ]
+    const documento = '<p>Analista de Informação (Complexidade 1) HORA/HOMEM R$ 490.656,00</p>'
+
+    const resultado = conferirTotais(fontes, documento)
+
+    expect(resultado).toEqual([
+      {
+        origem: 'Página 12',
+        pagina: 12,
+        rotulo: 'Analista de Informação (Complexidade 1) HORA/HOMEM',
+        valorNoOriginal: 'R$ 490.656,00',
+        encontradoNoDocumento: true,
+        ocorrenciasNoDocumento: 1,
+      },
+    ])
+  })
+
   it('acha um total simples que bate com o documento (PDF: origem é a página)', () => {
     const fontes = [{ origem: 'Página 3', pagina: 3, textoOriginal: 'Total Geral: R$ 279.663,46' }]
     const documento = '<table><tr><td>Total Geral</td><td>R$ 279.663,46</td></tr></table>'
@@ -112,7 +148,7 @@ describe('conferirTotais', () => {
     expect(resultado[0]).toMatchObject({ rotulo: 'Total Geral', encontradoNoDocumento: true })
   })
 
-  it('caso real: tabela de cronograma de proposta comercial', () => {
+  it('caso real: tabela de cronograma — confere CADA valor da linha, não só o total', () => {
     const fontes = [
       {
         origem: 'Página 4',
@@ -126,12 +162,19 @@ describe('conferirTotais', () => {
         ].join('\n'),
       },
     ]
-    const documento =
-      '<table><tbody><tr><td>Implantação</td><td>R$ 45.000,00</td></tr></tbody></table>\n\n<p>Valor Total: R$ 279.663,46</p>'
+    const documento = [
+      '<table><tbody>',
+      '<tr><td>Implantação</td><td>R$ 45.000,00</td></tr>',
+      '<tr><td>Manutenção mensal</td><td>R$ 12.500,00</td></tr>',
+      '</tbody></table>',
+      '<p>Valor Total: R$ 279.663,46</p>',
+    ].join('\n\n')
 
     const resultado = conferirTotais(fontes, documento)
 
     expect(resultado).toEqual([
+      { origem: 'Página 4', pagina: 4, rotulo: '1     Implantação', valorNoOriginal: 'R$ 45.000,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
+      { origem: 'Página 4', pagina: 4, rotulo: '2     Manutenção mensal', valorNoOriginal: 'R$ 12.500,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
       {
         origem: 'Página 4',
         pagina: 4,

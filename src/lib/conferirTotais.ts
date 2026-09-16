@@ -1,11 +1,18 @@
 /**
- * Conferência determinística (sem IA) dos valores de TOTAL/resultado geral
- * de cada fonte de texto (página de PDF, ou arquivo Word inteiro — sem
- * conceito de página) contra o documento HTML final — atalho a mais além da
- * checagem por IA (`checarConversao.ts`), focado só nos números de maior
- * risco financeiro numa proposta comercial (total, subtotal), pra bater o
- * olho rápido sem esperar chamada de modelo nenhuma. Ver
+ * Conferência determinística (sem IA) de TODO valor monetário de cada fonte
+ * de texto (página de PDF, ou arquivo Word inteiro — sem conceito de
+ * página) contra o documento HTML final — atalho a mais além da checagem
+ * por IA (`checarConversao.ts`), pra bater o olho rápido sem esperar
+ * chamada de modelo nenhuma. Ver
  * docs/superpowers/specs/2026-09-16-conferencia-totais-design.md.
+ *
+ * Não exige rótulo de total ("total", "subtotal"...) perto do valor — só
+ * exige que PAREÇA um valor monetário BR (milhar com ponto, decimal com
+ * vírgula de 2 dígitos). Pedido explícito: restringir a linhas com
+ * palavra-chave de total deixava de fora item de tabela de preço sem
+ * "total" no texto ("Analista de Informação (Complexidade 1) ...
+ * R$ 490.656,00" não tem "total" nem "subtotal" na frase, mas é um valor
+ * que precisa ser conferido igual).
  *
  * Cobre texto puro (PDF via `pdfHtml.ts`, Word via `mammoth.extractRawText`)
  * — planilha (`.xlsx`/`.csv`) usa uma extração e comparação diferentes
@@ -38,26 +45,18 @@ export interface TotalConferido {
   ocorrenciasNoDocumento: number
 }
 
-/** Palavra-chave de total, do mais específico pro mais genérico — na mesma
- *  posição de início, a alternativa mais específica tenta primeiro (ordem da
- *  alternação em regex JS não é "mais longa vence", é "primeira que bate"),
- *  então "Total Geral" nunca vira só "Total". */
-const REGEX_ROTULO = /total\s+geral|valor\s+total|subtotal|resultado\s+geral|total/i
-
 /** Valor monetário BR (milhar com ponto, decimal com vírgula de 2 dígitos),
- *  com "R$" opcional na frente. Buscado DEPOIS da palavra-chave (não logo em
- *  seguida) — rótulo de total costuma vir com texto descritivo no meio
- *  ("Subtotal do Lote 1:", "Total dos Serviços de Manutenção:"), então
- *  exigir o valor colado teria como custo perder exatamente os totais de um
- *  documento com múltiplos lotes/itens, que são os que mais precisam de
- *  conferência (vários totais, não um só). */
-const REGEX_VALOR = /(R\$)?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/
+ *  com "R$" opcional na frente — o ÚNICO filtro que decide se um número vira
+ *  candidato. Sozinho já descarta contagem solta ("Total de 45 páginas",
+ *  "12 itens"), que não tem vírgula decimal de 2 dígitos, sem precisar de
+ *  lista de palavra-chave. */
+const REGEX_VALOR_GLOBAL = /(R\$)?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/g
 
-/** Até onde, depois da palavra-chave, ainda vale procurar o valor — trecho
- *  descritivo de rótulo real cabe fácil aqui; documento com "total" solto no
- *  meio de uma frase comprida não acha nenhum número perto o bastante pra
- *  contar como falso positivo. */
-const JANELA_BUSCA_VALOR = 80
+/** Quantos caracteres de texto ANTES de um valor viram o rótulo exibido —
+ *  não é preciso a linha inteira quando o primeiro valor vem bem depois de
+ *  um parágrafo de descrição; os últimos caracteres já dão contexto
+ *  suficiente pra pessoa reconhecer do que se trata. */
+const LIMITE_ROTULO = 80
 
 /** Todo número em formato monetário BR (milhar com ponto, decimal com
  *  vírgula de 2 dígitos) solto no texto — usado pra indexar o documento
@@ -67,7 +66,12 @@ const REGEX_QUALQUER_VALOR = /\d{1,3}(?:\.\d{3})*,\d{2}/g
 /** Remove separador de milhar, mantém a vírgula decimal — só assim dois
  *  números "iguais" escritos de formas diferentes comparam igual. */
 function normalizarValor(valor: string): string {
-  return valor.replace(/\./g, '')
+  // Zero à esquerda sobrando (comum quando o valor real vem colado a outro
+  // número sem separador, ex.: "...0015,00..." vira "015,00" depois do
+  // valor anterior consumir o resto) não muda o número — "015,00" e
+  // "15,00" são o mesmo valor, mas comparariam diferente como STRING sem
+  // isso. Mantém pelo menos um dígito (não zera "0,00" pra vazio).
+  return valor.replace(/\./g, '').replace(/^0+(?=\d)/, '')
 }
 
 /** `textoOriginal` NÃO é texto puro do PDF — `extrairTextoLinha`/
@@ -111,61 +115,39 @@ interface RotuloEValor {
   valorNormalizado: string
 }
 
-/** Acha TODA palavra-chave de total na linha (não só a primeira) e, DEPOIS de
- *  cada uma (dentro de `JANELA_BUSCA_VALOR`), o valor monetário mais
- *  próximo — `rotulo` é tudo entre o início da palavra-chave e o início do
- *  valor (ex.: "Subtotal do Lote 1", não só "Subtotal"), sem pontuação/
- *  espaço sobrando na ponta.
- *
- *  Por que TODA palavra-chave, não só a primeira: numa proposta comercial
- *  real, a tabela de preço tem MAIS de um total — subtotal por lote/seção
- *  ("A - Sistemas de Informação TOTAL: ...", "B - Redes e Conectividade
- *  TOTAL: ...") — e quando a extração do PDF (`pdfHtml.ts`) não separa bem
- *  as linhas dessa tabela, várias delas caem juntas na MESMA
- *  `textoOriginal`, sem quebra entre uma e outra. Pegar só a primeira
- *  ocorrência por linha reportaria só 1 total de um documento com vários —
- *  caso real que motivou esta função. */
+/** Acha TODO valor monetário da linha (não só perto de palavra-chave de
+ *  total, não só o primeiro) — `rotulo` é o texto que veio ANTES dele desde
+ *  o valor anterior (ou desde o início da linha, no primeiro), limitado aos
+ *  últimos `LIMITE_ROTULO` caracteres e sem pontuação/espaço sobrando na
+ *  ponta. `'(sem rótulo)'` quando não sobra texto nenhum antes (valor logo
+ *  no início da linha). */
 function extrairTodosRotuloEValor(linha: string): RotuloEValor[] {
   const resultados: RotuloEValor[] = []
   let cursor = 0
 
-  while (cursor < linha.length) {
-    const restante = linha.slice(cursor)
-    const matchRotulo = restante.match(REGEX_ROTULO)
-    if (!matchRotulo || matchRotulo.index === undefined) break
+  for (const match of linha.matchAll(REGEX_VALOR_GLOBAL)) {
+    if (match.index === undefined) continue
 
-    const inicioResto = matchRotulo.index + matchRotulo[0].length
-    const resto = restante.slice(inicioResto, inicioResto + JANELA_BUSCA_VALOR)
-    const matchValor = resto.match(REGEX_VALOR)
-    if (!matchValor || matchValor.index === undefined) {
-      // Palavra-chave sem valor perto — avança só até o fim dela, pra não
-      // reexaminar o mesmo trecho de novo (evita loop infinito).
-      cursor += matchRotulo.index + matchRotulo[0].length
-      continue
-    }
-
-    const rotulo = restante
-      .slice(matchRotulo.index, inicioResto + matchValor.index)
+    const textoAntes = linha
+      .slice(cursor, match.index)
       .replace(/[\s.\-:]+$/, '')
       .trim()
-    const valorTexto = matchValor[1] ? `${matchValor[1]} ${matchValor[2]}` : matchValor[2]
-    resultados.push({ rotulo, valorTexto, valorNormalizado: normalizarValor(matchValor[2]) })
+    const rotulo = textoAntes.length > 0 ? textoAntes.slice(-LIMITE_ROTULO).trim() : '(sem rótulo)'
+    const valorTexto = match[1] ? `${match[1]} ${match[2]}` : match[2]
+    resultados.push({ rotulo, valorTexto, valorNormalizado: normalizarValor(match[2]) })
 
-    // Continua a busca DEPOIS do valor achado — pro próximo total da mesma
-    // linha (se houver) ser achado também, não só o primeiro.
-    cursor += inicioResto + matchValor.index + matchValor[0].length
+    cursor = match.index + match[0].length
   }
 
   return resultados
 }
 
 /**
- * Pra cada fonte (página de PDF ou arquivo Word inteiro), acha TODA linha
- * com rótulo de total perto de um valor monetário — mais de um por linha,
- * se houver (ver `extrairTodosRotuloEValor`) — e confere se o MESMO valor
- * (correspondência EXATA do número normalizado, nunca substring — "663,46"
- * não pode casar dentro de "279.663,46") aparece em algum lugar do
- * documento inteiro.
+ * Pra cada fonte (página de PDF ou arquivo Word inteiro), acha TODO valor
+ * monetário de cada linha — mais de um por linha, se houver (ver
+ * `extrairTodosRotuloEValor`) — e confere se o MESMO valor (correspondência
+ * EXATA do número normalizado, nunca substring — "663,46" não pode casar
+ * dentro de "279.663,46") aparece em algum lugar do documento inteiro.
  */
 export function conferirTotais(fontes: TextoParaConferirTotal[], documentoAtual: string): TotalConferido[] {
   const indiceDocumento = indexarValoresDoDocumento(documentoAtual)

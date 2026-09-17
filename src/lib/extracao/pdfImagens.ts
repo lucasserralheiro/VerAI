@@ -446,6 +446,38 @@ interface PngCodificado {
   altura: number
 }
 
+/** Abaixo dessa fração de pixels com conteúdo (não-brancos), a imagem é só
+ *  moldura/caixa vazia — nunca virou figura de verdade no documento. Medido
+ *  contra dois PDFs reais que geravam bloco de OCR sem solução: a caixa vazia
+ *  tinha 0% e 0,17%/0,41% de pixels não-brancos (só a borda fina). 0,5% fica
+ *  com margem acima desses casos e bem abaixo do que qualquer tabela/diagrama
+ *  real cobre de tinta sobre fundo branco — decisão deliberada de errar pro
+ *  lado de manter a imagem (risco de perder conteúdo real é mais grave do que
+ *  o de sobrar um bloco de OCR raro). */
+const LIMIAR_FRACAO_PIXELS_COM_CONTEUDO = 0.005
+/** Um canal de cor abaixo disso (de 255) já não conta como "branco". */
+const LIMIAR_VALOR_BRANCO = 250
+
+/** Fração de pixels que não são brancos — ignora o canal de alfa: imagem com
+ *  RGB branco e alfa zerado (totalmente transparente) é tão vazia quanto uma
+ *  branca opaca, então conta como sem conteúdo do mesmo jeito. */
+function fracaoDePixelsComConteudo(pixels: Uint8Array | Uint8ClampedArray, canaisDeCor: number, canais: number): number {
+  const totalPixels = pixels.length / canais
+  let comConteudo = 0
+  for (let p = 0; p < totalPixels; p++) {
+    const base = p * canais
+    let branco = true
+    for (let c = 0; c < canaisDeCor; c++) {
+      if (pixels[base + c] < LIMIAR_VALOR_BRANCO) {
+        branco = false
+        break
+      }
+    }
+    if (!branco) comConteudo++
+  }
+  return comConteudo / totalPixels
+}
+
 async function codificarComoPng(pdf: PdfDocumento, ocorrencia: OcorrenciaDeImagem): Promise<PngCodificado | null> {
   const objeto = await buscarObjetoDeImagem(pdf, ocorrencia)
   if (!objeto?.data || !objeto.width || !objeto.height) return null
@@ -453,14 +485,20 @@ async function codificarComoPng(pdf: PdfDocumento, ocorrencia: OcorrenciaDeImage
   const { width, height, kind, data } = objeto
   if (kind === KIND_GRAYSCALE_1BPP) {
     if (data.length < ((width + 7) >> 3) * height) return null
-    return { buffer: montarPng(width, height, 0, expandirCinza1Bpp(width, height, data)), largura: width, altura: height }
+    const pixels = expandirCinza1Bpp(width, height, data)
+    if (fracaoDePixelsComConteudo(pixels, 1, 1) < LIMIAR_FRACAO_PIXELS_COM_CONTEUDO) return null
+    return { buffer: montarPng(width, height, 0, pixels), largura: width, altura: height }
   }
 
   const tipoDeCor = kind === KIND_RGB_24BPP ? 2 : kind === KIND_RGBA_32BPP ? 6 : null
   if (tipoDeCor === null) return null
+  const canais = CANAIS_POR_TIPO_DE_COR[tipoDeCor]
   // Formato inesperado (linha com preenchimento, decodificação parcial): melhor
   // ignorar a imagem do que gravar um PNG embaralhado.
-  if (data.length < width * height * CANAIS_POR_TIPO_DE_COR[tipoDeCor]) return null
+  if (data.length < width * height * canais) return null
+  // Caixa/moldura vazia (borda fina, miolo em branco) — nunca foi figura de
+  // verdade; virar bloco de OCR pra isso não tem solução (não há o que ler).
+  if (fracaoDePixelsComConteudo(data, 3, canais) < LIMIAR_FRACAO_PIXELS_COM_CONTEUDO) return null
 
   return { buffer: montarPng(width, height, tipoDeCor, data), largura: width, altura: height }
 }

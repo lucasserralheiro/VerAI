@@ -97,6 +97,19 @@ function bitmapRgb(width: number, height: number) {
   return { width, height, kind: 2, data: new Uint8Array(width * height * 3).fill(200) }
 }
 
+/** Bitmap RGB quase todo branco, com só `pixelsComConteudo` pixels pretos —
+ *  simula a caixa/moldura vazia real (borda fina, miolo em branco) que virou
+ *  bloco de OCR sem solução em produção. */
+function bitmapQuaseBranco(width: number, height: number, pixelsComConteudo: number) {
+  const data = new Uint8Array(width * height * 3).fill(255)
+  for (let i = 0; i < pixelsComConteudo; i++) {
+    data[i * 3] = 0
+    data[i * 3 + 1] = 0
+    data[i * 3 + 2] = 0
+  }
+  return { width, height, kind: 2, data }
+}
+
 /** Parágrafo comum ocupando o miolo da página, pra que as imagens testadas
  *  tenham texto acima e abaixo — a situação de uma figura de verdade. */
 const TEXTO_DO_CORPO = [
@@ -347,5 +360,23 @@ describe('extrairImagensDeConteudo', () => {
     )
 
     expect(await extrairImagensDeConteudo(comoPdf(pdf), 1)).toHaveLength(0)
+  })
+
+  it('descarta imagem praticamente toda branca (0,1% de pixels com conteúdo) — evita bloco de OCR sem solução', async () => {
+    const pdf = pdfFake(
+      [{ texto: TEXTO_DO_CORPO, imagens: [{ objId: 'caixa_vazia', x: 60, y: 300, largura: 480, altura: 320 }] }],
+      { caixa_vazia: bitmapQuaseBranco(100, 100, 10) } // 10 de 10.000 = 0,1%
+    )
+
+    expect(await extrairImagensDeConteudo(comoPdf(pdf), 1)).toHaveLength(0)
+  })
+
+  it('mantém imagem com conteúdo esparso mas acima do limiar (0,6% de pixels com conteúdo)', async () => {
+    const pdf = pdfFake(
+      [{ texto: TEXTO_DO_CORPO, imagens: [{ objId: 'diagrama_esparso', x: 60, y: 300, largura: 480, altura: 320 }] }],
+      { diagrama_esparso: bitmapQuaseBranco(100, 100, 60) } // 60 de 10.000 = 0,6%
+    )
+
+    expect(await extrairImagensDeConteudo(comoPdf(pdf), 1)).toHaveLength(1)
   })
 })

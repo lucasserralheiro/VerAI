@@ -106,29 +106,19 @@ describe('EspacoProposta', () => {
     const onSalvar = jest.fn().mockRejectedValueOnce(new Error('servidor fora')).mockResolvedValue(undefined)
     render(<EspacoProposta {...props({ onSalvar })} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Editar como texto' }))
-    fireEvent.change(screen.getByLabelText('Editar como texto'), { target: { value: 'conteúdo editado' } })
-    await esperar(AUTOSAVE_MS + 50)
+    const editor = screen.getByRole('textbox', { name: 'Conteúdo da proposta' })
+    editor.innerHTML = '<h1>conteúdo editado</h1>'
+    fireEvent.input(editor)
+    await esperar(AUTOSAVE_MS + 450)
 
     expect(await screen.findByText(/servidor fora/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }))
 
     await waitFor(() => expect(onSalvar).toHaveBeenCalledTimes(2))
-    expect(onSalvar).toHaveBeenLastCalledWith('conteúdo editado')
+    expect(onSalvar).toHaveBeenLastCalledWith('<h1>conteúdo editado</h1>')
     // Salvo = estado parado, sem nada a avisar — o indicador some (ver
     // `StatusSalvamento`), não mostra "Salvo".
     await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
-  })
-
-  it('"Editar como texto" troca o documento pelo Markdown e volta', () => {
-    render(<EspacoProposta {...props()} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Editar como texto' }))
-    expect(screen.getByLabelText('Editar como texto')).toHaveValue('# Proposta')
-    expect(screen.queryByRole('textbox', { name: 'Conteúdo da proposta' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Voltar ao documento' }))
-    expect(screen.getByRole('textbox', { name: 'Conteúdo da proposta' })).toBeInTheDocument()
   })
 
   it('copia o conteúdo formatado (HTML + texto simples) e mostra "Copiado!" temporariamente', async () => {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, ClipboardCheck, ClipboardCopy, FileCode2, FileText, Loader2 } from 'lucide-react'
+import { AlertCircle, ClipboardCheck, ClipboardCopy, Loader2 } from 'lucide-react'
 import { BTN_OUTLINE, BTN_PRIMARY } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { copiarHtmlFormatado } from '@/lib/copiarHtmlFormatado'
@@ -77,7 +77,6 @@ export function EspacoProposta({
     /** Some ao fechar o modal — quem abriu (a checagem) recebe o texto selecionado. */
     onUsarSelecao?: (texto: string) => void
   } | null>(null)
-  const [modoTexto, setModoTexto] = useState(false)
   const [copiado, setCopiado] = useState(false)
   const [preferenciaFonte, setPreferenciaFonte] = useState<PreferenciaFonte>(PREFERENCIA_PADRAO)
 
@@ -252,41 +251,16 @@ export function EspacoProposta({
                 onMudarFonte={handleMudarFonte}
                 onMudarTamanho={handleMudarTamanho}
               />
-              <span aria-hidden className="h-5 w-px bg-border-grey" />
-              <button
-                type="button"
-                onClick={() => setModoTexto((v) => !v)}
-                aria-pressed={modoTexto}
-                title={modoTexto ? 'Voltar pra edição visual' : 'Editar o Markdown direto — quando a edição visual não der conta'}
-                className={cn(BTN_OUTLINE, 'h-8 py-0', modoTexto && 'border-navy/35 bg-navy/[0.06]')}
-              >
-                {modoTexto ? (
-                  <FileText className="size-3.5" strokeWidth={2.25} />
-                ) : (
-                  <FileCode2 className="size-3.5" strokeWidth={2.25} />
-                )}
-                {modoTexto ? 'Voltar ao documento' : 'Editar como texto'}
-              </button>
             </div>
           </div>
 
-          {modoTexto ? (
-            <textarea
-              aria-label="Editar como texto"
-              value={markdown}
-              onChange={(e) => mudar(e.target.value)}
-              spellCheck={false}
-              className="block min-h-[70vh] w-full resize-y rounded-b-lg px-5 py-4 font-mono text-sm leading-relaxed text-navy outline-none"
-            />
-          ) : (
-            <ConteudoEditavelProposta
-              markdown={markdown}
-              onChange={mudar}
-              fonte={pilhaDaFonte(preferenciaFonte.fonte)}
-              tamanhoCorpo={preferenciaFonte.tamanhoCorpo}
-              className="overflow-x-auto rounded-b-lg px-6 py-6 sm:px-10 sm:py-8"
-            />
-          )}
+          <ConteudoEditavelProposta
+            markdown={markdown}
+            onChange={mudar}
+            fonte={pilhaDaFonte(preferenciaFonte.fonte)}
+            tamanhoCorpo={preferenciaFonte.tamanhoCorpo}
+            className="overflow-x-auto rounded-b-lg px-6 py-6 sm:px-10 sm:py-8"
+          />
         </section>
 
         {/* Painel só com resumo e botões — as comparações abrem numa janela

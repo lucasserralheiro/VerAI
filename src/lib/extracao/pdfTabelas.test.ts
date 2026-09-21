@@ -1,4 +1,4 @@
-import { construirGradeDaPagina, detectarTabelaPorBordas, type GradeDeTabela } from './pdfTabelas'
+import { construirGradeDaPagina, construirGradesDaPagina, detectarTabelaPorBordas, type GradeDeTabela } from './pdfTabelas'
 import type { Linha } from './pdfHtml'
 
 function segmento(x1: number, y1: number, x2: number, y2: number) {
@@ -97,6 +97,57 @@ describe('construirGradeDaPagina', () => {
     ]
 
     expect(construirGradeDaPagina(segmentos)).toEqual({ y: [100, 80], x: [0, 150, 300] })
+  })
+})
+
+describe('construirGradesDaPagina', () => {
+  it('separa duas tabelas bordadas na mesma página em duas grades, não uma só', () => {
+    // Caso real da proposta de referência: tabela de preço seguida do
+    // cronograma físico-financeiro, cada uma com sua própria moldura de
+    // bordas, sem nenhum traço em comum entre as duas (há texto corrido —
+    // parágrafo e título — no vão entre elas). `construirGradeDaPagina`
+    // uniria as bordas das duas numa grade só; `construirGradesDaPagina`
+    // reconhece que são tabelas separadas.
+    const tabelaDePreco = [
+      segmento(0, 700, 400, 700),
+      segmento(0, 660, 400, 660),
+      segmento(0, 620, 400, 620),
+      segmento(0, 620, 0, 700),
+      segmento(200, 620, 200, 700),
+      segmento(400, 620, 400, 700),
+    ]
+    const cronograma = [
+      segmento(0, 480, 400, 480),
+      segmento(0, 440, 400, 440),
+      segmento(0, 400, 400, 400),
+      segmento(0, 400, 0, 480),
+      segmento(200, 400, 200, 480),
+      segmento(400, 400, 400, 480),
+    ]
+
+    const grades = construirGradesDaPagina([...tabelaDePreco, ...cronograma])
+
+    expect(grades).toHaveLength(2)
+    expect(grades[0]).toEqual({ y: [700, 660, 620], x: [0, 200, 400] })
+    expect(grades[1]).toEqual({ y: [480, 440, 400], x: [0, 200, 400] })
+  })
+
+  it('página com uma única tabela devolve a mesma grade que construirGradeDaPagina', () => {
+    const segmentos = [
+      segmento(0, 100, 200, 100),
+      segmento(0, 80, 200, 80),
+      segmento(0, 60, 200, 60),
+      segmento(0, 60, 0, 100),
+      segmento(100, 60, 100, 100),
+      segmento(200, 60, 200, 100),
+    ]
+
+    expect(construirGradesDaPagina(segmentos)).toEqual([construirGradeDaPagina(segmentos)])
+  })
+
+  it('não junta bordas curtas demais (nem forma grade nenhuma) numa página sem tabela', () => {
+    expect(construirGradesDaPagina([])).toEqual([])
+    expect(construirGradesDaPagina([segmento(0, 100, 5, 100)])).toEqual([])
   })
 })
 

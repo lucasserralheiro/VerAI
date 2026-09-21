@@ -81,6 +81,97 @@ export function construirGradeDaPagina(segmentos: SegmentoReto[]): GradeDeTabela
 }
 
 /**
+ * Como `construirGradeDaPagina`, mas devolve UMA grade por tabela desenhada na
+ * página, em vez de juntar todas as bordas da página numa grade só.
+ *
+ * Duas tabelas bordadas na mesma página (comum em proposta comercial: tabela
+ * de preço seguida do cronograma físico-financeiro, com um parágrafo entre as
+ * duas) não têm NENHUMA borda em comum. Por isso, antes de montar a grade, os
+ * segmentos são agrupados por CONEXÃO (`agruparPorConexao`): bordas que se
+ * tocam formam uma única tabela; bordas de tabelas diferentes nunca se tocam,
+ * já que há espaço em branco — ou texto corrido — separando as duas.
+ *
+ * Sem esse agrupamento, `construirGradeDaPagina` tratava as bordas das duas
+ * tabelas como uma grade só: a faixa Y entre o fim de uma e o começo da outra
+ * virava uma "linha" gigante da tabela unificada, e qualquer parágrafo ou
+ * título que caísse nessa faixa era engolido como célula. Foi exatamente o
+ * que aconteceu com o parágrafo e o título "Cronograma Físico Financeiro"
+ * entre as duas tabelas da proposta de referência.
+ */
+export function construirGradesDaPagina(segmentos: SegmentoReto[]): GradeDeTabela[] {
+  const horizontais = segmentos.filter((s) => s.y1 === s.y2 && s.x2 - s.x1 >= COMPRIMENTO_MIN_LINHA_GRADE)
+  const verticais = segmentos.filter((s) => s.x1 === s.x2 && s.y2 - s.y1 >= COMPRIMENTO_MIN_COLUNA_GRADE)
+  const candidatos = [...horizontais, ...verticais]
+  if (candidatos.length === 0) return []
+
+  const grupos = agruparPorConexao(candidatos, TOLERANCIA_CLUSTER_GRADE)
+
+  return grupos
+    .map((grupo) => construirGradeDaPagina(grupo))
+    .filter((grade): grade is GradeDeTabela => grade !== null)
+}
+
+/** Dois segmentos retos "se tocam" quando compartilham um ponto (dentro da
+ *  tolerância): duas horizontais alinhadas com X sobreposto (mesma borda de
+ *  linha), duas verticais alinhadas com Y sobreposto (mesma borda de coluna),
+ *  ou uma horizontal cruzando/encontrando uma vertical num canto ou T da
+ *  grade — é assim que as bordas de UMA tabela ficam todas ligadas entre si. */
+function segmentosSeTocam(a: SegmentoReto, b: SegmentoReto, tolerancia: number): boolean {
+  const aHorizontal = a.y1 === a.y2
+  const bHorizontal = b.y1 === b.y2
+
+  if (aHorizontal && bHorizontal) {
+    if (Math.abs(a.y1 - b.y1) > tolerancia) return false
+    return a.x1 <= b.x2 + tolerancia && b.x1 <= a.x2 + tolerancia
+  }
+  if (!aHorizontal && !bHorizontal) {
+    if (Math.abs(a.x1 - b.x1) > tolerancia) return false
+    return a.y1 <= b.y2 + tolerancia && b.y1 <= a.y2 + tolerancia
+  }
+
+  const horizontal = aHorizontal ? a : b
+  const vertical = aHorizontal ? b : a
+  const xDentro = vertical.x1 >= horizontal.x1 - tolerancia && vertical.x1 <= horizontal.x2 + tolerancia
+  const yDentro = horizontal.y1 >= vertical.y1 - tolerancia && horizontal.y1 <= vertical.y2 + tolerancia
+  return xDentro && yDentro
+}
+
+/** Agrupa segmentos em componentes conexos (union-find): cada grupo reúne os
+ *  segmentos ligados, direta ou transitivamente, por um ponto em comum — na
+ *  prática, todas as bordas de uma única tabela desenhada na página. */
+function agruparPorConexao(segmentos: SegmentoReto[], tolerancia: number): SegmentoReto[][] {
+  const pai = segmentos.map((_, i) => i)
+  function encontrar(i: number): number {
+    while (pai[i] !== i) {
+      pai[i] = pai[pai[i]]
+      i = pai[i]
+    }
+    return i
+  }
+  function unir(i: number, j: number) {
+    const raizI = encontrar(i)
+    const raizJ = encontrar(j)
+    if (raizI !== raizJ) pai[raizI] = raizJ
+  }
+
+  for (let i = 0; i < segmentos.length; i++) {
+    for (let j = i + 1; j < segmentos.length; j++) {
+      if (segmentosSeTocam(segmentos[i], segmentos[j], tolerancia)) unir(i, j)
+    }
+  }
+
+  const grupos = new Map<number, SegmentoReto[]>()
+  segmentos.forEach((segmento, i) => {
+    const raiz = encontrar(i)
+    const grupo = grupos.get(raiz) ?? []
+    grupo.push(segmento)
+    grupos.set(raiz, grupo)
+  })
+
+  return [...grupos.values()]
+}
+
+/**
  * Índice da faixa (entre dois limites consecutivos, em qualquer ordem) onde
  * `valor` cai — usado tanto pra linha (limites Y decrescentes) quanto coluna
  * (limites X crescentes) da grade.

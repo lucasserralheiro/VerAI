@@ -513,6 +513,74 @@ describe('converterPdfParaHtml', () => {
         '<tbody><tr><td>Storage</td><td>R$ 100</td></tr></tbody></table>'
     )
   })
+
+  it('não engole no meio da tabela o parágrafo entre duas tabelas bordadas na mesma página', async () => {
+    // Reproduz o bug da proposta de referência: tabela de preço, seguida de
+    // um parágrafo fora de qualquer tabela, seguido do cronograma
+    // físico-financeiro — as duas tabelas com borda própria, sem nenhum
+    // traço em comum entre elas. Antes da correção, as bordas das duas eram
+    // tratadas como uma grade só, e o parágrafo no meio virava célula de uma
+    // tabela HTML gigante e errada.
+    const textoDoParagrafo = 'Os códigos dos serviços poderão passar por ajustes de numeração.'
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 1,
+      items: [
+        [
+          item({ str: 'Item', x: 10, width: 30, y: 690, hasEOL: false }),
+          item({ str: 'Valor', x: 210, width: 30, y: 690, hasEOL: true }),
+          item({ str: 'Storage', x: 10, width: 40, y: 640, hasEOL: false }),
+          item({ str: 'R$ 100', x: 210, width: 40, y: 640, hasEOL: true }),
+          item({ str: textoDoParagrafo, x: 10, width: 380, y: 550, hasEOL: true }),
+          item({ str: 'Periodo', x: 10, width: 30, y: 460, hasEOL: false }),
+          item({ str: 'Total', x: 210, width: 30, y: 460, hasEOL: true }),
+          item({ str: 'Mês 01', x: 10, width: 40, y: 420, hasEOL: false }),
+          item({ str: 'R$ 17.263,43', x: 210, width: 40, y: 420, hasEOL: true }),
+        ],
+      ],
+    })
+    ;(extrairSegmentosRetosPorPagina as jest.Mock).mockResolvedValue([
+      {
+        segmentos: [
+          // Tabela de preço (y 620–700)
+          { x1: 0, y1: 700, x2: 400, y2: 700 },
+          { x1: 0, y1: 660, x2: 400, y2: 660 },
+          { x1: 0, y1: 620, x2: 400, y2: 620 },
+          { x1: 0, y1: 620, x2: 0, y2: 700 },
+          { x1: 200, y1: 620, x2: 200, y2: 700 },
+          { x1: 400, y1: 620, x2: 400, y2: 700 },
+          // Cronograma (y 400–480) — sem nenhuma borda em comum com a de cima
+          { x1: 0, y1: 480, x2: 400, y2: 480 },
+          { x1: 0, y1: 440, x2: 400, y2: 440 },
+          { x1: 0, y1: 400, x2: 400, y2: 400 },
+          { x1: 0, y1: 400, x2: 0, y2: 480 },
+          { x1: 200, y1: 400, x2: 200, y2: 480 },
+          { x1: 400, y1: 400, x2: 400, y2: 480 },
+        ],
+        fracaoAreaComImagem: 0,
+      },
+    ])
+
+    const { html: resultado } = await converterPdfParaHtml(Buffer.from(''))
+
+    const tabelaDePreco =
+      '<table><thead><tr><th>Item</th><th>Valor</th></tr></thead>' +
+      '<tbody><tr><td>Storage</td><td>R$ 100</td></tr></tbody></table>'
+    const cronograma =
+      '<table><thead><tr><th>Periodo</th><th>Total</th></tr></thead>' +
+      '<tbody><tr><td>Mês 01</td><td>R$ 17.263,43</td></tr></tbody></table>'
+
+    // As duas tabelas saem intactas, cada uma com só as próprias linhas.
+    expect(resultado).toContain(tabelaDePreco)
+    expect(resultado).toContain(cronograma)
+    // O parágrafo do meio nunca vira célula — nem da tabela de cima, nem da
+    // de baixo — e continua legível como texto corrido.
+    expect(resultado).not.toContain(`<td>${textoDoParagrafo}`)
+    expect(resultado).not.toMatch(new RegExp(`<td>[^<]*${textoDoParagrafo.slice(0, 20)}`))
+    expect(resultado).toContain(textoDoParagrafo)
+    // E a ordem de leitura do documento é preservada: tabela, parágrafo, tabela.
+    expect(resultado.indexOf(tabelaDePreco)).toBeLessThan(resultado.indexOf(textoDoParagrafo))
+    expect(resultado.indexOf(textoDoParagrafo)).toBeLessThan(resultado.indexOf(cronograma))
+  })
 })
 
 describe('imagens do PDF no HTML', () => {

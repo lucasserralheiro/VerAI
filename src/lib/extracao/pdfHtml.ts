@@ -1,6 +1,6 @@
 import { extractTextItems, getDocumentProxy, type StructuredTextItem } from 'unpdf'
 import { extrairSegmentosRetosPorPagina, type SegmentoReto } from './pdfTracos'
-import { construirGradeDaPagina, detectarTabelaPorBordas, type GradeDeTabela } from './pdfTabelas'
+import { construirGradesDaPagina, detectarTabelaPorBordas, type GradeDeTabela } from './pdfTabelas'
 import { extrairImagensDeConteudo, type ImagemDeConteudo } from './pdfImagens'
 import { obterEstilosDeFontePorPagina, type EstiloDeFonte } from './pdfFontes'
 import { formatarBlocoOcrPendente } from '../ocr/marcadorOcrPendente'
@@ -303,10 +303,14 @@ export async function converterPdfParaHtml(
 
   // A grade de bordas vem antes das linhas porque o detector de sublinhado
   // precisa saber quais traços são borda de tabela pra não confundir os dois.
-  const gradesPorPagina = new Map<number, GradeDeTabela>()
+  // Cada página pode ter mais de uma tabela desenhada (ex.: tabela de preço
+  // seguida do cronograma, com parágrafo entre as duas) — por isso uma LISTA
+  // de grades por página, uma por tabela, nunca uma grade só unindo bordas de
+  // tabelas diferentes (ver `construirGradesDaPagina`).
+  const gradesPorPagina = new Map<number, GradeDeTabela[]>()
   segmentosPorPagina.forEach(({ segmentos }, pagina) => {
-    const grade = construirGradeDaPagina(segmentos)
-    if (grade) gradesPorPagina.set(pagina, grade)
+    const grades = construirGradesDaPagina(segmentos)
+    if (grades.length > 0) gradesPorPagina.set(pagina, grades)
   })
 
   const todasAsLinhas: Linha[] = []
@@ -491,11 +495,13 @@ function construirLinha(itensBrutos: ItemComEstilo[], pagina: number, segmentosD
  * de sublinhado, todas falsas, num documento que não tem uma única palavra
  * sublinhada. Formatação inventada é tão grave quanto texto perdido.
  */
-function segmentosSemBordaDeTabela(segmentos: SegmentoReto[], grade?: GradeDeTabela): SegmentoReto[] {
-  if (!grade) return segmentos
+function segmentosSemBordaDeTabela(segmentos: SegmentoReto[], grades?: GradeDeTabela[]): SegmentoReto[] {
+  if (!grades || grades.length === 0) return segmentos
   return segmentos.filter((segmento) => {
     if (segmento.y1 !== segmento.y2) return true // vertical nunca vira sublinhado
-    return !grade.y.some((yDaGrade) => Math.abs(yDaGrade - segmento.y1) <= TOLERANCIA_BORDA_DE_TABELA)
+    return !grades.some((grade) =>
+      grade.y.some((yDaGrade) => Math.abs(yDaGrade - segmento.y1) <= TOLERANCIA_BORDA_DE_TABELA)
+    )
   })
 }
 
@@ -875,7 +881,7 @@ function absorverBloco(
   linhas: Linha[],
   indiceInicial: number,
   tamanhoCorpo: number,
-  gradesPorPagina: Map<number, GradeDeTabela>,
+  gradesPorPagina: Map<number, GradeDeTabela[]>,
   repeticoes: Map<string, number>
 ): { textos: string[]; linhasConsumidas: Linha[]; proximoIndice: number } {
   const linhasConsumidas = [linhas[indiceInicial]]
@@ -955,6 +961,23 @@ function absorverTabelaPorPosicao(
   return { html: montarTabelaHtml(linhasFormatadas), proximoIndice: j }
 }
 
+/** Tenta cada grade de borda da página (pode haver mais de uma tabela nela)
+ *  a partir de `indice`, na ordem em que foram construídas — como as tabelas
+ *  de uma mesma página nunca se sobrepõem em Y, no máximo uma delas aceita a
+ *  linha inicial; as outras devolvem `null` de cara (checagem de área
+ *  vertical em `detectarTabelaPorBordas`). */
+function detectarTabelaEmQualquerGrade(
+  linhas: Linha[],
+  indice: number,
+  grades: GradeDeTabela[]
+): { html: string; proximoIndice: number } | null {
+  for (const grade of grades) {
+    const tabela = detectarTabelaPorBordas(linhas, indice, grade)
+    if (tabela) return tabela
+  }
+  return null
+}
+
 /** Uma tabela (por bordas ou por posição) começa exatamente nesta linha? É o
  *  que interrompe a absorção de um parágrafo — antes bastava a linha TER vão
  *  largo, e com isso todo parágrafo justificado se partia no meio sem que
@@ -962,10 +985,10 @@ function absorverTabelaPorPosicao(
 function iniciaTabela(
   linhas: Linha[],
   indice: number,
-  gradesPorPagina: Map<number, GradeDeTabela>
+  gradesPorPagina: Map<number, GradeDeTabela[]>
 ): boolean {
-  const grade = gradesPorPagina.get(linhas[indice].pagina)
-  if (grade && detectarTabelaPorBordas(linhas, indice, grade)) return true
+  const grades = gradesPorPagina.get(linhas[indice].pagina)
+  if (grades && detectarTabelaEmQualquerGrade(linhas, indice, grades)) return true
   return absorverTabelaPorPosicao(linhas, indice) !== null
 }
 
@@ -981,7 +1004,7 @@ function montarHtml(
   linhas: Linha[],
   tamanhoCorpo: number,
   margens: Margens,
-  gradesPorPagina: Map<number, GradeDeTabela>,
+  gradesPorPagina: Map<number, GradeDeTabela[]>,
   imagens: ImagemPosicionada[] = [],
   paginasOcr: number[] = []
 ): { html: string; blocosPorPagina: Map<number, string[]> } {
@@ -1027,8 +1050,8 @@ function montarHtml(
     despejarOcrAntesDe(linhas[i].pagina)
     despejarImagensAntesDe(linhas[i])
 
-    const grade = gradesPorPagina.get(linhas[i].pagina)
-    const tabelaPorBordas = grade ? detectarTabelaPorBordas(linhas, i, grade) : null
+    const grades = gradesPorPagina.get(linhas[i].pagina)
+    const tabelaPorBordas = grades ? detectarTabelaEmQualquerGrade(linhas, i, grades) : null
     if (tabelaPorBordas) {
       registrar(linhas[i].pagina, tabelaPorBordas.html)
       i = tabelaPorBordas.proximoIndice

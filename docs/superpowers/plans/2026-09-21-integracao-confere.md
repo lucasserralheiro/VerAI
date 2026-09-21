@@ -211,8 +211,9 @@ ficar "a cópia do Confere, do mesmo jeito" (com print do frontend de verdade do
       reversão `20260921160000_remove_analise_medicao_contratual`
 - [x] `src/middleware.ts` + `src/app/login/{login-form,dev-login-form}.tsx` redirecionam pra
       `/confere` em vez de `/clientes`; testes atualizados
-- [x] `src/components/nav-bar.tsx` — link "Confere" solto, primeiro item do menu, fora do grupo
-      "Relatórios"; marca do topo também leva pra `/confere`; 2 testes novos
+- [x] `src/components/nav-bar.tsx` — grupo "ConfereAI" (com sub-item "Histórico"), terceiro do menu,
+      depois de "Relatórios dos clientes" e "Proposta Comercial"; marca do topo também leva pra
+      `/confere`; testes novos
 - [ ] **Pendente (usuário ainda não rodou):** `npx prisma migrate dev`/`migrate deploy` (aplicar a
       migração de reversão), `npx tsc --noEmit`, suíte completa do Jest, `npm run dev` pra
       conferir visualmente contra o print que o usuário mandou

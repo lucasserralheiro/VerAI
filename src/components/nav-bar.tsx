@@ -28,9 +28,11 @@ import { cn } from '@/lib/utils'
 // item principal (link de verdade, com página) e "Todos os documentos" como
 // sub-item dele. Quando outra solução existir, ela ganha o mesmo formato de
 // grupo, ao lado deste.
-// "Confere" é a tela que abre primeiro (ver docs/superpowers/specs/2026-09-21-integracao-confere-design.md
+// "ConfereAI" é a tela que abre primeiro ao entrar (login e a marca levam pra
+// /confere — ver docs/superpowers/specs/2026-09-21-integracao-confere-design.md
 // §3.7): cópia do frontend próprio do Confere, sem vínculo com cliente — por
-// isso não é um sub-item de nenhum outro grupo, é o primeiro da lista. Ícone
+// isso é um grupo próprio, não sub-item de outro. No menu ele é o TERCEIRO
+// grupo, depois de "Relatórios dos clientes" e "Proposta Comercial". Ícone
 // de lupa (Search) porque a ação central da tela é "conferir"/comparar
 // documentos — não tem relação com balança de justiça.
 const CONFERE_LINK = { href: '/confere', label: 'ConfereAI', icon: Search }
@@ -389,17 +391,6 @@ export function NavBar() {
 
       <div className="nav-scroll flex flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-3 py-2">
         <div className="flex flex-col gap-1">
-          <GrupoMenu
-            link={CONFERE_LINK}
-            sublinks={CONFERE_SUBLINKS}
-            aberto={confereAberto}
-            onToggle={alternarConfere}
-            pathname={pathname}
-            expandida={expandida}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
           {expandida && (
             <span className="px-1.5 pb-0.5 text-[10px] font-bold tracking-[0.08em] text-white/30 uppercase">
               Relatórios
@@ -424,6 +415,14 @@ export function NavBar() {
             expandida={expandida}
           />
 
+          <GrupoMenu
+            link={CONFERE_LINK}
+            sublinks={CONFERE_SUBLINKS}
+            aberto={confereAberto}
+            onToggle={alternarConfere}
+            pathname={pathname}
+            expandida={expandida}
+          />
         </div>
 
         {!MENU_SIMPLIFICADO && (

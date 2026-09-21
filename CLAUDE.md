@@ -92,7 +92,8 @@ nada do tipo" + "ele precisa ficar a cópia do Confere, do mesmo jeito". A vers�
   entrega. A listagem vive em `/confere/historico` (sub-item do grupo "ConfereAI" no menu), servida
   por `/api/confere/execucoes`.
 - **É a porta de entrada do sistema** — login e o middleware redirecionam para `/confere` (não
-  mais `/clientes`), e é o primeiro item do menu lateral (`src/components/nav-bar.tsx`).
+  mais `/clientes`), e é o terceiro grupo do menu lateral, depois de "Relatórios dos clientes" e "Proposta Comercial"
+  (`src/components/nav-bar.tsx`) — a posição no menu é a do ambiente local, não a primeira.
 - **Proxy próprio** (`src/app/api/confere/reports/route.ts`) — o navegador nunca fala direto com o
   Confere nem conhece `CONFERE_SHARED_SECRET`; a rota recebe o mesmo multipart que o Confere
   espera, chama `chamarConfere()` (`src/lib/confere/cliente.ts`, construído em Task 5 e reaproveitado

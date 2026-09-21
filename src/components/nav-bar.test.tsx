@@ -46,15 +46,15 @@ describe('NavBar', () => {
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).toHaveAttribute('href', '/')
   })
 
-  it('"Confere" é a porta de entrada: primeiro link, fora do grupo "Relatórios"', () => {
+  it('"ConfereAI" é o terceiro grupo do menu: depois de "Relatórios dos clientes" e "Proposta Comercial"', () => {
     render(<NavBar />)
     const links = screen.getAllByRole('link')
     const confere = screen.getByRole('link', { name: 'ConfereAI' })
     expect(confere).toHaveAttribute('href', '/confere')
-    // o link da marca (logo) também aponta pra /confere e vem antes; o do menu
-    // é o primeiro item de navegação, antes de qualquer link de "Relatórios"
     const relatorios = screen.getByRole('link', { name: 'Relatórios dos clientes' })
-    expect(links.indexOf(confere)).toBeLessThan(links.indexOf(relatorios))
+    const proposta = screen.getByRole('link', { name: 'Proposta Comercial' })
+    expect(links.indexOf(relatorios)).toBeLessThan(links.indexOf(proposta))
+    expect(links.indexOf(proposta)).toBeLessThan(links.indexOf(confere))
   })
 
   it('"ConfereAI" tem o sub-item "Histórico" apontando pra /confere/historico', () => {

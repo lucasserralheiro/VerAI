@@ -285,23 +285,21 @@ export async function converterPdfParaHtml(
   // A página escaneada não deve virar figura crua (<img>) — ela some
   // como imagem e reaparece como marcador de OCR, na mesma posição.
   const imagensFiltradas = imagens.filter((imagem) => !paginasImagem0.has(imagem.pagina))
-  // Página com imagem de conteúdo (tabela/gráfico que virou figura) que NÃO é
-  // de OCR — a checagem por IA usa isso pra avisar "confira essa página na
-  // mão", já que ela não vê o pixel da imagem.
+  // Página com imagem de conteúdo (tabela/gráfico que virou figura), fora das
+  // que já são página inteira de OCR — a checagem por IA usa isso pra avisar
+  // "confira essa página na mão", já que ela não vê o pixel da imagem (mesmo
+  // a imagem aparecendo no HTML pra pessoa, a IA da checagem só recebe texto).
   const paginasComImagemSet = new Set(imagensFiltradas.map((imagem) => imagem.pagina + 1))
   const paginasComImagem = [...paginasComImagemSet].sort((a, b) => a - b)
-  // Imagem de conteúdo numa página de texto normal deixa de virar <img>
-  // muda — entra no mesmo fluxo de OCR + conferência das páginas
-  // escaneadas (só que sem discutir o resto do texto da página, que já
-  // está certo). Simplificação deliberada: o marcador aponta pra PÁGINA
-  // INTEIRA, sem recorte por região — o OCR pode reconhecer de novo texto
-  // que já está certo no resto da página; a conferência humana obrigatória
-  // descarta a repetição. Recorte preciso fica como melhoria futura.
-  const imagensParaOcr: ImagemPosicionada[] = imagensFiltradas.map((imagem) =>
-    paginasComImagemSet.has(imagem.pagina + 1)
-      ? { pagina: imagem.pagina, topo: imagem.topo, html: formatarBlocoOcrPendente(imagem.pagina + 1) }
-      : imagem
-  )
+  // Imagem de conteúdo numa página de texto normal entra como <img> mesmo,
+  // na posição em que apareceu no PDF (contrato documentado em
+  // `OpcoesConversaoPdf.salvarImagem` acima) — cópia fiel do original em vez
+  // de aproximação por OCR. Chegou a existir uma versão que convertia essa
+  // imagem num marcador de OCR de página inteira; revertido porque a pessoa
+  // via só o texto reconhecido, nunca a imagem de verdade (ver
+  // `paginasComImagemSet` acima pro aviso de "confira no original" que
+  // continua valendo, já que a checagem por IA não enxerga pixel).
+  const imagensParaOcr: ImagemPosicionada[] = imagensFiltradas
 
   // A grade de bordas vem antes das linhas porque o detector de sublinhado
   // precisa saber quais traços são borda de tabela pra não confundir os dois.
@@ -325,11 +323,14 @@ export async function converterPdfParaHtml(
   // "Página N de N") é removido: se estava no PDF, entra no HTML.
   if (todasAsLinhas.length === 0) {
     // PDF só de imagem (página escaneada) não tem linha nenhuma, mas ainda tem
-    // conteúdo — devolver vazio aqui apagaria o documento inteiro. Página
-    // marcada pra OCR vira o marcador; o resto (se houver) segue como figura.
-    const blocosOcr = paginasOcrOrdenadas.map((p) => formatarBlocoOcrPendente(p + 1))
-    const restante = imagensParaOcr.map((imagem) => imagem.html)
-    return { html: [...blocosOcr, ...restante].join('\n\n'), paginasImagem, paginasConvertidas: [], paginasComImagem }
+    // conteúdo — devolver vazio aqui apagaria o documento inteiro. Sem texto
+    // NENHUM no documento inteiro não existe "página de texto normal com
+    // figura" — toda página com imagem também vira marcador de OCR, mesmo
+    // que a cobertura de imagem não tenha passado do limiar de paginasImagem0.
+    const paginasComImagemSemTexto = new Set(imagensFiltradas.map((imagem) => imagem.pagina))
+    const paginasParaOcr = [...new Set([...paginasImagem0, ...paginasComImagemSemTexto])].sort((a, b) => a - b)
+    const blocosOcr = paginasParaOcr.map((p) => formatarBlocoOcrPendente(p + 1))
+    return { html: blocosOcr.join('\n\n'), paginasImagem, paginasConvertidas: [], paginasComImagem }
   }
 
   const tamanhoCorpo = calcularTamanhoCorpo(todasAsLinhas)

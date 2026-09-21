@@ -1,5 +1,6 @@
 import { corredoresDoBloco, type LinhaPosicionada } from '../extracao/corredores'
 import { montarTabelaHtml } from '../extracao/pdfHtml'
+import { escaparHtml } from '../extracao/escaparHtml'
 import type { PalavraReconhecidaOcr } from './rodarOcr'
 
 /** Diferença máxima de Y (em pixels do canvas renderizado, escala 4 — ver
@@ -38,7 +39,12 @@ function linhaParaColunas(linha: PalavraReconhecidaOcr[], divisores: number[]): 
   const colunas: string[] = Array(divisores.length + 1).fill('')
   for (const palavra of linha) {
     const indice = divisores.filter((divisor) => palavra.x >= divisor).length
-    colunas[indice] = colunas[indice] ? `${colunas[indice]} ${palavra.texto}` : palavra.texto
+    // Texto bruto do OCR é escapado antes de virar célula — mesma cautela de
+    // `montarCorpoDoOcr` em rodarOcr.ts (nunca confiar em `&`/`<`/`>` vindos
+    // de reconhecimento de caractere); sem isso, `montarTabelaHtml` (que
+    // espera célula já em HTML seguro) podia gerar tabela quebrada.
+    const texto = escaparHtml(palavra.texto)
+    colunas[indice] = colunas[indice] ? `${colunas[indice]} ${texto}` : texto
   }
   return colunas
 }

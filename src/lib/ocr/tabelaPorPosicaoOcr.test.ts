@@ -45,3 +45,19 @@ describe('reconstruirTabelaOcr', () => {
     expect(reconstruirTabelaOcr(palavras)).toBeNull()
   })
 })
+
+  it('escapa caracteres especiais do texto reconhecido nas células (OCR pode ler "<"/">"/"&" por engano)', () => {
+    const palavras = [
+      palavra('Item', 10, 40, 60),
+      palavra('Valor', 200, 40, 60),
+      palavra('P&D', 10, 30, 100),
+      palavra('<100>', 200, 50, 100),
+    ]
+
+    const html = reconstruirTabelaOcr(palavras)
+
+    expect(html).toBe(
+      '<table><thead><tr><th>Item</th><th>Valor</th></tr></thead>' +
+        '<tbody><tr><td>P&amp;D</td><td>&lt;100&gt;</td></tr></tbody></table>'
+    )
+  })

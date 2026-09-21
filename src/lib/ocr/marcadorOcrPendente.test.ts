@@ -99,6 +99,20 @@ describe('substituirCorpo', () => {
         '<p>Y</p>'
     )
   })
+
+  it('não interpreta "$" do texto do OCR como padrão especial de replace (proposta comercial tem "R$" toda hora)', () => {
+    const html =
+      '<div class="ocr-pendente" data-arquivo-id="arq1" data-pagina="1"><p><em>(aguardando OCR)</em></p></div>'
+    const bloco = listarBlocosOcrPendente(html)[0]
+
+    const resultado = substituirCorpo(html, bloco, "<p>Valor: R$100. Referência: $&amp;/$$/$'/$`.</p>")
+
+    expect(resultado).toBe(
+      '<div class="ocr-pendente" data-arquivo-id="arq1" data-pagina="1">' +
+        "<p>Valor: R$100. Referência: $&amp;/$$/$'/$`.</p>" +
+        '</div>'
+    )
+  })
 })
 
 describe('removerWrapper', () => {
@@ -113,6 +127,18 @@ describe('removerWrapper', () => {
 
     expect(resultado).toBe('<p>X</p><p>Texto reconhecido e conferido.</p><p>Y</p>')
     expect(temBlocoOcrPendente(resultado)).toBe(false)
+  })
+
+  it('não interpreta "$" do texto conferido como padrão especial de replace', () => {
+    const html =
+      '<p>X</p>' +
+      '<div class="ocr-pendente" data-arquivo-id="arq1" data-pagina="2"><p>Texto reconhecido.</p></div>' +
+      '<p>Y</p>'
+    const bloco = listarBlocosOcrPendente(html)[0]
+
+    const resultado = removerWrapper(html, bloco, "<p>Total: R$1.000,00 ($$/$&amp;).</p>")
+
+    expect(resultado).toBe('<p>X</p><p>Total: R$1.000,00 ($$/$&amp;).</p><p>Y</p>')
   })
 })
 

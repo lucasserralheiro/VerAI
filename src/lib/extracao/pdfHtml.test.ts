@@ -560,11 +560,11 @@ describe('imagens do PDF no HTML', () => {
     expect(resultado).not.toContain('<img')
   })
 
-  it('insere um marcador de OCR pendente na posição da figura, entre os parágrafos', async () => {
+  it('insere a imagem (<img>) na posição da figura, entre os parágrafos', async () => {
     // A imagem está numa página com bastante texto ao redor
-    // (textoEmDuasLinhas) — cai em paginasComImagem, então vira marcador de
-    // OCR pendente em vez de <img> muda (ver describe abaixo, "cobertura
-    // estendida a imagem embutida").
+    // (textoEmDuasLinhas) — mesmo assim entra em paginasComImagem (ver
+    // describe abaixo), mas o HTML ganha a imagem de verdade, cópia fiel do
+    // original, não um marcador de OCR pra página inteira.
     textoEmDuasLinhas()
     ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([imagem()])
 
@@ -575,13 +575,13 @@ describe('imagens do PDF no HTML', () => {
     expect(resultado).toBe(
       [
         '<p>Parágrafo antes da figura.</p>',
-        '<div class="ocr-pendente" data-pagina="1"><p><em>(aguardando OCR)</em></p></div>',
+        '<img alt="Imagem da página 1" src="https://storage.exemplo/pagina-1-imagem-1.png">',
         '<p>Parágrafo depois da figura.</p>',
       ].join('\n\n')
     )
   })
 
-  it('põe no fim o marcador da figura que vem depois da última linha de texto', async () => {
+  it('põe no fim a imagem que vem depois da última linha de texto', async () => {
     textoEmDuasLinhas()
     ;(extrairImagensDeConteudo as jest.Mock).mockResolvedValue([
       imagem({ topo: 100, nomeArquivo: 'pagina-1-imagem-1.png' }),
@@ -592,7 +592,7 @@ describe('imagens do PDF no HTML', () => {
     })
 
     expect(resultado.split('\n\n').at(-1)).toBe(
-      '<div class="ocr-pendente" data-pagina="1"><p><em>(aguardando OCR)</em></p></div>'
+      '<img alt="Imagem da página 1" src="https://storage.exemplo/pagina-1-imagem-1.png">'
     )
   })
 
@@ -998,7 +998,7 @@ describe('paginasComImagem (aviso de imagem embutida)', () => {
     expect(resultado.paginasComImagem).toEqual([1])
   })
 
-  it('imagem de conteúdo (página com texto normal) vira marcador de OCR pendente, não <img> muda', async () => {
+  it('imagem de conteúdo (página com texto normal) vira <img> de verdade, não marcador de OCR', async () => {
     ;(extractTextItems as jest.Mock).mockResolvedValue({
       totalPages: 1,
       items: [[item({ str: 'Texto normal da página, com bastante conteúdo textual.', x: 0, hasEOL: true })]],
@@ -1023,8 +1023,8 @@ describe('paginasComImagem (aviso de imagem embutida)', () => {
       salvarImagem: async () => 'https://storage.exemplo/img.png',
     })
 
-    expect(resultado.html).toContain('<div class="ocr-pendente" data-pagina="1">')
-    expect(resultado.html).not.toContain('<img')
+    expect(resultado.html).toContain('<img alt="Imagem da página 1" src="https://storage.exemplo/img.png">')
+    expect(resultado.html).not.toContain('ocr-pendente')
   })
 
   it('página sem imagem não entra em paginasComImagem', async () => {

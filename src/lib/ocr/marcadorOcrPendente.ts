@@ -57,13 +57,24 @@ export function reescreverComArquivoId(html: string, arquivoId: string): string 
  *  de "(aguardando OCR)"), mantendo o wrapper — a página continua pendente
  *  de conferência humana até `removerWrapper`. */
 export function substituirCorpo(html: string, bloco: BlocoOcrPendente, novoCorpo: string): string {
-  return html.replace(bloco.blocoCompleto, formatarBlocoOcrPendente(bloco.pagina, bloco.arquivoId, novoCorpo))
+  // Replacer em função, não em string: `novoCorpo` vem do OCR (proposta
+  // comercial = cheia de "R$..."), e `String.replace` trata `$&`, `$$`,
+  // `` $` `` e `$'` na STRING de reposição como padrão especial mesmo
+  // quando o alvo de busca (`bloco.blocoCompleto`) é uma string comum, não
+  // uma regex — sem a função, um `$` reconhecido na posição errada podia
+  // duplicar/cortar trecho do documento em vez de só inserir o texto.
+  const novoBloco = formatarBlocoOcrPendente(bloco.pagina, bloco.arquivoId, novoCorpo)
+  return html.replace(bloco.blocoCompleto, () => novoBloco)
 }
 
 /** Conferência: some com o wrapper, fica só o HTML final — é isso que faz a
  *  página parar de contar como pendente. */
 export function removerWrapper(html: string, bloco: BlocoOcrPendente, htmlFinal: string): string {
-  return html.replace(bloco.blocoCompleto, htmlFinal)
+  // Mesma razão do replacer em função de `substituirCorpo` acima: `htmlFinal`
+  // é texto já conferido pela pessoa, mas ainda pode conter `$` (valores em
+  // R$) — replacer em função evita a interpretação de padrão especial do
+  // `String.replace`.
+  return html.replace(bloco.blocoCompleto, () => htmlFinal)
 }
 
 export function temBlocoOcrPendente(html: string): boolean {

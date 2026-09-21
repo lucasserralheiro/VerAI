@@ -478,6 +478,66 @@ function fracaoDePixelsComConteudo(pixels: Uint8Array | Uint8ClampedArray, canai
   return comConteudo / totalPixels
 }
 
+/** Fração da margem (de cada lado) ignorada por `fracaoDePixelsComConteudoNoMiolo`. */
+const MARGEM_MIOLO = 0.03
+
+/** Mesmo cálculo de `fracaoDePixelsComConteudo`, mas só no MIOLO da imagem —
+ *  ignora uma margem nas quatro bordas. Existe porque, sozinha,
+ *  `fracaoDePixelsComConteudo` erra numa caixa vazia BEM alongada (retângulo
+ *  largo e baixo, tipo 2251x436px): a moldura fina de 1px em volta de uma
+ *  forma assim já passa da fração mínima (perímetro grande sobre área
+ *  pequena), mesmo sem nenhum pixel de conteúdo de verdade no meio — caso
+ *  real de produção (proposta PC-SPTURIS) que virou `<img>` de uma caixa
+ *  totalmente vazia. Esta checagem cobre exatamente isso, olhando só pro
+ *  miolo, onde uma figura de verdade (diagrama, tabela, foto) sempre tem
+ *  tinta — moldura/borda nunca tem. */
+function fracaoDePixelsComConteudoNoMiolo(
+  pixels: Uint8Array | Uint8ClampedArray,
+  largura: number,
+  altura: number,
+  canaisDeCor: number,
+  canais: number
+): number {
+  const margemX = Math.round(largura * MARGEM_MIOLO)
+  const margemY = Math.round(altura * MARGEM_MIOLO)
+  const xIni = Math.min(margemX, largura)
+  const xFim = Math.max(largura - margemX, xIni)
+  const yIni = Math.min(margemY, altura)
+  const yFim = Math.max(altura - margemY, yIni)
+  const totalMiolo = (xFim - xIni) * (yFim - yIni)
+  if (totalMiolo <= 0) return 0 // imagem pequena demais pra sobrar miolo depois da margem — conta como vazia
+
+  let comConteudo = 0
+  for (let y = yIni; y < yFim; y++) {
+    for (let x = xIni; x < xFim; x++) {
+      const base = (y * largura + x) * canais
+      let branco = true
+      for (let c = 0; c < canaisDeCor; c++) {
+        if (pixels[base + c] < LIMIAR_VALOR_BRANCO) {
+          branco = false
+          break
+        }
+      }
+      if (!branco) comConteudo++
+    }
+  }
+  return comConteudo / totalMiolo
+}
+
+/** Sem conteúdo de verdade: ou o total de pixels com tinta já é baixo demais
+ *  (`fracaoDePixelsComConteudo`), ou só tem tinta na moldura, nunca no miolo
+ *  (`fracaoDePixelsComConteudoNoMiolo`) — ver os dois comentários acima. */
+function semConteudoReal(
+  pixels: Uint8Array | Uint8ClampedArray,
+  largura: number,
+  altura: number,
+  canaisDeCor: number,
+  canais: number
+): boolean {
+  if (fracaoDePixelsComConteudo(pixels, canaisDeCor, canais) < LIMIAR_FRACAO_PIXELS_COM_CONTEUDO) return true
+  return fracaoDePixelsComConteudoNoMiolo(pixels, largura, altura, canaisDeCor, canais) < LIMIAR_FRACAO_PIXELS_COM_CONTEUDO
+}
+
 async function codificarComoPng(pdf: PdfDocumento, ocorrencia: OcorrenciaDeImagem): Promise<PngCodificado | null> {
   const objeto = await buscarObjetoDeImagem(pdf, ocorrencia)
   if (!objeto?.data || !objeto.width || !objeto.height) return null
@@ -486,7 +546,7 @@ async function codificarComoPng(pdf: PdfDocumento, ocorrencia: OcorrenciaDeImage
   if (kind === KIND_GRAYSCALE_1BPP) {
     if (data.length < ((width + 7) >> 3) * height) return null
     const pixels = expandirCinza1Bpp(width, height, data)
-    if (fracaoDePixelsComConteudo(pixels, 1, 1) < LIMIAR_FRACAO_PIXELS_COM_CONTEUDO) return null
+    if (semConteudoReal(pixels, width, height, 1, 1)) return null
     return { buffer: montarPng(width, height, 0, pixels), largura: width, altura: height }
   }
 
@@ -497,8 +557,9 @@ async function codificarComoPng(pdf: PdfDocumento, ocorrencia: OcorrenciaDeImage
   // ignorar a imagem do que gravar um PNG embaralhado.
   if (data.length < width * height * canais) return null
   // Caixa/moldura vazia (borda fina, miolo em branco) — nunca foi figura de
-  // verdade; virar bloco de OCR pra isso não tem solução (não há o que ler).
-  if (fracaoDePixelsComConteudo(data, 3, canais) < LIMIAR_FRACAO_PIXELS_COM_CONTEUDO) return null
+  // verdade; virar bloco de OCR (ou, hoje, <img>) pra isso não tem solução
+  // (não há o que ler nem o que mostrar).
+  if (semConteudoReal(data, width, height, 3, canais)) return null
 
   return { buffer: montarPng(width, height, tipoDeCor, data), largura: width, altura: height }
 }

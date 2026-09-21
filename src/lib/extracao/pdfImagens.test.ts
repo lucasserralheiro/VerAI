@@ -97,15 +97,44 @@ function bitmapRgb(width: number, height: number) {
   return { width, height, kind: 2, data: new Uint8Array(width * height * 3).fill(200) }
 }
 
-/** Bitmap RGB quase todo branco, com só `pixelsComConteudo` pixels pretos —
- *  simula a caixa/moldura vazia real (borda fina, miolo em branco) que virou
- *  bloco de OCR sem solução em produção. */
-function bitmapQuaseBranco(width: number, height: number, pixelsComConteudo: number) {
+/** Bitmap RGB quase todo branco, com só `pixelsComConteudo` pixels pretos a
+ *  partir de `offsetPixels` — simula a caixa/moldura vazia real (borda fina,
+ *  miolo em branco) que virou bloco de OCR sem solução em produção.
+ *  `offsetPixels` deixa escolher ONDE ficam os pixels de conteúdo (índice
+ *  linear, linha-a-linha): sem ele (0) caem no canto superior esquerdo, perto
+ *  demais da borda pra testar o miolo — passe um offset que caia no meio da
+ *  imagem quando o teste for sobre conteúdo de verdade (não moldura). */
+function bitmapQuaseBranco(width: number, height: number, pixelsComConteudo: number, offsetPixels = 0) {
   const data = new Uint8Array(width * height * 3).fill(255)
   for (let i = 0; i < pixelsComConteudo; i++) {
-    data[i * 3] = 0
-    data[i * 3 + 1] = 0
-    data[i * 3 + 2] = 0
+    const p = offsetPixels + i
+    data[p * 3] = 0
+    data[p * 3 + 1] = 0
+    data[p * 3 + 2] = 0
+  }
+  return { width, height, kind: 2, data }
+}
+
+/** Bitmap RGB de uma caixa/moldura vazia de verdade: só a borda de 1px é
+ *  preta, o resto (inclusive todo o miolo) é branco — a mesma forma da caixa
+ *  vazia de produção (proposta PC-SPTURIS, 2251x436px) que motivou
+ *  `fracaoDePixelsComConteudoNoMiolo`: um retângulo bem alongado, onde a
+ *  moldura fina sozinha já passa da fração mínima de pixels com conteúdo. */
+function bitmapMolduraVazia(width: number, height: number) {
+  const data = new Uint8Array(width * height * 3).fill(255)
+  function pintar(x: number, y: number) {
+    const p = (y * width + x) * 3
+    data[p] = 0
+    data[p + 1] = 0
+    data[p + 2] = 0
+  }
+  for (let x = 0; x < width; x++) {
+    pintar(x, 0)
+    pintar(x, height - 1)
+  }
+  for (let y = 0; y < height; y++) {
+    pintar(0, y)
+    pintar(width - 1, y)
   }
   return { width, height, kind: 2, data }
 }
@@ -374,9 +403,24 @@ describe('extrairImagensDeConteudo', () => {
   it('mantém imagem com conteúdo esparso mas acima do limiar (0,6% de pixels com conteúdo)', async () => {
     const pdf = pdfFake(
       [{ texto: TEXTO_DO_CORPO, imagens: [{ objId: 'diagrama_esparso', x: 60, y: 300, largura: 480, altura: 320 }] }],
-      { diagrama_esparso: bitmapQuaseBranco(100, 100, 60) } // 60 de 10.000 = 0,6%
+      // offset 5000 = linha 50 (meio da imagem 100x100) — longe da borda, pro
+      // conteúdo cair dentro do miolo que `fracaoDePixelsComConteudoNoMiolo` olha.
+      { diagrama_esparso: bitmapQuaseBranco(100, 100, 60, 5000) } // 60 de 10.000 = 0,6%
     )
 
     expect(await extrairImagensDeConteudo(comoPdf(pdf), 1)).toHaveLength(1)
+  })
+
+  it('descarta caixa vazia BEM alongada mesmo quando a moldura sozinha passa da fração mínima de pixels com conteúdo', async () => {
+    // Mesma forma da caixa vazia real que motivou este teste: retângulo largo
+    // e baixo (proporção ~5:1) onde a borda de 1px, por si só, já passa dos
+    // 0,5% de `LIMIAR_FRACAO_PIXELS_COM_CONTEUDO` — sem checar o miolo
+    // separadamente, essa caixa (sem nenhum conteúdo de verdade) virava <img>.
+    const pdf = pdfFake(
+      [{ texto: TEXTO_DO_CORPO, imagens: [{ objId: 'caixa_alongada', x: 40, y: 300, largura: 540, altura: 104 }] }],
+      { caixa_alongada: bitmapMolduraVazia(2251, 436) }
+    )
+
+    expect(await extrairImagensDeConteudo(comoPdf(pdf), 1)).toHaveLength(0)
   })
 })

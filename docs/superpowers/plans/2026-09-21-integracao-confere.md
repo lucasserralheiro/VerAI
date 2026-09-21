@@ -95,21 +95,31 @@ inalterado exceto pela Task 2).
 - [ ] Pendente: decidir e documentar se fica no free tier ou sobe pro Starter (remove spin-down) —
       decisão adiada até sentir o impacto real do cold-start no uso
 
-### Task 4: Model Prisma novo — detalhamento pendente
+### Task 4: Model Prisma novo
 
-**Status:** Não iniciada. Antes de escrever a migração: ler
-`services/confere/backend/src/api/schemas.py` (`RespostaRelatorio`, `RespostaBloqueada`) para saber
-exatamente o formato que o Confere devolve, e decidir o nome final do model (sugestão de trabalho:
-`AnaliseMedicaoContratual`).
+**Status:** Model e migração escritos (2026-09-21); falta rodar contra o banco local — este
+ambiente de automação não tem `docker` nem alcança `binaries.prisma.sh` (mesma restrição de rede
+que bloqueou `onrender.com` na Task 3), então `npm run dev:generate`/`dev:migrate` precisam rodar
+no terminal do usuário.
 
-- [ ] Definir campos: ligação a `Cliente` + competência (ano/mês, mesmo formato de
-      `AnaliseConsolidada`), referências aos arquivos de entrada (contrato PDF, planilha XLSX,
-      aditivos opcionais), referências aos arquivos de saída (`.docx`, `.xlsx`), status
-      (concluído/bloqueado — espelhando o 422 do Confere), timestamps
-- [ ] Escrever a migração manualmente (mesmo padrão de
-      `prisma/migrations/20260916120000_add_conferencia_totais_proposta/migration.sql`)
-- [ ] `npm run dev:generate` + `npm run dev:migrate`
-- [ ] Commit
+Decisão tomada (perguntada ao usuário): arquivos de entrada (contrato, levantamento, aditivos) são
+upload **dedicado** nesta análise, sem reaproveitar o model `Documento` — mais simples, não mistura
+com o pipeline de análise por IA que já está ligado a `Documento`.
+
+- [x] Nome final: `AnaliseMedicaoContratual` (+ `AnaliseMedicaoContratualArquivo` para os arquivos
+      de entrada, um por contrato/levantamento/aditivo — papel guardado em `papel`)
+- [x] Campos definidos: ligação a `Cliente` + competência (ano/mês, `@@unique` por competência,
+      mesmo formato de `AnaliseEvolucao`), `resultado Json?` guardando a `RespostaRelatorio`
+      estruturada do Confere (grid, análise por gravidade, linhas derivadas/zeradas, divergências
+      de fonte — tudo, menos os `*_base64`), `achadosBloqueio Json?` para o caso bloqueado
+      (`RespostaBloqueada`), `identidadeConfirmada Boolean` espelhando o parâmetro do Confere,
+      `status` (`processando | concluido | bloqueado | erro`), `caminhoRelatorioDocx`/
+      `caminhoRelatorioXlsx`/`relatorioGeradoEm` para os dois arquivos gerados
+- [x] Migração escrita manualmente em
+      `prisma/migrations/20260921130000_add_analise_medicao_contratual/migration.sql` (mesmo
+      padrão de `.../20260916120000_add_conferencia_totais_proposta/migration.sql`)
+- [ ] Usuário roda `npm run dev:generate` + `npm run dev:migrate` no próprio terminal e confirma
+- [ ] Commit (depois da confirmação acima)
 
 ### Task 5: Rota de geração — detalhamento pendente
 

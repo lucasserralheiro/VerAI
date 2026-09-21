@@ -27,6 +27,7 @@ model Cliente {
   documentos         Documento[]
   analisesConsolidadas AnaliseConsolidada[]
   analisesEvolucao  AnaliseEvolucao[]
+  analisesMedicaoContratual AnaliseMedicaoContratual[]
 }
 
 model AnaliseEvolucao {
@@ -164,6 +165,59 @@ model Notificacao {
   canal        String    // email | dashboard
   lida         Boolean   @default(false)
   createdAt    DateTime  @default(now())
+}
+
+// Análise de medição contratual (integração com o serviço Confere) — compara
+// contrato x planilha de levantamento (mais aditivos opcionais) e devolve um
+// relatório estruturado (docs/superpowers/specs/2026-09-21-integracao-confere-design.md).
+//
+// Diferente de AnaliseConsolidada/AnaliseEvolucao, os arquivos de entrada não
+// reaproveitam o model Documento: são upload dedicado só pra essa análise
+// (decisão de 2026-09-21 — ver design doc §3.6), guardados em
+// AnaliseMedicaoContratualArquivo.
+//
+// `resultado` guarda a resposta estruturada do Confere (RespostaRelatorio)
+// sem os campos *_base64 — esses viram os dois arquivos gerados
+// (caminhoRelatorioDocx/Xlsx). Quando o Confere bloqueia (achado bloqueante,
+// RespostaBloqueada), não há relatório: `achadosBloqueio` guarda bloqueantes/
+// avisos/confirmáveis, e `status` fica "bloqueado".
+model AnaliseMedicaoContratual {
+  id                   String    @id @default(cuid())
+  clienteId            String
+  cliente              Cliente   @relation(fields: [clienteId], references: [id])
+  competenciaAno       Int
+  competenciaMes       Int
+  status               String    @default("processando") // processando | concluido | bloqueado | erro
+  mensagemErro         String?
+  // Espelha o `identidade_confirmada` do Confere — true quando o usuário já
+  // seguiu em frente apesar de achados "confirmáveis" (RespostaBloqueada.confirmaveis).
+  identidadeConfirmada Boolean   @default(false)
+  resultado            Json?
+  achadosBloqueio      Json?
+  caminhoRelatorioDocx String?
+  caminhoRelatorioXlsx String?
+  relatorioGeradoEm    DateTime?
+  createdAt            DateTime  @default(now())
+  arquivos             AnaliseMedicaoContratualArquivo[]
+
+  @@unique([clienteId, competenciaAno, competenciaMes])
+}
+
+// Um arquivo de entrada enviado para uma AnaliseMedicaoContratual — exatamente
+// um "contrato", exatamente um "levantamento", e zero ou mais "aditivo"
+// (mesmo papel que o Confere espera em `POST /reports`).
+model AnaliseMedicaoContratualArquivo {
+  id              String                   @id @default(cuid())
+  analiseId       String
+  analise         AnaliseMedicaoContratual @relation(fields: [analiseId], references: [id], onDelete: Cascade)
+  papel           String                   // contrato | levantamento | aditivo
+  nomeArquivo     String
+  tamanhoBytes    Int
+  caminhoOriginal String
+  ordem           Int                      // relevante só entre os aditivos — preserva a ordem de upload
+  createdAt       DateTime                 @default(now())
+
+  @@index([analiseId])
 }
 
 model AcessoDocumento {

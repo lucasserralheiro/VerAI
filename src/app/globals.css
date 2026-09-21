@@ -66,6 +66,37 @@
   --color-mid-grey: var(--mid-grey);
   --color-border-grey: var(--border-grey);
   --color-light-blue: var(--light-blue);
+
+  /* Paleta do Confere (services/confere/frontend/tailwind.config.ts) — usada
+     só pela seção /confere (ver docs/superpowers/specs/2026-09-21-integracao-confere-design.md
+     §3.7). Nomes idênticos aos do app original, pra colar o código sem
+     reescrever classe nenhuma; não colide com a paleta institucional acima
+     porque são tokens de nome diferente (ex.: "navy" continua existindo ao
+     lado de "navy-300", "navy-600" etc.). */
+  --color-confere-teal-50: var(--confere-teal-50);
+  --color-confere-teal-100: var(--confere-teal-100);
+  --color-confere-teal-300: var(--confere-teal-300);
+  --color-confere-teal-400: var(--confere-teal-400);
+  --color-confere-teal-500: var(--confere-teal-500);
+  --color-confere-teal-600: var(--confere-teal-600);
+  --color-confere-teal-700: var(--confere-teal-700);
+  --color-confere-navy-50: var(--confere-navy-50);
+  --color-confere-navy-100: var(--confere-navy-100);
+  --color-confere-navy-300: var(--confere-navy-300);
+  --color-confere-navy-600: var(--confere-navy-600);
+  --color-confere-navy-800: var(--confere-navy-800);
+  --color-confere-surface: var(--confere-surface);
+  --color-confere-line: var(--confere-line);
+  --color-confere-severidade-critico: var(--confere-severidade-critico);
+  --color-confere-severidade-critico-fundo: var(--confere-severidade-critico-fundo);
+  --color-confere-severidade-maior: var(--confere-severidade-maior);
+  --color-confere-severidade-maior-fundo: var(--confere-severidade-maior-fundo);
+  --color-confere-severidade-conforme-fundo: var(--confere-severidade-conforme-fundo);
+  --color-confere-brand-navy: var(--confere-brand-navy);
+  --color-confere-brand-green: var(--confere-brand-green);
+  --color-confere-brand-green-ink: var(--confere-brand-green-ink);
+  --color-confere-prodam-navy: var(--confere-prodam-navy);
+  --color-confere-prodam-orange: var(--confere-prodam-orange);
 }
 
 :root {
@@ -86,6 +117,32 @@
   --mid-grey: #666666;
   --border-grey: #d9d9d9;
   --light-blue: #c9d6e3;
+
+  /* Paleta do Confere — ver comentário equivalente em @theme inline acima. */
+  --confere-teal-50: #E0F2F1;
+  --confere-teal-100: #B2DFDB;
+  --confere-teal-300: #74AEA2;
+  --confere-teal-400: #449089;
+  --confere-teal-500: #1B616D;
+  --confere-teal-600: #155460;
+  --confere-teal-700: #0E3D47;
+  --confere-navy-50: #EFF4F8;
+  --confere-navy-100: #C8D9E6;
+  --confere-navy-300: #4E747E;
+  --confere-navy-600: #17416B;
+  --confere-navy-800: #0B2235;
+  --confere-surface: #F4F7F8;
+  --confere-line: #DDE6E9;
+  --confere-severidade-critico: #B91C1C;
+  --confere-severidade-critico-fundo: #FEF2F2;
+  --confere-severidade-maior: #B45309;
+  --confere-severidade-maior-fundo: #FFFBEB;
+  --confere-severidade-conforme-fundo: #E6F4EF;
+  --confere-brand-navy: #00255B;
+  --confere-brand-green: #00805F;
+  --confere-brand-green-ink: #006E52;
+  --confere-prodam-navy: #0E3E5E;
+  --confere-prodam-orange: #FF671D;
 
   --background: #f3f5f8;
   --foreground: #1c2733;
@@ -161,6 +218,22 @@
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: var(--navy-2);
   --sidebar-ring: var(--orange);
+}
+
+/* Véu do modal nativo <dialog> usado em src/app/confere/components/ConfirmarLimpeza.tsx
+   (showModal()) — sem isto o diálogo abre sem escurecer o fundo. Mesma regra
+   do app original do Confere (services/confere/frontend/src/app/globals.css). */
+dialog::backdrop {
+  background: rgb(11 34 53 / 0.45);
+}
+
+/* O que centraliza um <dialog> aberto com showModal() é a `margin: auto` da
+   folha do navegador — e o preflight do Tailwind zera `margin` de todo
+   elemento, o que fazia o diálogo abrir encostado no canto superior esquerdo.
+   Repor aqui vale para os dois modais da tela do Confere (o progresso da
+   geração e a confirmação de limpeza). */
+dialog[open] {
+  margin: auto;
 }
 
 @layer base {

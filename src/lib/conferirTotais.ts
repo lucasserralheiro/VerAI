@@ -78,6 +78,17 @@ export interface CelulaConferida {
    *  código, unidade) é só exibida, sem comparação nenhuma. */
   ehValor: boolean
   encontradoNoDocumento?: boolean
+  /** `true` quando o valor aparece no documento final com o MESMO número mas
+   *  com o SINAL trocado — a conversão perdeu (ou inventou) o menos. Só é
+   *  calculado quando a célula é composta APENAS pelo valor e o documento
+   *  final também tem esse número em célula isolada; fora disso fica
+   *  `undefined`, porque um "-" no meio de texto é traço separador, não sinal.
+   *
+   *  Existe por causa da Proposta de Aditivo, que é feita de Inclusão e
+   *  Redução do mesmo serviço: ali o sinal É o conteúdo, e antes disto a
+   *  conferência casava `BRL - 7.948,25` com `BRL 7.948,25` sem reclamar,
+   *  porque `normalizarValor` trabalha só sobre os dígitos. */
+  sinalDivergente?: boolean
   /** Linha INTEIRA de origem (todas as células dessa linha, na ordem, "no
    *  PDF") — o lado "no original" da comparação lado a lado, só nas células
    *  de valor. */
@@ -147,6 +158,32 @@ function semMarcacaoHtml(texto: string): string {
   return texto.replace(/<[^>]+>/g, ' ')
 }
 
+/**
+ * O valor de uma célula que contém SÓ um valor monetário (moeda e sinal
+ * opcionais), com o sinal resolvido. `null` quando a célula tem qualquer
+ * outra coisa junto.
+ *
+ * A exigência de a célula ser só o valor não é preciosismo: é o que separa
+ * SINAL de TRAÇO. Em "SERVIÇO - 1.200,00" o hífen é separador de rótulo; em
+ * "BRL - 7.948,25", sozinho numa célula de tabela, é menos. Sem essa
+ * fronteira, qualquer rótulo terminado em hífen viraria valor negativo.
+ *
+ * Cobre as três formas que aparecem nas propostas: menos antes da moeda
+ * ("- R$ 1.200,00"), menos depois dela ("BRL - 7.948,25") e a notação
+ * contábil entre parênteses ("(1.200,00)").
+ */
+function valorIsoladoDaCelula(texto: string): { valorNormalizado: string; negativo: boolean } | null {
+  const limpo = texto.trim()
+  const contabil = /^\((.*)\)$/.exec(limpo)
+  const nucleo = (contabil ? contabil[1] : limpo).trim()
+  const achado = /^(-?)\s*(?:(?:R\$|BRL)\s*)?(-?)\s*(\d{1,3}(?:\.\d{3})*,\d{2})$/.exec(nucleo)
+  if (!achado) return null
+  return {
+    valorNormalizado: normalizarValor(achado[3]),
+    negativo: Boolean(contabil) || achado[1] === '-' || achado[2] === '-',
+  }
+}
+
 /** Quantos caracteres pra cada lado do valor achado entram no "contexto" —
  *  dá pra pessoa reconhecer o trecho (rótulo/linha ao redor) sem precisar
  *  abrir o documento inteiro procurando. */
@@ -162,6 +199,11 @@ function extrairContexto(documentoAtual: string, indice: number, tamanho: number
 
 interface EntradaIndiceDocumento {
   ocorrencias: number
+  /** Sinais com que ESTE número aparece no documento final, considerando só
+   *  célula de tabela composta apenas pelo valor (ver `valorIsoladoDaCelula`).
+   *  Vazio quando o número só aparece em prosa — e aí a checagem de sinal não
+   *  opina, pra não inventar divergência onde não dá pra saber. */
+  sinais: Set<'+' | '-'>
   /** Contexto da PRIMEIRA ocorrência achada — não recalcula pra cada
    *  ocorrência repetida, só a primeira já serve pra pessoa reconhecer o
    *  trecho. */
@@ -183,10 +225,23 @@ function indexarValoresDoDocumento(documentoAtual: string): Map<string, EntradaI
     } else {
       indice.set(chave, {
         ocorrencias: 1,
+        sinais: new Set(),
         contexto: extrairContexto(documentoAtual, match.index ?? 0, match[0].length),
       })
     }
   }
+
+  // Segunda passada, só pelas células de tabela do documento final: registra
+  // com que SINAL cada número aparece. Passada separada de propósito — a
+  // contagem de ocorrências acima continua exatamente como era (por número,
+  // sem sinal), então nenhum valor que era achado antes deixa de ser achado.
+  // O sinal só ACRESCENTA uma detecção nova (`sinalDivergente`).
+  for (const celula of documentoAtual.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)) {
+    const valor = valorIsoladoDaCelula(semMarcacaoHtml(celula[1]))
+    if (!valor) continue
+    indice.get(valor.valorNormalizado)?.sinais.add(valor.negativo ? '-' : '+')
+  }
+
   return indice
 }
 
@@ -274,10 +329,20 @@ export function extrairTabelasConferidas(fontes: TextoParaConferirTotal[], docum
             if (!match) return { texto, ehValor: false }
             const valorNormalizado = normalizarValor(match[2])
             const entrada = indiceDocumento.get(valorNormalizado)
+            const isolado = valorIsoladoDaCelula(texto)
+            // Só opina sobre sinal quando os DOIS lados são célula de valor
+            // isolado: a daqui e pelo menos uma no documento final. Sem isso
+            // não dá pra distinguir menos de traço, e um palpite errado aqui
+            // vira alarme falso em cima de valor que está certo.
+            const sinalDivergente =
+              isolado && entrada && entrada.sinais.size > 0
+                ? !entrada.sinais.has(isolado.negativo ? '-' : '+')
+                : undefined
             return {
               texto,
               ehValor: true,
               encontradoNoDocumento: (entrada?.ocorrencias ?? 0) > 0,
+              ...(sinalDivergente === undefined ? {} : { sinalDivergente }),
               contextoOriginal,
               contextoNoDocumento: entrada?.contexto,
             }
@@ -344,6 +409,10 @@ function encontrarNumeroLiteral(documentoAtual: string, valor: number): EntradaI
   const primeira = ocorrencias[0]
   return {
     ocorrencias: ocorrencias.length,
+    // Planilha não passa pela checagem de sinal: o número vem lido da célula
+    // como `number`, já com sinal, e a comparação é por literal exato — o
+    // sinal já faz parte do que casa ou não casa.
+    sinais: new Set<'+' | '-'>(),
     contexto: primeira ? extrairContexto(documentoAtual, primeira.index ?? 0, primeira[0].length) : '',
   }
 }

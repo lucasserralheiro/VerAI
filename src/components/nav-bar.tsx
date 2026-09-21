@@ -18,6 +18,7 @@ import {
   ArrowLeftRight,
   ClipboardCopy,
   History,
+  Search,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,18 @@ import { cn } from '@/lib/utils'
 // item principal (link de verdade, com página) e "Todos os documentos" como
 // sub-item dele. Quando outra solução existir, ela ganha o mesmo formato de
 // grupo, ao lado deste.
+// "Confere" é a tela que abre primeiro (ver docs/superpowers/specs/2026-09-21-integracao-confere-design.md
+// §3.7): cópia do frontend próprio do Confere, sem vínculo com cliente — por
+// isso não é um sub-item de nenhum outro grupo, é o primeiro da lista. Ícone
+// de lupa (Search) porque a ação central da tela é "conferir"/comparar
+// documentos — não tem relação com balança de justiça.
+const CONFERE_LINK = { href: '/confere', label: 'ConfereAI', icon: Search }
+// Mesmo formato de grupo dos outros dois: o cabeçalho é a ferramenta em si
+// (onde se envia contrato e levantamento) e o sub-item é o registro do que já
+// passou por ela. A geração continua sem estado — o histórico guarda só o
+// nome dos arquivos submetidos e os dois relatórios gerados.
+const CONFERE_SUBLINKS = [{ href: '/confere/historico', label: 'Histórico', icon: History }]
+
 const RELATORIOS_LINK = { href: '/clientes', label: 'Relatórios dos clientes', icon: Building2 }
 const RELATORIOS_SUBLINKS = [{ href: '/', label: 'Todos os documentos', icon: FileText }]
 
@@ -211,6 +224,7 @@ export function NavBar() {
   // Nasce aberto pelo mesmo motivo que "Relatórios dos clientes": é a única
   // coisa dentro do grupo hoje, não faz sentido esconder por padrão.
   const [propostaComercialAberto, setPropostaComercialAberto] = useState(true)
+  const [confereAberto, setConfereAberto] = useState(true)
 
   const naLoginPage = pathname === '/login'
 
@@ -269,6 +283,12 @@ export function NavBar() {
     }
   }, [pathname])
 
+  useEffect(() => {
+    if (CONFERE_SUBLINKS.some((link) => link.href === pathname)) {
+      setConfereAberto(true)
+    }
+  }, [pathname])
+
   if (pathname === '/login') {
     return null
   }
@@ -311,6 +331,16 @@ export function NavBar() {
     setPropostaComercialAberto((aberto) => !aberto)
   }
 
+  function alternarConfere() {
+    if (!expandida) {
+      setExpandida(true)
+      localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
+      setConfereAberto(true)
+      return
+    }
+    setConfereAberto((aberto) => !aberto)
+  }
+
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
@@ -341,7 +371,7 @@ export function NavBar() {
       )}
     >
       <Link
-        href="/clientes"
+        href="/confere"
         className={cn(
           'flex shrink-0 items-center gap-2.5 overflow-hidden px-4 py-5',
           !expandida && 'justify-center px-0'
@@ -358,6 +388,17 @@ export function NavBar() {
       </Link>
 
       <div className="nav-scroll flex flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-3 py-2">
+        <div className="flex flex-col gap-1">
+          <GrupoMenu
+            link={CONFERE_LINK}
+            sublinks={CONFERE_SUBLINKS}
+            aberto={confereAberto}
+            onToggle={alternarConfere}
+            pathname={pathname}
+            expandida={expandida}
+          />
+        </div>
+
         <div className="flex flex-col gap-1">
           {expandida && (
             <span className="px-1.5 pb-0.5 text-[10px] font-bold tracking-[0.08em] text-white/30 uppercase">
@@ -382,6 +423,7 @@ export function NavBar() {
             pathname={pathname}
             expandida={expandida}
           />
+
         </div>
 
         {!MENU_SIMPLIFICADO && (

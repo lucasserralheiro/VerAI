@@ -36,8 +36,9 @@ export function CabecalhoProposta({
   )
 }
 
-/** Excluir fica discreto (ícone) — é ação rara e destrutiva, não deve
- *  competir com "Copiar formatado". A confirmação fica em `page.tsx`. */
+/** Excluir fica discreto (ícone) — é ação rara e destrutiva, e hoje é a única
+ *  ação do cabeçalho ("Copiar formatado" mudou para a barra do documento).
+ *  A confirmação fica em `page.tsx`. */
 export function BotaoExcluirProposta({ onExcluir, excluindo }: { onExcluir: () => void; excluindo?: boolean }) {
   return (
     <button

@@ -50,6 +50,12 @@ next-env.d.ts
 # arquivos temporários de teste manual (gerados em sessões de trabalho, sem uso no app)
 .smoke-tmp
 
+# PDFs reais (contratos, propostas, medições da PRODAM) usados nas réguas
+# locais — `npm run diag:pdf -- ./arquivos-teste-conversao` etc. Documento de
+# cliente não vai pro GitHub.
+/arquivos-teste-conversao/
+/arquivos-teste-confere/
+
 # Confere (Python, em services/confere/) — importado como cópia, mesmos
 # padrões de artefato do .gitignore original dele.
 __pycache__/

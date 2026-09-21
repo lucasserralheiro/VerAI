@@ -6,14 +6,12 @@ type MockOverrides = {
   documentos?: Array<Record<string, unknown>>
   analisesConsolidadas?: Array<Record<string, unknown>>
   analiseEvolucao?: Record<string, unknown> | null
-  analiseMedicao?: Record<string, unknown> | null
 }
 
 export function mockFetchCompetencia(overrides: MockOverrides = {}) {
   const documentos = overrides.documentos ?? []
   const analisesConsolidadas = overrides.analisesConsolidadas ?? []
   const analiseEvolucao = overrides.analiseEvolucao ?? null
-  const analiseMedicao = overrides.analiseMedicao ?? null
 
   global.fetch = jest.fn((url: RequestInfo | URL) => {
     const u = String(url)
@@ -34,9 +32,6 @@ export function mockFetchCompetencia(overrides: MockOverrides = {}) {
     }
     if (u === '/api/clientes/cliente-1/competencias/2026-08/analise-evolucao') {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(analiseEvolucao) }) as unknown as Promise<Response>
-    }
-    if (u === '/api/clientes/cliente-1/competencias/2026-08/analise-medicao') {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(analiseMedicao) }) as unknown as Promise<Response>
     }
     if (u === '/api/auth/me') {
       return Promise.resolve({
@@ -237,68 +232,5 @@ describe('ClienteCompetenciaPage', () => {
 
     fireEvent.click(screen.getByText(/Baseado em:/))
     expect(await screen.findAllByRole('checkbox')).toHaveLength(2)
-  })
-
-  it('aba Medição contratual mostra o formulário de upload quando ainda não há análise', async () => {
-    mockFetchCompetencia()
-    await renderPagina()
-    await screen.findByRole('heading', { name: 'Agosto/2026' })
-
-    fireEvent.click(screen.getByRole('button', { name: /Medição contratual/ }))
-
-    expect(await screen.findByText('Contrato (PDF)')).toBeInTheDocument()
-    expect(screen.getByText('Planilha de levantamento (XLSX)')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Gerar análise de medição/ })).toBeDisabled()
-  })
-
-  it('aba Medição contratual mostra os achados quando a última tentativa foi bloqueada', async () => {
-    mockFetchCompetencia({
-      analiseMedicao: {
-        id: 'm-1',
-        status: 'bloqueado',
-        mensagemErro: null,
-        resultado: null,
-        achadosBloqueio: {
-          bloqueantes: [{ validacao: 'V-1', severidade: 'BLOQUEIA', mensagem: 'Contratado do contrato diverge da planilha.' }],
-          avisos: [],
-          confirmaveis: [],
-          pode_prosseguir: false,
-        },
-        caminhoRelatorioDocx: null,
-        caminhoRelatorioXlsx: null,
-        relatorioGeradoEm: null,
-      },
-    })
-    await renderPagina()
-    await screen.findByRole('heading', { name: 'Agosto/2026' })
-
-    fireEvent.click(screen.getByRole('button', { name: /Medição contratual/ }))
-
-    expect(await screen.findByText('Contratado do contrato diverge da planilha.')).toBeInTheDocument()
-    expect(screen.getByText(/Bloqueado — precisa resolver/)).toBeInTheDocument()
-  })
-
-  it('aba Medição contratual mostra o resumo e os links de download quando concluída', async () => {
-    mockFetchCompetencia({
-      analiseMedicao: {
-        id: 'm-1',
-        status: 'concluido',
-        mensagemErro: null,
-        resultado: { titulo: 'Relatório de Medição — Contrato 123', total_linhas: 40, total_divergencias: 3, avisos: [] },
-        achadosBloqueio: null,
-        caminhoRelatorioDocx: 'https://blob/relatorio.docx',
-        caminhoRelatorioXlsx: 'https://blob/relatorio.xlsx',
-        relatorioGeradoEm: '2026-08-15T00:00:00Z',
-      },
-    })
-    await renderPagina()
-    await screen.findByRole('heading', { name: 'Agosto/2026' })
-
-    fireEvent.click(screen.getByRole('button', { name: /Medição contratual/ }))
-
-    expect(await screen.findByText('Relatório de Medição — Contrato 123')).toBeInTheDocument()
-    expect(screen.getByText('3 divergências')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Baixar Word/ })).toHaveAttribute('href', 'https://blob/relatorio.docx')
-    expect(screen.getByRole('link', { name: /Baixar Excel/ })).toHaveAttribute('href', 'https://blob/relatorio.xlsx')
   })
 })

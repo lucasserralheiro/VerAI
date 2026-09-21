@@ -26,13 +26,13 @@ describe('DevLoginForm', () => {
     expect(screen.getByText(/em desenvolvimento/)).toBeInTheDocument()
   })
 
-  it('envia o token digitado pro servidor e redireciona para /clientes', async () => {
+  it('envia o token digitado pro servidor e redireciona para /confere', async () => {
     ;(global.fetch as jest.Mock).mockResolvedValue({ ok: true, status: 200 })
     render(<DevLoginForm />)
 
     preencherEEnviar('qualquer-token')
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/clientes'))
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/confere'))
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/auth/dev-login',
       expect.objectContaining({ method: 'POST', body: JSON.stringify({ token: 'qualquer-token' }) })

@@ -95,33 +95,79 @@ não há VM/proxy dedicado para fazer essa checagem por fora.
 Motivo: o relatório gerado carrega nome/e-mail de servidor público, e o Confere sobe sem
 autenticação por design (documentado como pendência de negócio do próprio Confere).
 
-### 3.6 Onde entra no domínio do VerAI: nova aba, não área nova
+### 3.6 Onde entra no domínio do VerAI — histórico da decisão (revista em 3.7)
 
-Vira uma quarta aba em `src/app/clientes/[id]/[competencia]/page.tsx` (tipo `Aba`, array `TABS`),
-ao lado de "Relatório consolidado" e "Relatório de evolução" — não uma área de navegação nova
-(descartada a ideia inicial de espelhar `propostas-comerciais`). Um novo model no Prisma, ligado a
-`Cliente` + competência (mesmo formato de `AnaliseConsolidada`/`AnaliseEvolucao`), guarda os
-arquivos de entrada (contrato PDF + planilha XLSX), os dois de saída (docx + xlsx) e um status que
-reflete o retorno do próprio Confere (concluído / bloqueado — ele já devolve 422 quando bloqueia).
+**Versão original (implementada nas Tasks 4 e 5, do mesmo dia — depois removida, ver 3.7):** virou
+uma quarta aba em `src/app/clientes/[id]/[competencia]/page.tsx` (tipo `Aba`, array `TABS`), ao
+lado de "Relatório consolidado" e "Relatório de evolução" — não uma área de navegação nova
+(descartada, então, a ideia inicial de espelhar `propostas-comerciais`). Um model no Prisma,
+ligado a `Cliente` + competência (mesmo formato de `AnaliseConsolidada`/`AnaliseEvolucao`), guardava
+os arquivos de entrada (contrato PDF + planilha XLSX), os dois de saída (docx + xlsx) e um status
+que refletia o retorno do próprio Confere (concluído / bloqueado — ele já devolve 422 quando
+bloqueia). Decisão tomada na hora com o usuário: os arquivos de entrada seriam upload **dedicado**
+dessa análise — não reaproveitariam o model `Documento` (que já carrega o pipeline de análise por
+IA, semântica diferente). Modelo final daquela versão: `AnaliseMedicaoContratual` +
+`AnaliseMedicaoContratualArquivo`, com `resultado Json?` guardando a `RespostaRelatorio`
+estruturada do Confere e `achadosBloqueio Json?` para o caso bloqueado. A rota de geração
+(`/api/clientes/[clienteId]/competencias/[competencia]/analise-medicao`) seguia o mesmo padrão de
+cache/storage das três rotas `/relatorio` existentes, com `fetch` multipart pro Confere em vez de
+renderizar localmente. Cada `POST` sobrescrevia o estado da competência (upsert único por
+`clienteId`+competência): sempre a tentativa mais recente, sem histórico de tentativas anteriores.
 
-**Status (2026-09-21): implementado (Tasks 4 e 5).** Decisão tomada com o usuário: os arquivos
-de entrada (contrato, levantamento, aditivos) são upload **dedicado** dessa análise — não
-reaproveitam o model `Documento` (que já carrega o pipeline de análise por IA, semântica
-diferente). Modelo final: `AnaliseMedicaoContratual` + `AnaliseMedicaoContratualArquivo`
-(`prisma/schema.prisma`), com `resultado Json?` guardando a `RespostaRelatorio` estruturada do
-Confere e `achadosBloqueio Json?` para o caso bloqueado.
+**Essa versão foi revertida no mesmo dia** — ver 3.7 pra decisão atual e o porquê da mudança.
 
-A rota de geração (`src/app/api/clientes/[clienteId]/competencias/[competencia]/analise-medicao`)
-segue o mesmo padrão de cache/storage das três rotas `/relatorio` existentes (`putUpload`,
-campo `caminhoRelatorioX`-like), com duas diferenças: não usa `AcessoDocumento` (é polimórfico só
-para `Documento`, e o volume interno não justificou estender isso agora — fora de escopo por ora),
-e em vez de renderizar localmente faz `fetch` multipart para o Confere e decodifica o base64 que
-volta. Cada `POST` sobrescreve o estado da competência (upsert único por `clienteId`+competência):
-reflete sempre a tentativa mais recente, sem histórico de tentativas anteriores.
+### 3.7 Revisão (2026-09-21, mesmo dia): cópia solta do Confere, sem vínculo com cliente, porta de entrada do sistema
 
-O endpoint `POST /reports/conferencia-previa` do Confere (checagem rápida de identidade do par
-contrato/planilha, ~0,9s) pode virar um passo de confirmação na UI antes de disparar a geração
-pesada — o Confere já foi desenhado para ser usado assim.
+O usuário pediu, em sequência, três mudanças que juntas revertem a decisão da 3.6:
+
+1. *"vamos deixar logo de cara em vez de clientes e etc... vamos deixar a pagina logo do confere
+   ai"* — o Confere deixa de ser um passo dentro do fluxo de cliente e vira a tela que abre quando
+   o VerAI abre.
+2. *"nao vamos vincular a cliente e nada do tipo"* — sem `clienteId`, sem competência, sem
+   `AnaliseMedicaoContratual` nenhuma.
+3. *"ele precisa ficar a copia do confere ai do mesmo jeito"* / *"precisa ficar assim"* (com print
+   do frontend de verdade do Confere, hospedado à parte em
+   `https://ca-confere-frontend.wittybush-99db4533.eastus.azurecontainerapps.io`) — não uma tela
+   redesenhada no estilo institucional do VerAI: o mesmo texto, o mesmo layout, a mesma paleta do
+   app original.
+
+**O que isso implicou, na prática:**
+
+- **Cópia literal do frontend do Confere.** `services/confere/frontend/src/app/{page,layout}.tsx` +
+  `components/*` + `lib/{types,documento}.ts` foram copiados quase byte a byte pra
+  `src/app/confere/` — só caminhos de import mudaram (`@/lib/X` → relativo) e as classes de cor
+  ganharam o prefixo `confere-` (`src/app/globals.css`, tokens `--color-confere-*`), porque a
+  paleta do Confere (`teal`/`navy` como escala 50–800, `severidade-*`, `brand-*`, `prodam-*`) não
+  existe no VerAI e o nome `navy` já tem outro significado lá (cor única, não escala). Os
+  comentários originais (ESPEC/TASKS, decisões de acessibilidade) foram preservados — documentam
+  por que o código é como é, mesmo citando um repositório diferente do VerAI.
+- **`lib/api.ts` muda só o `API_BASE_URL`** — de `NEXT_PUBLIC_API_URL` (apontando pro Confere
+  direto) para `/api/confere` (rota própria do VerAI). O resto do arquivo — timeouts, extração de
+  blob, tratamento de 422 com/sem `bloqueantes` — é idêntico ao original, porque o contrato da
+  nova rota é o contrato do Confere, repassado sem alteração.
+- **Proxy sem estado** (`src/app/api/confere/reports/route.ts`): recebe o multipart, chama
+  `chamarConfere()` (`src/lib/confere/cliente.ts`, de Task 5 — reaproveitado sem mudanças) e
+  devolve a resposta dele quase crua (200 com o relatório completo, 422 com `bloqueantes`,
+  qualquer outra coisa vira `{ detail }`). **Não grava nada** — nem banco, nem Vercel Blob: a
+  aplicação portada é sem estado, como o Confere original (ver comentário de `urlDoDocumento` em
+  `lib/api.ts` — "o backend os embute na resposta porque a aplicação é sem estado").
+- **`POST /reports/conferencia-previa` (Task 6) continua sem endpoint próprio no VerAI** — decisão
+  mantida. `conferirIdentidade()` (em `src/app/confere/lib/api.ts`) chama
+  `/api/confere/reports/conferencia-previa`, que não existe: dá 404, e o código já trata isso como
+  falha aberta (`R-IDT-12` no comentário original) — segue pra geração sem perguntar. Funcional,
+  só sem o atalho de ~0,9s que evita rodar a geração completa quando os documentos já divergem
+  visivelmente. Fica como próximo passo natural se algum dia importar.
+- **Reversão completa da 3.6**: migração
+  `prisma/migrations/20260921160000_remove_analise_medicao_contratual/` derruba as duas tabelas;
+  `AnaliseMedicaoContratual`/`AnaliseMedicaoContratualArquivo` saíram do `schema.prisma`; a rota
+  antiga (`/api/clientes/[clienteId]/competencias/[competencia]/analise-medicao`) e a aba
+  "Medição contratual" dentro de `clientes/[id]/[competencia]/page.tsx` foram removidas por
+  completo (com os testes correspondentes).
+- **Porta de entrada**: `src/middleware.ts` (redirect de rota admin negada) e os dois formulários
+  de login (`src/app/login/{login-form,dev-login-form}.tsx`) apontam pra `/confere` em vez de
+  `/clientes`. `src/components/nav-bar.tsx` ganhou um link "Confere" solto, fora do grupo
+  "Relatórios" (não é sub-item de nada — é a primeira coisa no menu), e a marca no topo da barra
+  lateral também passou a levar pra `/confere`.
 
 ## 4. Fora de escopo / pendente
 
@@ -140,3 +186,64 @@ pesada — o Confere já foi desenhado para ser usado assim.
 - Rotas de relatório existentes no VerAI: `src/app/api/documentos/[id]/relatorio/route.ts` e as
   duas equivalentes de `analises-consolidadas`/`analises-evolucao`
 - Página onde a aba nova entra: `src/app/clientes/[id]/[competencia]/page.tsx`
+
+---
+
+## Adendo — histórico do ConfereAI (2026-09-21, fim do dia)
+
+A §3.7 decidiu **sem persistência**, e essa decisão continua valendo para a *geração*: o Confere é
+um serviço sem estado, o proxy não guarda os arquivos de entrada e a tela não tem sessão. O que foi
+acrescentado depois, a pedido explícito do usuário — *"vamos colocar o histórico do confereai igual
+os outros"* — é um **registro do que passou pela ferramenta**, no mesmo formato de grupo de menu da
+Proposta Comercial.
+
+**O que é guardado** (escopo definido pelo usuário: *"só o título dos documentos inseridos, e a
+saída dele processado"*):
+
+- o **nome** do contrato, do levantamento e de cada aditivo, na ordem de aplicação;
+- os **dois documentos gerados** (DOCX e XLSX), no Vercel Blob.
+
+**O que não é guardado**: os arquivos de entrada, a referência do contrato, a competência, o placar
+de divergências e o usuário que gerou. Nada disso foi pedido, e cada campo a mais é um campo a
+manter — o registro existe para reencontrar e rebaixar, não para consultar resultado.
+
+**Decisões:**
+
+- **`model ConfereExecucao`, sem relação com `Cliente` nem competência** (migração
+  `20260921180000_add_confere_execucao`). É a mesma razão da §3.7: `/confere` é ferramenta solta, e
+  amarrar o histórico a cliente reintroduziria pela porta dos fundos o vínculo que a primeira versão
+  removeu.
+- **A gravação vive no proxy** (`src/app/api/confere/reports/route.ts`), no caminho de sucesso e só
+  nele. Envio bloqueado por validação (422) não vira linha: não houve relatório.
+- **Best-effort, com `await`.** O relatório já está no corpo da resposta quando a gravação começa —
+  derrubar a entrega por falha de storage cobraria de novo os ~25s por causa de um registro que é
+  conveniência. A falha vai para o log. O `await` é necessário apesar disso: numa função serverless
+  a resposta encerra a invocação, e trabalho pendente depois dela pode ser cortado no meio, o que
+  faria o histórico gravar *às vezes* — pior que não gravar.
+- **O `id` é gerado antes do `create`** (`randomUUID`), porque o caminho no Blob depende dele e as
+  duas colunas de caminho são obrigatórias. Criar a linha vazia para atualizar depois deixaria
+  registro pela metade se o segundo upload falhasse.
+- **O download passa por rota própria** (`/api/confere/execucoes/[id]/arquivo?tipo=docx|xlsx`), e
+  não por redirecionamento para a URL pública do Blob: é o que permite exigir sessão e devolver o
+  `Content-Disposition` com nome derivado do contrato. O caminho no storage é posicional
+  (`relatorio.docx`), então sem o cabeçalho toda execução baixaria com o mesmo nome — a mesma
+  preocupação da `R-ACE-19`.
+- **Excluir apaga os blobs antes da linha**, para não deixar arquivo órfão no bucket sem nada no
+  banco apontando para ele.
+- **Todos veem tudo**, como no histórico da Proposta Comercial: o registro é do que passou pela
+  ferramenta, não de quem passou.
+
+## Adendo — remoção da marca própria (2026-09-21)
+
+A barra de aplicação da ESPEC 007 (logo `/logo-confere.png` + assinatura *"Confere o contratado. /
+Confere o utilizado."*) e o rodapé institucional da ESPEC 006 foram removidos da porta portada.
+Os dois existiam porque o Confere era uma aplicação solta, com identidade própria; dentro do VerAI
+a identificação é a barra lateral, e repetir marca no topo e no rodapé custava ~180 px de altura
+útil em 1366×768 — além de o PNG do logo não existir neste deploy, o que rendia caixa de imagem
+quebrada no topo de toda visita.
+
+`Barra.tsx`, `Rodape.tsx` e `public/logo-confere.png` foram apagados. A tela abre com um `<h1>` de
+texto no padrão institucional (necessário também porque o link "Pular para o conteúdo" precisa de
+um destino com título). O que a barra tinha de informação real — referência do contrato e
+competência (`R-CAB-05`/`R-CAB-06`) — passou para o cartão "Relatório gerado" do `ResultadoPanel`,
+onde o dado nasce.

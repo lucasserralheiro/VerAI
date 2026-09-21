@@ -383,3 +383,65 @@ describe('conferirTotaisPlanilha', () => {
     expect(resultado[0].encontradoNoDocumento).toBe(false)
   })
 })
+
+describe('extrairTabelasConferidas — sinal em proposta de aditivo', () => {
+  /** Tabela de Redução como o conversor produz a partir de uma PA real
+   *  (PA-SMDET-260428-782): o menos vem DEPOIS da moeda, separado por espaço. */
+  const tabelaReducao = (valorTotal: string) =>
+    '<table><thead><tr><th>CÓD.</th><th>PRODUTO</th><th>QUANT</th><th>TOTAL (R$)</th></tr></thead>' +
+    `<tbody><tr><td>12.074.00006.00</td><td>CPE-SD-WAN TIPO 2</td><td>-1,00</td><td>${valorTotal}</td></tr>` +
+    `<tr><td></td><td></td><td>Redução TOTAL:</td><td>${valorTotal}</td></tr></tbody></table>`
+
+  const fonte = (html: string) => [{ origem: 'Página 6', pagina: 6, textoOriginal: '', html }]
+
+  it('não acusa nada quando o sinal sobreviveu à conversão', () => {
+    const html = tabelaReducao('BRL - 7.948,25')
+
+    const [tabela] = extrairTabelasConferidas(fonte(html), html)
+    const celulas = tabela.linhas.flat().filter((c) => c.ehValor)
+
+    expect(celulas.every((c) => c.encontradoNoDocumento)).toBe(true)
+    expect(celulas.some((c) => c.sinalDivergente)).toBe(false)
+  })
+
+  it('acusa quando a conversão PERDEU o menos — era Redução e virou Inclusão', () => {
+    const original = tabelaReducao('BRL - 7.948,25')
+    const documentoComSinalPerdido = tabelaReducao('BRL 7.948,25')
+
+    const [tabela] = extrairTabelasConferidas(fonte(original), documentoComSinalPerdido)
+    const celula = tabela.linhas.flat().find((c) => c.texto.includes('7.948,25'))
+
+    // O número continua sendo achado (nada regride: a busca segue por valor,
+    // não por sinal) — o que muda é o alerta novo em cima dele.
+    expect(celula?.encontradoNoDocumento).toBe(true)
+    expect(celula?.sinalDivergente).toBe(true)
+  })
+
+  it('entende o menos ANTES da moeda e a notação contábil entre parênteses', () => {
+    for (const forma of ['- R$ 7.948,25', '(7.948,25)']) {
+      const original = tabelaReducao(forma)
+      const [tabela] = extrairTabelasConferidas(fonte(original), tabelaReducao('BRL 7.948,25'))
+      const celula = tabela.linhas.flat().find((c) => c.texto.includes('7.948,25'))
+
+      expect(celula?.sinalDivergente).toBe(true)
+    }
+  })
+
+  it('NÃO trata traço separador de rótulo como sinal — "SERVIÇO - 1.200,00" é positivo', () => {
+    const html =
+      '<table><tbody><tr><td>SERVIÇO - 1.200,00</td><td>R$ 1.200,00</td></tr></tbody></table>'
+
+    const [tabela] = extrairTabelasConferidas(fonte(html), html)
+
+    expect(tabela.linhas.flat().some((c) => c.sinalDivergente)).toBe(false)
+  })
+
+  it('não opina sobre sinal quando o número só aparece em prosa no documento final', () => {
+    const html = '<table><tbody><tr><td>BRL - 7.948,25</td></tr></tbody></table>'
+    const documentoSemTabela = '<p>valor de redução: 7.948,25 no período</p>'
+
+    const [tabela] = extrairTabelasConferidas(fonte(html), documentoSemTabela)
+
+    expect(tabela.linhas.flat()[0].sinalDivergente).toBeUndefined()
+  })
+})

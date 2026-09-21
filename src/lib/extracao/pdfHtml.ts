@@ -3,6 +3,12 @@ import { extrairSegmentosRetosPorPagina, type SegmentoReto } from './pdfTracos'
 import { construirGradesDaPagina, detectarTabelaPorBordas, type GradeDeTabela } from './pdfTabelas'
 import { extrairImagensDeConteudo, type ImagemDeConteudo } from './pdfImagens'
 import { obterEstilosDeFontePorPagina, type EstiloDeFonte } from './pdfFontes'
+import {
+  repararTextosDoPdf,
+  geradorConhecidoPorQuebrarTexto,
+  type CorrecaoDeTexto,
+  type AlertaDeTexto,
+} from './repararTextoPdf'
 import { formatarBlocoOcrPendente } from '../ocr/marcadorOcrPendente'
 import { escaparHtml } from './escaparHtml'
 import { corredoresDoBloco, type Intervalo } from './corredores'
@@ -249,6 +255,20 @@ export interface ResultadoConversaoPdf {
    *  usada só pela checagem por IA, pra comparar texto original x HTML
    *  gerado sem precisar reler o PDF de novo em outro lugar. */
   paginasConvertidas: PaginaConvertida[]
+  /** Trocas feitas pelo reparo determinístico da camada de texto
+   *  (`repararTextoPdf.ts`) — vazio em PDF cuja camada de texto está sã, que é
+   *  a maioria. Não é aviso de erro nosso: é o registro de onde o ARQUIVO DE
+   *  ORIGEM trazia letra trocada e o que foi lido no lugar. */
+  correcoesDeTexto: CorrecaoDeTexto[]
+  /** Pontos que o reparo NÃO mexeu e alguém precisa olhar: glifo estranho
+   *  dentro de número (nunca corrigimos número) ou caractere que não sabemos
+   *  ler. Vazio no caso normal. */
+  alertasDeTexto: AlertaDeTexto[]
+  /** `true` quando o PDF veio de um gerador conhecido por escrever a tabela de
+   *  glifos errada (ver `geradorConhecidoPorQuebrarTexto`) OU quando o reparo
+   *  precisou agir. Serve pra tela avisar que o ORIGINAL é que estava
+   *  defeituoso, não a conversão. */
+  camadaDeTextoSuspeita: boolean
   /** Páginas (1-indexadas) com pelo menos uma imagem de CONTEÚDO embutida
    *  (![Imagem da página N]) — pode ser tabela, gráfico ou diagrama que o
    *  PDF trouxe como figura em vez de texto. Exclui página que já está em
@@ -261,7 +281,20 @@ export async function converterPdfParaHtml(
   opcoes: OpcoesConversaoPdf = {}
 ): Promise<ResultadoConversaoPdf> {
   const pdf = await getDocumentProxy(new Uint8Array(buffer))
-  const { items, totalPages } = await extractTextItems(pdf)
+  const { items: itensBrutos, totalPages } = await extractTextItems(pdf)
+
+  // Reparo da camada de texto ANTES de qualquer outra coisa: o texto corrigido
+  // precisa alimentar tanto o HTML quanto o `textoOriginal` de
+  // `paginasConvertidas`. Reparar só um dos dois faria a checagem por IA
+  // comparar um HTML certo contra um "original" podre e acusar divergência em
+  // cima de uma correção legítima. Ver o cabeçalho de `repararTextoPdf.ts`
+  // pra entender por que isso é necessário e por que é seguro (em PDF são a
+  // passada não muda um byte).
+  const reparo = repararTextosDoPdf(itensBrutos.map((pagina) => pagina.map((item) => item.str ?? '')))
+  const items = itensBrutos.map((pagina, indice) =>
+    pagina.map((item, posicao) => ({ ...item, str: reparo.textosPorPagina[indice][posicao] }))
+  )
+  const camadaDeTextoSuspeita = reparo.correcoes.length > 0 || (await geradorSuspeito(pdf))
   const segmentosPorPagina = await extrairSegmentosRetosPorPagina(pdf, totalPages)
   const estilosPorPagina = await obterEstilosDeFontePorPagina(pdf, totalPages)
   const imagens = await prepararImagens(pdf, totalPages, opcoes.salvarImagem)
@@ -313,12 +346,16 @@ export async function converterPdfParaHtml(
     if (grades.length > 0) gradesPorPagina.set(pagina, grades)
   })
 
-  const todasAsLinhas: Linha[] = []
+  const linhasBrutas: Linha[] = []
   itemsComEstilo.forEach((itensDaPagina, pagina) => {
     const segmentos = segmentosPorPagina[pagina]?.segmentos ?? []
     const paraSublinhado = segmentosSemBordaDeTabela(segmentos, gradesPorPagina.get(pagina))
-    todasAsLinhas.push(...agruparEmLinhas(itensDaPagina, pagina, paraSublinhado))
+    linhasBrutas.push(...agruparEmLinhas(itensDaPagina, pagina, paraSublinhado))
   })
+  // Reencaixa marcador de lista que o PDF desenhou separado do rótulo ANTES
+  // de qualquer decisão de título/lista/parágrafo — ver
+  // `reencaixarMarcadoresOrfaos`.
+  const todasAsLinhas: Linha[] = reencaixarMarcadoresOrfaos(linhasBrutas)
 
   const paginasOcrOrdenadas = [...paginasImagem0].sort((a, b) => a - b)
 
@@ -334,7 +371,15 @@ export async function converterPdfParaHtml(
     const paginasComImagemSemTexto = new Set(imagensFiltradas.map((imagem) => imagem.pagina))
     const paginasParaOcr = [...new Set([...paginasImagem0, ...paginasComImagemSemTexto])].sort((a, b) => a - b)
     const blocosOcr = paginasParaOcr.map((p) => formatarBlocoOcrPendente(p + 1))
-    return { html: blocosOcr.join('\n\n'), paginasImagem, paginasConvertidas: [], paginasComImagem }
+    return {
+      html: blocosOcr.join('\n\n'),
+      paginasImagem,
+      paginasConvertidas: [],
+      paginasComImagem,
+      correcoesDeTexto: reparo.correcoes,
+      alertasDeTexto: reparo.alertas,
+      camadaDeTextoSuspeita,
+    }
   }
 
   const tamanhoCorpo = calcularTamanhoCorpo(todasAsLinhas)
@@ -365,7 +410,29 @@ export async function converterPdfParaHtml(
     }))
     .sort((a, b) => a.pagina - b.pagina)
 
-  return { html, paginasImagem, paginasConvertidas, paginasComImagem }
+  return {
+    html,
+    paginasImagem,
+    paginasConvertidas,
+    paginasComImagem,
+    correcoesDeTexto: reparo.correcoes,
+    alertasDeTexto: reparo.alertas,
+    camadaDeTextoSuspeita,
+  }
+}
+
+/** Metadados do PDF nunca podem derrubar a conversão: `getMetadata` falha em
+ *  arquivo com dicionário de informação malformado, e o texto já está
+ *  extraído a essa altura. Falhou, assume que o gerador não é suspeito — o
+ *  reparo em si não depende disso. */
+async function geradorSuspeito(pdf: Awaited<ReturnType<typeof getDocumentProxy>>): Promise<boolean> {
+  try {
+    const metadados = await pdf.getMetadata()
+    const info = (metadados?.info ?? {}) as { Producer?: string; Creator?: string }
+    return geradorConhecidoPorQuebrarTexto(info.Producer, info.Creator)
+  } catch {
+    return false
+  }
 }
 
 /** Extrai as imagens de conteúdo, manda gravar cada uma e devolve as que
@@ -466,6 +533,62 @@ function ordenarPorLeitura(linhas: Linha[]): Linha[] {
     if (Math.abs(a.y - b.y) > TOLERANCIA_MESMA_LINHA) return b.y - a.y
     return (a.itens[0]?.x ?? 0) - (b.itens[0]?.x ?? 0)
   })
+}
+
+/**
+ * Reencaixa marcador de lista "órfão": o PDF desenha o GLIFO do marcador
+ * (•, -, *) num trecho do content stream inteiramente separado do rótulo que
+ * ele introduz — sem espaço nem texto nenhum depois dele no mesmo trecho —
+ * ainda que o Y do marcador bata exatamente com o Y do rótulo (é a mesma
+ * linha impressa).
+ *
+ * Medido na proposta que motivou este ajuste
+ * (`SEI_147453498_Proposta_Comercial_934.pdf`, várias reclamações de que "o
+ * descritivo some"): TODO marcador do documento sai assim — um trecho de UM
+ * caractere só, fechado pelo próprio `hasEOL`, desenhado longe do rótulo na
+ * ordem do content stream. Isso quebra dois pontos em cadeia:
+ * `ehMarcadorDeLista` exige espaço + conteúdo depois do marcador
+ * (`REGEX_LISTA_MARCADOR`), então essa `Linha` de um item só nunca conta como
+ * item de lista; e o rótulo que sobra, agora SEM marcador nenhum, ou vira
+ * `<h2>` falso (quando bate o teste de título: mesmo tamanho do corpo + Title
+ * Case) ou fica pendurado dentro do parágrafo vizinho junto com o próprio
+ * marcador solto (quando `absorverBloco` absorve os dois como continuação de
+ * outra coisa). Nos dois casos a lista inteira perde o marcador e o
+ * aninhamento.
+ *
+ * A correção roda uma vez, sobre TODAS as linhas do documento já ordenadas,
+ * antes de título/lista serem avaliados: uma `Linha` que é só o glifo do
+ * marcador se funde com a `Linha` seguinte da MESMA PÁGINA (nunca atravessa
+ * página), preservando o X do marcador — é ele que decide o nível de
+ * indentação em `nivelDoMarcador` — e o texto do rótulo intacto, como se o
+ * PDF tivesse desenhado os dois juntos.
+ */
+function reencaixarMarcadoresOrfaos(linhas: Linha[]): Linha[] {
+  const resultado: Linha[] = []
+  for (let i = 0; i < linhas.length; i++) {
+    const atual = linhas[i]
+    const proxima = linhas[i + 1]
+    if (ehMarcadorOrfao(atual) && proxima && proxima.pagina === atual.pagina && !ehMarcadorOrfao(proxima)) {
+      resultado.push({
+        itens: [atual.itens[0], ...proxima.itens],
+        fontSizeMedio: proxima.fontSizeMedio,
+        y: proxima.y,
+        pagina: proxima.pagina,
+      })
+      i++ // próxima linha já foi consumida na fusão acima
+      continue
+    }
+    resultado.push(atual)
+  }
+  return resultado
+}
+
+/** Só o glifo do marcador, sozinho, sem espaço nem conteúdo depois — a forma
+ *  exata que sobra quando o PDF desenha o marcador longe do rótulo (ver
+ *  `reencaixarMarcadoresOrfaos`). Uma `Linha` de lista de verdade
+ *  (`"• Texto"`) sempre tem mais conteúdo que isso. */
+function ehMarcadorOrfao(linha: Linha): boolean {
+  return linha.itens.length === 1 && /^[•\-*]$/.test(linha.itens[0].texto.trim())
 }
 
 function construirLinha(itensBrutos: ItemComEstilo[], pagina: number, segmentosDaPagina: SegmentoReto[]): Linha {
@@ -897,6 +1020,13 @@ function absorverBloco(
     if (linhasConsumidas.length >= LIMITE_LINHAS_SEM_PONTUACAO) break
 
     const candidata = linhas[j]
+    // Rodapé de paginação (nunca termina em pontuação final) não pode puxar
+    // pra dentro do mesmo bloco a primeira linha da PRÓXIMA página — sem
+    // isto o rodapé engolia o título seguinte (ex.: ".../pg. 1 C4. CONEXÃO
+    // INTERNET..." virava um parágrafo só, e "C4. CONEXÃO INTERNET..." nunca
+    // chegava a ser avaliado como título). Mesma guarda que
+    // `detectarTabelaPorBordas` já tem em pdfTabelas.ts.
+    if (candidata.pagina !== linhas[indiceInicial].pagina) break
     const textoCandidataPlano = extrairTextoPlanoLinha(candidata)
     if (ehMarcadorDeLista(textoCandidataPlano)) break
     if (ehTitulo(candidata, tamanhoCorpo, repeticoes)) break
@@ -940,7 +1070,12 @@ function absorverTabelaPorPosicao(
 
   const linhasDaTabela: Linha[] = [linhas[indiceInicial]]
   let j = indiceInicial + 1
-  while (j < linhas.length && temVaoLargo(linhas[j])) {
+  // Nunca atravessa página: linha de vão largo no fim de uma página e outra
+  // no início da próxima são, na imensa maioria das vezes, coisas diferentes
+  // (duas tabelas distintas, ou rodapé/cabeçalho parecendo linha de tabela
+  // por acaso) — sem esta guarda elas viravam uma tabela só, com linha de
+  // duas páginas diferentes misturada na mesma grade de colunas.
+  while (j < linhas.length && linhas[j].pagina === linhas[indiceInicial].pagina && temVaoLargo(linhas[j])) {
     // Na hora de crescer o bloco vale o limite normal: o critério mais duro do
     // bloco de duas linhas é aplicado no fim, sobre o bloco já fechado — senão
     // uma tabela de três linhas morreria logo no segundo passo.

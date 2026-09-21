@@ -55,7 +55,20 @@ export async function carregarDepsOcrPadrao(propostaId: string): Promise<DepsRod
   }
   async function reconhecer(imagemDataUrl: string): Promise<ResultadoReconhecimento> {
     if (!workerPromise) workerPromise = criarWorker()
-    const worker = await workerPromise
+    let worker: Awaited<ReturnType<typeof criarWorker>>
+    try {
+      worker = await workerPromise
+    } catch (erro) {
+      // Sem isto, uma falha na CRIAÇÃO do worker (rede, carregamento do
+      // modelo de português) fica guardada nesta promise rejeitada pra
+      // sempre — toda página seguinte do mesmo lote herdaria o mesmo erro
+      // sem nunca tentar de novo, mesmo que a causa original já tenha
+      // passado. `rodarOcrEmBlocos` documenta que falha numa página não
+      // aborta as outras; sem resetar aqui, essa garantia vale só na
+      // aparência quando quem quebra é o worker, não a página.
+      workerPromise = null
+      throw erro
+    }
     // `{ blocks: true }` é o que faz o tesseract.js devolver
     // `data.blocks[].paragraphs[].lines[].words[]` com bounding box por
     // palavra — sem isso `data.blocks` vem `null` (só o texto corrido em

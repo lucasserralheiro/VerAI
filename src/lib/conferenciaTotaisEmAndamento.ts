@@ -25,6 +25,12 @@ export interface CelulaConferidaCliente {
   texto: string
   ehValor: boolean
   encontradoNoDocumento?: boolean
+  /** O número bate, mas o SINAL não — a conversão perdeu ou inventou o menos.
+   *  Estado próprio na tela porque é diferente de "não achou": o valor está
+   *  lá, só que invertido, o que numa proposta de aditivo troca Redução por
+   *  Inclusão. `undefined` quando não dá pra afirmar (ver `sinalDivergente`
+   *  em `conferirTotais.ts`). */
+  sinalDivergente?: boolean
   /** Linha inteira de origem (todas as células, "no PDF") — só nas células
    *  de valor. */
   contextoOriginal?: string

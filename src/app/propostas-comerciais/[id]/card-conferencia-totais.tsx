@@ -284,6 +284,10 @@ function TabelaReconstruida({
 }) {
   const celulasDeValor = tabela.linhas.flat().filter((c) => c.ehValor)
   const divergentes = celulasDeValor.filter((c) => !c.encontradoNoDocumento).length
+  // Contado à parte de `divergentes`: o número ESTÁ no documento, o sinal é
+  // que está trocado. Juntar os dois num contador só esconderia justamente o
+  // que diferencia uma Redução de uma Inclusão.
+  const sinaisTrocados = celulasDeValor.filter((c) => c.sinalDivergente).length
 
   return (
     <div className="space-y-1.5">
@@ -292,6 +296,11 @@ function TabelaReconstruida({
         {divergentes > 0 && (
           <span className="ml-2 font-normal text-red-crit">
             {divergentes} {divergentes === 1 ? 'valor não bate' : 'valores não batem'}
+          </span>
+        )}
+        {sinaisTrocados > 0 && (
+          <span className="ml-2 font-normal text-orange-dark">
+            {sinaisTrocados} com sinal trocado
           </span>
         )}
       </p>
@@ -314,11 +323,25 @@ function TabelaReconstruida({
                         encontradoNoDocumento: celula.encontradoNoDocumento ?? false,
                       })
                     }
+                    title={
+                      celula.sinalDivergente
+                        ? 'O número aparece no documento, mas com o sinal trocado — confira se é Inclusão ou Redução.'
+                        : undefined
+                    }
                     className={cn(
                       'px-3 py-1.5 align-top whitespace-nowrap',
                       celula.ehValor && 'tabular-nums font-medium',
                       celula.ehValor && 'cursor-pointer transition-opacity hover:opacity-70',
-                      celula.ehValor && celula.encontradoNoDocumento && 'bg-green-ok-light/40 text-navy',
+                      celula.ehValor &&
+                        celula.encontradoNoDocumento &&
+                        !celula.sinalDivergente &&
+                        'bg-green-ok-light/40 text-navy',
+                      // Terceiro estado, entre o verde e o vermelho: o número
+                      // está no documento (por isso não é vermelho), mas com o
+                      // sinal invertido. A cor não é o único aviso — o rótulo
+                      // acima da tabela diz "N com sinal trocado" por extenso,
+                      // e a célula carrega `title` explicando.
+                      celula.ehValor && celula.sinalDivergente && 'bg-orange-light/50 text-orange-dark',
                       celula.ehValor && !celula.encontradoNoDocumento && 'bg-red-crit-light/40 text-red-crit'
                     )}
                   >

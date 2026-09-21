@@ -21,12 +21,11 @@ import {
   FileUp,
   X,
   Sparkles,
-  Scale,
 } from 'lucide-react'
 import { nomeCompetencia, parseCompetencia } from '@/lib/competencia'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { BTN_PRIMARY, BTN_OUTLINE, LINK_DANGER, INPUT_BASE } from '@/lib/ui'
+import { BTN_PRIMARY, BTN_OUTLINE, LINK_DANGER } from '@/lib/ui'
 
 interface Documento {
   id: string
@@ -83,38 +82,7 @@ interface AnaliseEvolucao {
   createdAt: string
 }
 
-interface AchadoMedicao {
-  validacao: string
-  severidade: string
-  mensagem: string
-}
-
-interface AchadosBloqueioMedicao {
-  bloqueantes: AchadoMedicao[]
-  avisos: AchadoMedicao[]
-  confirmaveis: AchadoMedicao[]
-  pode_prosseguir: boolean
-}
-
-interface ResultadoMedicao {
-  titulo: string
-  total_linhas: number
-  total_divergencias: number
-  avisos: AchadoMedicao[]
-}
-
-interface AnaliseMedicaoContratual {
-  id: string
-  status: 'processando' | 'concluido' | 'bloqueado' | 'erro'
-  mensagemErro: string | null
-  resultado: ResultadoMedicao | null
-  achadosBloqueio: AchadosBloqueioMedicao | null
-  caminhoRelatorioDocx: string | null
-  caminhoRelatorioXlsx: string | null
-  relatorioGeradoEm: string | null
-}
-
-type Aba = 'documentos' | 'consolidada' | 'evolucao' | 'medicao'
+type Aba = 'documentos' | 'consolidada' | 'evolucao'
 
 const STATUS_EVOLUCAO_LABEL: Record<MetricaEvoluida['status'], string> = {
   novo: 'Novo',
@@ -189,13 +157,6 @@ export default function ClienteCompetenciaPage({
   const [analiseEvolucao, setAnaliseEvolucao] = useState<AnaliseEvolucao | null>(null)
   const [gerandoEvolucao, setGerandoEvolucao] = useState(false)
   const [erroEvolucao, setErroEvolucao] = useState<string | null>(null)
-  const [analiseMedicao, setAnaliseMedicao] = useState<AnaliseMedicaoContratual | null>(null)
-  const [arquivoContratoMedicao, setArquivoContratoMedicao] = useState<File | null>(null)
-  const [arquivoLevantamentoMedicao, setArquivoLevantamentoMedicao] = useState<File | null>(null)
-  const [arquivosAditivosMedicao, setArquivosAditivosMedicao] = useState<File[]>([])
-  const [identidadeConfirmadaMedicao, setIdentidadeConfirmadaMedicao] = useState(false)
-  const [gerandoMedicao, setGerandoMedicao] = useState(false)
-  const [erroMedicao, setErroMedicao] = useState<string | null>(null)
   const [aba, setAba] = useState<Aba>('documentos')
   const [historicoAberto, setHistoricoAberto] = useState(false)
   const [seletorConsolidadaAberto, setSeletorConsolidadaAberto] = useState(false)
@@ -207,12 +168,11 @@ export default function ClienteCompetenciaPage({
   async function carregar() {
     if (!parsed) return
     setCarregando(true)
-    const [clienteResponse, documentosResponse, consolidadasResponse, evolucaoResponse, medicaoResponse] = await Promise.all([
+    const [clienteResponse, documentosResponse, consolidadasResponse, evolucaoResponse] = await Promise.all([
       fetch(`/api/clientes/${id}`),
       fetch(`/api/documentos?clienteId=${id}&competenciaAno=${parsed.ano}&competenciaMes=${parsed.mes}`),
       fetch(`/api/clientes/${id}/competencias/${competencia}/analise-consolidada`),
       fetch(`/api/clientes/${id}/competencias/${competencia}/analise-evolucao`),
-      fetch(`/api/clientes/${id}/competencias/${competencia}/analise-medicao`),
     ])
     if (clienteResponse.ok) setCliente(await clienteResponse.json())
     if (documentosResponse.ok) {
@@ -224,7 +184,6 @@ export default function ClienteCompetenciaPage({
     }
     if (consolidadasResponse.ok) setAnalisesConsolidadas(await consolidadasResponse.json())
     if (evolucaoResponse.ok) setAnaliseEvolucao(await evolucaoResponse.json())
-    if (medicaoResponse.ok) setAnaliseMedicao(await medicaoResponse.json())
     setCarregando(false)
   }
 
@@ -250,7 +209,6 @@ export default function ClienteCompetenciaPage({
     { key: 'documentos', label: 'Documentos', icon: FileStack, count: documentos.length },
     { key: 'consolidada', label: 'Relatório consolidado', icon: Layers, count: analisesConsolidadas.length },
     { key: 'evolucao', label: 'Relatório de evolução', icon: GitCompare },
-    { key: 'medicao', label: 'Medição contratual', icon: Scale },
   ]
 
   async function handleExcluirDocumento(doc: Documento) {
@@ -343,40 +301,6 @@ export default function ClienteCompetenciaPage({
       return
     }
     carregar()
-  }
-
-  async function handleGerarMedicao() {
-    if (!arquivoContratoMedicao || !arquivoLevantamentoMedicao) return
-    setErroMedicao(null)
-    setGerandoMedicao(true)
-    const formData = new FormData()
-    formData.set('contrato', arquivoContratoMedicao)
-    formData.set('levantamento', arquivoLevantamentoMedicao)
-    for (const aditivo of arquivosAditivosMedicao) formData.append('aditivos', aditivo)
-    formData.set('identidadeConfirmada', String(identidadeConfirmadaMedicao))
-
-    const response = await fetch(`/api/clientes/${id}/competencias/${competencia}/analise-medicao`, {
-      method: 'POST',
-      body: formData,
-    })
-    setGerandoMedicao(false)
-    const body = await response.json().catch(() => null)
-
-    // 200 (concluído), 422 (bloqueado) e 502 (erro do Confere) devolvem o
-    // registro inteiro (tem "status"); só as validações antes de chamar o
-    // Confere (401/403/404/400) devolvem { error }.
-    if (body && typeof body === 'object' && 'status' in body) {
-      const analise = body as AnaliseMedicaoContratual
-      setAnaliseMedicao(analise)
-      if (analise.status === 'concluido') {
-        setArquivoContratoMedicao(null)
-        setArquivoLevantamentoMedicao(null)
-        setArquivosAditivosMedicao([])
-        setIdentidadeConfirmadaMedicao(false)
-      }
-      return
-    }
-    setErroMedicao(body?.error ?? 'Falha ao gerar a análise de medição.')
   }
 
   if (!parsed) {
@@ -984,173 +908,6 @@ export default function ClienteCompetenciaPage({
                         <AlertCircle className="size-3.5 shrink-0" strokeWidth={2.25} />
                         {erroEvolucao}
                       </span>
-                    )}
-                  </div>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {aba === 'medicao' && (
-            <div className="space-y-3">
-              <Card className="space-y-3 p-4">
-                <p className="text-sm text-mid-grey">
-                  Compara o contrato com a planilha de medição (e eventuais aditivos) e gera o
-                  relatório de conferência — processado pelo Confere, pode levar até 2 minutos.
-                </p>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="font-medium text-navy">Contrato (PDF)</span>
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      className={INPUT_BASE}
-                      onChange={(e) => setArquivoContratoMedicao(e.target.files?.[0] ?? null)}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="font-medium text-navy">Planilha de levantamento (XLSX)</span>
-                    <input
-                      type="file"
-                      accept=".xlsx"
-                      className={INPUT_BASE}
-                      onChange={(e) => setArquivoLevantamentoMedicao(e.target.files?.[0] ?? null)}
-                    />
-                  </label>
-                </div>
-
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium text-navy">Aditivos (PDF, opcional — pode escolher vários)</span>
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    multiple
-                    className={INPUT_BASE}
-                    onChange={(e) => setArquivosAditivosMedicao(Array.from(e.target.files ?? []))}
-                  />
-                </label>
-
-                {analiseMedicao?.status === 'bloqueado' && analiseMedicao.achadosBloqueio?.pode_prosseguir && (
-                  <label className="flex items-center gap-2 text-sm text-navy">
-                    <input
-                      type="checkbox"
-                      checked={identidadeConfirmadaMedicao}
-                      onChange={(e) => setIdentidadeConfirmadaMedicao(e.target.checked)}
-                    />
-                    Confirmo a identidade apesar da divergência apontada abaixo e quero prosseguir
-                  </label>
-                )}
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    onClick={handleGerarMedicao}
-                    disabled={gerandoMedicao || !arquivoContratoMedicao || !arquivoLevantamentoMedicao}
-                    className={BTN_PRIMARY}
-                  >
-                    {gerandoMedicao ? (
-                      <Loader2 className="size-3.5 animate-spin" strokeWidth={2.25} />
-                    ) : (
-                      <Scale className="size-3.5" strokeWidth={2.25} />
-                    )}
-                    {gerandoMedicao ? 'Gerando... (pode levar até 2 min)' : 'Gerar análise de medição'}
-                  </button>
-                  {erroMedicao && (
-                    <span className="flex items-center gap-1 text-sm text-red-crit">
-                      <AlertCircle className="size-3.5 shrink-0" strokeWidth={2.25} />
-                      {erroMedicao}
-                    </span>
-                  )}
-                </div>
-              </Card>
-
-              {analiseMedicao?.status === 'erro' && (
-                <Card className="flex items-start gap-2 border-red-crit/20 bg-red-crit-light text-sm text-red-crit">
-                  <AlertCircle className="size-4 shrink-0" strokeWidth={2.25} />
-                  <div>
-                    <p className="font-medium">A última tentativa falhou</p>
-                    <p>{analiseMedicao.mensagemErro}</p>
-                  </div>
-                </Card>
-              )}
-
-              {analiseMedicao?.status === 'bloqueado' && analiseMedicao.achadosBloqueio && (
-                <Card className="space-y-3 text-sm">
-                  {analiseMedicao.achadosBloqueio.bloqueantes.length > 0 && (
-                    <div className="rounded-lg bg-red-crit-light p-3">
-                      <p className="mb-1 flex items-center gap-1.5 font-medium text-red-crit">
-                        <AlertTriangle className="size-4" strokeWidth={2.25} />
-                        Bloqueado — precisa resolver antes de gerar o relatório
-                      </p>
-                      <ul className="space-y-1 pl-1 text-red-crit">
-                        {analiseMedicao.achadosBloqueio.bloqueantes.map((achado, i) => (
-                          <li key={i}>{achado.mensagem}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {analiseMedicao.achadosBloqueio.confirmaveis.length > 0 && (
-                    <div className="rounded-lg bg-orange-light p-3">
-                      <p className="mb-1 flex items-center gap-1.5 font-medium text-orange">
-                        <AlertTriangle className="size-4" strokeWidth={2.25} />
-                        Precisa da sua confirmação
-                      </p>
-                      <ul className="space-y-1 pl-1 text-navy">
-                        {analiseMedicao.achadosBloqueio.confirmaveis.map((achado, i) => (
-                          <li key={i}>{achado.mensagem}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {analiseMedicao.achadosBloqueio.avisos.length > 0 && (
-                    <div className="rounded-lg bg-light-blue/30 p-3">
-                      <p className="mb-1 font-medium text-navy">Avisos</p>
-                      <ul className="space-y-1 pl-1 text-mid-grey">
-                        {analiseMedicao.achadosBloqueio.avisos.map((achado, i) => (
-                          <li key={i}>{achado.mensagem}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </Card>
-              )}
-
-              {analiseMedicao?.status === 'concluido' && analiseMedicao.resultado && (
-                <Card className="space-y-3 text-sm">
-                  <p className="text-xs text-mid-grey">
-                    Gerado em{' '}
-                    {analiseMedicao.relatorioGeradoEm
-                      ? new Date(analiseMedicao.relatorioGeradoEm).toLocaleString('pt-BR')
-                      : '—'}
-                  </p>
-                  <p className="text-base font-semibold text-navy">{analiseMedicao.resultado.titulo}</p>
-                  <div className="flex flex-wrap gap-4">
-                    <Stat>{analiseMedicao.resultado.total_linhas} linhas no relatório</Stat>
-                    <Stat tone={analiseMedicao.resultado.total_divergencias > 0 ? 'critical' : 'success'}>
-                      {analiseMedicao.resultado.total_divergencias} divergências
-                    </Stat>
-                    {analiseMedicao.resultado.avisos.length > 0 && (
-                      <Stat tone="critical">{analiseMedicao.resultado.avisos.length} avisos</Stat>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-4 pt-1">
-                    {analiseMedicao.caminhoRelatorioDocx && (
-                      <a
-                        href={analiseMedicao.caminhoRelatorioDocx}
-                        className="inline-flex items-center gap-1.5 font-medium text-navy hover:underline"
-                      >
-                        <FileDown className="size-3.5" strokeWidth={2.25} />
-                        Baixar Word
-                      </a>
-                    )}
-                    {analiseMedicao.caminhoRelatorioXlsx && (
-                      <a
-                        href={analiseMedicao.caminhoRelatorioXlsx}
-                        className="inline-flex items-center gap-1.5 font-medium text-navy hover:underline"
-                      >
-                        <FileDown className="size-3.5" strokeWidth={2.25} />
-                        Baixar Excel
-                      </a>
                     )}
                   </div>
                 </Card>

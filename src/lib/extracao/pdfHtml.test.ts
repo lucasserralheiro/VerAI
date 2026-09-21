@@ -189,6 +189,100 @@ describe('converterPdfParaHtml', () => {
     )
   })
 
+  it('reencaixa marcador "•" que o PDF desenhou separado do rótulo — sem isso o rótulo vira <h2> falso', async () => {
+    // Medido em SEI_147453498_Proposta_Comercial_934.pdf (queixa real: "o
+    // descritivo some"): TODO marcador da página sai como um trecho de UM
+    // CARACTERE só, com hasEOL fechando ali mesmo — bem longe, no content
+    // stream, do trecho que desenha o rótulo — mas com o MESMO Y do rótulo
+    // (é a mesma linha impressa). `agruparEmLinhas` bota os dois lado a lado
+    // na ordem de leitura (mesmo Y, marcador primeiro por ter X menor), mas
+    // como `Linha`s SEPARADAS.
+    //
+    // Sem reencaixe: "•" sozinho não casa com REGEX_LISTA_MARCADOR (falta
+    // espaço + conteúdo depois), e cada rótulo (palavra única ou Title Case,
+    // do tamanho do corpo) passa no teste de capitalização de `ehTitulo` e
+    // vira <h2> — repetido 3 vezes eram só 3 bullets de uma lista só.
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 1,
+      items: [
+        [
+          item({ str: '•', x: 68.4, y: 700, width: 5.1, hasEOL: true }),
+          item({ str: 'Central', x: 76.6, y: 700, width: 40 }),
+          item({ str: 'de', x: 120, y: 700, width: 10 }),
+          item({ str: 'Serviços', x: 134, y: 700, width: 50, hasEOL: true }),
+
+          item({ str: '•', x: 68.4, y: 680, width: 5.1, hasEOL: true }),
+          item({ str: 'Monitoramento', x: 76.6, y: 680, width: 80, hasEOL: true }),
+
+          item({ str: '•', x: 68.4, y: 660, width: 5.1, hasEOL: true }),
+          item({ str: 'Disponibilidade', x: 76.6, y: 660, width: 80, hasEOL: true }),
+        ],
+      ],
+    })
+
+    const { html: resultado } = await converterPdfParaHtml(Buffer.from(''))
+
+    expect(resultado).toBe(
+      '<ul><li>Central de Serviços</li><li>Monitoramento</li><li>Disponibilidade</li></ul>'
+    )
+  })
+
+  it('não reencaixa marcador órfão com a primeira linha da página seguinte — item de lista nunca atravessa página', async () => {
+    // Mesma forma de marcador órfão do teste acima, mas na ÚLTIMA linha da
+    // página 1 — a linha seguinte, na página 2, não tem nenhuma relação com
+    // ele. Fundir os dois grudaria conteúdo de páginas diferentes num <li> só.
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 2,
+      items: [
+        [item({ str: '•', x: 68.4, y: 50, width: 5.1, hasEOL: true })],
+        [item({ str: 'Termos e Condições', x: 56.6, y: 700, hasEOL: true })],
+      ],
+    })
+
+    const { html: resultado } = await converterPdfParaHtml(Buffer.from(''))
+
+    expect(resultado).not.toContain('<li')
+  })
+
+  it('não junta no mesmo parágrafo uma linha da página seguinte — rodapé sem pontuação final não pode "puxar" o título da próxima página', async () => {
+    // Bug real: rodapé de paginação (ex. "...pg. 1") nunca termina em
+    // pontuação final, então sem esta guarda `absorverBloco` seguia
+    // absorvendo linha atrás de linha até achar um fim de frase — e a
+    // PRIMEIRA linha da página seguinte (que podia muito bem ser um título de
+    // seção de verdade) virava continuação do rodapé em vez de ser avaliada
+    // por conta própria. Medido em SEI_147453498_Proposta_Comercial_934.pdf:
+    // "...pg. 1 C4. CONEXÃO INTERNET..." saía como um <p> só, e "C4. CONEXÃO
+    // INTERNET..." nunca chegava a virar <h2> como os títulos irmãos dele.
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 2,
+      items: [
+        [item({ str: 'Rodapé sem pontuação', x: 0, y: 100, hasEOL: true })],
+        [item({ str: 'Início da próxima página.', x: 0, y: 700, hasEOL: true })],
+      ],
+    })
+
+    const { html: resultado } = await converterPdfParaHtml(Buffer.from(''))
+
+    expect(resultado).toBe('<p>Rodapé sem pontuação</p>\n\n<p>Início da próxima página.</p>')
+  })
+
+  it('não junta linha de tabela por posição entre páginas diferentes — vão largo no fim de uma página e no início da próxima não é a mesma tabela', async () => {
+    ;(extractTextItems as jest.Mock).mockResolvedValue({
+      totalPages: 2,
+      items: [
+        [item({ str: 'item', x: 0, width: 30 }), item({ str: 'valor do produto', x: 100, width: 60, hasEOL: true })],
+        [item({ str: 'storage', x: 0, width: 40 }), item({ str: 'custo mensal', x: 100, width: 60, hasEOL: true })],
+      ],
+    })
+
+    const { html: resultado } = await converterPdfParaHtml(Buffer.from(''))
+
+    // Sem a guarda de página, essas duas linhas (uma de cada página) tinham
+    // corredor de coluna alinhado e viravam uma tabela de 2 linhas só —
+    // misturando conteúdo de páginas diferentes na mesma grade de colunas.
+    expect(resultado).not.toContain('<table')
+  })
+
   it('quebra um bloco que cresce demais sem pontuação final em vez de virar um parágrafo só', async () => {
     // Simula o caso real: uma tabela de preços que a detecção NÃO reconheceu
     // (nem por borda, nem por corredor — cada linha aqui é UM item só, sem

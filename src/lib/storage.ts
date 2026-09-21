@@ -32,39 +32,6 @@ export function buildRelatorioEvolucaoPath(analiseEvolucaoId: string, data: Date
   return `${ano}/${mes}/evolucoes/${analiseEvolucaoId}/relatorio.pdf`
 }
 
-/** Prefixo (pasta) de todos os blobs de um documento — usado pra apagar tudo de uma vez. */
-export function buildRelatorioMedicaoPath(
-  clienteId: string,
-  competenciaAno: number,
-  competenciaMes: number,
-  extensao: 'docx' | 'xlsx',
-  data: Date = new Date()
-): string {
-  const ano = String(data.getFullYear())
-  const mes = String(data.getMonth() + 1).padStart(2, '0')
-  const competencia = `${competenciaAno}-${String(competenciaMes).padStart(2, '0')}`
-  return `${ano}/${mes}/medicao/${clienteId}/${competencia}/relatorio.${extensao}`
-}
-
-/** Um arquivo de ENTRADA (contrato/levantamento/aditivo) de uma
- *  AnaliseMedicaoContratual — sobrescreve a cada nova tentativa pra essa
- *  competência (mesmo caminho, `papel`+`ordem` distinguem contrato de
- *  levantamento de cada aditivo). */
-export function buildArquivoMedicaoPath(
-  clienteId: string,
-  competenciaAno: number,
-  competenciaMes: number,
-  papel: string,
-  ordem: number,
-  nomeArquivo: string,
-  data: Date = new Date()
-): string {
-  const ano = String(data.getFullYear())
-  const mes = String(data.getMonth() + 1).padStart(2, '0')
-  const competencia = `${competenciaAno}-${String(competenciaMes).padStart(2, '0')}`
-  return `${ano}/${mes}/medicao/${clienteId}/${competencia}/entrada/${papel}-${ordem}-${nomeArquivo}`
-}
-
 export function buildDocumentoPrefix(documentoId: string, data: Date = new Date()): string {
   const ano = String(data.getFullYear())
   const mes = String(data.getMonth() + 1).padStart(2, '0')
@@ -113,4 +80,17 @@ export async function deleteUploadPrefix(prefix: string): Promise<void> {
  *  específico dentro de uma proposta comercial com vários arquivos). */
 export async function deleteUpload(url: string): Promise<void> {
   await del(url)
+}
+
+/** Os dois documentos gerados por uma execução do ConfereAI (`/confere`).
+ *  Mesma "pasta" por execução, então apagar o prefixo leva os dois junto. */
+export function buildConfereExecucaoPath(
+  execucaoId: string,
+  tipo: 'docx' | 'xlsx',
+  data: Date = new Date()
+): string {
+  const ano = String(data.getFullYear())
+  const mes = String(data.getMonth() + 1).padStart(2, '0')
+  const nome = tipo === 'docx' ? 'relatorio.docx' : 'analise.xlsx'
+  return `${ano}/${mes}/confere/${execucaoId}/${nome}`
 }

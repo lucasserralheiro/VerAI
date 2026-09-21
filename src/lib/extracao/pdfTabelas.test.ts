@@ -84,10 +84,29 @@ describe('construirGradeDaPagina', () => {
     expect(construirGradeDaPagina(segmentos)).toBeNull()
   })
 
-  it('aceita grade com 1 linha e várias colunas (ou vice-versa) — não exige as duas dimensões', () => {
-    // Uma tabela real pode ter só uma linha de dado com várias colunas (ou
-    // só uma coluna com várias linhas) — só a caixa 1x1, sem NENHUMA
-    // divisória, é que não é tabela.
+  it('rejeita moldura com divisória horizontal (2 linhas x 1 coluna) — continua sendo texto emoldurado', () => {
+    // O caso que a checagem de 1x1 sozinha deixava passar, e que apareceu em
+    // 5 tabelas do corpus real (`npm run diag:pdf`), em 2 geradores
+    // diferentes: a seção DESCRITIVOS DOS SERVIÇOS vem numa moldura com uma
+    // divisória horizontal no meio. Isso virava uma tabela HTML de 1 coluna
+    // com todos os parágrafos e itens de lista esmagados em duas células.
+    const segmentos = [
+      segmento(0, 500, 400, 500), // topo
+      segmento(0, 300, 400, 300), // divisória do meio
+      segmento(0, 100, 400, 100), // base
+      segmento(0, 100, 0, 500), // esquerda
+      segmento(400, 100, 400, 500), // direita
+    ]
+
+    expect(construirGradeDaPagina(segmentos)).toBeNull()
+  })
+
+  it('aceita grade com 1 linha e várias colunas — não exige as duas dimensões', () => {
+    // Uma tabela real pode ter uma linha de dado só, desde que tenha mais de
+    // uma COLUNA. O contrário não vale: grade de uma coluna só é moldura em
+    // volta de texto (ou tabela cuja borda vertical o PDF não desenhou), e
+    // nos dois casos o certo é não confiar na grade — ver o comentário em
+    // `construirGradeDaPagina`.
     const segmentos = [
       segmento(0, 100, 300, 100),
       segmento(0, 80, 300, 80),

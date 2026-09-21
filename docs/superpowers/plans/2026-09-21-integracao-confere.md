@@ -97,7 +97,10 @@ inalterado exceto pela Task 2).
 
 ### Task 4: Model Prisma novo
 
-**Status:** ✅ Concluída (2026-09-21). Model, migração escritos aqui; aplicados pelo usuário no
+**Status:** ⛔ Revertida (2026-09-21, mesmo dia — ver Task 9). Ficou concluída por algumas horas; o usuário pediu depois pra tirar o vínculo com cliente ("não vamos vincular a cliente e nada do tipo"), o que torna este model inteiro sem uso — a versão final não persiste nada. Migração de reversão:
+`prisma/migrations/20260921160000_remove_analise_medicao_contratual/`. Detalhe fica abaixo, como registro histórico.
+
+~~**Status:** ✅ Concluída (2026-09-21).~~ Model, migração escritos aqui; aplicados pelo usuário no
 próprio terminal (este ambiente de automação não tem `docker` nem alcança `binaries.prisma.sh` —
 mesma restrição de rede que bloqueou `onrender.com` na Task 3). Confirmado via
 `npx prisma migrate status`: 13 migrações, banco em dia.
@@ -123,7 +126,9 @@ com o pipeline de análise por IA que já está ligado a `Documento`.
 
 ### Task 5: Rota de geração
 
-**Status:** ✅ Concluída (2026-09-21).
+**Status:** ⚠️ Parcialmente revertida (2026-09-21, mesmo dia — ver Task 9). `src/lib/confere/cliente.ts` (`chamarConfere()`) sobreviveu inteiro e é reaproveitado pela rota nova. A rota `/api/clientes/[clienteId]/competencias/[competencia]/analise-medicao` em si, e tudo que dependia do model da Task 4 (persistência, `putUpload`, upsert por competência), foi removido e substituído pela rota sem estado da Task 9. Detalhe fica abaixo, como registro histórico.
+
+~~**Status:** ✅ Concluída (2026-09-21).~~
 
 - [x] `src/lib/confere/cliente.ts` — `chamarConfere()`: multipart pro Confere (`POST /reports`),
       header `X-Confere-Secret` (Task 2), devolve um tipo discriminado
@@ -159,7 +164,9 @@ com o pipeline de análise por IA que já está ligado a `Documento`.
 
 ### Task 7: Quarta aba em `clientes/[id]/[competencia]/page.tsx`
 
-**Status:** ✅ Concluída (2026-09-21).
+**Status:** ⛔ Revertida (2026-09-21, mesmo dia — ver Task 9). O usuário pediu que o Confere deixasse de ser um passo dentro do fluxo de cliente e virasse a tela de entrada do sistema, sem vínculo com cliente nenhum — a aba inteira (tipo `Aba`, entrada em `TABS`, estados, `handleGerarMedicao`, o bloco JSX e os 3 testes) foi removida. Detalhe fica abaixo, como registro histórico.
+
+~~**Status:** ✅ Concluída (2026-09-21).~~
 
 - [x] `'medicao'` adicionado ao tipo `Aba` e ao array `TABS` (label "Medição contratual")
 - [x] Upload de contrato (PDF) + levantamento (XLSX) + aditivos (PDF, opcional, múltiplos)
@@ -175,6 +182,41 @@ com o pipeline de análise por IA que já está ligado a `Documento`.
       sem histórico não tem o que listar; virar histórico exigiria mudar esse modelo de dados
       (não fazer upsert, manter uma linha por tentativa) — decisão consciente de simplicidade,
       revisitar se o usuário sentir falta na prática
+
+### Task 9: Revisão — cópia solta do Confere, porta de entrada do sistema (substitui Tasks 4/5/7)
+
+**Status:** ✅ Concluída (2026-09-21, mesmo dia das Tasks 4/5/7). Ver design doc §3.7 pro porquê —
+resumo: o usuário pediu, em sequência, pra tirar o vínculo com cliente, virar a tela de entrada, e
+ficar "a cópia do Confere, do mesmo jeito" (com print do frontend de verdade do Confere).
+
+- [x] `src/app/confere/` — cópia de `services/confere/frontend/src/app/{page,layout}.tsx` +
+      `components/*` (9 arquivos) + `lib/{types,documento}.ts`, import paths ajustados pra
+      relativo, classes de cor prefixadas `confere-*`
+- [x] `src/app/globals.css` — tokens `--color-confere-*`/`--confere-*` (paleta TRIADE do Confere:
+      teal, navy em escala, severidade, brand, prodam) + regra `dialog::backdrop` (usada pelo
+      `<dialog>` nativo de `ConfirmarLimpeza.tsx`)
+- [x] `public/logo-confere.png` + `public/prodam-branca.svg` copiados de
+      `services/confere/frontend/public/`
+- [x] `src/app/confere/lib/api.ts` — só `API_BASE_URL` mudou, de `NEXT_PUBLIC_API_URL` pra
+      `/api/confere` (o resto do arquivo é idêntico ao original)
+- [x] `src/app/api/confere/reports/route.ts` — proxy sem estado, reaproveita `chamarConfere()` da
+      Task 5, devolve a resposta do Confere quase sem tocar (200/422/erro); `maxDuration = 120`.
+      6 testes (`route.test.ts`)
+- [x] `POST /reports/conferencia-previa` **não** tem proxy próprio (Task 6 continua não
+      implementada) — `conferirIdentidade()` recebe 404 do próprio VerAI e segue por falha aberta
+      (comportamento já previsto no código original, `R-IDT-12`)
+- [x] Removido por completo: rota antiga (Task 5), aba "medicao" (Task 7), models
+      `AnaliseMedicaoContratual`/`AnaliseMedicaoContratualArquivo` + relação em `Cliente` (Task 4),
+      `buildRelatorioMedicaoPath`/`buildArquivoMedicaoPath` (`storage.ts`, sem uso), migração de
+      reversão `20260921160000_remove_analise_medicao_contratual`
+- [x] `src/middleware.ts` + `src/app/login/{login-form,dev-login-form}.tsx` redirecionam pra
+      `/confere` em vez de `/clientes`; testes atualizados
+- [x] `src/components/nav-bar.tsx` — link "Confere" solto, primeiro item do menu, fora do grupo
+      "Relatórios"; marca do topo também leva pra `/confere`; 2 testes novos
+- [ ] **Pendente (usuário ainda não rodou):** `npx prisma migrate dev`/`migrate deploy` (aplicar a
+      migração de reversão), `npx tsc --noEmit`, suíte completa do Jest, `npm run dev` pra
+      conferir visualmente contra o print que o usuário mandou
+- [ ] Commit
 
 ### Task 8: Atualizar os docs deste plano
 

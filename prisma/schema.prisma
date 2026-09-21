@@ -27,7 +27,6 @@ model Cliente {
   documentos         Documento[]
   analisesConsolidadas AnaliseConsolidada[]
   analisesEvolucao  AnaliseEvolucao[]
-  analisesMedicaoContratual AnaliseMedicaoContratual[]
 }
 
 model AnaliseEvolucao {
@@ -167,59 +166,6 @@ model Notificacao {
   createdAt    DateTime  @default(now())
 }
 
-// Análise de medição contratual (integração com o serviço Confere) — compara
-// contrato x planilha de levantamento (mais aditivos opcionais) e devolve um
-// relatório estruturado (docs/superpowers/specs/2026-09-21-integracao-confere-design.md).
-//
-// Diferente de AnaliseConsolidada/AnaliseEvolucao, os arquivos de entrada não
-// reaproveitam o model Documento: são upload dedicado só pra essa análise
-// (decisão de 2026-09-21 — ver design doc §3.6), guardados em
-// AnaliseMedicaoContratualArquivo.
-//
-// `resultado` guarda a resposta estruturada do Confere (RespostaRelatorio)
-// sem os campos *_base64 — esses viram os dois arquivos gerados
-// (caminhoRelatorioDocx/Xlsx). Quando o Confere bloqueia (achado bloqueante,
-// RespostaBloqueada), não há relatório: `achadosBloqueio` guarda bloqueantes/
-// avisos/confirmáveis, e `status` fica "bloqueado".
-model AnaliseMedicaoContratual {
-  id                   String    @id @default(cuid())
-  clienteId            String
-  cliente              Cliente   @relation(fields: [clienteId], references: [id])
-  competenciaAno       Int
-  competenciaMes       Int
-  status               String    @default("processando") // processando | concluido | bloqueado | erro
-  mensagemErro         String?
-  // Espelha o `identidade_confirmada` do Confere — true quando o usuário já
-  // seguiu em frente apesar de achados "confirmáveis" (RespostaBloqueada.confirmaveis).
-  identidadeConfirmada Boolean   @default(false)
-  resultado            Json?
-  achadosBloqueio      Json?
-  caminhoRelatorioDocx String?
-  caminhoRelatorioXlsx String?
-  relatorioGeradoEm    DateTime?
-  createdAt            DateTime  @default(now())
-  arquivos             AnaliseMedicaoContratualArquivo[]
-
-  @@unique([clienteId, competenciaAno, competenciaMes])
-}
-
-// Um arquivo de entrada enviado para uma AnaliseMedicaoContratual — exatamente
-// um "contrato", exatamente um "levantamento", e zero ou mais "aditivo"
-// (mesmo papel que o Confere espera em `POST /reports`).
-model AnaliseMedicaoContratualArquivo {
-  id              String                   @id @default(cuid())
-  analiseId       String
-  analise         AnaliseMedicaoContratual @relation(fields: [analiseId], references: [id], onDelete: Cascade)
-  papel           String                   // contrato | levantamento | aditivo
-  nomeArquivo     String
-  tamanhoBytes    Int
-  caminhoOriginal String
-  ordem           Int                      // relevante só entre os aditivos — preserva a ordem de upload
-  createdAt       DateTime                 @default(now())
-
-  @@index([analiseId])
-}
-
 model AcessoDocumento {
   id          String    @id @default(cuid())
   documentoId String
@@ -228,4 +174,37 @@ model AcessoDocumento {
   usuario     Usuario   @relation(fields: [usuarioId], references: [id])
   acao        String    // visualizou | baixou_original | baixou_relatorio
   createdAt   DateTime  @default(now())
+}
+
+// Histórico do ConfereAI (`/confere`). A geração em si continua sem estado —
+// o Confere é um serviço à parte que não persiste nada e devolve os dois
+// documentos no corpo da resposta. O que esta tabela guarda é só o registro
+// do que passou por ali: o NOME dos arquivos submetidos (não os arquivos) e
+// os dois documentos gerados, pra poder rebaixar sem repetir os ~25s de
+// processamento.
+//
+// Sem vínculo com Cliente nem competência, pelo mesmo motivo que a tela não
+// tem: `/confere` é uma ferramenta solta, não um passo do fluxo de cliente
+// (ver docs/superpowers/specs/2026-09-21-integracao-confere-design.md §3.7).
+model ConfereExecucao {
+  id               String   @id
+  // Só o nome com que o arquivo foi submetido — o PDF e a planilha em si não
+  // são guardados em lugar nenhum.
+  nomeContrato     String
+  nomeLevantamento String
+  // Lista de nomes, na ordem de aplicação (que é a ordem em que foram
+  // selecionados). Vazia quando o envio não teve aditivo.
+  nomesAditivos    Json     @default("[]")
+  // URLs no Vercel Blob dos dois documentos gerados.
+  caminhoDocx      String
+  caminhoXlsx      String
+  // A resposta do Confere **sem** os dois base64 (que já viraram os arquivos
+  // acima): grid de divergências, placar, análise, avisos. É o que permite
+  // reabrir o mesmo resultado em `/confere/historico/[id]` com a tela de
+  // sempre, em vez de só rebaixar os arquivos. Opcional porque as execuções
+  // gravadas antes deste campo não o têm.
+  resultado        Json?
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
 }

@@ -215,24 +215,12 @@ export function EspacoProposta({
       <CabecalhoProposta
         titulo={extrairTituloProposta(markdown, nomeArquivo)}
         subtitulo={subtitulo}
-        acoes={
-          <>
-            <button type="button" onClick={handleCopiarFormatado} className={BTN_PRIMARY}>
-              {copiado ? (
-                <>
-                  <ClipboardCheck className="size-3.5" strokeWidth={2.25} />
-                  Copiado!
-                </>
-              ) : (
-                <>
-                  <ClipboardCopy className="size-3.5" strokeWidth={2.25} />
-                  Copiar formatado
-                </>
-              )}
-            </button>
-            <BotaoExcluirProposta onExcluir={onExcluir} excluindo={excluindo} />
-          </>
-        }
+        // "Copiar formatado" saiu daqui e foi para a barra do documento, ao
+        // lado do seletor de fonte: o que ele copia é o documento **com a
+        // fonte e o tamanho escolhidos ali** (ver `preferenciaFonteProposta`),
+        // e no cabeçalho essa relação não aparecia. Junto do controle que a
+        // determina, a ação fica onde a decisão é tomada.
+        acoes={<BotaoExcluirProposta onExcluir={onExcluir} excluindo={excluindo} />}
       />
 
       <div className="grid items-start gap-4 @4xl:grid-cols-[minmax(0,1fr)_380px] @6xl:grid-cols-[minmax(0,1fr)_440px]">
@@ -245,12 +233,29 @@ export function EspacoProposta({
               salvamento={salvamento}
               onTentarDeNovo={() => salvar(markdownRef.current).catch(() => {})}
             />
-            <div className="ml-auto flex shrink-0 items-center gap-4">
+            <div className="ml-auto flex shrink-0 items-center gap-3">
               <SeletorFonteProposta
                 preferencia={preferenciaFonte}
                 onMudarFonte={handleMudarFonte}
                 onMudarTamanho={handleMudarTamanho}
               />
+              {/* Divisor: os dois selects e o botão fazem coisas diferentes —
+                  um escolhe como o documento sai, o outro o leva embora. Sem a
+                  separação eles leem como um grupo só de controles. */}
+              <span aria-hidden="true" className="h-5 w-px bg-border-grey" />
+              <button type="button" onClick={handleCopiarFormatado} className={BTN_PRIMARY}>
+                {copiado ? (
+                  <>
+                    <ClipboardCheck className="size-3.5" strokeWidth={2.25} />
+                    Copiado!
+                  </>
+                ) : (
+                  <>
+                    <ClipboardCopy className="size-3.5" strokeWidth={2.25} />
+                    Copiar formatado
+                  </>
+                )}
+              </button>
             </div>
           </div>
 

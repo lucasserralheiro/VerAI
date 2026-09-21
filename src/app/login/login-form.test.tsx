@@ -19,7 +19,7 @@ describe('LoginForm', () => {
     expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument()
   })
 
-  it('redireciona para /clientes após login bem-sucedido', async () => {
+  it('redireciona para /confere após login bem-sucedido', async () => {
     ;(global.fetch as jest.Mock).mockResolvedValue({ ok: true })
     render(<LoginForm />)
 
@@ -29,7 +29,7 @@ describe('LoginForm', () => {
     fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'admin123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/clientes'))
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/confere'))
   })
 
   it('mostra mensagem de erro quando o login falha', async () => {

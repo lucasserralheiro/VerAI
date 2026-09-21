@@ -67,15 +67,31 @@ export function construirGradeDaPagina(segmentos: SegmentoReto[]): GradeDeTabela
 
   if (y.length < 2 || x.length < 2) return null
 
-  // Uma grade 1x1 (só 2 linhas e 2 colunas de borda — ou seja, uma única
-  // caixa fechada, sem divisória interna nenhuma) não é uma tabela de dados:
-  // é uma MOLDURA decorativa em volta de um bloco de texto corrido (comum em
-  // proposta comercial pra destacar uma seção). Sem essa checagem, todo o
-  // texto ali dentro — que pode ser várias frases e itens de lista — vira
-  // uma única célula de uma tabela HTML de 1 linha, perdendo a separação
-  // em parágrafos. Tabela de dados de verdade sempre tem pelo menos 2 linhas
-  // OU 2 colunas (cabeçalho + dado, ou várias colunas numa linha só).
-  if (y.length < 3 && x.length < 3) return null
+  // Grade de UMA COLUNA SÓ não é tabela de dados. Os dois casos que caem aqui,
+  // medidos com `npm run diag:pdf` no corpus real (11 arquivos, 6 geradores):
+  //
+  // 1. MOLDURA decorativa em volta de um bloco de texto (a seção DESCRITIVOS
+  //    dos serviços vem emoldurada em quase toda proposta). O texto ali dentro
+  //    — parágrafos e vários itens de lista — virava uma célula única, perdendo
+  //    toda a separação. 5 ocorrências no corpus, em 2 geradores diferentes.
+  //    A versão anterior desta checagem só rejeitava grade 1x1 (`y.length < 3
+  //    && x.length < 3`), então uma moldura com UMA divisória horizontal
+  //    (2 linhas x 1 coluna) passava direto.
+  // 2. TABELA DE VERDADE cujas bordas verticais o PDF não desenhou por
+  //    inteiro. Acontece no "Microsoft: Print To PDF", que fatia o traço
+  //    vetorial e perde parte: a tabela de preço do PC-SPTURIS tinha as
+  //    horizontais e o contorno, nenhuma divisória de coluna. Confiar na
+  //    grade ali produzia uma tabela de 1 coluna — uma parede de texto com os
+  //    códigos de serviço perdidos no meio.
+  //
+  // Nos dois casos o certo é não confiar na grade. Quem chama
+  // (`iniciaTabela` em pdfHtml.ts) cai no detector por POSIÇÃO de texto
+  // (`absorverTabelaPorPosicao`), que reconstrói as colunas pelos corredores
+  // verticais vazios — é o mesmo caminho que já acerta as 7 colunas do
+  // cronograma físico-financeiro sem borda nenhuma. Se nem ele achar coluna,
+  // o conteúdo segue como texto corrido, que para uma moldura é o resultado
+  // correto.
+  if (x.length < 3) return null
 
   return { y, x }
 }

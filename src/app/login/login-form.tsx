@@ -23,7 +23,7 @@ export function LoginForm() {
       setErro('Credenciais inválidas')
       return
     }
-    router.push('/clientes')
+    router.push('/confere')
   }
 
   return (

@@ -159,19 +159,22 @@ com o pipeline de análise por IA que já está ligado a `Documento`.
 
 ### Task 7: Quarta aba em `clientes/[id]/[competencia]/page.tsx`
 
-**Status:** Não iniciada. Depende da Task 5 (rota) estar pronta.
+**Status:** ✅ Concluída (2026-09-21).
 
-- [ ] Adicionar `'medicao'` (ou nome equivalente) ao tipo `Aba` e ao array `TABS`
-- [ ] Upload de dois arquivos (contrato PDF + planilha XLSX), seguindo o padrão visual do upload já
-      existente na aba "Documentos" desta mesma página
-- [ ] Botão "Gerar relatório de medição" com loading/erro no mesmo padrão de
-      `handleGerarConsolidada`
-- [ ] Card de resultado: classificação por gravidade (crítico/sem medição/parcial/conforme) +
-      links de download (`.docx` e `.xlsx`)
-- [ ] Histórico de gerações anteriores da competência, mesmo padrão de "Ver histórico" da aba
-      consolidada
-- [ ] Testes (`page.test.tsx`)
-- [ ] Commit
+- [x] `'medicao'` adicionado ao tipo `Aba` e ao array `TABS` (label "Medição contratual")
+- [x] Upload de contrato (PDF) + levantamento (XLSX) + aditivos (PDF, opcional, múltiplos)
+- [x] Botão "Gerar análise de medição" com loading/erro no mesmo padrão de
+      `handleGerarConsolidada`/`handleGerarEvolucao`
+- [x] Três estados tratados: bloqueado (achados + checkbox "confirmo mesmo assim" quando
+      `pode_prosseguir`, reenviando os mesmos arquivos), erro (mensagemErro), concluído (resumo +
+      links de download `.docx`/`.xlsx` — URLs públicas do Blob direto, sem rota de proxy)
+- [x] Testes (`page.test.tsx`) — 3 novos
+- [x] Commit (`961f3b8`)
+- [ ] **Não implementado, fora do escopo desta leva**: histórico de gerações anteriores da
+      competência. A Task 5 decidiu um registro único por competência (cada `POST` sobrescreve) —
+      sem histórico não tem o que listar; virar histórico exigiria mudar esse modelo de dados
+      (não fazer upsert, manter uma linha por tentativa) — decisão consciente de simplicidade,
+      revisitar se o usuário sentir falta na prática
 
 ### Task 8: Atualizar os docs deste plano
 

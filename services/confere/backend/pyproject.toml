@@ -1,0 +1,95 @@
+[project]
+name = "analise-medicao"
+version = "0.1.0"
+description = "MVP de análise de medição contratual — compara o contratado com o medido"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "pydantic>=2.9.0",
+    "python-multipart>=0.0.20",
+    "pdfplumber>=0.11.0",
+    "openpyxl>=3.1.5",
+    # T-2015 / ESPEC 026 `R-DES-07` — **com teto**. A `R-DES-01` afirma que o
+    # `.docx` não muda um byte, e essa afirmação depende de como esta biblioteca
+    # ordena o `w:rPr`, converte `w:sz` e trata `	` — coisas que `report/ooxml.py`
+    # passou a reproduzir. Dependência sem teto transformaria identidade de bytes
+    # numa promessa que ninguém confere até o próximo `uv lock`.
+    #
+    # Teto **e** teste: `test_desempenho.py` compara a saída de `escrever` e de
+    # `mesclar_regiao` com a da API pública, e é ele que acusa a mudança no commit
+    # que a introduzir. Teto sozinho só adia o problema.
+    "python-docx>=1.2.0,<2",
+    # T-2004 / ESPEC 026 — usado **diretamente** por `report/ooxml.py`, que monta
+    # o `w:rPr` das células com `SubElement` em vez de pelas propriedades do
+    # `python-docx`. Já vinha no ambiente como dependência transitiva desta
+    # biblioteca; passa a ser declarada porque agora há `import lxml` no código,
+    # e dependência usada e não declarada quebra no dia em que a transitiva sai.
+    "lxml>=5.0.0",
+    # Leitura de XML vindo de arquivo enviado pelo usuário: as figuras dos
+    # anexos são achadas percorrendo as relações do pacote da planilha. A
+    # biblioteca padrão expande entidades, e uma planilha maliciosa pode trazer
+    # expansão recursiva — o clássico "billion laughs".
+    "defusedxml>=0.7.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Os quatro pacotes vivem sob `src/`. Declará-los aqui faz o `uv sync` instalá-los
+# no ambiente, e com isso `uvicorn api.main:app` funciona direto — sem PYTHONPATH
+# e sem --app-dir.
+#
+# A alternativa era exigir a variável de ambiente na linha de comando, o que
+# depende do shell e não sobrevive ao subprocesso que o `--reload` cria: quem
+# esquecesse a variável receberia um ModuleNotFoundError no boot, erro que não
+# tem nada a ver com a aplicação.
+[tool.hatch.build.targets.wheel]
+packages = ["src/api", "src/application", "src/domain", "src/infrastructure"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "bandit>=1.8.0",
+    "httpx>=0.28.1",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+strict = true
+# Bibliotecas de I/O sem stubs publicados. O código próprio permanece estrito;
+# só as fronteiras com essas libs ficam sem tipagem verificada.
+[[tool.mypy.overrides]]
+module = ["pdfplumber.*", "docx.*", "openpyxl.*", "defusedxml.*", "lxml.*"]
+ignore_missing_imports = true
+
+[tool.bandit]
+# SAST de código próprio. Testes ficam de fora: asserts e caminhos fixos geram ruído.
+exclude_dirs = ["tests"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+# T-2011 / ESPEC 026 — o único teste que olha o relógio. Marcador **declarado**
+# porque o pytest emite aviso para marcador desconhecido, e numa suíte com um
+# aviso conhecido isso é ruído que alguém vai investigar.
+# T-2145 / ESPEC 031 §8.3 — o segundo marcador, e o primeiro que sai de
+# `tests/`. Até aqui a suíte tocava **apenas** `tests/fixtures/`, e foi esse o
+# buraco da ESPEC 018 §2.8: a fixture era fiel na forma e não no detalhe, e uma
+# regra ficou inerte em produção sem que nada acusasse. `producao` abre os dois
+# levantamentos de `docs/documentos/` e confere o que a fixture não pode provar.
+markers = [
+    "lento: mede razão de tempo entre duas execuções; sensível a contenção",
+    "producao: abre os arquivos reais de docs/documentos/, fora de tests/fixtures/",
+]

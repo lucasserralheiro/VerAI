@@ -1,0 +1,7 @@
+# pnpm 10+ bloqueia scripts de build por padrao. Estas duas dependencias sao
+# transitivas do Next.js e compilam binarios nativos na instalacao. A lista e
+# explicita de proposito: qualquer nova dependencia com script de build passa a
+# exigir aprovacao consciente, em vez de executar codigo arbitrario em silencio.
+allowBuilds:
+  sharp: true
+  unrs-resolver: true

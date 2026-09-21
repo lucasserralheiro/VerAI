@@ -1,0 +1,40 @@
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# ── Node / Next.js ───────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+.pnpm-store/
+
+# ── Dados de origem ──────────────────────────────────────────────────────────
+# Os arquivos íntegros ficam FORA do repositório. A planilha de medição original
+# contém a aba `Usuários`, com registros nominais de servidores públicos — ver
+# PLANO 001 D-04. Só a fixture sanitizada (scripts/sanitize_fixture.py) entra.
+docs/documentos/
+!docs/documentos/.gitkeep
+
+# ── Saída de execução ────────────────────────────────────────────────────────
+saida/
+*.pdf.tmp
+
+# ── Ambiente e ferramentas ───────────────────────────────────────────────────
+.env
+.env.local
+.DS_Store
+.vscode/
+.idea/
+
+# ── Playwright ───────────────────────────────────────────────────────────────
+frontend/test-results/
+frontend/playwright-report/
+# O Playwright grava `.last-run.json` na raiz quando é invocado de fora de
+# `frontend/` — foi o que aconteceu ao rodar a suíte pela primeira vez.
+test-results/

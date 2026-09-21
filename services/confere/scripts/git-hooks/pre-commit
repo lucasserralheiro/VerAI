@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+#
+# Barreira de qualidade local antes do commit.
+#
+#   1. Dados pessoais: bloqueia a planilha de medição íntegra, que traz a aba
+#      `Usuários` com registros nominais de servidores (PLANO 001 D-04).
+#   2. Auditoria de dependências, quando o lockfile entra no commit.
+#   3. SAST (bandit) nos .py do backend alterados.
+#
+# Não há pipeline de CI no MVP — esta é a única barreira automática. Ver a nota
+# "CI adiada" em docs/tasks/001-tasks-implementacao-mvp.md §3.
+#
+# Para pular pontualmente (não recomendado):  git commit --no-verify
+#
+set -uo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+STAGED="$(git diff --cached --name-only --diff-filter=ACM)"
+fail=0
+
+# ----------------------------------------- (1) dados pessoais
+# A fixture sanitizada é permitida; a planilha íntegra, não.
+if echo "$STAGED" | grep -qiE '(^|/)SMIT.*Levantamento.*\.xlsx$'; then
+  echo "❌ Planilha de medição íntegra no commit."
+  echo "   Ela contém a aba 'Usuários' com dados pessoais de servidores."
+  echo "   Use a fixture sanitizada: python scripts/sanitize_fixture.py"
+  fail=1
+fi
+
+# ----------------------------------------- (2) dependências
+if echo "$STAGED" | grep -qE '^backend/(pyproject\.toml|uv\.lock)$'; then
+  echo "🔍 Auditando dependências Python (pip-audit / base OSV)..."
+  if command -v uvx >/dev/null 2>&1; then
+    req="$(mktemp)"
+    if (cd "$REPO_ROOT/backend" \
+        && uv export --frozen --no-emit-project --no-hashes --format requirements-txt) \
+        > "$req" 2>/dev/null; then
+      uvx pip-audit -r "$req" || fail=1
+    else
+      echo "⚠️  uv export falhou — auditoria pulada."
+    fi
+    rm -f "$req"
+  else
+    echo "⚠️  uvx não encontrado — auditoria pulada."
+  fi
+fi
+
+# ----------------------------------------- (3) SAST
+py_files="$(echo "$STAGED" | grep -E '^backend/.*\.py$' | grep -v '^backend/tests/' || true)"
+if [ -n "$py_files" ]; then
+  echo "🔍 SAST nos .py alterados (bandit, severidade média+)..."
+  if command -v uvx >/dev/null 2>&1; then
+    echo "$py_files" | xargs uvx bandit -ll -q -c "$REPO_ROOT/backend/pyproject.toml" || fail=1
+  else
+    echo "⚠️  uvx não encontrado — SAST pulado."
+  fi
+fi
+
+if [ "$fail" -ne 0 ]; then
+  cat <<'EOF'
+
+❌ Commit BLOQUEADO.
+
+   • Dados pessoais: gere a fixture sanitizada e commite apenas ela.
+   • Dependências:   ajuste a versão em backend/pyproject.toml e rode 'uv lock'.
+   • SAST:           corrija o trecho apontado; se for falso-positivo
+                     justificado, anote '# nosec <regra>' na linha.
+
+   Para pular pontualmente (não recomendado):  git commit --no-verify
+
+EOF
+  exit 1
+fi
+
+exit 0

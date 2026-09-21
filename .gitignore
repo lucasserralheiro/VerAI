@@ -49,3 +49,14 @@ next-env.d.ts
 
 # arquivos temporários de teste manual (gerados em sessões de trabalho, sem uso no app)
 .smoke-tmp
+
+# Confere (Python, em services/confere/) — importado como cópia, mesmos
+# padrões de artefato do .gitignore original dele.
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/

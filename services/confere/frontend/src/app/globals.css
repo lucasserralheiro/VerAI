@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+	background: theme("colors.surface");
+	color: theme("colors.navy.800");
+}
+
+/* Indicador de foco (ESPEC 008 `R-ACE-04`). Não existia nenhuma regra de foco no
+   projeto, e o input de arquivo é `sr-only`: o foco do teclado não aparecia em
+   lugar nenhum da tela.
+
+   `:where()` zera a especificidade — componente sobrepõe sem `!important`.
+
+   `[tabindex="-1"]` fica de fora de propósito: o `<h2>` do resultado recebe foco
+   por programa quando o relatório chega (`R-ACE-15`). Ele é alvo de leitura, não
+   de ação, e um anel ali confundiria quem enxerga. */
+:where(a, button, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+	outline: 2px solid theme("colors.teal.500");
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+/* Véu do modal de confirmação (ESPEC 015 `R-LMP-07`). Escrito em CSS e não como
+   variante do Tailwind porque `backdrop:` não é uma variante que este projeto
+   tenha verificado ter na versão instalada — e o véu é o que comunica que o
+   fundo ficou inerte.
+
+   O `::backdrop` só existe enquanto o diálogo está aberto por `showModal()`:
+   nenhum dos estados capturados pela T-901 o renderiza. */
+dialog::backdrop {
+	background: rgb(11 34 53 / 0.45);
+}

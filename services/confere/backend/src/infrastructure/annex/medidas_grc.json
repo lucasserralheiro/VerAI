@@ -1,0 +1,299 @@
+{
+  "BD": {
+    "altura_linha_pt": 8.3,
+    "largura_total_pt": 513.8,
+    "larguras_pt": [
+      55.4,
+      51.0,
+      41.7,
+      206.3,
+      53.6,
+      51.0,
+      50.0
+    ]
+  },
+  "Central de Servicos": {
+    "altura_linha_pt": 13.6,
+    "largura_total_pt": 452.3
+  },
+  "CertificadosDigitais": {
+    "altura_linha_pt": 13.6,
+    "largura_total_pt": 481.1
+  },
+  "Colocation": {
+    "altura_linha_pt": 13.6,
+    "largura_total_pt": 466.7,
+    "larguras_pt": [
+      168.3,
+      152.8,
+      141.6
+    ]
+  },
+  "Comunicação Dados": {
+    "altura_linha_pt": 3.9,
+    "largura_total_pt": 766.6,
+    "larguras_pt": [
+      28.7,
+      28.7,
+      71.8,
+      28.7,
+      28.7,
+      28.7,
+      78.5,
+      58.9,
+      39.1,
+      16.0,
+      27.3,
+      20.3,
+      18.9,
+      19.7,
+      22.2,
+      63.1,
+      56.9,
+      27.3,
+      36.6,
+      8.0,
+      14.6,
+      35.5
+    ]
+  },
+  "Detalhes": {
+    "altura_linha_pt": 5.9,
+    "largura_total_pt": 509.9,
+    "larguras_pt": [
+      27.0,
+      51.3,
+      17.3,
+      62.0,
+      35.4,
+      13.2,
+      22.1,
+      24.9,
+      20.8,
+      33.3,
+      34.7,
+      19.6,
+      23.9,
+      19.4,
+      59.6,
+      39.1
+    ]
+  },
+  "DetalhesSemDesenv": {
+    "altura_linha_pt": 5.8,
+    "largura_total_pt": 514.6,
+    "larguras_pt": [
+      26.4,
+      68.7,
+      17.0,
+      60.6,
+      34.6,
+      12.9,
+      21.6,
+      24.4,
+      20.3,
+      32.4,
+      33.9,
+      19.2,
+      23.3,
+      18.9,
+      66.4,
+      28.1
+    ]
+  },
+  "Internet": {
+    "altura_linha_pt": 13.6,
+    "imagens_pt": [
+      [
+        450.2,
+        168.0
+      ]
+    ],
+    "largura_total_pt": 452.3,
+    "larguras_pt": [
+      168.3,
+      111.8,
+      168.2
+    ]
+  },
+  "NAS": {
+    "altura_linha_pt": 7.2,
+    "largura_total_pt": 515.1,
+    "larguras_pt": [
+      45.3,
+      149.0,
+      134.6,
+      45.4,
+      45.4,
+      45.4,
+      45.3
+    ]
+  },
+  "Office365": {
+    "altura_linha_pt": 4.9,
+    "largura_total_pt": 748.1,
+    "larguras_pt": [
+      19.9,
+      57.9,
+      25.4,
+      25.4,
+      25.4,
+      25.5,
+      27.5,
+      40.2,
+      101.2,
+      30.2,
+      80.9,
+      80.9,
+      40.2,
+      40.2,
+      40.2,
+      80.9
+    ]
+  },
+  "OutrosServicos": {
+    "altura_linha_pt": 13.6,
+    "largura_total_pt": 458.7,
+    "larguras_pt": [
+      248.8,
+      94.1,
+      111.9
+    ]
+  },
+  "SDWAN": {
+    "altura_linha_pt": 4.7,
+    "largura_total_pt": 752.2,
+    "larguras_pt": [
+      8.5,
+      23.7,
+      20.1,
+      41.6,
+      132.1,
+      41.3,
+      47.5,
+      47.5,
+      34.4,
+      28.1,
+      112.5,
+      30.4,
+      30.7,
+      16.8,
+      32.6,
+      22.8,
+      7.0,
+      21.8,
+      45.2
+    ]
+  },
+  "SOA": {
+    "altura_linha_pt": 13.6,
+    "largura_total_pt": 502.5,
+    "larguras_pt": [
+      78.0,
+      104.6,
+      104.7,
+      104.7,
+      104.6
+    ]
+  },
+  "ServicosEmNuvem": {
+    "altura_linha_pt": 12.7,
+    "imagens_pt": [
+      [
+        516.3,
+        147.4
+      ]
+    ],
+    "largura_total_pt": 424.3,
+    "larguras_pt": [
+      212.8,
+      104.0,
+      104.0
+    ]
+  },
+  "ServicosVcloud": {
+    "altura_linha_pt": 11.0,
+    "largura_total_pt": 517.5,
+    "larguras_pt": [
+      90.6,
+      66.6,
+      66.7,
+      66.6,
+      88.1,
+      66.6,
+      66.6
+    ]
+  },
+  "Servidores": {
+    "altura_linha_pt": 5.3,
+    "largura_total_pt": 519.1,
+    "larguras_pt": [
+      39.6,
+      22.0,
+      36.4,
+      32.0,
+      51.1,
+      30.7,
+      32.0,
+      21.6,
+      20.0,
+      58.6,
+      35.4,
+      21.6,
+      17.5,
+      59.1,
+      35.5
+    ]
+  },
+  "ServidoresSemDesenv": {
+    "altura_linha_pt": 5.4,
+    "largura_total_pt": 508.6,
+    "larguras_pt": [
+      40.5,
+      22.6,
+      34.8,
+      32.9,
+      52.5,
+      31.5,
+      32.8,
+      22.2,
+      20.5,
+      53.7,
+      32.9,
+      22.2,
+      18.0,
+      58.7,
+      26.8
+    ]
+  },
+  "Usuários": {
+    "altura_linha_pt": 7.0,
+    "largura_total_pt": 575.7,
+    "larguras_pt": [
+      28.3,
+      114.6,
+      57.0,
+      143.4,
+      57.0,
+      57.1,
+      57.1,
+      57.0
+    ]
+  },
+  "WIFI": {
+    "altura_linha_pt": 7.8,
+    "largura_total_pt": 757.3,
+    "larguras_pt": [
+      48.5,
+      157.0,
+      59.6,
+      54.2,
+      31.6,
+      52.2,
+      35.9,
+      42.4,
+      201.7,
+      67.6
+    ]
+  }
+}

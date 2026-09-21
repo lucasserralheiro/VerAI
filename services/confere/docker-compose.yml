@@ -1,0 +1,25 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Origem do frontend. Sem curinga — ver a justificativa em
+      # backend/src/api/main.py. `localhost` e `127.0.0.1` são origens
+      # distintas para o navegador, e por isso as duas entram.
+      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Endereço que o **navegador** usa para falar com a API, não o nome do
+        # serviço na rede interna: o pacote do cliente roda fora do container.
+        NEXT_PUBLIC_API_URL: "http://localhost:8000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped

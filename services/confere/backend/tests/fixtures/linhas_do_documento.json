@@ -1,0 +1,734 @@
+{
+ "piloto": [
+  [
+   "11.027.00001.00",
+   "DISPONIBILIZAÇÃO DE CERTIFICADO DIGITAL - SERVIDOR SSL",
+   "VALIDO POR 12 MESES",
+   "10",
+   "0"
+  ],
+  [
+   "11.051.00012.00",
+   "CONSULTORIA TÉCNICA - INFRAESTRUTURA DE REDE",
+   "HORA/HOMEM",
+   "100",
+   "0"
+  ],
+  [
+   "12.029.00021.00",
+   "SOLUÇÃO DE ACESSO A REDE CORPORATIVA PMSP - 8192 KBPS - COM REDUNDÂNCIA (PARA CONTRATAÇÕES DE 1 A 500 ACESSOS POR CLIENTE)",
+   "ACESSO/MÊS",
+   "1",
+   "0"
+  ],
+  [
+   "12.029.00025.00",
+   "SOLUÇÃO DE ACESSO A REDE CORPORATIVA PMSP - 50.000 KBPS - COM REDUNDÂNCIA (PARA CONTRATAÇÕES DE 1 A 500 ACESSOS POR CLIENTE)",
+   "ACESSO/MÊS",
+   "5",
+   "2"
+  ],
+  [
+   "12.029.00080.00",
+   "GERENCIAMENTO DA SOLUÇÃO DE ACESSO A REDE CORPORATIVA PMSP (Para contratações de 1 a 500 Acessos por cliente)",
+   "GERENCIAMENTO/ ACESSO/MÊS",
+   "15",
+   "0"
+  ],
+  [
+   "12.029.00097.00",
+   "GESTÃO DA INSTALAÇÃO DA SOLUÇÃO DE ACESSO A REDE CORPORATIVA PMSP -4096 A 155000 KBPS - COM REDUNDÂNCIA",
+   "ACESSO",
+   "4",
+   "0"
+  ],
+  [
+   "12.030.00001.00",
+   "CONEXÃO INTERNET COM 100% DE BANDA GARANTIDA PARA DOWNLOAD E UPLOAD - COM REDUNDÂNCIA DE OPERADORAS",
+   "Mbps/MÊS",
+   "60",
+   "60"
+  ],
+  [
+   "12.055.00002.00",
+   "DISPONIBILIZAÇÃO DE PONTO DE ACESSO WIRELESS - PÚBLICO E CORPORATIVO",
+   "AP/MÊS",
+   "30",
+   "21"
+  ],
+  [
+   "12.055.00004.00",
+   "GERENCIAMENTO DA DISPONIBILIZAÇÃO DE PONTO DE ACESSO WIRELESS - PÚBLICO E CORPORATIVO",
+   "AP/MÊS",
+   "8",
+   "0"
+  ],
+  [
+   "12.074.00005.00",
+   "DISPONIBILIZAÇÃO DE EQUIPAMENTO CPE-SD-WAN TIPO 1 (PARA LOCAIS ATÉ 50 USUÁRIOS E THROUGHPUT DE 150 MBPS SIMULTÂNEO NOS SERVIÇOS DE SEGURANÇA)",
+   "EQUIPAMENTO/ MÊS",
+   "9",
+   "0"
+  ],
+  [
+   "12.074.00007.00",
+   "DISPONIBILIZAÇÃO DE EQUIPAMENTO CPE-SD-WAN TIPO 3 (PARA LOCAIS ATÉ 250 USUÁRIOS E THROUGHPUT DE 500 MBPS SIMULTÂNEO NOS SERVIÇOS DE SEGURANÇA)",
+   "EQUIPAMENTO/ MÊS",
+   "2",
+   "2"
+  ],
+  [
+   "12.074.00012.00",
+   "LINK DE CONECTIVIDADE SIMÉTRICO 10MBPS (LCS) COM CPE",
+   "ACESSO/MÊS",
+   "9",
+   "0"
+  ],
+  [
+   "12.074.00015.00",
+   "LINK DE CONECTIVIDADE SIMÉTRICO 50MBPS (LCS) COM CPE",
+   "ACESSO/MÊS",
+   "2",
+   "2"
+  ],
+  [
+   "12.074.00021.00",
+   "LINKS DE INTERNET BANDA LARGA 100MBPS (LIB) COM CPE MODEM",
+   "ACESSO/MÊS",
+   "9",
+   "0"
+  ],
+  [
+   "12.074.00023.00",
+   "LINKS DE INTERNET BANDA LARGA 300MBPS (LIB) COM CPE MODEM",
+   "ACESSO/MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "12.074.00024.00",
+   "LINKS DE INTERNET BANDA LARGA 400MBPS (LIB) COM CPE MODEM",
+   "ACESSO/MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "14.023.00002.00",
+   "ACESSO A REDE PRODAM PARA USUÁRIOS DA PMSP",
+   "USUÁRIO/MÊS",
+   "1.500",
+   "1.012"
+  ],
+  [
+   "14.024.00005.00",
+   "ARMAZENAMENTO DE DADOS - BAIXA PLATAFORMA - SAN",
+   "GB/MÊS",
+   "3.500",
+   "762,55"
+  ],
+  [
+   "14.024.00006.00",
+   "ARMAZENAMENTO DE DADOS - BAIXA PLATAFORMA - NAS",
+   "GB/MÊS",
+   "4.000",
+   "3.265,64"
+  ],
+  [
+   "14.025.00011.00",
+   "PLATAFORMA DE BI - MS SQL – SG0721",
+   "SOLUÇÃO/MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "14.026.00003.00",
+   "CENTRAL DE SERVIÇOS (LOTE DE 100 CHAMADOS) - ATENDIMENTO 16 X 5",
+   "LOTE DE CHAMADO/MÊS",
+   "2",
+   "1"
+  ],
+  [
+   "14.028.00005.00",
+   "COLOCATION",
+   "U/MÊS",
+   "2",
+   "2"
+  ],
+  [
+   "14.031.00016.00",
+   "PERFIL DE CORREIO – STANDARD P1",
+   "LICENÇA ATIVA/ MÊS",
+   "160",
+   "25"
+  ],
+  [
+   "14.031.00018.00",
+   "PERFIL OFFICE 365 – EXECUTIVE E1",
+   "LICENÇA ATIVA/ MÊS",
+   "350",
+   "290"
+  ],
+  [
+   "14.031.00019.00",
+   "PERFIL OFFICE 365 – EXECUTIVE E3",
+   "LICENÇA ATIVA/ MÊS",
+   "30",
+   "17"
+  ],
+  [
+   "14.031.00020.00",
+   "PERFIL OFFICE 365 – EXECUTIVE PREMIUM ME5",
+   "LICENÇA ATIVA/ MÊS",
+   "2",
+   "2"
+  ],
+  [
+   "14.033.00001.00",
+   "DISPONIBILIZAÇÃO DE SERVIDOR BDC (AUTENTICAÇÃO)",
+   "SERVIDOR/MÊS",
+   "1",
+   "0"
+  ],
+  [
+   "14.046.00010.00",
+   "PLATAFORMA DE BANCO DE DADOS - MYSQL - PERFIL B - Base de dados acima de 10GB até 100GB",
+   "PLATAFORMA/ MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "14.048.00008.00",
+   "PLATAFORMA DE BANCO DE DADOS - SQL SERVER - PERFIL D - Base de dados acima de 200GB até 500GB",
+   "PLATAFORMA/ MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "14.049.00005.00",
+   "DISPONIBLIZAÇÃO DE VRAM ADICIONAL",
+   "vRAM/MÊS",
+   "150",
+   "121,29"
+  ],
+  [
+   "14.049.00037.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO A - GERENCIADA (1 vCPU, 2 GB RAM, 60 GB HD) - WINDOWS",
+   "SERVIDOR/MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "14.049.00038.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO B - GERENCIADA (2 vCPU, 4 GB RAM, 60 GB HD) - WINDOWS",
+   "SERVIDOR/MÊS",
+   "5",
+   "2"
+  ],
+  [
+   "14.049.00039.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO C - GERENCIADA (4 vCPU, 8 GB RAM, 60 GB HD) - WINDOWS",
+   "SERVIDOR/MÊS",
+   "9",
+   "6"
+  ],
+  [
+   "14.049.00040.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO D - GERENCIADA (8 vCPU, 8 GB RAM, 60 GB HD) - WINDOWS",
+   "SERVIDOR/MÊS",
+   "2",
+   "2"
+  ],
+  [
+   "14.049.00045.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO D - NÃO GERENCIADA (8 vCPU, 8 GB RAM, 60 GB HD) - WINDOWS",
+   "SERVIDOR/MÊS",
+   "1",
+   "0"
+  ],
+  [
+   "14.049.00047.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO A - GERENCIADA (1 vCPU, 2 GB RAM, 30 GB HD) - LINUX",
+   "SERVIDOR/MÊS",
+   "5",
+   "2"
+  ],
+  [
+   "14.049.00048.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO B - GERENCIADA (2 vCPU, 4 GB RAM, 30 GB HD) - LINUX",
+   "SERVIDOR/MÊS",
+   "5",
+   "5"
+  ],
+  [
+   "14.049.00049.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO C - GERENCIADA (4 vCPU, 8 GB RAM, 30 GB HD) - LINUX",
+   "SERVIDOR/MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "14.049.00050.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO D - GERENCIADA (8 vCPU, 8 GB RAM, 30 GB HD) - LINUX",
+   "SERVIDOR/MÊS",
+   "2",
+   "0"
+  ],
+  [
+   "14.049.00055.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO D - NÃO GERENCIADA (8 vCPU, 8 GB RAM, 30 GB HD) - LINUX",
+   "SERVIDOR/MÊS",
+   "2",
+   "0"
+  ],
+  [
+   "14.049.00057.00",
+   "NUVEM - PLANO I - WINDOWS 2012/2016",
+   "PLANO/MÊS",
+   "4",
+   "4"
+  ],
+  [
+   "14.049.00058.00",
+   "NUVEM - PLANO II - WINDOWS 2012/2016",
+   "PLANO/MÊS",
+   "25",
+   "0"
+  ],
+  [
+   "14.049.00059.00",
+   "NUVEM - PLANO I - LINUX",
+   "PLANO/MÊS",
+   "18",
+   "14"
+  ],
+  [
+   "14.049.00060.00",
+   "NUVEM - PLANO II - LINUX",
+   "PLANO/MÊS",
+   "50",
+   "39"
+  ],
+  [
+   "14.051.00025.00",
+   "CONSULTORIA TÉCNICA - ANÁLISE TÉCNICA",
+   "HORA/HOMEM",
+   "50",
+   "0"
+  ],
+  [
+   "14.067.00001.00",
+   "MONITORAMENTO DE SISTEMA",
+   "SISTEMA/MÊS",
+   "4",
+   "4"
+  ],
+  [
+   "14.067.00002.00",
+   "DASHBOARDS DE MONITORAMENTO - STANDARD",
+   "DASHBOARDS/ MÊS",
+   "1",
+   "0"
+  ],
+  [
+   "14.070.00001.00",
+   "UNIDADE DE SERVIÇOS EM NUVEM (USN) - AWS",
+   "USN/MÊS",
+   "120",
+   "117,29"
+  ],
+  [
+   "14.070.00002.00",
+   "GERENCIAMENTO DE CONSUMO DE NUVEM (GCN)",
+   "SERVIÇO/MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "15.076.00001.00",
+   "SOA FAIXA 1 - ATÉ 50.000",
+   "FAIXA/MÊS",
+   "1",
+   "0"
+  ],
+  [
+   "15.076.00002.00",
+   "SOA FAIXA 2 - DE 50.001 A 225.000",
+   "FAIXA/MÊS",
+   "1",
+   "0"
+  ],
+  [
+   "15.076.00003.00",
+   "SOA FAIXA 3 - DE 225.001 A 500.000",
+   "FAIXA/MÊS",
+   "1",
+   "0"
+  ],
+  [
+   "15.076.00004.00",
+   "SOA FAIXA 4 - DE 500.001 A 1.000.000",
+   "FAIXA/MÊS",
+   "1",
+   "0"
+  ],
+  [
+   "15.076.00005.00",
+   "SOA FAIXA 5 - DE 1.000.001 A 2.000.000",
+   "FAIXA/MÊS",
+   "1",
+   "1"
+  ]
+ ],
+ "pgm": [
+  [
+   "11.051.00012.00",
+   "CONSULTORIA TÉCNICA - INFRAESTRUTURA DE REDE",
+   "HORA/HOMEM",
+   "200",
+   "0"
+  ],
+  [
+   "12.030.00001.00",
+   "CONEXÃO INTERNET COM 100% DE BANDA GARANTIDA PARA DOWNLOAD E UPLOAD - COM REDUNDÂNCIA DE OPERADORAS",
+   "Mbps/MÊS",
+   "70",
+   "70"
+  ],
+  [
+   "12.055.00002.00",
+   "DISPONIBILIZAÇÃO DE PONTO DE ACESSO WIRELESS - PÚBLICO E CORPORATIVO",
+   "AP/MÊS",
+   "8",
+   "6"
+  ],
+  [
+   "12.055.00004.00",
+   "GERENCIAMENTO DA DISPONIBILIZAÇÃO DE PONTO DE ACESSO WIRELESS - PÚBLICO E CORPORATIVO",
+   "AP/MÊS",
+   "2",
+   "2"
+  ],
+  [
+   "12.074.00005.00",
+   "DISPONIBILIZAÇÃO DE EQUIPAMENTO CPE-SD-WAN TIPO 1 (PARA LOCAIS ATÉ 50 USUÁRIOS E THROUGHPUT DE 150 MBPS SIMULTÂNEO NOS SERVIÇOS DE SEGURANÇA)",
+   "EQUIPAMENTO/ MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "12.074.00006.00",
+   "DISPONIBILIZAÇÃO DE EQUIPAMENTO CPE-SD-WAN TIPO 2 (PARA LOCAIS ATÉ 150 USUÁRIOS E THROUGHPUT DE 300 MBPS SIMULTÂNEO NOS SERVIÇOS DE SEGURANÇA)",
+   "EQUIPAMENTO/ MÊS",
+   "5",
+   "5"
+  ],
+  [
+   "12.074.00007.00",
+   "DISPONIBILIZAÇÃO DE EQUIPAMENTO CPE-SD-WAN TIPO 3 (PARA LOCAIS ATÉ 250 USUÁRIOS E THROUGHPUT DE 500 MBPS SIMULTÂNEO NOS SERVIÇOS DE SEGURANÇA)",
+   "EQUIPAMENTO/ MÊS",
+   "2",
+   "2"
+  ],
+  [
+   "12.074.00012.00",
+   "LINK DE CONECTIVIDADE SIMÉTRICO 10MBPS (LCS) COM CPE",
+   "ACESSO/MÊS",
+   "3",
+   "3"
+  ],
+  [
+   "12.074.00015.00",
+   "LINK DE CONECTIVIDADE SIMÉTRICO 50MBPS (LCS) COM CPE",
+   "ACESSO/MÊS",
+   "3",
+   "3"
+  ],
+  [
+   "12.074.00016.00",
+   "LINK DE CONECTIVIDADE SIMÉTRICO 100MBPS (LCS) COM CPE",
+   "ACESSO/MÊS",
+   "2",
+   "2"
+  ],
+  [
+   "12.074.00021.00",
+   "LINKS DE INTERNET BANDA LARGA 100MBPS (LIB) COM CPE MODEM",
+   "ACESSO/MÊS",
+   "5",
+   "5"
+  ],
+  [
+   "12.074.00022.00",
+   "LINKS DE INTERNET BANDA LARGA 200MBPS (LIB) COM CPE MODEM",
+   "ACESSO/MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "12.074.00023.00",
+   "LINKS DE INTERNET BANDA LARGA 300MBPS (LIB) COM CPE MODEM",
+   "ACESSO/MÊS",
+   "2",
+   "2"
+  ],
+  [
+   "14.023.00002.00",
+   "ACESSO A REDE PRODAM PARA USUÁRIOS DA PMSP",
+   "USUÁRIO/MÊS",
+   "1.250",
+   "988"
+  ],
+  [
+   "14.023.00005.00",
+   "SERVIÇO VPN - VIRTUAL PRIVATE NETWORK (SITE TO SITE)",
+   "USUÁRIO/MÊS",
+   "1",
+   "0"
+  ],
+  [
+   "14.024.00001.00",
+   "ARMAZENAMENTO DE DADOS - GRANDE PORTE (MAINFRAME)",
+   "GB/MÊS",
+   "6.000",
+   "5.814,38"
+  ],
+  [
+   "14.024.00005.00",
+   "ARMAZENAMENTO DE DADOS - BAIXA PLATAFORMA - SAN",
+   "GB/MÊS",
+   "2.000",
+   "2.105,40"
+  ],
+  [
+   "14.024.00006.00",
+   "ARMAZENAMENTO DE DADOS - BAIXA PLATAFORMA - NAS",
+   "GB/MÊS",
+   "9.000,89",
+   "8.542,16"
+  ],
+  [
+   "14.025.00011.00",
+   "PLATAFORMA DE BI - MS SQL",
+   "SOLUÇÃO/MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "14.026.00003.00",
+   "CENTRAL DE SERVIÇOS (LOTE DE 100 CHAMADOS) - ATENDIMENTO 16 X 5",
+   "LOTE DE CHAMADO/MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "14.031.00016.00",
+   "PERFIL DE CORREIO – STANDARD P1",
+   "LICENÇA ATIVA/ MÊS",
+   "100",
+   "1"
+  ],
+  [
+   "14.031.00018.00",
+   "PERFIL OFFICE 365 – EXECUTIVE E1",
+   "LICENÇA ATIVA/ MÊS",
+   "1.345",
+   "1.150"
+  ],
+  [
+   "14.031.00019.00",
+   "PERFIL OFFICE 365 – EXECUTIVE E3",
+   "LICENÇA ATIVA/ MÊS",
+   "413",
+   "315"
+  ],
+  [
+   "14.031.00020.00",
+   "PERFIL OFFICE 365 – EXECUTIVE PREMIUM ME5",
+   "LICENÇA ATIVA/ MÊS",
+   "10",
+   "5"
+  ],
+  [
+   "14.031.00022.00",
+   "PERFIL POWER BI PRO",
+   "LICENÇA ATIVA/ MÊS",
+   "10",
+   "5"
+  ],
+  [
+   "14.035.00013.00",
+   "PÁGINAS IMPRESSAS SEM ACABAMENTO E/OU FORMATO DE BLOCOS - A4 BRANCO",
+   "MILHEIRO/MÊS",
+   "1,50",
+   "0,54"
+  ],
+  [
+   "14.035.00014.00",
+   "PÁGINAS IMPRESSAS A4 BRANCO AUTOENVELOPE",
+   "MILHEIRO/MÊS",
+   "65",
+   "0,01"
+  ],
+  [
+   "14.035.00017.00",
+   "PÁGINAS IMPRESSAS A5 BRANCO AUTOENVELOPE",
+   "MILHEIRO/MÊS",
+   "1",
+   "0,27"
+  ],
+  [
+   "14.040.00005.00",
+   "PROCESSAMENTO E GERENCIAMENTO/TRANSAÇÃO MAINFRAME",
+   "MIPS/MÊS",
+   "25",
+   "16,84"
+  ],
+  [
+   "14.046.00008.00",
+   "PLATAFORMA DE BANCO DE DADOS - POSTGRESQL - PERFIL A - Base de dados até 10GB",
+   "PLATAFORMA/ MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "14.048.00009.00",
+   "PLATAFORMA DE BANCO DE DADOS - SQL SERVER - PERFIL F - Base de dados acima de 1.000GB até 3.000GB",
+   "PLATAFORMA/ MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "14.048.00027.00",
+   "ADICIONAL DE VOLUMETRIA - SQL SERVER - ATÉ 2.819,79 GB ACIMA DO PERFIL F - BACKUP STANDARD",
+   "GB/MÊS",
+   "1.300",
+   "0"
+  ],
+  [
+   "14.049.00005.00",
+   "DISPONIBLIZAÇÃO DE VRAM ADICIONAL",
+   "vRAM/MÊS",
+   "40",
+   "15,07"
+  ],
+  [
+   "14.049.00038.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO B - GERENCIADA (2 vCPU, 4 GB RAM, 60 GB HD) - WINDOWS",
+   "SERVIDOR/MÊS",
+   "5",
+   "5"
+  ],
+  [
+   "14.049.00039.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO C - GERENCIADA (4 vCPU, 8 GB RAM, 60 GB HD) - WINDOWS",
+   "SERVIDOR/MÊS",
+   "3",
+   "1"
+  ],
+  [
+   "14.049.00040.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO D - GERENCIADA (8 vCPU, 8 GB RAM, 60 GB HD) - WINDOWS",
+   "SERVIDOR/MÊS",
+   "2",
+   "1"
+  ],
+  [
+   "14.049.00041.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO E - GERENCIADA (12 vCPU, 16 GB RAM, 60 GB HD) - WINDOWS",
+   "SERVIDOR/MÊS",
+   "3",
+   "3"
+  ],
+  [
+   "14.049.00048.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO B - GERENCIADA (2 vCPU, 4 GB RAM, 30 GB HD) - LINUX",
+   "SERVIDOR/MÊS",
+   "5",
+   "5"
+  ],
+  [
+   "14.049.00049.00",
+   "HOSPEDAGEM DE APLICAÇÃO - TIPO C - GERENCIADA (4 vCPU, 8 GB RAM, 30 GB HD) - LINUX",
+   "SERVIDOR/MÊS",
+   "8",
+   "2"
+  ],
+  [
+   "14.049.00058.00",
+   "NUVEM - PLANO II - WINDOWS 2012/2016",
+   "PLANO/MÊS",
+   "2",
+   "2"
+  ],
+  [
+   "14.049.00060.00",
+   "NUVEM - PLANO II - LINUX",
+   "PLANO/MÊS",
+   "10",
+   "10"
+  ],
+  [
+   "14.067.00001.00",
+   "MONITORAMENTO DE SISTEMA",
+   "SISTEMA/MÊS",
+   "11",
+   "6"
+  ],
+  [
+   "14.070.00001.00",
+   "UNIDADE DE SERVIÇOS EM NUVEM (USN)",
+   "USN/MÊS",
+   "43",
+   "3,09"
+  ],
+  [
+   "14.070.00002.00",
+   "GERENCIAMENTO DE CONSUMO DE NUVEM (GCN)",
+   "SERVIÇO/MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "15.069.00001.00",
+   "ASSINATURA ETL 1 - ATÉ 6H DE PROCESSAMENTO",
+   "ASSINATURA/ MÊS",
+   "1",
+   "1"
+  ],
+  [
+   "14.046.00003.00",
+   "BANCO DE DADOS - MYSQL - PERFIL I(A) - ATÉ 10GB",
+   "",
+   "1",
+   "1"
+  ],
+  [
+   "14.071.00006.00",
+   "MIDDLEWARE - DIREITO DE USO DE SOFTWARE",
+   "",
+   "5",
+   "0"
+  ],
+  [
+   "14.071.00007.00",
+   "GERENCIAMENTO DE TECNOLOGIAS EM CAMADA INTERMEDIÁRIA (MIDDLEWARE) (GTCI) - M1 - DISPONIBILIZADAS NO TENANT DA PRODAM - ATÉ 1000 LICENÇAS CONTRATADAS",
+   "",
+   "1",
+   "1"
+  ],
+  [
+   "14.067.00002.00",
+   "DASHBOARDS DE MONITORAMENTO – STANDARD",
+   "",
+   "0",
+   "1"
+  ],
+  [
+   "15.076.00001.00",
+   "SOA Faixa 1 - até 50.000",
+   "",
+   "0",
+   "1"
+  ]
+ ]
+}

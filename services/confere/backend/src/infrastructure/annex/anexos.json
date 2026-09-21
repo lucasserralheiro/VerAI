@@ -1,0 +1,24 @@
+{
+  "referencia": "ESPEC 004 §3 — medido no SMIT_SUSTENTACAO_...___GRC.pdf e na planilha de levantamento. Orientacao e corpo sao os do GRC. ESPEC 037 `R-CAB-01`: quem localiza o cabecalho e `cabecalho`, os primeiros rotulos da fileira, e nao mais `linha_cabecalho`. Este continua aqui como a medicao do GRC, 1-based, contada na aba — e como oraculo da `R-CAB-06`, que exige que a ancora resolva nele no piloto. Ancoras transcritas por scripts/transcrever_ancoras_de_cabecalho.py. ESPEC 051 `R-SEG-01`: `cabecalhos_adicionais`, quando presente, e uma lista de ancoras extras para abas com mais de uma tabela empilhada de forma diferente — hoje so `Servidores` e `ServidoresSemDesenv`.",
+  "anexos": [
+    { "aba": "Detalhes",             "orientacao": "retrato",  "corpo": 4.8,  "linha_cabecalho": 1,  "cabecalho": ["Servidor", "WEB", "Serviço"],                    "paginas_grc": "4" },
+    { "aba": "DetalhesSemDesenv",    "orientacao": "retrato",  "corpo": 4.6,  "linha_cabecalho": 1,  "cabecalho": ["Servidor", "WEB", "Serviço"],                    "paginas_grc": "5" },
+    { "aba": "Servidores",           "orientacao": "retrato",  "corpo": 4.3,  "linha_cabecalho": 13, "cabecalho": ["Servidor", "vCPU", "Qtde RAM(GB)"],              "cabecalhos_adicionais": [["Servidor", "Serviço", "Nome do Serviço"]], "paginas_grc": "6" },
+    { "aba": "ServidoresSemDesenv",  "orientacao": "retrato",  "corpo": 4.4,  "linha_cabecalho": 12, "cabecalho": ["Servidor", "vCPU", "Qtde RAM(GB)"],              "cabecalhos_adicionais": [["Servidor", "Serviço", "Nome do Serviço"]], "paginas_grc": "7" },
+    { "aba": "BD",                   "orientacao": "retrato",  "corpo": 6.7,  "linha_cabecalho": 15, "cabecalho": ["CLIENTE", "GERENCIADOR", "PROJETO"],             "paginas_grc": "8" },
+    { "aba": "Usuários",             "orientacao": "paisagem", "corpo": 5.6,  "linha_cabecalho": 8,  "cabecalho": ["Nº", "Secretaria", "Login"],                     "paginas_grc": "9-24" },
+    { "aba": "NAS",                  "orientacao": "retrato",  "corpo": 6.4,  "linha_cabecalho": 7,  "cabecalho": ["Secretaria", "Pasta", "Share"],                  "paginas_grc": "25" },
+    { "aba": "Central de Servicos",  "orientacao": "retrato",  "corpo": 11.0, "linha_cabecalho": 4,  "cabecalho": ["Unidade", "Qtde"],                               "paginas_grc": "26" },
+    { "aba": "Colocation",           "orientacao": "retrato",  "corpo": 11.0, "linha_cabecalho": 8,  "cabecalho": ["HOST", "UNIDADE", "QUANTIDADE"],                 "paginas_grc": "27" },
+    { "aba": "Comunicação Dados",    "orientacao": "paisagem", "corpo": 3.5,  "linha_cabecalho": 11, "cabecalho": ["COD. MPLS", "DATA ACEITE", "ORGÃO SIGNATÁRIO"],  "paginas_grc": "28" },
+    { "aba": "SDWAN",                "orientacao": "paisagem", "corpo": 4.1,  "linha_cabecalho": 9,  "cabecalho": ["Seq", "PrimeID", "Secretaria"],                  "paginas_grc": "29" },
+    { "aba": "WIFI",                 "orientacao": "paisagem", "corpo": 5.8,  "linha_cabecalho": 5,  "cabecalho": ["Unidade", "Quantidade Medida"],                  "cabecalhos_adicionais": [["Seq", "TIPO de TC", "Cod.Produto"]], "paginas_grc": "30" },
+    { "aba": "CertificadosDigitais", "orientacao": "retrato",  "corpo": 11.0, "linha_cabecalho": 3,  "cabecalho": ["SECRETARIA", "URL", "DATA VALIDADE"],            "paginas_grc": "31" },
+    { "aba": "Internet",             "orientacao": "retrato",  "corpo": 11.0, "linha_cabecalho": 7,  "cabecalho": ["Download*", "Kbps", "Mbps"],                     "paginas_grc": "32" },
+    { "aba": "SOA",                  "orientacao": "retrato",  "corpo": 11.0, "linha_cabecalho": 6,  "cabecalho": ["Seq", "Data", "Projeto"],                        "paginas_grc": "33-34" },
+    { "aba": "OutrosServicos",       "orientacao": "retrato",  "corpo": 11.0, "linha_cabecalho": 3,  "cabecalho": ["Descrição", "Qtde"],                             "paginas_grc": "35" },
+    { "aba": "Office365",            "orientacao": "paisagem", "corpo": 4.0,  "linha_cabecalho": 17, "cabecalho": ["Nº", "Secretaria", "Nome"],                      "paginas_grc": "36-39" },
+    { "aba": "ServicosVcloud",       "orientacao": "retrato",  "corpo": 8.9,  "linha_cabecalho": 6,  "cabecalho": ["VM", "vCPU", "Memória"],                         "paginas_grc": "40" },
+    { "aba": "ServicosEmNuvem",      "orientacao": "retrato",  "corpo": 10.2, "linha_cabecalho": 2,  "cabecalho": ["Descrição", "Qtde"],                             "paginas_grc": "41" }
+  ]
+}

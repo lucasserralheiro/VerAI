@@ -121,21 +121,33 @@ com o pipeline de análise por IA que já está ligado a `Documento`.
 - [x] Usuário rodou `npm run dev:generate` + `npm run dev:migrate` — aplicado sem drift
 - [x] Commit (`445ed41`)
 
-### Task 5: Rota de geração — detalhamento pendente
+### Task 5: Rota de geração
 
-**Status:** Não iniciada. Depende da Task 4 (model) e de confirmar o formato exato da resposta do
-Confere (Task 4's leitura de schemas.py).
+**Status:** ✅ Concluída (2026-09-21).
 
-- [ ] `POST /api/clientes/[id]/competencias/[competencia]/analise-medicao` (nome espelhando
+- [x] `src/lib/confere/cliente.ts` — `chamarConfere()`: multipart pro Confere (`POST /reports`),
+      header `X-Confere-Secret` (Task 2), devolve um tipo discriminado
+      (`concluido | bloqueado | erro`) — resolve a diferença entre os dois formatos de 422 do
+      Confere (bloqueio estruturado x falha de extração) antes de chegar na rota. 7 testes
+      (commit `b1b91cb`)
+- [x] `POST /api/clientes/[clienteId]/competencias/[competencia]/analise-medicao` (nome espelhando
       `/analise-consolidada` e `/analise-evolucao` já existentes)
-- [ ] Multipart para o Confere (`POST /reports`), incluindo o header do segredo (Task 2)
-- [ ] Decodifica o base64 da resposta, salva os dois arquivos via `putUpload` (mesmo padrão das
-      rotas `/relatorio`)
-- [ ] Trata o caso bloqueado (422 do Confere) — grava status "bloqueado" com os achados, não trata
-      como erro genérico
-- [ ] `maxDuration` explícito na rota (folga sobre cold-start do Render + ~30s de geração)
-- [ ] Testes seguindo o padrão de `conferir-totais/route.test.ts` (mocks de fetch/prisma/storage)
-- [ ] Commit
+- [x] Decodifica o base64 da resposta, salva os dois arquivos via `putUpload`
+      (`buildRelatorioMedicaoPath`, novo em `storage.ts`)
+- [x] Trata o caso bloqueado (422 do Confere) — grava `achadosBloqueio` com status "bloqueado",
+      devolve 422 (espelha o Confere); erro de infraestrutura (rede, 401, 500, 422 de extração)
+      devolve 502 com `mensagemErro`
+- [x] Arquivos de ENTRADA (contrato/levantamento/aditivos) sobem pro Blob sempre, qualquer que
+      seja o resultado — auditoria da tentativa; cada POST sobrescreve o estado da competência
+      (upsert único, reflete sempre a tentativa mais recente — decisão tomada aqui, não estava no
+      plano original)
+- [x] `maxDuration = 120` explícito na rota
+- [x] Testes seguindo o padrão de `conferir-totais/route.test.ts` (mocks de auth/prisma/
+      visibilidade/storage/confere) — 12 testes
+- [x] `jest.config.ts` ganhou `testPathIgnorePatterns` pra `services/confere/` — os e2e Playwright
+      copiados na Task 1 batiam no testMatch padrão do Jest sem ser testes do VerAI
+- [x] Suíte inteira confirmada sem regressão pelo usuário: 66 suítes, 485 testes
+- [x] Commits (`b1b91cb` cliente do Confere, `b064ed7` rota + jest.config)
 
 ### Task 6: Endpoint de pré-checagem (opcional, mas barato)
 

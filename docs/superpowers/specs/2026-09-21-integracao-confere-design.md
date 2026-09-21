@@ -104,10 +104,20 @@ ao lado de "Relatório consolidado" e "Relatório de evolução" — não uma á
 arquivos de entrada (contrato PDF + planilha XLSX), os dois de saída (docx + xlsx) e um status que
 reflete o retorno do próprio Confere (concluído / bloqueado — ele já devolve 422 quando bloqueia).
 
-A rota de geração segue o mesmo padrão das três rotas `/relatorio` existentes (campo
-`caminhoRelatorioPdf`-like de cache, `putUpload`/`getUpload`, registro em `AcessoDocumento`), só
-que em vez de renderizar localmente, faz `fetch` multipart para o Confere e decodifica o base64 que
-volta.
+**Status (2026-09-21): implementado (Tasks 4 e 5).** Decisão tomada com o usuário: os arquivos
+de entrada (contrato, levantamento, aditivos) são upload **dedicado** dessa análise — não
+reaproveitam o model `Documento` (que já carrega o pipeline de análise por IA, semântica
+diferente). Modelo final: `AnaliseMedicaoContratual` + `AnaliseMedicaoContratualArquivo`
+(`prisma/schema.prisma`), com `resultado Json?` guardando a `RespostaRelatorio` estruturada do
+Confere e `achadosBloqueio Json?` para o caso bloqueado.
+
+A rota de geração (`src/app/api/clientes/[clienteId]/competencias/[competencia]/analise-medicao`)
+segue o mesmo padrão de cache/storage das três rotas `/relatorio` existentes (`putUpload`,
+campo `caminhoRelatorioX`-like), com duas diferenças: não usa `AcessoDocumento` (é polimórfico só
+para `Documento`, e o volume interno não justificou estender isso agora — fora de escopo por ora),
+e em vez de renderizar localmente faz `fetch` multipart para o Confere e decodifica o base64 que
+volta. Cada `POST` sobrescreve o estado da competência (upsert único por `clienteId`+competência):
+reflete sempre a tentativa mais recente, sem histórico de tentativas anteriores.
 
 O endpoint `POST /reports/conferencia-previa` do Confere (checagem rápida de identidade do par
 contrato/planilha, ~0,9s) pode virar um passo de confirmação na UI antes de disparar a geração

@@ -33,6 +33,38 @@ export function buildRelatorioEvolucaoPath(analiseEvolucaoId: string, data: Date
 }
 
 /** Prefixo (pasta) de todos os blobs de um documento — usado pra apagar tudo de uma vez. */
+export function buildRelatorioMedicaoPath(
+  clienteId: string,
+  competenciaAno: number,
+  competenciaMes: number,
+  extensao: 'docx' | 'xlsx',
+  data: Date = new Date()
+): string {
+  const ano = String(data.getFullYear())
+  const mes = String(data.getMonth() + 1).padStart(2, '0')
+  const competencia = `${competenciaAno}-${String(competenciaMes).padStart(2, '0')}`
+  return `${ano}/${mes}/medicao/${clienteId}/${competencia}/relatorio.${extensao}`
+}
+
+/** Um arquivo de ENTRADA (contrato/levantamento/aditivo) de uma
+ *  AnaliseMedicaoContratual — sobrescreve a cada nova tentativa pra essa
+ *  competência (mesmo caminho, `papel`+`ordem` distinguem contrato de
+ *  levantamento de cada aditivo). */
+export function buildArquivoMedicaoPath(
+  clienteId: string,
+  competenciaAno: number,
+  competenciaMes: number,
+  papel: string,
+  ordem: number,
+  nomeArquivo: string,
+  data: Date = new Date()
+): string {
+  const ano = String(data.getFullYear())
+  const mes = String(data.getMonth() + 1).padStart(2, '0')
+  const competencia = `${competenciaAno}-${String(competenciaMes).padStart(2, '0')}`
+  return `${ano}/${mes}/medicao/${clienteId}/${competencia}/entrada/${papel}-${ordem}-${nomeArquivo}`
+}
+
 export function buildDocumentoPrefix(documentoId: string, data: Date = new Date()): string {
   const ano = String(data.getFullYear())
   const mes = String(data.getMonth() + 1).padStart(2, '0')

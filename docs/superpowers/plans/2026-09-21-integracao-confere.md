@@ -97,10 +97,10 @@ inalterado exceto pela Task 2).
 
 ### Task 4: Model Prisma novo
 
-**Status:** Model e migração escritos (2026-09-21); falta rodar contra o banco local — este
-ambiente de automação não tem `docker` nem alcança `binaries.prisma.sh` (mesma restrição de rede
-que bloqueou `onrender.com` na Task 3), então `npm run dev:generate`/`dev:migrate` precisam rodar
-no terminal do usuário.
+**Status:** ✅ Concluída (2026-09-21). Model, migração escritos aqui; aplicados pelo usuário no
+próprio terminal (este ambiente de automação não tem `docker` nem alcança `binaries.prisma.sh` —
+mesma restrição de rede que bloqueou `onrender.com` na Task 3). Confirmado via
+`npx prisma migrate status`: 13 migrações, banco em dia.
 
 Decisão tomada (perguntada ao usuário): arquivos de entrada (contrato, levantamento, aditivos) são
 upload **dedicado** nesta análise, sem reaproveitar o model `Documento` — mais simples, não mistura
@@ -118,8 +118,8 @@ com o pipeline de análise por IA que já está ligado a `Documento`.
 - [x] Migração escrita manualmente em
       `prisma/migrations/20260921130000_add_analise_medicao_contratual/migration.sql` (mesmo
       padrão de `.../20260916120000_add_conferencia_totais_proposta/migration.sql`)
-- [ ] Usuário roda `npm run dev:generate` + `npm run dev:migrate` no próprio terminal e confirma
-- [ ] Commit (depois da confirmação acima)
+- [x] Usuário rodou `npm run dev:generate` + `npm run dev:migrate` — aplicado sem drift
+- [x] Commit (`445ed41`)
 
 ### Task 5: Rota de geração — detalhamento pendente
 

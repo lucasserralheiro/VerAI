@@ -62,9 +62,15 @@ ambiente/segredos — suficiente para o volume de uso interno esperado).
 
 **Risco conhecido e aceito por ora**: o plano free do Render desliga o serviço após 15 min de
 inatividade e leva ~1 min para acordar. Somado aos ~30 s de geração do Confere, a primeira chamada
-do dia pode passar de 1min30. **Validar com uma chamada fria real antes de depender disso em
-produção.** Se incomodar na prática, o plano pago "Starter" do Render remove o spin-down — upgrade
-pontual, não bloqueia começar no free.
+do dia pode passar de 1min30. Se incomodar na prática, o plano pago "Starter" do Render remove o
+spin-down — upgrade pontual, não bloqueia começar no free.
+
+**Status (2026-09-21): implantado e validado.** Deploy em `https://confere-backend.onrender.com`
+(Docker, Root Directory `services/confere/backend`, source commit `c851c60`). `GET /health` e o
+bloqueio via `X-Confere-Secret` (`POST /reports` sem header → 401) confirmados em produção, fora
+dos ambientes de automação (cujo allowlist de rede bloqueia `onrender.com`). **Ainda pendente**:
+medir o cold-start real de 15+min — só vai acontecer organicamente na primeira chamada de verdade
+feita pelo VerAI (Task 5).
 
 ### 3.4 Chamada síncrona, sem fila/polling
 

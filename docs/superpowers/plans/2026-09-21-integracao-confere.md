@@ -76,14 +76,24 @@ inalterado exceto pela Task 2).
 
 ### Task 3: Deploy do Confere no Render
 
-**Status:** Não iniciada. Não é código — é configuração de infraestrutura.
+**Status:** ✅ Concluída (2026-09-21).
 
-- [ ] Criar Web Service no Render (free tier), Root Directory apontando para
-      `services/confere/backend` (ou onde o `Dockerfile` ficar após o subtree)
-- [ ] Configurar `CONFERE_SHARED_SECRET` como env var no Render
-- [ ] Validar com uma chamada fria real (depois de 15+ min sem tráfego): cold-start + `POST /reports`
-      completo sem erro, dentro de um tempo aceitável — registrar o tempo medido no design doc
-- [ ] Decidir e documentar: fica no free tier, ou sobe direto pro Starter (remove spin-down)?
+- [x] Web Service criado no Render (free tier, Docker), Root Directory =
+      `services/confere/backend`, Branch = `main`, source = commit `c851c60`
+- [x] `CONFERE_SHARED_SECRET` configurado como env var no Render (mesmo valor usado nos testes de
+      `test_segredo_compartilhado.py`); env var `PORT` (auto-preenchida pelo Render ao detectar o
+      projeto, não usada pelo Dockerfile do Confere) removida
+- [x] Deploy bem-sucedido — "Your service is live"; URL: `https://confere-backend.onrender.com`
+- [x] Validado em produção via PowerShell do usuário (fora dos ambientes de automação, que têm
+      allowlist de rede bloqueando `onrender.com`):
+      - `GET /health` sem header → `200 {"status":"ok"}`
+      - `POST /reports` sem header → `401 Não Autorizado` (confirma o middleware do segredo
+        compartilhado ativo em produção, não só nos 5 testes locais)
+- [ ] Pendente: medir o tempo real de cold-start (depois de 15+ min sem tráfego) numa chamada real
+      de `POST /reports` — só vai acontecer organicamente quando a Task 5 estiver pronta e o VerAI
+      fizer a primeira chamada de verdade; registrar o tempo medido aqui quando acontecer
+- [ ] Pendente: decidir e documentar se fica no free tier ou sobe pro Starter (remove spin-down) —
+      decisão adiada até sentir o impacto real do cold-start no uso
 
 ### Task 4: Model Prisma novo — detalhamento pendente
 

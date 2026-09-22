@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { podeVerCliente } from '@/lib/visibilidade'
+import { exigirAcessoCliente } from '@/lib/relatorios-clientes/acesso'
+import { lerCorpo, textoObrigatorio, textoOpcional } from '@/lib/relatorios-clientes/validacao'
+
+const SELECAO_CLIENTE = { id: true, nome: true, siglaLegado: true, endereco: true, numero: true, bairro: true } as const
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ clienteId: string }> }) {
   const usuario = await getAuthUser(request)
@@ -10,7 +16,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { clienteId } = await params
-  const cliente = await prisma.cliente.findUnique({ where: { id: clienteId }, select: { id: true, nome: true } })
+  const cliente = await prisma.cliente.findUnique({ where: { id: clienteId }, select: SELECAO_CLIENTE })
   if (!cliente) {
     return NextResponse.json({ error: 'cliente não encontrado' }, { status: 404 })
   }
@@ -21,4 +27,34 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   return NextResponse.json(cliente)
+}
+
+const esquemaCliente = z.object({
+  nome: textoObrigatorio,
+  siglaLegado: textoOpcional.transform((sigla) => (sigla ? sigla.toUpperCase() : sigla)),
+  endereco: textoOpcional,
+  numero: textoOpcional,
+  bairro: textoOpcional,
+})
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ clienteId: string }> }) {
+  const { clienteId } = await params
+  const acesso = await exigirAcessoCliente(request, clienteId)
+  if ('erro' in acesso) return acesso.erro
+
+  const corpo = await lerCorpo(request, esquemaCliente)
+  if ('erro' in corpo) return corpo.erro
+
+  try {
+    const cliente = await prisma.cliente.update({ where: { id: clienteId }, data: corpo.dados, select: SELECAO_CLIENTE })
+    return NextResponse.json(cliente)
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2025') return NextResponse.json({ error: 'cliente não encontrado' }, { status: 404 })
+      if (error.code === 'P2002') {
+        return NextResponse.json({ error: 'já existe cliente com esse nome/sigla' }, { status: 409 })
+      }
+    }
+    throw error
+  }
 }

@@ -1,0 +1,39 @@
+// Definição única das abas da ficha do cliente (/clientes/[id]). As Tasks 4–7
+// do plano de "Relatórios dos clientes" trocam o `EmConstrucao` da aba delas
+// pelo componente `aba-<nome>.tsx` correspondente — só aqui.
+
+import type { ComponentType } from 'react'
+import { ClipboardList, FileSignature, FileText, Receipt, Truck, Users, type LucideIcon } from 'lucide-react'
+import { AbaDocumentos } from './aba-documentos'
+import { AbaResponsaveis } from './aba-responsaveis'
+
+export interface PropsAba {
+  clienteId: string
+}
+
+function EmConstrucao() {
+  return (
+    <div className="card-flush flex flex-col items-center gap-1 p-10 text-center">
+      <p className="text-sm font-semibold text-navy">Em construção</p>
+      <p className="text-xs text-mid-grey">Esta aba ainda está sendo migrada do sistema legado.</p>
+    </div>
+  )
+}
+
+export const ABAS = [
+  { id: 'documentos', label: 'Documentos', icon: FileText, Componente: AbaDocumentos },
+  { id: 'contratos', label: 'Contratos', icon: FileSignature, Componente: EmConstrucao },
+  { id: 'faturamento', label: 'Faturamento', icon: Receipt, Componente: EmConstrucao },
+  { id: 'fornecedores', label: 'Fornecedores', icon: Truck, Componente: EmConstrucao },
+  { id: 'demandas', label: 'Demandas', icon: ClipboardList, Componente: EmConstrucao },
+  { id: 'responsaveis', label: 'Responsáveis', icon: Users, Componente: AbaResponsaveis },
+] as const satisfies ReadonlyArray<{ id: string; label: string; icon: LucideIcon; Componente: ComponentType<PropsAba> }>
+
+export type IdAba = (typeof ABAS)[number]['id']
+
+/** Aba aberta quando `?aba=` está ausente ou não bate com nenhuma aba. */
+export const ABA_PADRAO: IdAba = 'documentos'
+
+export function abaPorId(id: string | null) {
+  return ABAS.find((aba) => aba.id === id) ?? ABAS.find((aba) => aba.id === ABA_PADRAO)!
+}

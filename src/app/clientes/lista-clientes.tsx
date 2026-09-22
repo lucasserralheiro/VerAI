@@ -12,6 +12,7 @@ import { BTN_PRIMARY, BTN_OUTLINE, INPUT_BASE } from '@/lib/ui'
 interface Cliente {
   id: string
   nome: string
+  siglaLegado?: string | null
 }
 
 interface UsuarioLogado {
@@ -185,6 +186,11 @@ export function ListaClientes() {
                 href={`/clientes/${cliente.id}`}
                 className="card card-interactive group flex items-center gap-3"
               >
+                {cliente.siglaLegado && (
+                  <span className="shrink-0 rounded-md bg-navy px-2 py-0.5 font-mono text-xs font-semibold tracking-wide text-white">
+                    {cliente.siglaLegado}
+                  </span>
+                )}
                 <span className="flex-1 text-sm font-semibold text-navy">{cliente.nome}</span>
                 <ChevronRight
                   className="size-4 text-mid-grey transition-transform group-hover:translate-x-0.5 group-hover:text-orange"

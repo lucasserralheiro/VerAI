@@ -3,7 +3,7 @@ import { ListaClientes } from './lista-clientes'
 
 function mockFetch(options: {
   role: 'admin' | 'usuario' | null
-  clientes?: Array<{ id: string; nome: string }>
+  clientes?: Array<{ id: string; nome: string; siglaLegado?: string | null }>
   criarOk?: boolean
   criarErro?: string
 }) {
@@ -43,6 +43,21 @@ describe('ListaClientes', () => {
     const heading = await screen.findByRole('heading', { name: 'Relatórios dos clientes' })
     expect(heading).toHaveClass('font-semibold')
     expect(heading).not.toHaveClass('font-bold')
+  })
+
+  it('mostra a sigla ao lado do nome quando o cliente tem', async () => {
+    mockFetch({
+      role: 'usuario',
+      clientes: [
+        { id: 'c1', nome: 'Secretaria Municipal da Saúde', siglaLegado: 'SMS' },
+        { id: 'c2', nome: 'Prefeitura X', siglaLegado: null },
+      ],
+    })
+    render(<ListaClientes />)
+
+    const link = (await screen.findByText('Secretaria Municipal da Saúde')).closest('a') as HTMLElement
+    expect(link).toHaveTextContent('SMS')
+    expect((screen.getByText('Prefeitura X').closest('a') as HTMLElement).textContent).toBe('Prefeitura X')
   })
 
   it('não-admin não vê o botão "Novo cliente"', async () => {

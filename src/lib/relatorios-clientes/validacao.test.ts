@@ -53,6 +53,26 @@ describe('decimalOpcional / decimalObrigatorio', () => {
     expect(decimalOpcional.parse(0)).toBe('0')
   })
 
+  it('um único ponto seguido de 3 dígitos, sem vírgula, é ambíguo e é rejeitado', () => {
+    for (const ambiguo of ['1.500', '12.345']) {
+      const resultado = decimalOpcional.safeParse(ambiguo)
+      expect(resultado.success).toBe(false)
+      expect(resultado.error?.issues[0].message).toBe('valor ambíguo — use vírgula para decimais (ex.: 1.500,00)')
+    }
+  })
+
+  it('ponto decimal sem ambiguidade, milhar com vírgula, vários pontos e vírgula inicial', () => {
+    expect(decimalOpcional.parse('1.5')).toBe('1.5')
+    expect(decimalOpcional.parse('1.50')).toBe('1.50')
+    expect(decimalOpcional.parse('1.500,00')).toBe('1500.00')
+    expect(decimalOpcional.parse('1.234.567')).toBe('1234567')
+    expect(decimalOpcional.parse(',5')).toBe('0.5')
+  })
+
+  it('número JS com 3 casas decimais não é ambíguo', () => {
+    expect(decimalOpcional.parse(1234.567)).toBe('1234.567')
+  })
+
   it('rejeita negativo', () => {
     expect(decimalOpcional.safeParse(-1).success).toBe(false)
     expect(decimalOpcional.safeParse('-1').success).toBe(false)

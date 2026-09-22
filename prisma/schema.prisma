@@ -8,25 +8,276 @@ datasource db {
 }
 
 model Usuario {
-  id         String   @id @default(cuid())
-  nome       String
-  email      String   @unique
-  senhaHash  String
-  role       String   // uploader | responsavel | admin
-  createdAt  DateTime @default(now())
-  documentos Documento[]
-  acessos    AcessoDocumento[]
-  clientesPermitidos Cliente[] @relation("UsuarioClientes")
+  id                 String            @id @default(cuid())
+  nome               String
+  email              String            @unique
+  senhaHash          String
+  role               String // uploader | responsavel | admin
+  createdAt          DateTime          @default(now())
+  documentos         Documento[]
+  acessos            AcessoDocumento[]
+  clientesPermitidos Cliente[]         @relation("UsuarioClientes")
 }
 
 model Cliente {
-  id                 String      @id @default(cuid())
-  nome               String      @unique
-  createdAt          DateTime    @default(now())
-  usuariosPermitidos Usuario[]   @relation("UsuarioClientes")
-  documentos         Documento[]
+  id                   String               @id @default(cuid())
+  nome                 String               @unique
+  // Sigla do cliente no legado GRC-1 (SMS, SME, SF, SGM, SEGES, SMT, ...) — chave de
+  // casamento usada pelo script de importação (Task 2), não o nome (frágil a
+  // divergência de grafia). Ver docs/superpowers/specs/2026-09-22-relatorios-clientes-design.md §3.4.
+  siglaLegado          String?              @unique
+  endereco             String?
+  numero               String?
+  bairro               String?
+  createdAt            DateTime             @default(now())
+  usuariosPermitidos   Usuario[]            @relation("UsuarioClientes")
+  documentos           Documento[]
   analisesConsolidadas AnaliseConsolidada[]
-  analisesEvolucao  AnaliseEvolucao[]
+  analisesEvolucao     AnaliseEvolucao[]
+  responsaveis         ResponsavelCliente[]
+  fornecedorTermos     TermoConfirmacao[]
+  contratos            Contrato[]
+  faturamentos         Faturamento[]
+  demandas             Demanda[]
+  solicitacoes         Solicitacao[]
+}
+
+// ---------------------------------------------------------------------------
+// Migração do legado GRC-1 (Access) — ver
+// docs/superpowers/specs/2026-09-22-relatorios-clientes-design.md §4 pro
+// mapeamento tabela-a-tabela e docs/superpowers/plans/2026-09-22-relatorios-clientes.md
+// pro plano de execução.
+//
+// Todo model desta seção carrega `legacyId Int? @unique`: é a chave de
+// idempotência do script de importação (Task 2, ainda não escrito) — permite
+// rodar a importação mais de uma vez sem duplicar registro (§3.2 do design).
+// ---------------------------------------------------------------------------
+
+model ResponsavelCliente {
+  id        String   @id @default(cuid())
+  legacyId  Int?     @unique
+  clienteId String
+  cliente   Cliente  @relation(fields: [clienteId], references: [id])
+  nome      String
+  area      String?
+  email     String?
+  telefone  String?
+  celular   String?
+  createdAt DateTime @default(now())
+
+  @@index([clienteId])
+}
+
+// Cadastro de fornecedor (T_Fornecedor). O design doc não lista os campos —
+// modelado como um cadastro razoável (nome/razão social, CNPJ, contato); ver
+// ressalva no relatório da Task 1.
+model Fornecedor {
+  id                         String                      @id @default(cuid())
+  legacyId                   Int?                        @unique
+  razaoSocial                String
+  cnpj                       String?
+  contato                    String?
+  createdAt                  DateTime                    @default(now())
+  contratosOperacionalizacao ContratoOperacionalizacao[]
+  termosConfirmacao          TermoConfirmacao[]
+}
+
+// Contrato de operacionalização (CO) — lado do fornecedor (T_CO_Operacionalização).
+// Design doc não lista campos; modelado com vigência + valor (mais `numero`
+// como identificador do CO) — ver ressalva no relatório da Task 1.
+model ContratoOperacionalizacao {
+  id           String     @id @default(cuid())
+  legacyId     Int?       @unique
+  fornecedorId String
+  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id])
+  numero       String?
+  dataInicio   DateTime?
+  dataFim      DateTime?
+  valor        Decimal?   @db.Decimal(14, 2)
+  createdAt    DateTime   @default(now())
+
+  @@index([fornecedorId])
+}
+
+// Termo de confirmação — a ponte fornecedor ↔ cliente, via Contrato (T_TermoConfirmação).
+// `clienteId` é direto (denormalizado) pra sustentar `Cliente.fornecedorTermos`;
+// `contratoId` é opcional porque nem todo termo necessariamente já tem um
+// Contrato de receita vinculado no momento do cadastro. Campos além dos FKs
+// (data, observação) são cadastro razoável — design doc não lista os campos
+// próprios da tabela; ver ressalva no relatório da Task 1.
+model TermoConfirmacao {
+  id           String     @id @default(cuid())
+  legacyId     Int?       @unique
+  fornecedorId String
+  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id])
+  clienteId    String
+  cliente      Cliente    @relation(fields: [clienteId], references: [id])
+  contratoId   String?
+  contrato     Contrato?  @relation(fields: [contratoId], references: [id])
+  data         DateTime?
+  observacao   String?
+  createdAt    DateTime   @default(now())
+
+  @@index([fornecedorId])
+  @@index([clienteId])
+  @@index([contratoId])
+}
+
+// Contrato de receita — cabeçalho (T_ContratoReceita). Campos citados em prosa
+// no design doc §3.7/§4: "Nº Termo, SEI Cliente/PRODAM, situação" — SEI
+// Cliente/PRODAM modelado como dois campos (`seiCliente`, `seiProdam`), um pra
+// cada processo SEI; ver ressalva no relatório da Task 1.
+model Contrato {
+  id                String              @id @default(cuid())
+  legacyId          Int?                @unique
+  clienteId         String
+  cliente           Cliente             @relation(fields: [clienteId], references: [id])
+  numeroTermo       String?
+  seiCliente        String?
+  seiProdam         String?
+  situacao          String?
+  createdAt         DateTime            @default(now())
+  historico         HistoricoContrato[]
+  itens             ItemContrato[]
+  faturamentos      Faturamento[]
+  termosConfirmacao TermoConfirmacao[]
+
+  @@index([clienteId])
+}
+
+// Histórico do contrato — linha do tempo única (T_Propostas), não entidades
+// separadas por tipo. Ver design doc §3.5: cada linha tem um `tipo` (Contrato,
+// Aditivo, Prorrogação, Rescisão, Prospecção). `T_Aditivo` (0 linhas no
+// legado) não é migrada como entidade própria.
+enum TipoHistoricoContrato {
+  CONTRATO
+  ADITIVO
+  PRORROGACAO
+  RESCISAO
+  PROSPECCAO
+}
+
+model HistoricoContrato {
+  id         String                @id @default(cuid())
+  legacyId   Int?                  @unique
+  contratoId String
+  contrato   Contrato              @relation(fields: [contratoId], references: [id])
+  tipo       TipoHistoricoContrato
+  numero     String?
+  data       DateTime?
+  valor      Decimal?              @db.Decimal(14, 2)
+  observacao String?
+  createdAt  DateTime              @default(now())
+
+  @@index([contratoId])
+}
+
+// Item de contrato (T_ItensContrato) — base do cálculo de saldo (§3.6 do
+// design doc: saldo do contrato = soma de `valorTotal` dos itens − soma de
+// `NotaFiscal.valor` dos faturamentos do contrato). `valorTotal` é citado
+// nominalmente no design doc; `descricao`/`quantidade`/`valorUnitario` são
+// cadastro razoável — ver ressalva no relatório da Task 1.
+model ItemContrato {
+  id            String   @id @default(cuid())
+  legacyId      Int?     @unique
+  contratoId    String
+  contrato      Contrato @relation(fields: [contratoId], references: [id])
+  descricao     String?
+  quantidade    Decimal? @db.Decimal(14, 2)
+  valorUnitario Decimal? @db.Decimal(14, 2)
+  valorTotal    Decimal  @db.Decimal(14, 2)
+  createdAt     DateTime @default(now())
+
+  @@index([contratoId])
+}
+
+// Faturamento mensal (T_Faturamentos). `clienteId` é direto (denormalizado),
+// além de `contratoId`, pra sustentar `Cliente.faturamentos` sem precisar
+// atravessar Contrato em toda consulta da ficha do cliente (§3.7 do design doc).
+model Faturamento {
+  id             String       @id @default(cuid())
+  legacyId       Int?         @unique
+  contratoId     String
+  contrato       Contrato     @relation(fields: [contratoId], references: [id])
+  clienteId      String
+  cliente        Cliente      @relation(fields: [clienteId], references: [id])
+  competenciaAno Int?
+  competenciaMes Int?
+  valor          Decimal?     @db.Decimal(14, 2)
+  situacao       String?
+  createdAt      DateTime     @default(now())
+  notasFiscais   NotaFiscal[]
+
+  @@index([contratoId])
+  @@index([clienteId])
+}
+
+// Nota fiscal (T_NotaFiscal) — liga a Faturamento, não a ItemContrato (o
+// legado não tem esse vínculo; ver §3.6 do design doc).
+model NotaFiscal {
+  id            String      @id @default(cuid())
+  legacyId      Int?        @unique
+  faturamentoId String
+  faturamento   Faturamento @relation(fields: [faturamentoId], references: [id])
+  numero        String?
+  valor         Decimal?    @db.Decimal(14, 2)
+  dataEmissao   DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@index([faturamentoId])
+}
+
+// Demanda/documento (T_Documento). Campos citados em prosa no design doc §4:
+// "assunto, tipo, responsável"; `situacao`/`dataAbertura`/`clienteId` são
+// cadastro razoável — ver ressalva no relatório da Task 1.
+model Demanda {
+  id           String           @id @default(cuid())
+  legacyId     Int?             @unique
+  clienteId    String
+  cliente      Cliente          @relation(fields: [clienteId], references: [id])
+  assunto      String?
+  tipo         String?
+  responsavel  String?
+  situacao     String?
+  dataAbertura DateTime?
+  createdAt    DateTime         @default(now())
+  tramites     TramiteDemanda[]
+
+  @@index([clienteId])
+}
+
+// Trâmite de uma demanda (T_Trâmite) — histórico de posição/ação, citado em
+// prosa no design doc §4. `data`/`observacao` são cadastro razoável.
+model TramiteDemanda {
+  id         String    @id @default(cuid())
+  legacyId   Int?      @unique
+  demandaId  String
+  demanda    Demanda   @relation(fields: [demandaId], references: [id])
+  data       DateTime?
+  posicao    String?
+  acao       String?
+  observacao String?
+  createdAt  DateTime  @default(now())
+
+  @@index([demandaId])
+}
+
+// Solicitação de TI — RDM/Solicitação (T_Solicitação). Design doc só cita
+// "chamados de TI (RDM/Solicitação)"; campos são cadastro razoável — ver
+// ressalva no relatório da Task 1. `legacyId` vem do "Nº" da solicitação
+// (§3.2 do design doc).
+model Solicitacao {
+  id           String    @id @default(cuid())
+  legacyId     Int?      @unique
+  clienteId    String
+  cliente      Cliente   @relation(fields: [clienteId], references: [id])
+  tipo         String?
+  descricao    String?
+  situacao     String?
+  dataAbertura DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([clienteId])
 }
 
 model AnaliseEvolucao {
@@ -71,23 +322,23 @@ model AnaliseConsolidada {
 }
 
 model Documento {
-  id              String    @id @default(cuid())
-  nomeArquivo     String
-  tipo            String    // xlsx, csv, pdf, docx
-  caminhoOriginal String
-  tamanhoBytes    Int
-  status          String    @default("processando") // processando | concluido | erro
-  mensagemErro    String?
-  uploadedById    String
-  uploadedBy      Usuario   @relation(fields: [uploadedById], references: [id])
-  clienteId       String
-  cliente         Cliente   @relation(fields: [clienteId], references: [id])
-  competenciaAno  Int
-  competenciaMes  Int
-  createdAt       DateTime  @default(now())
-  analise         Analise?
-  acessos         AcessoDocumento[]
-  notificacoes    Notificacao[]
+  id                   String               @id @default(cuid())
+  nomeArquivo          String
+  tipo                 String // xlsx, csv, pdf, docx
+  caminhoOriginal      String
+  tamanhoBytes         Int
+  status               String               @default("processando") // processando | concluido | erro
+  mensagemErro         String?
+  uploadedById         String
+  uploadedBy           Usuario              @relation(fields: [uploadedById], references: [id])
+  clienteId            String
+  cliente              Cliente              @relation(fields: [clienteId], references: [id])
+  competenciaAno       Int
+  competenciaMes       Int
+  createdAt            DateTime             @default(now())
+  analise              Analise?
+  acessos              AcessoDocumento[]
+  notificacoes         Notificacao[]
   analisesConsolidadas AnaliseConsolidada[] @relation("DocumentosDaConsolidada")
 
   @@index([clienteId, competenciaAno, competenciaMes])
@@ -109,26 +360,26 @@ model Analise {
 }
 
 model PropostaComercial {
-  id               String    @id @default(cuid())
+  id                  String                     @id @default(cuid())
   // Nome de exibição da proposta — herda o nome do primeiro arquivo enviado
   // no momento da criação (múltiplos arquivos vivem em `arquivos` abaixo).
-  nomeArquivo      String
-  tamanhoBytes     Int       // soma dos arquivos em `arquivos`
-  conteudoMarkdown String?   @db.Text // resumo consolidado final — null até concluir, ou quando status é "erro"
-  status           String    @default("rascunho") // rascunho | concluido | erro
-  mensagemErro     String?
+  nomeArquivo         String
+  tamanhoBytes        Int // soma dos arquivos em `arquivos`
+  conteudoMarkdown    String?                    @db.Text // resumo consolidado final — null até concluir, ou quando status é "erro"
+  status              String                     @default("rascunho") // rascunho | concluido | erro
+  mensagemErro        String?
   // Resultado da checagem por IA da conversão (score, trechos suspeitos,
   // páginas com imagem + ids dos PDFs checados). Só depende dos PDFs, então
   // é reaproveitado até os arquivos mudarem ou alguém pedir "checar de novo".
-  checagemIa       Json?
-  checagemIaEm     DateTime?
+  checagemIa          Json?
+  checagemIaEm        DateTime?
   // Resultado da conferência determinística (sem IA) dos valores de total/
   // resultado geral do PDF contra o documento — atalho rápido, separado da
   // checagem por IA (ver docs/superpowers/specs/2026-09-16-conferencia-totais-design.md).
   conferenciaTotais   Json?
   conferenciaTotaisEm DateTime?
-  createdAt        DateTime  @default(now())
-  arquivos         PropostaComercialArquivo[]
+  createdAt           DateTime                   @default(now())
+  arquivos            PropostaComercialArquivo[]
 }
 
 // Cada arquivo de origem enviado numa conversão (PDF, planilha ou Word) — uma
@@ -139,11 +390,11 @@ model PropostaComercialArquivo {
   propostaId       String
   proposta         PropostaComercial @relation(fields: [propostaId], references: [id], onDelete: Cascade)
   nomeArquivo      String
-  tipo             String            // pdf | xlsx | csv | docx
+  tipo             String // pdf | xlsx | csv | docx
   tamanhoBytes     Int
   caminhoOriginal  String
   conteudoExtraido String?           @db.Text // null quando a extração desse arquivo específico falhou
-  ordem            Int               // ordem de upload — preserva a sequência que o usuário escolheu
+  ordem            Int // ordem de upload — preserva a sequência que o usuário escolheu
   createdAt        DateTime          @default(now())
 
   @@index([propostaId])
@@ -161,7 +412,7 @@ model Notificacao {
   documentoId  String
   documento    Documento @relation(fields: [documentoId], references: [id])
   destinatario String
-  canal        String    // email | dashboard
+  canal        String // email | dashboard
   lida         Boolean   @default(false)
   createdAt    DateTime  @default(now())
 }
@@ -172,7 +423,7 @@ model AcessoDocumento {
   documento   Documento @relation(fields: [documentoId], references: [id])
   usuarioId   String
   usuario     Usuario   @relation(fields: [usuarioId], references: [id])
-  acao        String    // visualizou | baixou_original | baixou_relatorio
+  acao        String // visualizou | baixou_original | baixou_relatorio
   createdAt   DateTime  @default(now())
 }
 

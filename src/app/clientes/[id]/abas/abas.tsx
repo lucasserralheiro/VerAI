@@ -6,6 +6,7 @@ import type { ComponentType } from 'react'
 import { ClipboardList, FileSignature, FileText, Receipt, Truck, Users, type LucideIcon } from 'lucide-react'
 import { AbaContratos } from './aba-contratos'
 import { AbaDocumentos } from './aba-documentos'
+import { AbaFaturamento } from './aba-faturamento'
 import { AbaFornecedores } from './aba-fornecedores'
 import { AbaResponsaveis } from './aba-responsaveis'
 
@@ -25,7 +26,7 @@ function EmConstrucao() {
 export const ABAS = [
   { id: 'documentos', label: 'Documentos', icon: FileText, Componente: AbaDocumentos },
   { id: 'contratos', label: 'Contratos', icon: FileSignature, Componente: AbaContratos },
-  { id: 'faturamento', label: 'Faturamento', icon: Receipt, Componente: EmConstrucao },
+  { id: 'faturamento', label: 'Faturamento', icon: Receipt, Componente: AbaFaturamento },
   { id: 'fornecedores', label: 'Fornecedores', icon: Truck, Componente: AbaFornecedores },
   { id: 'demandas', label: 'Demandas', icon: ClipboardList, Componente: EmConstrucao },
   { id: 'responsaveis', label: 'Responsáveis', icon: Users, Componente: AbaResponsaveis },

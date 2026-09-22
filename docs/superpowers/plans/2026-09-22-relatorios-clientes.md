@@ -345,7 +345,18 @@ o cliente dele.
 
 ### Task 6: Faturamento — faturamento mensal e notas fiscais
 
-**Status:** Não iniciada.
+**Status:** Concluída (commits `2a96c52`, `11ecc14` e o commit das telas). Colunas acrescentadas
+(migração `20260922220000_faturamento_nota_colunas_legado`, aplicada no Postgres local):
+`Faturamento.sei/complementar/observacao/unidadeDestino/enviadoCliente/enviadoGfp` e
+`NotaFiscal.servico/quantidade/complementar`. **Desvio do plano:** no Access o "Serviço" é coluna
+da nota fiscal, não do faturamento — ficou em `NotaFiscal.servico`, e a tela do faturamento mostra
+os serviços distintos das notas dele (não há `Faturamento.servico`). Ficou de fora: `Mês_Fat`
+(data redundante com Mês/Ano). A origem não tem nº da nota fiscal: `numero` fica nulo no import
+(editável na tela). Reimport: T_Faturamentos 601/635 (28 contrato não resolvido, 6 cliente),
+T_NotaFiscal 85/158 (73 com faturamento não resolvido). Valor exibido = `Faturamento.valor` ou soma
+das notas — conferido contra soma direta no Postgres local (R$ 4.823.713,15, TC 142/2021, 01/2023).
+Novo validador compartilhado `inteiroEntre(min, max)`; a regra "contrato do mesmo cliente" foi
+movida para `src/app/api/contratos/carregar.ts` (termo e faturamento usam a mesma).
 
 **Files:**
 - Modify: `prisma/schema.prisma` + migração + `scripts/importar-grc1.ts` — o relatório da Task 2
@@ -371,10 +382,10 @@ import deixa `valor` nulo — a origem não tem essa coluna).
 `competenciaAno` (2000–2100) e `competenciaMes` (1–12) obrigatórios na tela. Nota — `valor`
 obrigatório ≥ 0.
 
-- [ ] **Step 1:** Colunas do `.accdb`, schema + migração + import; reimportar e registrar contagens.
-- [ ] **Step 2:** Rotas com testes.
-- [ ] **Step 3:** Aba Faturamento e página do faturamento.
-- [ ] **Step 4:** Commit.
+- [x] **Step 1:** Colunas do `.accdb`, schema + migração + import; reimportar e registrar contagens.
+- [x] **Step 2:** Rotas com testes.
+- [x] **Step 3:** Aba Faturamento e página do faturamento.
+- [x] **Step 4:** Commit.
 
 ---
 

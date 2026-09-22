@@ -140,6 +140,22 @@ export const dataOpcional = z
     return z.NEVER
   })
 
+/** Como `dataOpcional`, mas ausente/vazio é erro ("campo obrigatório"). */
+export const dataObrigatoria = z
+  .string({ error: (issue) => (issue.input === undefined || issue.input === null ? OBRIGATORIO : 'data inválida (use AAAA-MM-DD)') })
+  .transform((bruto, ctx) => {
+    if (bruto.trim() === '') {
+      ctx.addIssue({ code: 'custom', message: OBRIGATORIO })
+      return z.NEVER
+    }
+    const lida = dataOpcional.safeParse(bruto)
+    if (!lida.success || !lida.data) {
+      ctx.addIssue({ code: 'custom', message: 'data inválida (use AAAA-MM-DD)' })
+      return z.NEVER
+    }
+    return lida.data
+  })
+
 const mensagensEmPortugues = z.locales.pt().localeError
 
 /**

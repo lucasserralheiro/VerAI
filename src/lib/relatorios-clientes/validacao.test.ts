@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import {
   booleanoOpcional,
+  dataObrigatoria,
   dataOpcional,
   decimalObrigatorio,
   decimalOpcional,
@@ -112,6 +113,18 @@ describe('dataOpcional', () => {
     expect(dataOpcional.parse('')).toBeNull()
     expect(dataOpcional.parse(null)).toBeNull()
     expect(dataOpcional.parse(undefined)).toBeUndefined()
+  })
+})
+
+describe('dataObrigatoria', () => {
+  it('AAAA-MM-DD vira Date em UTC', () => {
+    expect(dataObrigatoria.parse('2026-09-22')).toEqual(new Date('2026-09-22T00:00:00.000Z'))
+  })
+
+  it('ausente ou vazio dá "campo obrigatório"; data inexistente é inválida', () => {
+    expect(dataObrigatoria.safeParse(undefined).error?.issues[0].message).toBe('campo obrigatório')
+    expect(dataObrigatoria.safeParse('  ').error?.issues[0].message).toBe('campo obrigatório')
+    expect(dataObrigatoria.safeParse('2026-02-30').error?.issues[0].message).toBe('data inválida (use AAAA-MM-DD)')
   })
 })
 

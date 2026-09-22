@@ -189,6 +189,11 @@ function parseHiperlinkAccess(v: unknown): string | null {
   return toStr(endereco) ?? toStr(texto)
 }
 
+/** Sim/Não do Access chega como boolean pelo JSON do PowerShell. */
+function toBool(v: unknown): boolean | null {
+  return typeof v === 'boolean' ? v : null
+}
+
 function normSigla(v: unknown): string | null {
   const s = toStr(v)
   return s ? s.toUpperCase() : null
@@ -454,7 +459,7 @@ async function importarContratos() {
       descricao: toStr(row['Descrição']),
       dataInicio: parseAccessDate(row['Início']),
       dataVencimento: parseAccessDate(row['Término']),
-      vigente: typeof row['Vigente'] === 'boolean' ? row['Vigente'] : null,
+      vigente: toBool(row['Vigente']),
       linkSei: parseHiperlinkAccess(row['Link SEI']),
     }
     const contrato = await prisma.contrato.upsert({
@@ -677,7 +682,7 @@ async function importarTermosConfirmacao() {
 async function importarFaturamentos() {
   const s = novaStat('T_Faturamentos')
   const rows = queryAccess(
-    "SELECT [ID_Faturamento], Cliente, Contrato, [Mês], Ano FROM [T_Faturamentos]"
+    "SELECT [ID_Faturamento], Cliente, Contrato, [Mês], Ano, SEI, Complementar, OBS, UnidadeDestino, [Enviado Cliente], [Enviado GFP] FROM [T_Faturamentos]"
   )
   s.lidas = rows.length
 
@@ -705,6 +710,12 @@ async function importarFaturamentos() {
       // 1:N a este faturamento (ver §3.6 do design doc). Fica null de propósito.
       valor: null as number | null,
       situacao: null as string | null,
+      sei: toStr(row['SEI']),
+      complementar: toBool(row['Complementar']),
+      observacao: toStr(row['OBS']),
+      unidadeDestino: toStr(row['UnidadeDestino']),
+      enviadoCliente: toBool(row['Enviado Cliente']),
+      enviadoGfp: toBool(row['Enviado GFP']),
     }
     const fat = await prisma.faturamento.upsert({
       where: { legacyId },
@@ -719,7 +730,7 @@ async function importarFaturamentos() {
 async function importarNotasFiscais() {
   const s = novaStat('T_NotaFiscal')
   const rows = queryAccess(
-    "SELECT [ID_NotaFiscal], Faturamento, [DataEmissão], Valor FROM [T_NotaFiscal]"
+    "SELECT [ID_NotaFiscal], Faturamento, [DataEmissão], [Serviço], Qtde, Valor, Complementar FROM [T_NotaFiscal]"
   )
   s.lidas = rows.length
 
@@ -741,6 +752,9 @@ async function importarNotasFiscais() {
       numero: null as string | null,
       valor: toNum(row['Valor']),
       dataEmissao: parseAccessDate(row['DataEmissão']),
+      servico: toStr(row['Serviço']),
+      quantidade: toNum(row['Qtde']),
+      complementar: toBool(row['Complementar']),
     }
     await prisma.notaFiscal.upsert({
       where: { legacyId },

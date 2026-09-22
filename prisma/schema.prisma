@@ -245,6 +245,14 @@ model Faturamento {
   competenciaMes Int?
   valor          Decimal?     @db.Decimal(14, 2)
   situacao       String?
+  // Colunas reais de T_Faturamentos (Task 6): SEI, Complementar, OBS, UnidadeDestino,
+  // Enviado Cliente, Enviado GFP. O "serviço" do mockup vive na nota fiscal, não aqui.
+  sei            String?
+  complementar   Boolean?
+  observacao     String?
+  unidadeDestino String?
+  enviadoCliente Boolean?
+  enviadoGfp     Boolean?
   createdAt      DateTime     @default(now())
   notasFiscais   NotaFiscal[]
 
@@ -262,6 +270,10 @@ model NotaFiscal {
   numero        String?
   valor         Decimal?    @db.Decimal(14, 2)
   dataEmissao   DateTime?
+  // Colunas reais de T_NotaFiscal (Task 6): Serviço, Qtde, Complementar.
+  servico       String?
+  quantidade    Decimal?    @db.Decimal(14, 2)
+  complementar  Boolean?
   createdAt     DateTime    @default(now())
 
   @@index([faturamentoId])

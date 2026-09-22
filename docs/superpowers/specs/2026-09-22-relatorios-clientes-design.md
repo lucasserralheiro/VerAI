@@ -93,6 +93,15 @@ importação casa por essa sigla; se não houver `Cliente` correspondente no Ver
 casa por nome (frágil a divergência de grafia — ex. "SECRETARIA MUNICIPAL DA SAÚDE" vs. o nome que
 já estiver salvo no VerAI).
 
+**Revisão (22/09/2026, Task 2, Fix round 2):** "não casa por nome" vale mesmo quando criar o
+`Cliente` novo colidiria com o `nome` `@unique` de um `Cliente` já existente no VerAI (cadastrado à
+mão, ainda sem `siglaLegado`) — o script nunca anexa esse `Cliente` existente silenciosamente. A
+colisão é **reportada pra correção manual**: a linha é pulada (contada nas estatísticas com o
+motivo) e uma mensagem acionável é impressa no fim da importação, do tipo `Cliente "..." (sigla
+SMS) já existe no VerAI sem sigla — preencha siglaLegado=SMS nesse cliente (tela do cliente) e rode
+o import de novo`. Rodar o import de novo depois desse ajuste manual resolve a linha por
+`siglaLegado` normalmente.
+
 ### 3.5 Histórico do contrato é uma tabela só, com campo `Tipo` — não entidades separadas
 
 O diagrama original sugeria `Contrato → [Propostas, Aditivos]` como duas listas separadas. A tela

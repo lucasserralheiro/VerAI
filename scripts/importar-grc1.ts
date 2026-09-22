@@ -57,6 +57,14 @@
  *      sem casamento confiável é importada mesmo assim (`contratoId: null` +
  *      `contratoTextoLegado` com o texto original) em vez de pulada — reconciliação manual fica
  *      pra depois. Ver docs/superpowers/specs/2026-09-22-relatorios-clientes-design.md §3.6.
+ *   3. `importarClientes()` casa Cliente **só por `siglaLegado`** — nunca por `nome` (design doc
+ *      §3.4: nome é frágil a divergência de grafia com o legado). Uma versão anterior (Fix round 1)
+ *      tinha um fallback de casamento por `nome` que não estava no design nem coberto por teste;
+ *      removido no Fix round 2. Quando a linha não casa por `siglaLegado` e criar um `Cliente` novo
+ *      colidiria com o `nome` `@unique` de um `Cliente` já existente no VerAI (cadastrado à mão,
+ *      sem `siglaLegado`), a linha é PULADA — nunca anexada nem criada por baixo do pano — e uma
+ *      mensagem acionável é impressa no fim da função pra alguém preencher o `siglaLegado` manualmente
+ *      e rodar o import de novo.
  */
 
 import { PrismaClient, TipoHistoricoContrato, Prisma } from '@prisma/client'
@@ -214,7 +222,8 @@ const faturamentoByLegacyId = new Map<number, string>()
 const demandaByLegacyId = new Map<number, string>()
 
 // ---------------------------------------------------------------------------
-// 1. Cliente (casamento por siglaLegado — design doc §3.4) + ResponsavelCliente
+// 1. Cliente (casamento SÓ por siglaLegado — design doc §3.4, "não casa por nome") +
+//    ResponsavelCliente
 // ---------------------------------------------------------------------------
 
 async function importarClientes() {
@@ -223,6 +232,11 @@ async function importarClientes() {
     'SELECT [ID_Cliente], Sigla, Nome, [Endereço], [Nº], Bairro FROM [T_Cliente]'
   )
   s.lidas = rows.length
+
+  // Colisões de `nome` (Cliente novo bateria no @unique de um Cliente já existente no VerAI, sem
+  // siglaLegado) são coletadas e reportadas no fim, nunca resolvidas silenciosamente — casamento é
+  // só por siglaLegado (design doc §3.4).
+  const colisoesNome: string[] = []
 
   for (const row of rows) {
     const idCliente = toNum(row['ID_Cliente'])
@@ -236,12 +250,7 @@ async function importarClientes() {
     const numero = row['Nº'] === null || row['Nº'] === undefined ? null : String(row['Nº'])
     const bairro = toStr(row['Bairro'])
 
-    let existente = await prisma.cliente.findUnique({ where: { siglaLegado: sigla } })
-    if (!existente && nome) {
-      // Evita colidir com o @unique de `nome` quando já existe um Cliente com esse nome (cadastrado
-      // manualmente no VerAI antes da importação) mas ainda sem siglaLegado.
-      existente = await prisma.cliente.findUnique({ where: { nome } })
-    }
+    const existente = await prisma.cliente.findUnique({ where: { siglaLegado: sigla } })
 
     let cliente
     if (existente) {
@@ -250,6 +259,16 @@ async function importarClientes() {
         data: { siglaLegado: sigla, endereco, numero, bairro },
       })
     } else {
+      if (nome) {
+        const colisao = await prisma.cliente.findUnique({ where: { nome } })
+        if (colisao) {
+          pular(s, 'nome colide com Cliente existente sem siglaLegado')
+          colisoesNome.push(
+            `Cliente "${nome}" (sigla ${sigla}) já existe no VerAI sem sigla — preencha siglaLegado=${sigla} nesse cliente (tela do cliente) e rode o import de novo`
+          )
+          continue
+        }
+      }
       cliente = await prisma.cliente.create({
         data: { nome: nome ?? sigla, siglaLegado: sigla, endereco, numero, bairro },
       })
@@ -257,6 +276,10 @@ async function importarClientes() {
     clienteByLegacyId.set(idCliente, cliente.id)
     clienteBySigla.set(sigla, cliente.id)
     s.importadas++
+  }
+
+  for (const msg of colisoesNome) {
+    console.warn(`  ! ${msg}`)
   }
 }
 

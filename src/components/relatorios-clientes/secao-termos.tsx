@@ -3,8 +3,8 @@
 // Termo de confirmação é a ponte fornecedor ↔ cliente: a mesma lista/formulário aparece na aba
 // "Fornecedores" da ficha do cliente (`por="cliente"`, escolhe-se o fornecedor) e na ficha do
 // fornecedor (`por="fornecedor"`, escolhe-se o cliente). Mesma API: /api/termos-confirmacao.
-// O vínculo com um contrato de receita é exibido aqui, mas o seletor de contrato no formulário
-// entra com a Task 5 (é ela que cria a listagem de contratos do cliente).
+// O seletor "Contrato ligado" lista os contratos do cliente do termo (a API recusa contrato de
+// outro cliente).
 
 import { useEffect, useState, type FormEvent } from 'react'
 import { AlertCircle, FileSignature, Loader2, Plus } from 'lucide-react'
@@ -33,10 +33,11 @@ interface Opcao {
 }
 
 type CamposTexto = 'numero' | 'valor' | 'vigenciaInicio' | 'vigenciaFim' | 'sei' | 'observacao'
-type Formulario = Record<CamposTexto | 'outroLadoId', string>
+type Formulario = Record<CamposTexto | 'outroLadoId' | 'contratoId', string>
 
 const FORMULARIO_VAZIO: Formulario = {
   outroLadoId: '',
+  contratoId: '',
   numero: '',
   valor: '',
   vigenciaInicio: '',
@@ -57,6 +58,7 @@ const CAMPOS: Array<{ campo: CamposTexto; rotulo: string; tipo?: string }> = [
 function paraFormulario(termo: Termo, por: 'cliente' | 'fornecedor'): Formulario {
   return {
     outroLadoId: por === 'cliente' ? termo.fornecedorId : termo.clienteId,
+    contratoId: termo.contratoId ?? '',
     numero: termo.numero ?? '',
     valor: termo.valor ?? '',
     vigenciaInicio: termo.vigenciaInicio?.slice(0, 10) ?? '',
@@ -112,6 +114,32 @@ export function SecaoTermos({ por, id }: { por: 'cliente' | 'fornecedor'; id: st
     carregar().finally(() => setCarregando(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [por, id])
+
+  // Contratos do cliente do termo: o da página (aba do cliente) ou o escolhido no select (ficha do
+  // fornecedor). Recarrega quando esse cliente muda.
+  const clienteDoTermo = por === 'cliente' ? id : formulario.outroLadoId
+  const [contratos, setContratos] = useState<Opcao[]>([])
+  useEffect(() => {
+    if (editando === null || !clienteDoTermo) {
+      setContratos([])
+      return
+    }
+    let cancelado = false
+    fetch(`/api/clientes/${clienteDoTermo}/contratos`)
+      .then(async (response) => {
+        if (cancelado) return
+        if (!response.ok) {
+          setErro(await mensagemDeErro(response, 'Falha ao carregar os contratos do cliente.'))
+          return
+        }
+        const lista: Array<{ id: string; numeroTermo: string | null }> = await response.json()
+        if (!cancelado) setContratos(lista.map((c) => ({ id: c.id, rotulo: c.numeroTermo ?? '(sem número)' })))
+      })
+      .catch(() => !cancelado && setErro('Falha de conexão ao carregar os contratos do cliente.'))
+    return () => {
+      cancelado = true
+    }
+  }, [editando, clienteDoTermo])
 
   async function carregarOpcoes() {
     if (opcoes) return
@@ -225,7 +253,14 @@ export function SecaoTermos({ por, id }: { por: 'cliente' | 'fornecedor'; id: st
               <select
                 aria-label={rotuloOutroLado}
                 value={formulario.outroLadoId}
-                onChange={(e) => setFormulario((atual) => ({ ...atual, outroLadoId: e.target.value }))}
+                onChange={(e) =>
+                  // Na ficha do fornecedor, trocar o cliente invalida o contrato escolhido.
+                  setFormulario((atual) => ({
+                    ...atual,
+                    outroLadoId: e.target.value,
+                    contratoId: por === 'fornecedor' ? '' : atual.contratoId,
+                  }))
+                }
                 required
                 // O cliente de um termo já criado não muda (o acesso é checado por ele).
                 disabled={por === 'fornecedor' && editando !== 'novo'}
@@ -235,6 +270,23 @@ export function SecaoTermos({ por, id }: { por: 'cliente' | 'fornecedor'; id: st
                 {opcoes?.map((opcao) => (
                   <option key={opcao.id} value={opcao.id}>
                     {opcao.rotulo}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-xs font-medium text-mid-grey">Contrato ligado</span>
+              <select
+                aria-label="Contrato ligado"
+                value={formulario.contratoId}
+                onChange={(e) => setFormulario((atual) => ({ ...atual, contratoId: e.target.value }))}
+                disabled={!clienteDoTermo}
+                className={INPUT_BASE}
+              >
+                <option value="">Nenhum</option>
+                {contratos.map((contrato) => (
+                  <option key={contrato.id} value={contrato.id}>
+                    {contrato.rotulo}
                   </option>
                 ))}
               </select>

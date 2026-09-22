@@ -126,7 +126,7 @@ describe('ClienteDetalhePage', () => {
   })
 
   it('abas ainda não construídas mostram "Em construção"', async () => {
-    mockAba = 'contratos'
+    mockAba = 'faturamento'
     await renderPagina()
     expect(await screen.findByText('Em construção')).toBeInTheDocument()
   })

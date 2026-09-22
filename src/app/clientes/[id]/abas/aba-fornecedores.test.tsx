@@ -35,6 +35,12 @@ function mockApi(options: { lista?: unknown[]; erroLista?: boolean; erroPost?: s
         { id: 'f2', razaoSocial: 'BRASOFTWARE' },
       ])
     }
+    if (u === '/api/clientes/c1/contratos' && metodo === 'GET') {
+      return resposta(true, [
+        { id: 'k1', numeroTermo: 'TC 105/2025/SI' },
+        { id: 'k2', numeroTermo: 'TC 207/2023' },
+      ])
+    }
     if (u === '/api/termos-confirmacao' && metodo === 'POST') {
       if (options.erroPost) return resposta(false, { error: options.erroPost })
       const corpo = JSON.parse(String(init?.body))
@@ -83,6 +89,8 @@ describe('AbaFornecedores', () => {
     const select = await screen.findByLabelText('Fornecedor')
     await screen.findByRole('option', { name: 'BRASOFTWARE' })
     fireEvent.change(select, { target: { value: 'f2' } })
+    await screen.findByRole('option', { name: 'TC 207/2023' })
+    fireEvent.change(screen.getByLabelText('Contrato ligado'), { target: { value: 'k2' } })
     fireEvent.change(screen.getByLabelText('Nº do TC'), { target: { value: 'TC-0201' } })
     fireEvent.change(screen.getByLabelText('Valor'), { target: { value: '980.500,00' } })
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
@@ -95,7 +103,7 @@ describe('AbaFornecedores', () => {
     )
     const post = (global.fetch as jest.Mock).mock.calls.find(([, init]) => init?.method === 'POST')!
     expect(JSON.parse(post[1].body)).toEqual(
-      expect.objectContaining({ clienteId: 'c1', fornecedorId: 'f2', numero: 'TC-0201', valor: '980.500,00' })
+      expect.objectContaining({ clienteId: 'c1', fornecedorId: 'f2', contratoId: 'k2', numero: 'TC-0201', valor: '980.500,00' })
     )
     expect(await screen.findByText('BRASOFTWARE')).toBeInTheDocument()
   })

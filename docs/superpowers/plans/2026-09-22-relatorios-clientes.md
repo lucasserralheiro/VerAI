@@ -273,7 +273,20 @@ pelo `clienteId`.
 
 ### Task 5: Contratos — cabeçalho, histórico, itens e saldo
 
-**Status:** Não iniciada.
+**Status:** Concluída (commits `e2c5221`, `aad5087`, `72c3702` e o commit das telas). Colunas
+acrescentadas (migração `20260922200000_contrato_historico_colunas_legado`, aplicada no Postgres
+local): `Contrato.descricao/dataInicio/dataVencimento/vigente/linkSei` (`Término` do Access é o
+vencimento; `Link SEI` é hiperlink do Access, gravado sem os `#`) e
+`HistoricoContrato.objeto/proposta/situacao/dataInicio/dataVencimento/dataEnvio` (situação e proposta
+deixaram de ir concatenadas em `observacao`). Ficou de fora: os objetos OLE (Documento, Contrato,
+PublicaçãoDOM, Minuta, DocProposta, TA — Word embutido) e, em `T_ItensContrato`, Contr/Rev/Plan/Item,
+Classe, Anexo, vigência do item, Cod Prod e Unid. Reimport: T_ContratoReceita 37/42 (5 de cliente fora
+dos 6), T_Propostas 64/187 (121 sem contrato resolvido, 2 sem tipo). Saldo agregado no banco
+(`saldosDosContratos`: groupBy dos itens + SQL das notas fiscais via faturamento) — conferido no
+Postgres local contra soma direta (R$ 66.558.200,95 no TC 142/2021). **Atenção:** o saldo só faz
+sentido com TODOS os itens do contrato vinculados; com vínculo parcial ele fica negativo (a barra fica
+vermelha acima de 100%). O seletor de contrato no termo de confirmação (pendência da Task 4) entrou
+aqui. A aba padrão da ficha continua `documentos` (minor da Task 3, não tratado).
 
 **Files:**
 - Modify: `prisma/schema.prisma` + migração + `scripts/importar-grc1.ts` — conferir colunas reais de
@@ -321,12 +334,12 @@ importados ou cadastre os itens do contrato." (nunca mostra saldo negativo engan
 `quantidade × valorUnitario`. `contratoId` num PATCH de item tem que existir e o usuário tem que ver
 o cliente dele.
 
-- [ ] **Step 1:** Colunas do `.accdb`, schema + migração + import; reimportar e registrar contagens.
-- [ ] **Step 2:** `saldo.ts` e `vencimento.ts` com testes.
-- [ ] **Step 3:** Rotas de contrato/histórico/itens com testes.
-- [ ] **Step 4:** Aba Contratos e página de detalhe do contrato (com vinculação de itens). Incluir o
+- [x] **Step 1:** Colunas do `.accdb`, schema + migração + import; reimportar e registrar contagens.
+- [x] **Step 2:** `saldo.ts` e `vencimento.ts` com testes.
+- [x] **Step 3:** Rotas de contrato/histórico/itens com testes.
+- [x] **Step 4:** Aba Contratos e página de detalhe do contrato (com vinculação de itens). Incluir o
       seletor de contrato no formulário de termo de confirmação (pendência da Task 4).
-- [ ] **Step 5:** Commit.
+- [x] **Step 5:** Commit.
 
 ---
 

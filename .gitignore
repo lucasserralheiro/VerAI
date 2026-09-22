@@ -66,3 +66,7 @@ venv/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
+
+# workspace de execução do superpowers:subagent-driven-development (ledger,
+# briefs, relatórios) — scratch local, não faz parte do código
+/.superpowers/

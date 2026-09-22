@@ -51,7 +51,12 @@
  *      `descricao` (`"Nº 1615977 — <assunto>"`) pra não perder a informação.
  *   2. `T_ItensContrato` NÃO tem nenhuma chave de junção confiável para `T_ContratoReceita` nos
  *      dados reais — ver `importarItensContrato()` abaixo e o relatório da Task 2 pra detalhe
- *      completo. Reportado como concern; itens não resolvidos são pulados, não inventados.
+ *      completo. Reportado como concern no relatório inicial da Task 2; decisão do usuário depois
+ *      (Fix round 1): `ItemContrato.contratoId` virou opcional no schema (migração
+ *      `20260922143856_item_contrato_contrato_opcional`), ganhou `contratoTextoLegado`, e a linha
+ *      sem casamento confiável é importada mesmo assim (`contratoId: null` +
+ *      `contratoTextoLegado` com o texto original) em vez de pulada — reconciliação manual fica
+ *      pra depois. Ver docs/superpowers/specs/2026-09-22-relatorios-clientes-design.md §3.6.
  */
 
 import { PrismaClient, TipoHistoricoContrato, Prisma } from '@prisma/client'
@@ -464,9 +469,15 @@ async function importarHistoricoContrato() {
 // distintas, 33 delas fora dos 6 clientes deste GRC-1 (ex. SMDHC, TCM, IPREM, PGM) — é
 // aparentemente uma tabela de itens/produtos ampla da PRODAM, não escopada a este sistema.
 //
-// Decisão: implementa o casamento pretendido (Cliente da linha ↔ Cliente conhecido, texto do
-// campo "Contrato" ↔ `Contrato.numeroTermo` do mesmo cliente) mas NÃO inventa vínculo nenhum —
-// linha sem casamento confiável é pulada e contada, não é atribuída a um Contrato arbitrário.
+// Decisão do usuário (Fix round 1, depois do relatório inicial da Task 2): importar as 879 linhas
+// mesmo sem vínculo — `ItemContrato.contratoId` virou opcional (migração
+// `20260922143856_item_contrato_contrato_opcional`) e ganhou `contratoTextoLegado` pra guardar o
+// texto bruto da coluna "Contrato" quando não é possível casar. O script TENTA o casamento
+// pretendido (Cliente da linha ↔ Cliente conhecido, texto do campo "Contrato" ↔
+// `Contrato.numeroTermo` do mesmo cliente) e preenche `contratoId` nos poucos casos em que bate;
+// no resto (a imensa maioria, pelo levantamento acima), grava `contratoId: null` +
+// `contratoTextoLegado` com o valor original, em vez de pular a linha. Nenhuma linha é mais
+// descartada só por falta de vínculo — só por falta do próprio `legacyId`.
 // ---------------------------------------------------------------------------
 
 async function importarItensContrato() {
@@ -477,7 +488,7 @@ async function importarItensContrato() {
   s.lidas = rows.length
 
   // contratoLegacyId não serve aqui (a origem não expõe o ID interno do contrato pro item) —
-  // casamento é feito por texto (Contrato.numeroTermo) escopado ao Cliente da linha.
+  // casamento é feito por texto (Contrato.numeroTermo) escopado ao Cliente da linha, quando dá.
   const contratos = await prisma.contrato.findMany({ select: { id: true, clienteId: true, numeroTermo: true } })
   const porClienteETermo = new Map<string, string>()
   for (const c of contratos) {
@@ -485,31 +496,33 @@ async function importarItensContrato() {
     porClienteETermo.set(`${c.clienteId}::${c.numeroTermo.trim().toLowerCase()}`, c.id)
   }
 
+  let semVinculo = 0
+  let fallbackValorTotal = 0
+
   for (const row of rows) {
     const legacyId = toNum(row['Identificação'])
     if (legacyId === null) {
       pular(s, 'sem Identificação')
       continue
     }
+    const textoContrato = toStr(row['Contrato'])
     const sigla = normSigla(row['Cliente'])
     const clienteId = sigla ? clienteBySigla.get(sigla) : undefined
-    if (!clienteId) {
-      pular(s, 'Cliente da linha fora dos 6 clientes conhecidos (ou não resolvido)')
-      continue
-    }
-    const textoContrato = toStr(row['Contrato'])
-    const contratoId = textoContrato ? porClienteETermo.get(`${clienteId}::${textoContrato.toLowerCase()}`) : undefined
-    if (!contratoId) {
-      pular(s, 'Contrato não casado (texto "Contrato" não bate com nenhum numeroTermo do cliente)')
-      continue
-    }
+    const contratoId =
+      clienteId && textoContrato ? porClienteETermo.get(`${clienteId}::${textoContrato.toLowerCase()}`) ?? null : null
+
+    if (!contratoId) semVinculo++
+
     let valorTotal = toNum(row['Vl Total'])
     if (valorTotal === null) {
-      console.warn(`  ! ItemContrato legacyId=${legacyId}: "Vl Total" ausente, usando fallback 0`)
+      fallbackValorTotal++
       valorTotal = 0
     }
     const data = {
       contratoId,
+      // Só grava o texto legado quando NÃO conseguiu casar — quando casou, o vínculo estruturado
+      // (`contratoId`) já é a fonte de verdade e não precisa do texto bruto ao lado.
+      contratoTextoLegado: contratoId ? null : textoContrato,
       descricao: toStr(row['Descrição Produto']),
       quantidade: toNum(row['Qtd']),
       valorUnitario: toNum(row['Vl Unit']),
@@ -521,6 +534,13 @@ async function importarItensContrato() {
       update: data,
     })
     s.importadas++
+  }
+
+  if (semVinculo > 0) {
+    console.log(`  · ItemContrato: ${semVinculo}/${s.importadas} importados sem contratoId (contratoTextoLegado preenchido)`)
+  }
+  if (fallbackValorTotal > 0) {
+    console.warn(`  ! ItemContrato: ${fallbackValorTotal} linha(s) com "Vl Total" ausente, usando fallback 0`)
   }
 }
 

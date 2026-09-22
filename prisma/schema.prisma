@@ -172,21 +172,33 @@ model HistoricoContrato {
   @@index([contratoId])
 }
 
-// Item de contrato (T_ItensContrato) — base do cálculo de saldo (§3.6 do
-// design doc: saldo do contrato = soma de `valorTotal` dos itens − soma de
-// `NotaFiscal.valor` dos faturamentos do contrato). `valorTotal` é citado
-// nominalmente no design doc; `descricao`/`quantidade`/`valorUnitario` são
+// Item de contrato (T_ItensContrato) — base pretendida do cálculo de saldo (§3.6 do design doc).
+// `valorTotal` é citado nominalmente no design doc; `descricao`/`quantidade`/`valorUnitario` são
 // cadastro razoável — ver ressalva no relatório da Task 1.
+//
+// `contratoId` é OPCIONAL (mudança feita na Task 2, não na Task 1 original) — achado da Task 2:
+// não existe, nos dados reais, nenhuma chave de junção confiável entre `T_ItensContrato` e
+// `T_ContratoReceita` (nenhuma FK declarada no .accdb; o texto livre da coluna `Contrato` não bate
+// com nenhum campo identificador de `T_ContratoReceita`, mesmo escopado por cliente — 0/146 numa
+// checagem manual contra a cópia de teste; a coluna `Cliente` de T_ItensContrato cita 37 siglas,
+// a maioria fora dos clientes deste GRC-1, sugerindo uma tabela de itens mais ampla da PRODAM).
+// `contratoTextoLegado` guarda o valor bruto da coluna `Contrato` do Access pra permitir
+// reconciliação manual depois — ver
+// docs/superpowers/specs/2026-09-22-relatorios-clientes-design.md §3.6 (revisto) e o relatório da
+// Task 2 (.superpowers/sdd/2026-09-22-relatorios-clientes/task-2-report.md).
 model ItemContrato {
-  id            String   @id @default(cuid())
-  legacyId      Int?     @unique
-  contratoId    String
-  contrato      Contrato @relation(fields: [contratoId], references: [id])
-  descricao     String?
-  quantidade    Decimal? @db.Decimal(14, 2)
-  valorUnitario Decimal? @db.Decimal(14, 2)
-  valorTotal    Decimal  @db.Decimal(14, 2)
-  createdAt     DateTime @default(now())
+  id                  String    @id @default(cuid())
+  legacyId            Int?      @unique
+  contratoId          String?
+  contrato            Contrato? @relation(fields: [contratoId], references: [id])
+  // Valor bruto da coluna "Contrato" de T_ItensContrato (ex. "031/SEME/2017") quando não foi
+  // possível casar com um Contrato do VerAI — só preenchido quando `contratoId` é null.
+  contratoTextoLegado String?
+  descricao           String?
+  quantidade          Decimal?  @db.Decimal(14, 2)
+  valorUnitario       Decimal?  @db.Decimal(14, 2)
+  valorTotal          Decimal   @db.Decimal(14, 2)
+  createdAt           DateTime  @default(now())
 
   @@index([contratoId])
 }

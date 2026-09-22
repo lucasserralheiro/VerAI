@@ -70,11 +70,21 @@ Testing Library.
 
 ### Task 2: Script de importação do `.accdb`
 
-**Status:** Concluída, com concerns. Relatório completo:
-`.superpowers/sdd/2026-09-22-relatorios-clientes/task-2-report.md`.
+**Status:** Concluída, com concerns. Fix round 1 aplicado (22/09/2026): decisão do usuário de
+importar todas as linhas de `T_ItensContrato` mesmo sem vínculo confiável de contrato —
+`ItemContrato.contratoId` virou opcional + `contratoTextoLegado` novo (migração
+`20260922143856_item_contrato_contrato_opcional`), aplicada no Postgres local. Rodado de novo
+contra a cópia de teste: `T_ItensContrato` lidas=879, importadas=879, puladas=0 (0 delas com
+`contratoId` resolvido — confirma o achado original de que não há chave de junção nos dados reais);
+idempotente (rodado duas vezes, saída idêntica). `npx jest`: 507 passed, 7 skipped, 0 failed (68
+suites). Relatório completo (incl. "Fix round 1"):
+`.superpowers/sdd/2026-09-22-relatorios-clientes/task-2-report.md`. Ver também design doc §3.6
+(revisão 22/09/2026) para a consequência no cálculo de saldo do contrato.
 
 **Files:**
 - Create: `scripts/importar-grc1.ts`
+- Modify: `prisma/schema.prisma` (fix round 1 — `ItemContrato.contratoId` opcional)
+- Add: `prisma/migrations/20260922143856_item_contrato_contrato_opcional/`
 
 **Interfaces:**
 - Consumes: caminho de um `.accdb` local (argumento de linha de comando)

@@ -72,6 +72,18 @@ tabelas, schema e até os relacionamentos declarados (`MSysRelationships`) — s
 nem de driver ODBC do Windows. O script de importação (Task 2) roda em qualquer ambiente Linux com
 o arquivo em mãos; não depende do computador do usuário nem do Access instalado.
 
+**Revisão (22/09/2026, Task 2):** na prática, a máquina onde a Task 2 foi executada é **Windows**,
+sem `mdbtools`/`apt` disponível e sem toolchain de build nativo (sem Python/`node-gyp`) pra
+compilar uma lib npm nativa tipo `node-odbc`. O mecanismo efetivamente escolhido foi **PowerShell +
+OleDb** (`Microsoft.ACE.OLEDB.16.0`, já registrado no Windows): `scripts/importar-grc1.ts` chama
+`powershell.exe -EncodedCommand` via `child_process.execFileSync`, sem dependência nova no
+`package.json`. Dois detalhes de codificação (comando via `-EncodedCommand` em vez de `.ps1` em
+disco, resultado escrito em arquivo UTF-8 sem BOM em vez de lido do stdout) foram necessários pra
+identificador e valor acentuado (`T_Responsável`, `Solicitação`, ...) não corromperem — ver
+cabeçalho do script e `task-2-report.md` (Step 1) pro detalhe completo. `queryAccess()` é a única
+função presa a este mecanismo; em outro ambiente (Linux, com `mdbtools` instalado) só ela precisaria
+ser reescrita.
+
 ### 3.4 Mapeamento Cliente legado ↔ `Cliente` do VerAI: campo de sigla
 
 `Cliente` do VerAI ganha um campo `siglaLegado String? @unique` guardando a sigla do GRC-1 (`SMS`,
@@ -99,6 +111,28 @@ nas duas crosstabs existentes, `XC_FaturamentoMensal_Cliente` e `XC_Total` — n
 − soma de `NotaFiscal.valor` dos faturamentos daquele contrato**. Cálculo por item específico ficou
 fora de escopo por enquanto — exigiria criar um vínculo Nota Fiscal → Item que não existe no legado
 (`NotaFiscal` liga só a `Faturamento`, que liga a `Contrato` como um todo, não a um item).
+
+**Revisão (22/09/2026, Task 2):** a Task 2 (script de importação) investigou o vínculo
+`T_ItensContrato` → `T_ContratoReceita` que o saldo acima pressupõe e não encontrou **nenhuma
+chave de junção confiável nos dados reais**: `T_ItensContrato` não tem FK declarada no `.accdb`
+pra `T_ContratoReceita` (conferido via `OleDbSchemaGuid.Foreign_Keys`), e o texto livre da coluna
+`Contrato` (ex. `"031/SEME/2017"`) não bate com nenhum campo identificador de `T_ContratoReceita`
+(`Nº do Termo`, `Documento`, `SEI`) mesmo escopando por cliente — **0 de 146** linhas checadas
+manualmente na cópia de teste. A coluna `Cliente` de `T_ItensContrato` cita 37 siglas distintas, a
+maioria fora dos 6 clientes deste GRC-1, sugerindo que é uma tabela de itens/produtos mais ampla da
+PRODAM, não escopada a este sistema — consistente com o achado acima de que o próprio legado nunca
+cruza as duas tabelas.
+
+Decisão do usuário (fix round 1 da Task 2): em vez de descartar a linha sem vínculo,
+`ItemContrato.contratoId` virou **opcional** e ganhou `contratoTextoLegado` (texto bruto da coluna
+`Contrato` quando não casou) — migração `20260922143856_item_contrato_contrato_opcional`. O script
+importa as 879 linhas de `T_ItensContrato` da cópia de teste mesmo assim; na prática, **nenhuma**
+delas casou com um `Contrato` conhecido (0/879 com `contratoId` preenchido). **Consequência direta
+pro saldo deste parágrafo:** hoje ele só soma itens com `contratoId` preenchido, que é
+essencialmente nenhum — o saldo por contrato precisa ser exibido com uma ressalva explícita
+("sem itens reconciliados") até a reconciliação manual acontecer. A tela de reconciliação é a
+própria edição de `ItemContrato` pra setar seu `Contrato` (Task 5, cadastro de itens) — não há
+tela dedicada nova prevista só pra isso.
 
 ### 3.7 Navegação: sub-áreas dentro de "Relatórios dos clientes"
 

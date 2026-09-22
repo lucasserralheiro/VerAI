@@ -70,11 +70,11 @@ Testing Library.
 
 ### Task 2: Script de importação do `.accdb`
 
-**Status:** Não iniciada.
+**Status:** Concluída, com concerns. Relatório completo:
+`.superpowers/sdd/2026-09-22-relatorios-clientes/task-2-report.md`.
 
 **Files:**
-- Create: `scripts/importar-grc1.ts` (ou `.mjs`, seguir o padrão de `apply_migration.mjs`/
-  `check_state.mjs` já existentes na raiz do repo)
+- Create: `scripts/importar-grc1.ts`
 
 **Interfaces:**
 - Consumes: caminho de um `.accdb` local (argumento de linha de comando)
@@ -82,17 +82,25 @@ Testing Library.
   (Cliente/Fornecedor primeiro → Contrato/ContratoOperacionalizacao → HistoricoContrato/
   ItemContrato/TermoConfirmacao/Faturamento/Demanda → NotaFiscal/TramiteDemanda)
 
-- [ ] **Step 1:** Decidir mecanismo de leitura do `.accdb` a partir do Node/TypeScript do VerAI —
-      `mdbtools` via `child_process` (shell out pros binários `mdb-export`/`mdb-tables`, já
-      validado no levantamento) ou uma lib Node nativa para Access, se existir uma confiável;
-      registrar a escolha aqui
-- [ ] **Step 2:** Uma função de import por tabela, na ordem de dependência de FK acima, cada uma
-      fazendo upsert por `legacyId`
-- [ ] **Step 3:** Rodar contra o `.accdb` real (uma cópia de teste, não o arquivo de produção do
-      usuário) e conferir contagem de linhas migradas por tabela bate com o legado (§6 do design
-      doc: `T_Cliente` 6, `T_ContratoReceita` 45, `T_ItensContrato` 879, `T_Propostas` 5.368,
-      `T_Faturamentos` 635, `T_NotaFiscal` 158, `T_Documento` 138)
-- [ ] **Step 4:** Commit
+- [x] **Step 1:** Mecanismo de leitura decidido: **não `mdbtools`** (a máquina que rodou esta
+      task é Windows, sem `mdbtools`/`apt`, e sem toolchain de build nativo pra instalar algo como
+      `node-odbc`). Rota escolhida, sem dependência nova nenhuma no `package.json`:
+      `child_process.execFileSync('powershell.exe', ['-EncodedCommand', ...])` abrindo
+      `System.Data.OleDb.OleDbConnection` (provider `Microsoft.ACE.OLEDB.16.0`, já registrado no
+      Windows) e devolvendo o resultado via arquivo JSON temporário (não pelo stdout — os dois
+      caminhos óbvios, script `.ps1` em disco e stdout capturado, quebram encoding de
+      identificador/valor acentuado no PowerShell 5.1; detalhe completo no cabeçalho de
+      `scripts/importar-grc1.ts` e no relatório da Task 2). Em outro ambiente (Linux, com
+      `mdbtools`), o mecanismo de leitura precisaria ser reescrito — só a função `queryAccess()`
+      muda, o resto do script (parsing/mapeamento/upsert) é agnóstico à origem.
+- [x] **Step 2:** Uma função de import por tabela, na ordem de dependência de FK acima, cada uma
+      fazendo upsert por `legacyId`.
+- [x] **Step 3:** Rodado contra a cópia de teste do usuário. Números batem só parcialmente com os
+      esperados aqui (a cópia de teste tem menos linhas que a produção nalgumas tabelas, e duas
+      tabelas — `T_ItensContrato` e `T_Propostas` — têm um problema de integridade referencial nos
+      dados que reduz bastante o quanto dá pra importar; **concern**, ver relatório completo da
+      Task 2 antes de rodar contra o arquivo de produção.
+- [x] **Step 4:** Commit.
 
 ---
 

@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Relatórios dos Clientes — Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-900:#0b1f3f;
+    --navy-800:#122a52;
+    --navy-700:#1c3766;
+    --navy-600:#2c4b86;
+    --orange-500:#ef9433;
+    --orange-600:#dd7f19;
+    --paper:#f5f6f9;
+    --surface:#ffffff;
+    --ink:#1a2233;
+    --ink-soft:#5b6478;
+    --line:#e3e6ed;
+    --ok-bg:#e7f5ec; --ok-fg:#1a7a4c;
+    --warn-bg:#fdf2e0; --warn-fg:#a3650c;
+    --danger-bg:#fbe8e6; --danger-fg:#b13327;
+    --neutral-bg:#eef0f4; --neutral-fg:#5b6478;
+    font-size:16px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#0e1420; --surface:#161d2c; --ink:#eef1f6; --ink-soft:#9aa3b8;
+      --line:#28324a; --neutral-bg:#212a3d; --neutral-fg:#9aa3b8;
+      --ok-bg:#123326; --ok-fg:#5fd394; --warn-bg:#3a2b0e; --warn-fg:#f0b256;
+      --danger-bg:#3a1613; --danger-fg:#f28d82;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0e1420; --surface:#161d2c; --ink:#eef1f6; --ink-soft:#9aa3b8;
+    --line:#28324a; --neutral-bg:#212a3d; --neutral-fg:#9aa3b8;
+    --ok-bg:#123326; --ok-fg:#5fd394; --warn-bg:#3a2b0e; --warn-fg:#f0b256;
+    --danger-bg:#3a1613; --danger-fg:#f28d82;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:"Public Sans",system-ui,-apple-system,Segoe UI,sans-serif;
+    display:flex; min-height:100vh;
+  }
+  .mono{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace; font-variant-numeric:tabular-nums;}
+  img{max-width:100%}
+  [hidden]{display:none!important}
+  a{color:inherit}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:250px; flex:none; background:var(--navy-900); color:#cfd8ea;
+    display:flex; flex-direction:column; padding:20px 14px;
+    position:sticky; top:0; height:100vh; overflow-y:auto;
+  }
+  .brand{display:flex; align-items:center; gap:10px; padding:4px 8px 20px; color:#fff;}
+  .brand .mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--orange-500),var(--orange-600));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:var(--navy-900);}
+  .brand .word{font-weight:700; font-size:17px; letter-spacing:.2px;}
+  .navgroup-label{font-size:11px; font-weight:700; letter-spacing:.08em; color:#7b88a8; padding:14px 10px 6px; text-transform:uppercase;}
+  .navgroup{border-radius:10px; overflow:hidden; margin-bottom:2px;}
+  .navgroup.open{background:var(--navy-800);}
+  .navhead{display:flex; align-items:center; gap:10px; padding:9px 10px; font-size:13.5px; font-weight:600; color:#e6ebf5; cursor:default;}
+  .navgroup.open .navhead{color:#fff;}
+  .navgroup:not(.open) .navhead{border-radius:8px;}
+  .navgroup:not(.open) .navhead:hover{background:var(--navy-800);}
+  .navhead .dot{width:6px;height:6px;border-radius:50%;background:var(--orange-500); flex:none; opacity:0;}
+  .navgroup.open .navhead .dot{opacity:1;}
+  .subnav{display:flex; flex-direction:column; padding:2px 6px 8px 30px; gap:1px;}
+  .subnav a{display:block; padding:7px 10px; border-radius:7px; font-size:13px; color:#aab6cf; text-decoration:none;}
+  .subnav a:hover{background:var(--navy-700); color:#fff;}
+  .subnav a.active{background:var(--orange-500); color:var(--navy-900); font-weight:700;}
+  .sidebar-foot{margin-top:auto; padding:14px 10px 4px; font-size:11.5px; color:#5f6b8a; border-top:1px solid var(--navy-800);}
+
+  /* ---------- Main ---------- */
+  .main{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .topbar{
+    position:sticky; top:0; z-index:5; background:var(--surface); border-bottom:1px solid var(--line);
+    padding:16px 28px; display:flex; flex-direction:column; gap:14px;
+  }
+  .crumbs{font-size:12.5px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;}
+  .crumbs .sep{opacity:.5}
+  .proto-badge{margin-left:auto; font-size:11px; font-weight:600; color:var(--orange-600); background:var(--warn-bg); border:1px solid var(--orange-500); padding:3px 9px; border-radius:999px;}
+  .crumbs-row{display:flex; align-items:center;}
+  .client-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;}
+  .client-id{display:flex; align-items:center; gap:12px;}
+  .sigla-chip{
+    font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:15px; letter-spacing:.02em;
+    background:var(--navy-900); color:#fff; padding:8px 12px; border-radius:9px;
+  }
+  .client-name{font-size:21px; font-weight:800; letter-spacing:-.01em;}
+  .client-meta{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+  .btn{
+    display:inline-flex; align-items:center; gap:7px; border-radius:9px; border:1px solid var(--line);
+    background:var(--surface); color:var(--ink); font:inherit; font-weight:600; font-size:13px;
+    padding:9px 14px; cursor:pointer;
+  }
+  .btn:hover{border-color:var(--navy-600)}
+  .btn-primary{background:var(--navy-900); color:#fff; border-color:var(--navy-900);}
+  .btn-primary:hover{background:var(--navy-700); border-color:var(--navy-700);}
+  .btn-accent{background:var(--orange-500); color:var(--navy-900); border-color:var(--orange-500);}
+  .btn-accent:hover{background:var(--orange-600); border-color:var(--orange-600);}
+  .btn svg{width:15px;height:15px}
+
+  .kpis{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px;}
+  .kpi{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:13px 15px;}
+  .kpi .label{font-size:11.5px; color:var(--ink-soft); font-weight:600; text-transform:uppercase; letter-spacing:.04em;}
+  .kpi .value{font-family:"IBM Plex Mono",monospace; font-size:21px; font-weight:600; margin-top:4px; font-variant-numeric:tabular-nums;}
+  .kpi .sub{font-size:11.5px; color:var(--ink-soft); margin-top:2px;}
+
+  .tabs{display:flex; gap:4px; padding:0 28px; border-bottom:1px solid var(--line); background:var(--surface); overflow-x:auto;}
+  .tab{padding:12px 6px; font-size:13.5px; font-weight:600; color:var(--ink-soft); border-bottom:2.5px solid transparent; cursor:pointer; white-space:nowrap; background:none; border-left:none; border-right:none; border-top:none; font-family:inherit;}
+  .tab.active{color:var(--navy-900); border-bottom-color:var(--orange-500);}
+  :root[data-theme="dark"] .tab.active, @media (prefers-color-scheme:dark){ .tab.active{color:#fff} }
+
+  .panel{padding:22px 28px 40px; display:flex; flex-direction:column; gap:18px;}
+  .panel-head{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+  .panel-title{font-size:15px; font-weight:700;}
+  .panel-hint{font-size:12px; color:var(--ink-soft);}
+
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  .table-wrap{border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--surface);}
+  .table-scroll{overflow-x:auto;}
+  thead th{
+    text-align:left; font-size:11px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em;
+    padding:10px 14px; background:var(--neutral-bg); border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  tbody td{padding:12px 14px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--neutral-bg);}
+  .cell-strong{font-weight:600;}
+  .cell-mono{font-family:"IBM Plex Mono",monospace; font-size:12.5px; color:var(--ink-soft);}
+
+  .pill{display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:4px 9px; border-radius:999px; white-space:nowrap;}
+  .pill-ok{background:var(--ok-bg); color:var(--ok-fg);}
+  .pill-warn{background:var(--warn-bg); color:var(--warn-fg);}
+  .pill-danger{background:var(--danger-bg); color:var(--danger-fg);}
+  .pill-neutral{background:var(--neutral-bg); color:var(--neutral-fg);}
+  .pill::before{content:""; width:6px; height:6px; border-radius:50%; background:currentColor;}
+
+  .saldo-bar{width:96px; height:6px; border-radius:999px; background:var(--neutral-bg); overflow:hidden;}
+  .saldo-bar span{display:block; height:100%; background:var(--navy-600); border-radius:999px;}
+  .saldo-txt{font-size:11px; color:var(--ink-soft); margin-top:3px;}
+
+  .timeline{display:flex; flex-direction:column; gap:0; margin-top:4px;}
+  .tl-row{display:flex; gap:12px; position:relative; padding-bottom:16px;}
+  .tl-row:last-child{padding-bottom:0;}
+  .tl-line{width:16px; flex:none; display:flex; flex-direction:column; align-items:center;}
+  .tl-dot{width:9px;height:9px;border-radius:50%; background:var(--orange-500); margin-top:5px; flex:none; box-shadow:0 0 0 3px var(--surface);}
+  .tl-row:not(:last-child) .tl-line::after{content:""; flex:1; width:1.5px; background:var(--line); margin-top:2px;}
+  .tl-body{flex:1; display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 12px; font-size:12.5px;}
+  .tl-tipo{font-weight:700; font-size:12px;}
+  .tl-desc{color:var(--ink-soft);}
+
+  .card-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px;}
+  .contact-card{border:1px solid var(--line); border-radius:12px; padding:14px; background:var(--surface); display:flex; flex-direction:column; gap:3px;}
+  .contact-card .name{font-weight:700; font-size:13.5px;}
+  .contact-card .role{font-size:11.5px; color:var(--ink-soft);}
+  .contact-card .line{font-size:12px; margin-top:6px; display:flex; gap:6px; align-items:center; color:var(--ink-soft);}
+
+  .empty-note{font-size:12px; color:var(--ink-soft); padding:14px; text-align:center;}
+
+  @media (max-width:900px){
+    .sidebar{position:fixed; left:0; top:0; height:100vh; transform:translateX(-100%); transition:transform .2s; z-index:20;}
+    .kpis{grid-template-columns:repeat(2,1fr);}
+    .topbar, .panel{padding-left:16px; padding-right:16px;}
+    .tabs{padding-left:16px; padding-right:16px;}
+  }
+</style>
+</head>
+<body>
+
+  <aside class="sidebar" aria-label="Navegação principal">
+    <div class="brand"><div class="mark">V</div><div class="word">VerAI</div></div>
+
+    <div class="navgroup-label">Relatórios</div>
+
+    <div class="navgroup open">
+      <div class="navhead"><span class="dot"></span>Relatórios dos clientes</div>
+      <div class="subnav">
+        <a class="active" href="#clientes">Clientes</a>
+        <a href="#contratos">Contratos</a>
+        <a href="#faturamento">Faturamento</a>
+        <a href="#fornecedores">Fornecedores</a>
+        <a href="#demandas">Demandas</a>
+        <a href="#solicitacoes">Solicitações</a>
+      </div>
+    </div>
+
+    <div class="navgroup">
+      <div class="navhead">Proposta Comercial</div>
+    </div>
+
+    <div class="navgroup">
+      <div class="navhead">ConfereAI</div>
+    </div>
+
+    <div class="sidebar-foot">GRI · Gerência de Inovação</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs-row">
+        <div class="crumbs">Relatórios dos clientes <span class="sep">/</span> Clientes <span class="sep">/</span> SMS</div>
+        <div class="proto-badge">Protótipo — dados ilustrativos</div>
+      </div>
+
+      <div class="client-head">
+        <div class="client-id">
+          <div class="sigla-chip">SMS</div>
+          <div>
+            <div class="client-name">Secretaria Municipal da Saúde</div>
+            <div class="client-meta">Rua Dr. Siqueira Campos, 176 — Liberdade · 3 responsáveis cadastrados</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn">Editar cliente</button>
+          <button class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Novo contrato
+          </button>
+        </div>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi"><div class="label">Contratos ativos</div><div class="value">4</div><div class="sub">1 vencendo em 30 dias</div></div>
+        <div class="kpi"><div class="label">Valor contratado</div><div class="value">R$ 121,3 mi</div><div class="sub">soma dos contratos vigentes</div></div>
+        <div class="kpi"><div class="label">Faturado (mês)</div><div class="value">R$ 6,2 mi</div><div class="sub">agosto/2026 · 8 lançamentos</div></div>
+        <div class="kpi"><div class="label">Demandas abertas</div><div class="value">5</div><div class="sub">2 há mais de 30 dias</div></div>
+      </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="contratos">Contratos</button>
+      <button class="tab" data-tab="faturamento">Faturamento</button>
+      <button class="tab" data-tab="fornecedores">Fornecedores</button>
+      <button class="tab" data-tab="demandas">Demandas</button>
+      <button class="tab" data-tab="responsaveis">Responsáveis</button>
+    </nav>
+
+    <!-- CONTRATOS -->
+    <section class="panel" data-panel="contratos">
+      <div class="panel-head">
+        <div><div class="panel-title">Contratos de receita</div><div class="panel-hint">Cabeçalho + histórico (contrato, aditivo, prorrogação, rescisão) numa linha do tempo só</div></div>
+        <button class="btn btn-accent">+ Novo contrato</button>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>Nº do termo</th><th>Descrição</th><th>SEI cliente</th><th>Situação</th><th>Vencimento</th><th>Valor</th><th>Saldo</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td class="cell-mono cell-strong">TC 105/2025/SI</td>
+              <td>Data Center</td>
+              <td class="cell-mono">6018.2025/0126067-0</td>
+              <td><span class="pill pill-danger">vence em 12d</span></td>
+              <td class="cell-mono">30/11/2026</td>
+              <td class="cell-mono cell-strong">R$ 81.031.443,62</td>
+              <td><div class="saldo-bar"><span style="width:62%"></span></div><div class="saldo-txt">62% faturado</div></td>
+            </tr>
+            <tr>
+              <td class="cell-mono cell-strong">TC 207/2023</td>
+              <td>Virtualização de desktops cloud</td>
+              <td class="cell-mono">6018.2023/0122629-0</td>
+              <td><span class="pill pill-warn">vence em 96d</span></td>
+              <td class="cell-mono">27/12/2026</td>
+              <td class="cell-mono cell-strong">R$ 22.291.200,00</td>
+              <td><div class="saldo-bar"><span style="width:38%"></span></div><div class="saldo-txt">38% faturado</div></td>
+            </tr>
+            <tr>
+              <td class="cell-mono cell-strong">TC 107/2025/SI</td>
+              <td>Sustentação de TIC</td>
+              <td class="cell-mono">6018.2023/0134201-3</td>
+              <td><span class="pill pill-ok">vigente</span></td>
+              <td class="cell-mono">21/12/2026</td>
+              <td class="cell-mono cell-strong">R$ 81.031.443,62</td>
+              <td><div class="saldo-bar"><span style="width:81%"></span></div><div class="saldo-txt">81% faturado</div></td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <div class="panel-head" style="margin-top:6px;">
+        <div><div class="panel-title" style="font-size:13.5px;">Histórico — TC 207/2023</div><div class="panel-hint">Cada linha é um <span class="mono" style="font-size:11.5px">Tipo</span>: contrato, aditivo, prorrogação, rescisão ou prospecção</div></div>
+      </div>
+      <div class="table-wrap" style="padding:16px 18px;">
+        <div class="timeline">
+          <div class="tl-row">
+            <div class="tl-line"><div class="tl-dot" style="background:var(--navy-600)"></div></div>
+            <div class="tl-body"><span class="pill pill-neutral tl-tipo">Prospecção</span><span class="tl-desc">PC-SF-231004 · 04/10/2023</span></div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-line"><div class="tl-dot"></div></div>
+            <div class="tl-body"><span class="pill pill-ok tl-tipo">Contrato</span><span class="tl-desc">Assinado em 12/12/2023 · R$ 18.400.000,00</span></div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-line"><div class="tl-dot"></div></div>
+            <div class="tl-body"><span class="pill pill-warn tl-tipo">Aditivo</span><span class="tl-desc">TA 003/2025 · +R$ 3.891.200,00 · 22/12/2025</span></div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-line"><div class="tl-dot"></div></div>
+            <div class="tl-body"><span class="pill pill-warn tl-tipo">Prorrogação</span><span class="tl-desc">Carta_005_2025_Concordância · vencimento 27/12/2026</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FATURAMENTO -->
+    <section class="panel" data-panel="faturamento" hidden>
+      <div class="panel-head">
+        <div><div class="panel-title">Faturamento</div><div class="panel-hint">Um lançamento por mês/contrato, com notas fiscais associadas</div></div>
+        <button class="btn btn-accent">+ Novo faturamento</button>
+      </div>
+      <div class="table-wrap">
+        <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>Contrato</th><th>Competência</th><th>SEI faturamento</th><th>Serviço</th><th>Valor</th><th>Enviado cliente</th><th>Enviado GFP</th>
+          </tr></thead>
+          <tbody>
+            <tr><td class="cell-mono cell-strong">TC 107/2025/SI</td><td class="cell-mono">08/2026</td><td class="cell-mono">7010.2026/0009363-0</td><td>Data Center</td><td class="cell-mono">R$ 6.752.620,30</td><td><span class="pill pill-ok">sim</span></td><td><span class="pill pill-neutral">pendente</span></td></tr>
+            <tr><td class="cell-mono cell-strong">TC 107/2025/SI</td><td class="cell-mono">08/2026</td><td class="cell-mono">7010.2026/0009360-6</td><td>Redes e Conectividade</td><td class="cell-mono">R$ 1.204.900,00</td><td><span class="pill pill-ok">sim</span></td><td><span class="pill pill-ok">sim</span></td></tr>
+            <tr><td class="cell-mono cell-strong">TC 207/2023</td><td class="cell-mono">07/2026</td><td class="cell-mono">7010.2026/0008279-5</td><td>DaaS</td><td class="cell-mono">R$ 892.310,50</td><td><span class="pill pill-ok">sim</span></td><td><span class="pill pill-ok">sim</span></td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- FORNECEDORES -->
+    <section class="panel" data-panel="fornecedores" hidden>
+      <div class="panel-head">
+        <div><div class="panel-title">Fornecedores ligados a este cliente</div><div class="panel-hint">Via termo de confirmação (ponte fornecedor ↔ contrato de receita)</div></div>
+        <button class="btn btn-accent">+ Novo termo de confirmação</button>
+      </div>
+      <div class="table-wrap">
+        <div class="table-scroll">
+        <table>
+          <thead><tr><th>Fornecedor</th><th>Nº do TC</th><th>Contrato ligado</th><th>Valor</th><th>Vigência</th><th>Processo SEI</th></tr></thead>
+          <tbody>
+            <tr><td class="cell-strong">Almaviva</td><td class="cell-mono">TC-0192</td><td class="cell-mono">TC 105/2025/SI</td><td class="cell-mono">R$ 4.120.000,00</td><td class="cell-mono">23/09/25 – 22/09/26</td><td class="cell-mono">7010.2025/0005275-1</td></tr>
+            <tr><td class="cell-strong">Brasoftware</td><td class="cell-mono">TC-0201</td><td class="cell-mono">TC 207/2023</td><td class="cell-mono">R$ 980.500,00</td><td class="cell-mono">30/03/23 – 29/03/26</td><td class="cell-mono">7010.2021/0011723-4</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEMANDAS -->
+    <section class="panel" data-panel="demandas" hidden>
+      <div class="panel-head">
+        <div><div class="panel-title">Demandas e solicitações</div><div class="panel-hint">Assuntos em aberto, com trâmite (posição/ação/retorno)</div></div>
+        <button class="btn btn-accent">+ Nova demanda</button>
+      </div>
+      <div class="table-wrap">
+        <div class="table-scroll">
+        <table>
+          <thead><tr><th>Assunto</th><th>Tipo</th><th>Responsável</th><th>Posição atual</th><th>Desde</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td class="cell-strong">Prorrogação para implantação do SIGPEC — Fase 3</td><td><span class="pill pill-neutral">Outros</span></td><td>Vera</td><td>Aguardando retorno da SMS</td><td class="cell-mono">18/07/26</td><td><span class="pill pill-warn">em aberto</span></td></tr>
+            <tr><td class="cell-strong">Validação do termo de recebimento definitivo</td><td><span class="pill pill-neutral">Comercial</span></td><td>Zé Maria</td><td>Encaminhado para jurídico</td><td class="cell-mono">30/01/26</td><td><span class="pill pill-danger">45 dias</span></td></tr>
+            <tr><td class="cell-strong">Liberação VPN SMTUR</td><td><span class="pill pill-neutral">Proposta/TC/TA</span></td><td>Vera</td><td>Concluído</td><td class="cell-mono">03/06/25</td><td><span class="pill pill-ok">resolvido</span></td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- RESPONSÁVEIS -->
+    <section class="panel" data-panel="responsaveis" hidden>
+      <div class="panel-head">
+        <div><div class="panel-title">Responsáveis de contato</div><div class="panel-hint">Ponto focal do cliente para essa conta</div></div>
+        <button class="btn btn-accent">+ Novo responsável</button>
+      </div>
+      <div class="card-grid">
+        <div class="contact-card">
+          <div class="name">Leandro de Souza Zan</div>
+          <div class="role">Infraestrutura</div>
+          <div class="line">lzan@prefeitura.sp.gov.br</div>
+        </div>
+        <div class="contact-card">
+          <div class="name">Felipe Soares Neves</div>
+          <div class="role">Sistemas</div>
+          <div class="line">felipeneves@prefeitura.sp.gov.br</div>
+        </div>
+        <div class="contact-card">
+          <div class="name">Suzana Carvalho do Nascimento</div>
+          <div class="role">Faturamento</div>
+          <div class="line">suzanacnascimento@prefeitura.sp.gov.br</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+<script>
+  document.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var name = tab.getAttribute('data-tab');
+      document.querySelectorAll('[data-panel]').forEach(function(p){
+        p.hidden = (p.getAttribute('data-panel') !== name);
+      });
+    });
+  });
+</script>
+</body>
+</html>

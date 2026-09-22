@@ -2,11 +2,10 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking. **Este plano está em grão de tarefa — a Task 1 já tem
-> os campos definidos (ver design doc §4), mas as Tasks 3–8 (uma por domínio de CRUD) ainda
-> precisam de uma passada de detalhamento — decidir validação de campo, formato de tela, e se tem
-> exclusão — antes de virarem passo a passo com testes, como as tasks completas em
-> `docs/superpowers/plans/2026-08-19-clientes-fundacao.md` fazem. Não pule essa passada.**
+> checkbox (`- [ ]`) syntax for tracking. **A passada de detalhamento das Tasks 3–8 foi feita em
+> 22/09/2026 — decisões com o usuário na seção "Decisões da passada de detalhamento" (depois da
+> Task 2). Cada task lista arquivos, rotas, validação e testes; o código fica com o implementador,
+> seguindo as "Convenções técnicas".**
 
 **Goal:** Migrar o sistema legado GRC-1 (Access, `ControleGEN-1.accdb`) inteiro para dentro do
 VerAI — cadastro completo (não só consulta) de clientes, fornecedores, contratos, faturamento e
@@ -14,7 +13,7 @@ demandas — para permitir a descontinuação do Access.
 
 **Architecture:** Ver `docs/superpowers/specs/2026-09-22-relatorios-clientes-design.md` — resumo:
 12 models Prisma novos (mapeamento completo no design doc §4), um script de importação que lê o
-`.accdb` via `mdbtools` e faz upsert idempotente (por `legacyId`), e uma tela por domínio dentro do
+`.accdb` (PowerShell + OleDb no Windows — ver Task 2) e faz upsert idempotente (por `legacyId`), e uma tela por domínio dentro do
 grupo de menu "Relatórios dos clientes" — cada uma com criar/editar, seguindo os padrões já usados
 em `/admin/usuarios` e `/clientes` (rota REST + página client-component com fetch nativo — **não**
 axios, o projeto não usa axios em lugar nenhum, ver `src/lib/confere/cliente.ts` como referência de
@@ -33,7 +32,8 @@ Testing Library.
 - Todo texto de UI/erro em português, seguindo o vocabulário já usado no projeto ("não
   autenticado", "acesso negado", etc.).
 - Convenção de commit: `git commit -m "tipo: descrição"` em português, terminando com
-  `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`.
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` (as Tasks 1–2 usaram
+  `Claude Sonnet 5`).
 - Referência completa: `docs/superpowers/specs/2026-09-22-relatorios-clientes-design.md`.
 
 ---
@@ -114,67 +114,312 @@ suites). Relatório completo (incl. "Fix round 1"):
 
 ---
 
-### Task 3: Cliente — extensão + tela de Responsáveis
+## Decisões da passada de detalhamento (22/09/2026, com o usuário)
 
-**Status:** Não iniciada. *(precisa de passada de detalhamento — ver nota no topo)*
+Tomadas antes de detalhar as Tasks 3–8 — valem para todas elas (registradas também no design doc
+§3.8):
 
-- [ ] Adaptar `/clientes` e `/clientes/[id]` (já existentes) para os campos novos de `Cliente`
-      (sigla, endereço) e a lista de `ResponsavelCliente`
-- [ ] Cadastro (criar/editar) de responsável dentro da ficha do cliente
-- [ ] Decidir: tem exclusão de responsável? (Access tem — confirmar se replica)
+- **Exclusão só nos subitens**: responsável, CO, termo de confirmação, linha de histórico do
+  contrato, item de contrato, nota fiscal, trâmite. Cabeçalhos (cliente, fornecedor, contrato,
+  faturamento, demanda, solicitação) só criar/editar — nenhuma rota `DELETE` para eles.
+- **Validação mínima**: obrigatórios óbvios (listados em cada task), valores numéricos ≥ 0, datas
+  válidas (`AAAA-MM-DD`), mês 1–12. SEI, nº de termo e demais códigos são **texto livre** (os dados
+  importados têm formatos variados). Texto vazio/só espaço vira `null`.
+- **Navegação**: tudo sob o grupo "Relatórios dos clientes". Sub-itens: Todos os documentos (já
+  existe), Fornecedores, Demandas, Solicitações, Relatórios (`/relatorios` — as consultas
+  cross-cliente). Contratos e Faturamento vivem **dentro da ficha do cliente** (`/clientes/[id]`),
+  como abas — layout de referência: `docs/superpowers/specs/2026-09-22-relatorios-clientes-mockup.html` (abas
+  Contratos · Faturamento · Fornecedores · Demandas · Responsáveis, mais a aba Documentos com o
+  conteúdo que a página já tem hoje).
+- **Permissão** (decisão do controller, sem pergunta — segue o que já existe): ler e escrever
+  qualquer registro ligado a um cliente exige `getAuthUser` + `podeVerCliente(usuario, clienteId)`
+  (`src/lib/visibilidade.ts`); listas cross-cliente filtram por `clientesVisiveisWhere`.
+  `Fornecedor` e `ContratoOperacionalizacao` não pertencem a cliente: exigem só autenticação.
+  Respostas: 401 `{ error: 'não autenticado' }`, 403 `{ error: 'acesso negado' }`, 404
+  `{ error: '<coisa> não encontrado(a)' }`, 400 `{ error: '<mensagem do campo>' }`.
+- **Saldo** (§3.6): calculado sob demanda na leitura (agregação no Prisma), sem campo cacheado.
+- **Colunas do Access sem destino**: onde a task precisa de um campo que o relatório da Task 2
+  listou como "sem coluna dedicada no schema", a própria task adiciona o campo no schema
+  (migração nova, gerada com `prisma migrate diff` + `prisma migrate deploy` no banco LOCAL de
+  `.env.development`, como na Task 1) e atualiza o mapeamento em `scripts/importar-grc1.ts`. Nome
+  real da coluna vem de uma consulta ao `.accdb` de teste pela `queryAccess()` do script — nunca
+  chutado.
 
-### Task 4: Fornecedores — cadastro completo
+## Convenções técnicas (todas as Tasks 3–8)
 
-**Status:** Não iniciada. *(precisa de passada de detalhamento)*
+- API: rotas REST em `src/app/api/...`, padrão de `src/app/api/clientes/[clienteId]/route.ts`
+  (`params: Promise<...>`, `NextResponse.json`). Corpo validado com **zod** (já no projeto).
+  `Decimal` sai no JSON como string (`.toString()`), datas como ISO.
+- Helpers compartilhados (criados na Task 3, usados pelas seguintes) em
+  `src/lib/relatorios-clientes/`:
+  - `validacao.ts` — pré-processadores zod: `textoOpcional` (trim, `''`→`null`), `textoObrigatorio`
+    (trim, mínimo 1), `decimalOpcional` / `decimalObrigatorio` (aceita `"1.234,56"`, `"1234.56"`,
+    número; rejeita negativo; devolve string normalizada `"1234.56"`), `dataOpcional`
+    (`AAAA-MM-DD` → `Date` UTC, `''`→`null`, rejeita data inválida como `2026-02-30`),
+    `booleanoOpcional`; e `lerCorpo(request, schema)` que devolve `{ dados } | { erro: NextResponse }`
+    com a primeira mensagem do zod em português.
+  - `acesso.ts` — `exigirUsuario(request)` e `exigirAcessoCliente(request, clienteId)` que devolvem
+    `{ usuario } | { erro: NextResponse }` (401/403).
+  - `formatacao.ts` — `formatarMoeda(valor: string | number | null)` (`R$ 1.234,56`, `—` p/ null),
+    `formatarData(iso | null)` (`dd/mm/aaaa`, `—`).
+- UI: client components com `fetch` nativo, classes de `src/lib/ui.ts` (`BTN_PRIMARY`,
+  `BTN_OUTLINE`, `INPUT_BASE`, `LINK_DANGER`...), `card`, ícones `lucide-react`, cabeçalho com
+  breadcrumb no padrão de `src/app/clientes/[id]/page.tsx`. Formulário de criar/editar abre inline
+  ou em painel na própria página — sem biblioteca de modal nova. Exclusão pede confirmação inline
+  ("Excluir? Sim / Não"), **nunca `window.confirm`**.
+- Testes (TDD — teste falhando antes do código): cada rota nova ganha `route.test.ts`
+  (`@jest-environment node`, `getAuthUser` e `@/lib/prisma` mockados, no padrão de
+  `src/app/api/auth/me/route.test.ts`) cobrindo 401, 403, 400 de validação, 404 e o caminho feliz;
+  cada helper puro ganha teste unitário; cada página/componente novo ganha um teste de
+  Testing Library cobrindo render com dados + o fluxo principal de criar (fetch mockado).
+- Commit por task (pode ser mais de um), mensagem em português, terminando com
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. `npx jest` e `npx tsc --noEmit`
+  verdes antes de cada commit.
 
-- [ ] Rota + página `/fornecedores` — lista e cadastro de `Fornecedor`
-- [ ] `ContratoOperacionalizacao` (CO) e `TermoConfirmacao` — dentro da ficha do fornecedor ou do
-      contrato de cliente (`Contrato`)? Decidir na hora de desenhar a tela
-- [ ] Validação de campos (formato de SEI, acordo) — a definir com o usuário
+---
 
-### Task 5: Contratos — Contrato, HistoricoContrato, ItemContrato
+### Task 3: Base compartilhada + ficha do cliente com abas + Responsáveis
 
-**Status:** Não iniciada. *(precisa de passada de detalhamento — é o domínio maior)*
+**Status:** Não iniciada.
 
-- [ ] Cadastro de `Contrato` (cabeçalho) dentro da ficha do cliente (`/clientes/[id]`)
-- [ ] Subtela/subform de `HistoricoContrato` — criar linha com `tipo` (Contrato/Aditivo/
-      Prorrogação/Rescisão/Prospecção), mesmo padrão do "Histórico do Contrato" do Access (design
-      doc §3.5)
-- [ ] Cadastro de `ItemContrato`
-- [ ] Cálculo e exibição do saldo (design doc §3.6): `ItemContrato.valorTotal` do contrato menos
-      `NotaFiscal.valor` dos faturamentos ligados — decidir se é uma query sob demanda ou um campo
-      calculado/cacheado
-- [ ] Telas de consulta cross-cliente (vencimento com semáforo de urgência, valor total por
-      cliente) — replicar o padrão visto em "Acompanhamento de vencimento - GEN-1" e "VALOR TOTAL
-      DOS CONTRATOS DA GRC-1"
+**Files:**
+- Create: `src/lib/relatorios-clientes/{validacao,acesso,formatacao}.ts` (+ `.test.ts` de cada)
+- Modify: `src/app/api/clientes/[clienteId]/route.ts` (+ test) — GET devolve também
+  `siglaLegado, endereco, numero, bairro`; novo `PATCH`
+- Create: `src/app/api/clientes/[clienteId]/responsaveis/route.ts` (GET, POST) + test
+- Create: `src/app/api/responsaveis/[id]/route.ts` (PATCH, DELETE) + test
+- Modify: `src/app/api/clientes/route.ts` — lista devolve também `siglaLegado`
+- Modify: `src/app/clientes/[id]/page.tsx` (+ test) — vira ficha com abas
+- Create: `src/app/clientes/[id]/abas/{aba-documentos,aba-responsaveis}.tsx` (+ tests)
+- Modify: `src/app/clientes/lista-clientes.tsx` (+ test) — mostra a sigla
 
-### Task 6: Faturamento — Faturamento, NotaFiscal
+**Interfaces produzidas (usadas pelas Tasks 4–8):** os três helpers acima; o componente de abas da
+ficha com a prop/const `ABAS` (`documentos`, `contratos`, `faturamento`, `fornecedores`,
+`demandas`, `responsaveis`), aba ativa em `?aba=` na URL (default `contratos` quando existir
+conteúdo, senão `documentos` — nesta task, default `documentos`), e um placeholder
+"Em construção" para as abas que as Tasks 4–7 vão preencher (cada uma troca o placeholder pelo
+componente `aba-<nome>.tsx` dela).
 
-**Status:** Não iniciada. *(precisa de passada de detalhamento)*
+- [ ] **Step 1:** Helpers com testes (validação: casos `"1.234,56"`→`"1234.56"`, `-1`→erro,
+      `"2026-02-30"`→erro, `"  "`→`null`; acesso: 401 sem usuário, 403 sem permissão, ok com admin;
+      formatação: `1234.5`→`R$ 1.234,50`, `null`→`—`, `"2026-09-22T00:00:00.000Z"`→`22/09/2026`).
+- [ ] **Step 2:** `PATCH /api/clientes/[clienteId]` — campos `nome` (obrigatório), `siglaLegado`,
+      `endereco`, `numero`, `bairro` (opcionais). Sigla normalizada em maiúsculas; colisão de
+      `nome` ou `siglaLegado` (`P2002`) → 409 `{ error: 'já existe cliente com esse nome/sigla' }`.
+- [ ] **Step 3:** Responsáveis — `GET/POST /api/clientes/[clienteId]/responsaveis` (ordenado por
+      nome; `nome` obrigatório; `area, email, telefone, celular` opcionais; e-mail, se vier, validado
+      como e-mail), `PATCH/DELETE /api/responsaveis/[id]` (checa acesso pelo `clienteId` do registro).
+- [ ] **Step 4:** Ficha do cliente: cabeçalho com sigla (badge), nome, endereço
+      (`endereco, numero — bairro`) e botão "Editar cliente" (form inline com os 5 campos).
+      Abas conforme o mockup. Aba **Documentos** = o conteúdo atual da página (competências +
+      nova competência), movido sem mudança de comportamento — os testes existentes de
+      `src/app/clientes/[id]/page.test.tsx` continuam passando (ajustar só seletor, não asserção).
+      Aba **Responsáveis** = cartões como no mockup + criar/editar/excluir.
+- [ ] **Step 5:** Lista `/clientes` mostra a sigla ao lado do nome.
+- [ ] **Step 6:** Commit.
 
-- [ ] Cadastro de `Faturamento` (mês/ano, contrato, SEI, unidade destino, enviado cliente/GFP)
-- [ ] Subform de `NotaFiscal` dentro do faturamento
-- [ ] Tela de consulta "SEIs por cliente" / "Status Faturamento Mês" — replicar as visões já vistas
-      no Access
+---
 
-### Task 7: Demandas — Demanda, TramiteDemanda, Solicitacao
+### Task 4: Fornecedores — cadastro, CO e termos de confirmação
 
-**Status:** Não iniciada. *(precisa de passada de detalhamento)*
+**Status:** Não iniciada.
 
-- [ ] Cadastro de `Demanda` + subform de `TramiteDemanda` (histórico de posição/ação)
-- [ ] Cadastro de `Solicitacao` (chamados de TI)
-- [ ] Decidir se esses dois ficam dentro de "Relatórios dos clientes" ou viram grupo próprio no
-      menu — são sobre cliente indiretamente (Secretaria/Cliente), mas o conteúdo é operacional,
-      não contratual
+**Decisão de tela:** CO (`ContratoOperacionalizacao`) vive na ficha do fornecedor. Termo de
+confirmação (ponte fornecedor ↔ cliente/contrato) aparece nos dois lados: ficha do fornecedor e aba
+"Fornecedores" da ficha do cliente — mesma API.
 
-### Task 8: Navegação — sub-áreas do grupo "Relatórios dos clientes"
+**Files:**
+- Modify (se precisar): `prisma/schema.prisma` + migração nova + `scripts/importar-grc1.ts` —
+  conferir as colunas reais de `T_Fornecedor`, `T_CO_Operacionalização` e `T_TermoConfirmação` no
+  `.accdb` de teste; o mockup pede no termo **nº do TC, valor, vigência (início–fim) e processo
+  SEI** — acrescentar em `TermoConfirmacao` os que a origem tem (`numero String?`,
+  `valor Decimal? @db.Decimal(14,2)`, `vigenciaInicio/vigenciaFim DateTime?`, `sei String?`) e
+  mapear no import. Idem para qualquer coluna de `T_Fornecedor`/CO que hoje é descartada. Registrar
+  no relatório o que foi acrescentado e o que ficou de fora.
+- Create: `src/app/api/fornecedores/route.ts` (GET com `?q=` por razão social/CNPJ, POST),
+  `src/app/api/fornecedores/[id]/route.ts` (GET com COs e termos, PATCH),
+  `src/app/api/fornecedores/[id]/cos/route.ts` (POST), `src/app/api/cos/[id]/route.ts` (PATCH,
+  DELETE), `src/app/api/termos-confirmacao/route.ts` (GET `?clienteId=` ou `?fornecedorId=`, POST),
+  `src/app/api/termos-confirmacao/[id]/route.ts` (PATCH, DELETE) — todos com test
+- Create: `src/app/fornecedores/page.tsx` (lista + busca + "Novo fornecedor"),
+  `src/app/fornecedores/[id]/page.tsx` (cabeçalho editável, lista de CO, lista de termos) + tests
+- Create: `src/app/clientes/[id]/abas/aba-fornecedores.tsx` (+ test) — tabela do mockup
+  (Fornecedor, Nº do TC, Contrato ligado, Valor, Vigência, Processo SEI) + "Novo termo de confirmação"
 
-**Status:** Não iniciada. *(depende das Tasks 3–7 estarem com rota definida)*
+**Validação:** fornecedor — `razaoSocial` obrigatório. CO — `fornecedorId` da URL; `dataFim` ≥
+`dataInicio` quando ambas vierem. Termo — `fornecedorId` e `clienteId` obrigatórios; `contratoId`
+opcional mas, se vier, tem que ser um `Contrato` **do mesmo cliente** (400 senão); acesso checado
+pelo `clienteId`.
 
-- [ ] Confirmar com o usuário a proposta de rotas do design doc §3.7
-- [ ] `src/components/nav-bar.tsx` — sub-itens do grupo "Relatórios dos clientes", mesmo padrão do
-      sub-item "Histórico" em "ConfereAI"
-- [ ] Testes de navegação atualizados
+- [ ] **Step 1:** Levantar colunas no `.accdb`, schema + migração + import (se houver campo novo);
+      rodar o import de novo no banco local e registrar contagens.
+- [ ] **Step 2:** Rotas de fornecedor e CO com testes.
+- [ ] **Step 3:** Rotas de termo com testes (incluindo contrato de outro cliente → 400).
+- [ ] **Step 4:** Páginas `/fornecedores`, `/fornecedores/[id]` e aba Fornecedores do cliente.
+- [ ] **Step 5:** Commit.
+
+---
+
+### Task 5: Contratos — cabeçalho, histórico, itens e saldo
+
+**Status:** Não iniciada.
+
+**Files:**
+- Modify: `prisma/schema.prisma` + migração + `scripts/importar-grc1.ts` — conferir colunas reais de
+  `T_ContratoReceita`: o mockup e a consulta "Acompanhamento de vencimento" precisam de
+  **descrição/objeto** e **data de vencimento (fim de vigência)** do contrato — acrescentar
+  `descricao String?` e `dataVencimento DateTime?` em `Contrato` (e o que mais a origem tiver de
+  valor/vigência) e mapear. Se a origem **não** tiver vencimento no cabeçalho, `dataVencimento`
+  fica editável na tela e o import deixa `null` — registrar no relatório.
+- Create: `src/lib/relatorios-clientes/saldo.ts` (+ test) —
+  `calcularSaldo({ valorItens, faturado })` → `{ valorItens, faturado, saldo, percentualFaturado }`
+  (strings decimais; `percentualFaturado` `null` quando `valorItens` = 0).
+- Create: `src/lib/relatorios-clientes/vencimento.ts` (+ test) —
+  `situacaoVencimento(dataVencimento: Date | null, hoje: Date)` →
+  `{ nivel: 'vencido' | 'critico' | 'atencao' | 'ok' | 'sem-data', dias: number | null }` com
+  limites: `< 0` vencido, `≤ 30` crítico, `≤ 90` atenção, senão ok.
+- Create: `src/app/api/clientes/[clienteId]/contratos/route.ts` (GET lista com `saldo` e
+  `situacaoVencimento` de cada contrato; POST),
+  `src/app/api/contratos/[id]/route.ts` (GET com histórico ordenado por data, itens e saldo; PATCH),
+  `src/app/api/contratos/[id]/historico/route.ts` (POST),
+  `src/app/api/historico-contrato/[id]/route.ts` (PATCH, DELETE),
+  `src/app/api/contratos/[id]/itens/route.ts` (POST),
+  `src/app/api/itens-contrato/route.ts` (GET `?semContrato=1&q=` — itens importados sem vínculo,
+  busca por `contratoTextoLegado`/`descricao`, só admin ou usuário que vê algum cliente),
+  `src/app/api/itens-contrato/[id]/route.ts` (PATCH — inclusive `contratoId`, pra reconciliação;
+  DELETE) — todos com test
+- Create: `src/app/clientes/[id]/abas/aba-contratos.tsx` (+ test) — tabela do mockup (Nº do termo,
+  Descrição, SEI cliente, Situação, Vencimento com semáforo, Valor dos itens, % faturado) + "Novo
+  contrato"; clicar na linha abre o detalhe
+- Create: `src/app/clientes/[id]/contratos/[contratoId]/page.tsx` (+ test) — cabeçalho editável;
+  **histórico** como linha do tempo única (tipo em badge — Contrato/Aditivo/Prorrogação/Rescisão/
+  Prospecção —, nº, data, valor, observação) com criar/editar/excluir; **itens** em tabela com
+  criar/editar/excluir; **saldo** num cartão; botão "Vincular itens importados" que busca na rota
+  `?semContrato=1` e seta `contratoId`.
+
+**Saldo** = soma de `ItemContrato.valorTotal` (itens com `contratoId` = este contrato) − soma de
+`NotaFiscal.valor` dos `Faturamento` deste contrato. Como quase todos os itens importados vieram
+sem vínculo (design doc §3.6, revisão da Task 2), o cartão de saldo mostra aviso explícito quando o
+contrato não tem item nenhum: "Sem itens vinculados — saldo não calculável. Vincule os itens
+importados ou cadastre os itens do contrato." (nunca mostra saldo negativo enganoso nesse caso:
+`saldo` = `null` quando `valorItens` = 0).
+
+**Validação:** contrato — `clienteId` da URL; `numeroTermo` obrigatório na criação/edição pela tela
+(o import aceita nulo). Histórico — `tipo` obrigatório (enum `TipoHistoricoContrato`). Item —
+`valorTotal` obrigatório ≥ 0; se `quantidade` e `valorUnitario` vierem e `valorTotal` não, calcula
+`quantidade × valorUnitario`. `contratoId` num PATCH de item tem que existir e o usuário tem que ver
+o cliente dele.
+
+- [ ] **Step 1:** Colunas do `.accdb`, schema + migração + import; reimportar e registrar contagens.
+- [ ] **Step 2:** `saldo.ts` e `vencimento.ts` com testes.
+- [ ] **Step 3:** Rotas de contrato/histórico/itens com testes.
+- [ ] **Step 4:** Aba Contratos e página de detalhe do contrato (com vinculação de itens).
+- [ ] **Step 5:** Commit.
+
+---
+
+### Task 6: Faturamento — faturamento mensal e notas fiscais
+
+**Status:** Não iniciada.
+
+**Files:**
+- Modify: `prisma/schema.prisma` + migração + `scripts/importar-grc1.ts` — o relatório da Task 2
+  lista `OBS`, `SEI` e `UnidadeDestino` de `T_Faturamentos` sem destino, e o mockup/plano pedem
+  **SEI do faturamento, serviço, unidade destino, enviado ao cliente, enviado à GFP**: acrescentar
+  em `Faturamento` o que a origem tiver (`sei String?`, `servico String?`, `unidadeDestino String?`,
+  `enviadoCliente Boolean?`, `enviadoGfp Boolean?`, `observacao String?`) e mapear.
+- Create: `src/app/api/clientes/[clienteId]/faturamentos/route.ts` (GET com filtros `?ano=&mes=&
+  contratoId=`, cada linha com `valorNotas` = soma das notas; POST),
+  `src/app/api/faturamentos/[id]/route.ts` (GET com notas; PATCH),
+  `src/app/api/faturamentos/[id]/notas/route.ts` (POST),
+  `src/app/api/notas-fiscais/[id]/route.ts` (PATCH, DELETE) — todos com test
+- Create: `src/app/clientes/[id]/abas/aba-faturamento.tsx` (+ test) — tabela do mockup (Contrato,
+  Competência `MM/AAAA`, SEI, Serviço, Valor, Enviado cliente, Enviado GFP) com filtro de
+  competência e contrato + "Novo faturamento"
+- Create: `src/app/clientes/[id]/faturamentos/[faturamentoId]/page.tsx` (+ test) — cabeçalho
+  editável + subform de notas fiscais (nº, valor, data de emissão) com criar/editar/excluir
+
+**Valor exibido** do faturamento = `Faturamento.valor` se preenchido, senão a soma das notas (o
+import deixa `valor` nulo — a origem não tem essa coluna).
+
+**Validação:** faturamento — `contratoId` obrigatório e do mesmo cliente (400 senão),
+`competenciaAno` (2000–2100) e `competenciaMes` (1–12) obrigatórios na tela. Nota — `valor`
+obrigatório ≥ 0.
+
+- [ ] **Step 1:** Colunas do `.accdb`, schema + migração + import; reimportar e registrar contagens.
+- [ ] **Step 2:** Rotas com testes.
+- [ ] **Step 3:** Aba Faturamento e página do faturamento.
+- [ ] **Step 4:** Commit.
+
+---
+
+### Task 7: Demandas (com trâmite) e Solicitações
+
+**Status:** Não iniciada.
+
+**Files:**
+- Modify: `prisma/schema.prisma` + migração + `scripts/importar-grc1.ts` — relatório da Task 2
+  lista `Documento`/`SEI` de `T_Documento` e `DataRetorno`/`ComApresentação`/`Assinado` de
+  `T_Trâmite` sem destino: acrescentar `Demanda.documento`, `Demanda.sei`,
+  `TramiteDemanda.dataRetorno`, `TramiteDemanda.comApresentacao`, `TramiteDemanda.assinado` (tipos
+  conforme a origem) e mapear.
+- Create: `src/app/api/demandas/route.ts` (GET cross-cliente filtrado por `clientesVisiveisWhere`,
+  filtros `?clienteId=&situacao=&q=`, cada linha com a posição do último trâmite e a data dele;
+  POST), `src/app/api/demandas/[id]/route.ts` (GET com trâmites; PATCH),
+  `src/app/api/demandas/[id]/tramites/route.ts` (POST),
+  `src/app/api/tramites-demanda/[id]/route.ts` (PATCH, DELETE),
+  `src/app/api/solicitacoes/route.ts` (GET com filtros `?clienteId=&situacao=`; POST),
+  `src/app/api/solicitacoes/[id]/route.ts` (PATCH) — todos com test
+- Create: `src/app/demandas/page.tsx` (lista cross-cliente com filtros + "Nova demanda"),
+  `src/app/demandas/[id]/page.tsx` (cabeçalho editável + trâmite em linha do tempo com
+  criar/editar/excluir), `src/app/solicitacoes/page.tsx` (lista + criar/editar inline) + tests
+- Create: `src/app/clientes/[id]/abas/aba-demandas.tsx` (+ test) — tabela do mockup (Assunto, Tipo,
+  Responsável, Posição atual, Desde, Status) só das demandas do cliente, + "Nova demanda"
+
+**Validação:** demanda — `clienteId` e `assunto` obrigatórios. Trâmite — `data` obrigatória.
+Solicitação — `clienteId` e `descricao` obrigatórios. `situacao`, `tipo`, `posicao`, `acao`
+continuam texto livre, mas a tela oferece sugestões (`<datalist>`) com os valores distintos já
+existentes no banco (rota GET devolve `sugestoes` junto) — resolve o minor deferido da Task 1
+sobre valores enum-like sem documentação.
+
+- [ ] **Step 1:** Colunas do `.accdb`, schema + migração + import; reimportar e registrar contagens.
+- [ ] **Step 2:** Rotas com testes.
+- [ ] **Step 3:** Páginas `/demandas`, `/demandas/[id]`, `/solicitacoes` e aba Demandas do cliente.
+- [ ] **Step 4:** Commit.
+
+---
+
+### Task 8: Relatórios cross-cliente, indicadores da ficha e navegação
+
+**Status:** Não iniciada.
+
+**Files:**
+- Create: `src/app/api/relatorios/vencimentos/route.ts` (contratos de todos os clientes visíveis
+  com `situacaoVencimento`, ordenados pelos que vencem primeiro),
+  `src/app/api/relatorios/valor-total/route.ts` (por cliente: nº de contratos, soma de itens,
+  faturado, saldo), `src/app/api/relatorios/seis/route.ts` (SEIs de contrato e de faturamento por
+  cliente, filtro `?clienteId=`), `src/app/api/relatorios/status-faturamento/route.ts` (`?ano=&mes=`:
+  para cada contrato ativo, se tem faturamento na competência, valor, enviado cliente/GFP) — todos
+  com test, todos filtrados por `clientesVisiveisWhere`
+- Create: `src/app/relatorios/page.tsx` (+ test) — quatro abas: Vencimento (semáforo por cor, mesmo
+  `vencimento.ts`), Valor total por cliente, SEIs por cliente, Status do faturamento do mês
+- Create: `src/app/api/clientes/[clienteId]/indicadores/route.ts` (+ test) e os 4 cartões do topo da
+  ficha do cliente (mockup): Contratos ativos (+ quantos vencem em 30 dias), Valor contratado,
+  Faturado no último mês com faturamento, Demandas abertas (+ quantas há mais de 30 dias)
+- Modify: `src/components/nav-bar.tsx` (+ `nav-bar.test.tsx`) — `RELATORIOS_SUBLINKS` ganha
+  Fornecedores (`/fornecedores`), Demandas (`/demandas`), Solicitações (`/solicitacoes`),
+  Relatórios (`/relatorios`), mantendo "Todos os documentos"; item ativo também em sub-rotas
+  (`/fornecedores/[id]`, `/demandas/[id]`); conferir que aparecem com `MENU_SIMPLIFICADO = true`.
+
+"Contrato ativo" = `situacao` não contém "encerr"/"rescind"/"cancel" (case-insensitive) e
+vencimento não passou — regra num helper testado em `vencimento.ts`.
+
+- [ ] **Step 1:** Rotas de relatório e indicadores com testes.
+- [ ] **Step 2:** Página `/relatorios` e cartões da ficha.
+- [ ] **Step 3:** Navegação + testes.
+- [ ] **Step 4:** Commit.
+
+---
 
 ### Task 9: Atualizar os docs deste plano
 

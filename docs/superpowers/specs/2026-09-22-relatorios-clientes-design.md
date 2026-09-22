@@ -1,6 +1,7 @@
 # Relatórios dos clientes — migração do GRC-1 (design)
 
-**Status**: Decisões de escopo e arquitetura fechadas, detalhamento de código pendente.
+**Status**: Decisões de escopo, arquitetura e detalhamento fechadas (§3.7–3.8); implementação em
+andamento pelo plano.
 **Data**: 22/09/2026
 
 ---
@@ -39,8 +40,8 @@ Registro completo do levantamento (telas abertas, achados) no §6.
 
 ### 3.1 Escopo: sistema inteiro, não só o diagrama original
 
-Os 6 grupos do GRC-1 entram todos, com CRUD completo (criar + editar; exclusão fica em aberto,
-ver §5):
+Os 6 grupos do GRC-1 entram todos, com CRUD completo (criar + editar; exclusão só nos subitens,
+ver §3.8):
 
 - **Clientes** — cadastro de cliente + responsáveis de contato
 - **Fornecedores** — cadastro de fornecedor + contratos de operacionalização (CO) + termos de
@@ -136,18 +137,37 @@ tela dedicada nova prevista só pra isso.
 
 ### 3.7 Navegação: sub-áreas dentro de "Relatórios dos clientes"
 
-Proposta (a confirmar com o usuário antes da Task de navegação): o grupo de menu "Relatórios dos
-clientes" (já existe, primeiro grupo, antes de "Proposta Comercial" — `src/components/nav-bar.tsx`)
-ganha sub-itens para os 6 domínios, no mesmo padrão de sub-item que "ConfereAI" já usa para
-"Histórico". Rotas propostas (a validar):
+**Confirmado com o usuário em 22/09/2026:** tudo fica sob o grupo de menu "Relatórios dos clientes"
+(já existe — `src/components/nav-bar.tsx`), no mesmo padrão de sub-item que "ConfereAI" usa para
+"Histórico". Demandas e Solicitações **não** viram grupo próprio.
 
-- `/clientes` — lista de clientes (tela já existente, ganha os campos novos)
-- `/clientes/[id]` — ficha do cliente: contratos, faturamento, demandas daquele cliente
-- `/fornecedores` — cadastro de fornecedores + CO + termos de confirmação
-- `/demandas` — demandas/documentos + trâmite
-- `/solicitacoes` — solicitações de TI
-- Relatórios cross-cliente (vencimento, valor total, SEI) — a definir se viram views dentro de
-  `/clientes` ou uma área própria `/relatorios`
+- `/clientes` — lista de clientes (tela já existente, ganha a sigla)
+- `/clientes/[id]` — ficha do cliente em abas (Contratos · Faturamento · Fornecedores · Demandas ·
+  Responsáveis · Documentos), layout de referência em `docs/superpowers/specs/2026-09-22-relatorios-clientes-mockup.html`.
+  Contratos e Faturamento vivem só aqui (com páginas de detalhe
+  `/clientes/[id]/contratos/[contratoId]` e `/clientes/[id]/faturamentos/[faturamentoId]`), sem
+  sub-item próprio no menu
+- `/fornecedores` — cadastro de fornecedores + CO + termos de confirmação (sub-item)
+- `/demandas` — demandas/documentos + trâmite, cross-cliente (sub-item)
+- `/solicitacoes` — solicitações de TI (sub-item)
+- `/relatorios` — consultas cross-cliente: vencimento, valor total, SEIs, status do faturamento do
+  mês (sub-item)
+
+### 3.8 Exclusão, validação e permissão (decididos na passada de detalhamento, 22/09/2026)
+
+- **Exclusão só nos subitens** — responsável, CO, termo de confirmação, linha de histórico do
+  contrato, item de contrato, nota fiscal, trâmite. Cabeçalhos (cliente, fornecedor, contrato,
+  faturamento, demanda, solicitação) só criar/editar: não existe rota de exclusão para eles, o que
+  evita apagar registro com filhos.
+- **Validação mínima** — só obrigatórios óbvios, valores ≥ 0, datas válidas, mês 1–12. SEI, nº de
+  termo e demais códigos são texto livre: os dados importados têm formatos variados, e forçar
+  formato quebraria a edição de registro legado.
+- **Permissão** — sem papel novo: ler e escrever registro ligado a cliente exige poder ver aquele
+  cliente (`podeVerCliente`, `src/lib/visibilidade.ts`); fornecedor e CO (que não pertencem a
+  cliente) exigem só login.
+- **Colunas do Access sem destino** — onde uma tela precisa de um campo que a Task 2 descartou por
+  falta de coluna (ex. SEI/unidade destino/enviado GFP do faturamento, vencimento do contrato,
+  dados do termo de confirmação), a task daquela tela acrescenta o campo ao schema e ao import.
 
 ## 4. Modelo de dados — legado → VerAI
 
@@ -173,16 +193,12 @@ idempotente (§3.2).
 
 ## 5. Fora de escopo / pendente
 
-- **Exclusão de registros** — não decidido ainda se cada CRUD novo tem "excluir" ou só
-  criar/editar (o Access legado tem exclusão em algumas telas, não em todas — verificar tela por
-  tela na hora de detalhar cada task).
-- **Validação de campo por tela** — o Access valida via VBA, que não é extraível por ferramenta
-  nenhuma usada no levantamento; cada regra (formato de SEI, transições de `Situação`, campo
-  obrigatório) precisa ser definida com o usuário na hora de detalhar cada task do plano.
+- ~~Exclusão de registros~~ e ~~validação de campo por tela~~ — decididos em §3.8. Regras finas
+  do VBA do Access (transições de `Situação`, formatos) continuam não replicadas; se aparecerem na
+  operação, entram como ajuste.
 - **Período de transição em paralelo** — se a equipe usar Access e VerAI ao mesmo tempo por um
   tempo antes do corte final, o script de importação (idempotente, §3.2) permite reimportações de
   ajuste; não decidido ainda se/quando isso acontece.
-- **Navegação exata** (§3.7) — proposta, não confirmada.
 - **Dado sensível em texto livre** — `Observação`/`OBS`/`Trâmite` guardam nome de pessoa e
   anotação informal solta; migra como está, sem tratamento automático.
 

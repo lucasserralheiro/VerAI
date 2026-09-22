@@ -77,6 +77,12 @@ model Fornecedor {
   razaoSocial                String
   cnpj                       String?
   contato                    String?
+  // Colunas reais de T_Fornecedor (levantadas na Task 4): Acordo (fabricante/produto
+  // do acordo, ex. "MICROSOFT"), Nº Acordo, DataAssinatura, Processo SEI.
+  acordo                     String?
+  numeroAcordo               String?
+  dataAssinatura             DateTime?
+  sei                        String?
   createdAt                  DateTime                    @default(now())
   contratosOperacionalizacao ContratoOperacionalizacao[]
   termosConfirmacao          TermoConfirmacao[]
@@ -94,6 +100,7 @@ model ContratoOperacionalizacao {
   dataInicio   DateTime?
   dataFim      DateTime?
   valor        Decimal?   @db.Decimal(14, 2)
+  sei          String?
   createdAt    DateTime   @default(now())
 
   @@index([fornecedorId])
@@ -106,17 +113,23 @@ model ContratoOperacionalizacao {
 // (data, observação) são cadastro razoável — design doc não lista os campos
 // próprios da tabela; ver ressalva no relatório da Task 1.
 model TermoConfirmacao {
-  id           String     @id @default(cuid())
-  legacyId     Int?       @unique
-  fornecedorId String
-  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id])
-  clienteId    String
-  cliente      Cliente    @relation(fields: [clienteId], references: [id])
-  contratoId   String?
-  contrato     Contrato?  @relation(fields: [contratoId], references: [id])
-  data         DateTime?
-  observacao   String?
-  createdAt    DateTime   @default(now())
+  id             String     @id @default(cuid())
+  legacyId       Int?       @unique
+  fornecedorId   String
+  fornecedor     Fornecedor @relation(fields: [fornecedorId], references: [id])
+  clienteId      String
+  cliente        Cliente    @relation(fields: [clienteId], references: [id])
+  contratoId     String?
+  contrato       Contrato?  @relation(fields: [contratoId], references: [id])
+  // Colunas reais de T_TermoConfirmação (Task 4): Nº TC, Valor (texto no Access),
+  // Data Início, Data Fim, Processo SEI.
+  numero         String?
+  valor          Decimal?   @db.Decimal(14, 2)
+  vigenciaInicio DateTime?
+  vigenciaFim    DateTime?
+  sei            String?
+  observacao     String?
+  createdAt      DateTime   @default(now())
 
   @@index([fornecedorId])
   @@index([clienteId])

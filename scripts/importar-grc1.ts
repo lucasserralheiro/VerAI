@@ -169,6 +169,16 @@ function toNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+/** Valor monetário guardado como TEXTO no Access ("R$ 1.234,56", "1234,56", "1234.56") → string
+ *  pronta pro Decimal do Prisma, ou null quando não parece número. Com vírgula, a vírgula é o
+ *  decimal e os pontos são milhar; sem vírgula, o ponto é decimal. */
+function parseValorTexto(v: string | null): string | null {
+  if (!v) return null
+  let t = v.replace(/R\$/gi, '').replace(/\s/g, '')
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.')
+  return /^\d+(\.\d+)?$/.test(t) ? t : null
+}
+
 function normSigla(v: unknown): string | null {
   const s = toStr(v)
   return s ? s.toUpperCase() : null
@@ -325,7 +335,9 @@ async function importarResponsaveis() {
 
 async function importarFornecedores() {
   const s = novaStat('T_Fornecedor')
-  const rows = queryAccess('SELECT [ID_Fornecedor], Fornecedor FROM [T_Fornecedor]')
+  const rows = queryAccess(
+    'SELECT [ID_Fornecedor], Fornecedor, Acordo, [Nº Acordo], DataAssinatura, [Processo SEI] FROM [T_Fornecedor]'
+  )
   s.lidas = rows.length
 
   for (const row of rows) {
@@ -334,11 +346,17 @@ async function importarFornecedores() {
       pular(s, 'sem ID_Fornecedor')
       continue
     }
-    const razaoSocial = toStr(row['Fornecedor']) ?? `Fornecedor legado #${legacyId}`
+    const data = {
+      razaoSocial: toStr(row['Fornecedor']) ?? `Fornecedor legado #${legacyId}`,
+      acordo: toStr(row['Acordo']),
+      numeroAcordo: toStr(row['Nº Acordo']),
+      dataAssinatura: parseAccessDate(row['DataAssinatura']),
+      sei: toStr(row['Processo SEI']),
+    }
     const fornecedor = await prisma.fornecedor.upsert({
       where: { legacyId },
-      create: { legacyId, razaoSocial },
-      update: { razaoSocial },
+      create: { legacyId, ...data },
+      update: data,
     })
     fornecedorByLegacyId.set(legacyId, fornecedor.id)
     s.importadas++
@@ -357,7 +375,7 @@ function tentarParseData(v: unknown): Date | null {
 async function importarContratoOperacionalizacao() {
   const s = novaStat('T_CO_Operacionalização')
   const rows = queryAccess(
-    "SELECT [ID_Operacionalização], Fornecedor, Acordo, [Nº Contrato], [Vigência] FROM [T_CO_Operacionalização]"
+    "SELECT [ID_Operacionalização], Fornecedor, Acordo, [Nº Contrato], [Vigência], SEI FROM [T_CO_Operacionalização]"
   )
   s.lidas = rows.length
 
@@ -381,6 +399,7 @@ async function importarContratoOperacionalizacao() {
       dataInicio: tentarParseData(row['Vigência']),
       dataFim: null as Date | null,
       valor: null as Prisma.Decimal | null,
+      sei: toStr(row['SEI']),
     }
     const co = await prisma.contratoOperacionalizacao.upsert({
       where: { legacyId },
@@ -575,7 +594,7 @@ async function importarItensContrato() {
 async function importarTermosConfirmacao() {
   const s = novaStat('T_TermoConfirmação')
   const rows = queryAccess(
-    "SELECT [ID_TC], ContratoDespesa, Cliente, [Contrato Receita], [Data Início], [Processo SEI] FROM [T_TermoConfirmação]"
+    "SELECT [ID_TC], ContratoDespesa, [Nº TC], Valor, [Data Início], [Data Fim], Cliente, [Contrato Receita], [Processo SEI] FROM [T_TermoConfirmação]"
   )
   s.lidas = rows.length
 
@@ -602,14 +621,28 @@ async function importarTermosConfirmacao() {
       pular(s, 'Cliente não resolvido')
       continue
     }
-    const idContrato = toNum(row['Contrato Receita'])
+    // "Contrato Receita" e "Valor" são TEXTO no Access (Task 4). Contrato casa quando o texto é o
+    // ID numérico de T_ContratoReceita; o que não casar/parsear vai pra `observacao` com o texto
+    // original, pra reconciliação manual — nunca descartado.
+    const contratoTexto = toStr(row['Contrato Receita'])
+    const idContrato = toNum(contratoTexto)
     const contratoId = idContrato !== null ? contratoByLegacyId.get(idContrato) ?? null : null
+    const valorTexto = toStr(row['Valor'])
+    const valor = parseValorTexto(valorTexto)
+    const notas = [
+      !contratoId && contratoTexto ? `Contrato Receita (legado): ${contratoTexto}` : null,
+      valorTexto && valor === null ? `Valor (legado): ${valorTexto}` : null,
+    ].filter(Boolean)
     const data = {
       fornecedorId,
       clienteId,
       contratoId,
-      data: parseAccessDate(row['Data Início']),
-      observacao: toStr(row['Processo SEI']),
+      numero: toStr(row['Nº TC']),
+      valor,
+      vigenciaInicio: parseAccessDate(row['Data Início']),
+      vigenciaFim: parseAccessDate(row['Data Fim']),
+      sei: toStr(row['Processo SEI']),
+      observacao: notas.length > 0 ? notas.join(' · ') : null,
     }
     await prisma.termoConfirmacao.upsert({
       where: { legacyId },

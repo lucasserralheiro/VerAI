@@ -47,8 +47,11 @@
  *      `Solicitacao.legacyId` é `@unique` no schema, usar "Nº" quebraria a importação na segunda
  *      ocorrência. Decisão (não mudei o schema da Task 1 — é decisão de controller/usuário se um
  *      campo dedicado pro "Nº" precisa entrar no schema): uso `ID_Solicitações` (autonumber do
- *      Access, garantidamente único) como `legacyId`, e preservo o "Nº" original como prefixo de
- *      `descricao` (`"Nº 1615977 — <assunto>"`) pra não perder a informação.
+ *      Access, garantidamente único) como `legacyId`; o "Nº" original vai pra
+ *      `Solicitacao.numero` (coluna própria desde a Task 7 — antes ia como prefixo de `descricao`).
+ *   4. `T_Documento` (Demanda): 109 de 136 linhas não têm cliente válido (cliente vazio ou ID
+ *      apagado de T_Cliente). Decisão do usuário (22/09/2026, Task 7): entram na SMS, com
+ *      `Demanda.notaImportacao` registrando a atribuição — ver `importarDemandas()`.
  *   2. `T_ItensContrato` NÃO tem nenhuma chave de junção confiável para `T_ContratoReceita` nos
  *      dados reais — ver `importarItensContrato()` abaixo e o relatório da Task 2 pra detalhe
  *      completo. Reportado como concern no relatório inicial da Task 2; decisão do usuário depois
@@ -772,9 +775,15 @@ async function importarNotasFiscais() {
 async function importarDemandas() {
   const s = novaStat('T_Documento')
   const rows = queryAccess(
-    "SELECT [ID_Doc], [Data Início], Cliente, TipoAssunto, Assunto, [Tipo Documento], [Concluído], [Responsável] FROM [T_Documento]"
+    "SELECT [ID_Doc], [Data Início], Cliente, Documento, TipoAssunto, Assunto, [Tipo Documento], [Concluído], [Responsável], SEI FROM [T_Documento]"
   )
   s.lidas = rows.length
+
+  // Decisão do usuário (22/09/2026, Task 7): demanda sem cliente válido na origem (cliente vazio,
+  // ou ID de cliente apagado de T_Cliente — 109 de 136 na cópia de teste) entra na SMS, com
+  // `notaImportacao` dizendo de onde veio, pra poder ser achada e corrigida depois.
+  const smsId = clienteBySigla.get('SMS')
+  let atribuidasSms = 0
 
   for (const row of rows) {
     const legacyId = toNum(row['ID_Doc'])
@@ -783,21 +792,31 @@ async function importarDemandas() {
       continue
     }
     const idCliente = toNum(row['Cliente'])
-    const clienteId = idCliente !== null ? clienteByLegacyId.get(idCliente) : undefined
+    let clienteId = idCliente !== null ? clienteByLegacyId.get(idCliente) : undefined
+    let notaImportacao: string | null = null
+    if (!clienteId && smsId) {
+      clienteId = smsId
+      notaImportacao =
+        idCliente === null
+          ? 'cliente atribuído no import (SMS): cliente vazio no GRC-1'
+          : `cliente atribuído no import (SMS): cliente #${idCliente} do GRC-1 não existe mais`
+      atribuidasSms++
+    }
     if (!clienteId) {
-      pular(s, 'Cliente não resolvido (ou ausente na origem)')
+      pular(s, 'Cliente não resolvido e SMS não importada')
       continue
     }
-    const tipoAssunto = toStr(row['TipoAssunto'])
-    const assuntoBase = toStr(row['Assunto'])
-    const assunto = tipoAssunto && assuntoBase ? `[${tipoAssunto}] ${assuntoBase}` : assuntoBase
     const data = {
       clienteId,
-      assunto,
+      assunto: toStr(row['Assunto']),
+      tipoAssunto: toStr(row['TipoAssunto']),
       tipo: toStr(row['Tipo Documento']),
       responsavel: toStr(row['Responsável']),
       situacao: row['Concluído'] === true ? 'Concluído' : row['Concluído'] === false ? 'Em andamento' : null,
       dataAbertura: parseAccessDate(row['Data Início']),
+      documento: toStr(row['Documento']),
+      sei: toStr(row['SEI']),
+      notaImportacao,
     }
     const demanda = await prisma.demanda.upsert({
       where: { legacyId },
@@ -807,12 +826,16 @@ async function importarDemandas() {
     demandaByLegacyId.set(legacyId, demanda.id)
     s.importadas++
   }
+
+  if (atribuidasSms > 0) {
+    console.log(`  · Demanda: ${atribuidasSms}/${s.importadas} sem cliente válido na origem, atribuídas à SMS (ver notaImportacao)`)
+  }
 }
 
 async function importarTramites() {
   const s = novaStat('T_Trâmite')
   const rows = queryAccess(
-    "SELECT [ID_Tram], [ID_Doc], Documento, [Responsável Atual], Desde, [Observação], [Ação], [Posição] FROM [T_Trâmite]"
+    "SELECT [ID_Tram], [ID_Doc], Documento, [Responsável Atual], Desde, ComApresentação, DataRetorno, Assinado, [Observação], [Ação], [Posição] FROM [T_Trâmite]"
   )
   s.lidas = rows.length
 
@@ -831,16 +854,16 @@ async function importarTramites() {
       pular(s, 'Demanda não resolvida')
       continue
     }
-    const observacaoBase = toStr(row['Observação'])
-    const respAtual = toStr(row['Responsável Atual'])
-    const observacao =
-      [observacaoBase, respAtual ? `Responsável atual: ${respAtual}` : null].filter(Boolean).join(' | ') || null
     const data = {
       demandaId,
       data: parseAccessDate(row['Desde']),
       posicao: toStr(row['Posição']),
       acao: toStr(row['Ação']),
-      observacao,
+      observacao: toStr(row['Observação']),
+      responsavelAtual: toStr(row['Responsável Atual']),
+      dataRetorno: parseAccessDate(row['DataRetorno']),
+      comApresentacao: toBool(row['ComApresentação']),
+      assinado: toBool(row['Assinado']),
     }
     await prisma.tramiteDemanda.upsert({
       where: { legacyId },
@@ -855,15 +878,14 @@ async function importarTramites() {
 // 8. Solicitacao (T_Solicitação)
 //
 // legacyId vem de ID_Solicitações (autonumber do Access), NÃO do "Nº" do chamado — ver nota
-// grande no cabeçalho do arquivo (achado #1) e o relatório da Task 2. O "Nº" é preservado como
-// prefixo de `descricao` pra não perder a informação, já que o schema (Task 1) não tem um campo
-// dedicado pra ele.
+// grande no cabeçalho do arquivo (achado #1) e o relatório da Task 2. O "Nº" vai pra
+// `Solicitacao.numero` (coluna própria desde a Task 7).
 // ---------------------------------------------------------------------------
 
 async function importarSolicitacoes() {
   const s = novaStat('T_Solicitação')
   const rows = queryAccess(
-    "SELECT [ID_Solicitações], [Nº], Tipo, Assunto, Secretaria, DataAbertura, Status FROM [T_Solicitação]"
+    "SELECT [ID_Solicitações], [Nº], Tipo, Assunto, Secretaria, DataAbertura, DataFinal, [Com visita], [Observação], Status FROM [T_Solicitação]"
   )
   s.lidas = rows.length
 
@@ -879,15 +901,17 @@ async function importarSolicitacoes() {
       pular(s, 'Secretaria não resolvida (ou fora dos 6 clientes conhecidos)')
       continue
     }
-    const numero = toNum(row['Nº'])
-    const assunto = toStr(row['Assunto'])
-    const descricao = [numero !== null ? `Nº ${numero}` : null, assunto].filter(Boolean).join(' — ') || null
+    // O "Nº" do chamado agora tem coluna própria (Task 7) — antes ia como prefixo de `descricao`.
     const data = {
       clienteId,
       tipo: toStr(row['Tipo']),
-      descricao,
+      numero: toStr(row['Nº']),
+      descricao: toStr(row['Assunto']),
       situacao: toStr(row['Status']),
       dataAbertura: parseAccessDate(row['DataAbertura']),
+      dataFinal: parseAccessDate(row['DataFinal']),
+      comVisita: toBool(row['Com visita']),
+      observacao: toStr(row['Observação']),
     }
     await prisma.solicitacao.upsert({
       where: { legacyId },

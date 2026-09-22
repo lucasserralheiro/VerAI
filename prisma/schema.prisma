@@ -283,17 +283,25 @@ model NotaFiscal {
 // "assunto, tipo, responsável"; `situacao`/`dataAbertura`/`clienteId` são
 // cadastro razoável — ver ressalva no relatório da Task 1.
 model Demanda {
-  id           String           @id @default(cuid())
-  legacyId     Int?             @unique
-  clienteId    String
-  cliente      Cliente          @relation(fields: [clienteId], references: [id])
-  assunto      String?
-  tipo         String?
-  responsavel  String?
-  situacao     String?
-  dataAbertura DateTime?
-  createdAt    DateTime         @default(now())
-  tramites     TramiteDemanda[]
+  id             String           @id @default(cuid())
+  legacyId       Int?             @unique
+  clienteId      String
+  cliente        Cliente          @relation(fields: [clienteId], references: [id])
+  assunto        String?
+  tipo           String?
+  responsavel    String?
+  situacao       String?
+  dataAbertura   DateTime?
+  // Colunas reais de T_Documento (Task 7): TipoAssunto, Documento, SEI.
+  tipoAssunto    String?
+  documento      String?
+  sei            String?
+  // Preenchido pelo import quando o cliente foi ATRIBUÍDO (não veio da origem): 109 das 136
+  // demandas do GRC-1 não têm cliente válido e, por decisão do usuário (22/09/2026), entram na
+  // SMS. Ex.: "cliente vazio no GRC-1". Permite achar e corrigir essas depois.
+  notaImportacao String?
+  createdAt      DateTime         @default(now())
+  tramites       TramiteDemanda[]
 
   @@index([clienteId])
 }
@@ -301,15 +309,20 @@ model Demanda {
 // Trâmite de uma demanda (T_Trâmite) — histórico de posição/ação, citado em
 // prosa no design doc §4. `data`/`observacao` são cadastro razoável.
 model TramiteDemanda {
-  id         String    @id @default(cuid())
-  legacyId   Int?      @unique
-  demandaId  String
-  demanda    Demanda   @relation(fields: [demandaId], references: [id])
-  data       DateTime?
-  posicao    String?
-  acao       String?
-  observacao String?
-  createdAt  DateTime  @default(now())
+  id               String    @id @default(cuid())
+  legacyId         Int?      @unique
+  demandaId        String
+  demanda          Demanda   @relation(fields: [demandaId], references: [id])
+  data             DateTime?
+  posicao          String?
+  acao             String?
+  observacao       String?
+  // Colunas reais de T_Trâmite (Task 7): Responsável Atual, DataRetorno, ComApresentação, Assinado.
+  responsavelAtual String?
+  dataRetorno      DateTime?
+  comApresentacao  Boolean?
+  assinado         Boolean?
+  createdAt        DateTime  @default(now())
 
   @@index([demandaId])
 }
@@ -327,6 +340,12 @@ model Solicitacao {
   descricao    String?
   situacao     String?
   dataAbertura DateTime?
+  // Colunas reais de T_Solicitação (Task 7): Nº (do chamado — não é único, por isso não é o
+  // legacyId), DataFinal, Com visita, Observação.
+  numero       String?
+  dataFinal    DateTime?
+  comVisita    Boolean?
+  observacao   String?
   createdAt    DateTime  @default(now())
 
   @@index([clienteId])

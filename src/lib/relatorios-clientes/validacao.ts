@@ -122,10 +122,13 @@ const mensagensEmPortugues = z.locales.pt().localeError
 /**
  * Lê o JSON do corpo e valida com o schema. Em erro, devolve a resposta 400
  * pronta, com a primeira mensagem do zod (`"campo: mensagem"`) em português.
+ * `rotulos` troca o nome técnico do campo pelo rótulo que o usuário vê na tela
+ * (`{ dataFim: 'Fim da vigência' }`); campo sem rótulo sai com o nome técnico.
  */
 export async function lerCorpo<S extends z.ZodType>(
   request: Request,
-  schema: S
+  schema: S,
+  rotulos: Record<string, string> = {}
 ): Promise<{ dados: z.output<S> } | { erro: NextResponse }> {
   let corpo: unknown
   try {
@@ -137,7 +140,8 @@ export async function lerCorpo<S extends z.ZodType>(
   const resultado = schema.safeParse(corpo, { error: mensagensEmPortugues })
   if (!resultado.success) {
     const [primeiro] = resultado.error.issues
-    const campo = primeiro.path.join('.')
+    const caminho = primeiro.path.join('.')
+    const campo = rotulos[caminho] ?? caminho
     const mensagem = campo ? `${campo}: ${primeiro.message}` : primeiro.message
     return { erro: NextResponse.json({ error: mensagem }, { status: 400 }) }
   }

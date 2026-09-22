@@ -166,6 +166,14 @@ describe('lerCorpo', () => {
     await expect(resultado.erro.json()).resolves.toEqual({ error: 'nome: campo obrigatório' })
   })
 
+  it('usa o rótulo em português do campo quando informado', async () => {
+    const resultado = await lerCorpo(requisicao(JSON.stringify({ valor: '-1', nome: 'X' })), schema, {
+      valor: 'Valor',
+    })
+    if (!('erro' in resultado)) throw new Error('esperava erro')
+    await expect(resultado.erro.json()).resolves.toEqual({ error: 'Valor: valor não pode ser negativo' })
+  })
+
   it('usa o locale pt do zod quando o schema não tem mensagem própria', async () => {
     const resultado = await lerCorpo(requisicao(JSON.stringify({ nome: 5 })), z.object({ nome: z.string() }))
     if (!('erro' in resultado)) throw new Error('esperava erro')

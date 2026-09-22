@@ -40,10 +40,12 @@ Testing Library.
 
 ### Task 1: Schema Prisma — os 12 models novos + extensão de `Cliente`
 
-**Status:** Não iniciada.
+**Status:** Concluída (commit `74c3097`). Relatório completo:
+`.superpowers/sdd/2026-09-22-relatorios-clientes/task-1-report.md`.
 
 **Files:**
 - Modify: `prisma/schema.prisma`
+- Add: `prisma/migrations/20260922133255_relatorios_clientes_grc1/migration.sql`
 
 **Interfaces:**
 - Produces: `Cliente` estendido (+ `siglaLegado`, `endereco`, `numero`, `bairro`,
@@ -52,12 +54,17 @@ Testing Library.
   `TermoConfirmacao`, `Contrato`, `HistoricoContrato` (enum `TipoHistoricoContrato`),
   `ItemContrato`, `Faturamento`, `NotaFiscal`, `Demanda`, `TramiteDemanda`, `Solicitacao`.
 
-- [ ] **Step 1:** Escrever os 12 models no `schema.prisma`, seguindo o mapeamento campo a campo do
+- [x] **Step 1:** Escrever os 12 models no `schema.prisma`, seguindo o mapeamento campo a campo do
       design doc §4 — cada um com `legacyId Int? @unique` para a importação idempotente (§3.2 do
-      design doc)
-- [ ] **Step 2:** Gerar e rodar a migration (`npx dotenv -e .env.development -- npx prisma
-      migrate dev --name relatorios_clientes_grc1`)
-- [ ] **Step 3:** Commit isolado do schema/migration
+      design doc). Ressalva: design doc só tem lista de campos completa pra `Cliente`/
+      `ResponsavelCliente`; pra `Fornecedor`, `ContratoOperacionalizacao`, `TermoConfirmacao` e
+      `Contrato` (cabeçalho) os campos foram inferidos/inventados — lista completa no relatório da
+      Task 1, risco já aceito pelo usuário.
+- [x] **Step 2:** Gerar e rodar a migration. `prisma migrate dev` não funciona neste ambiente
+      (não-interativo); contornado com `prisma migrate diff --from-url ... --script` +
+      `prisma migrate deploy` (mesmo efeito, SQL conferido contra o schema antes de aplicar) —
+      detalhe no relatório da Task 1.
+- [x] **Step 3:** Commit isolado do schema/migration — `74c3097`.
 
 ---
 

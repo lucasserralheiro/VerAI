@@ -19,6 +19,7 @@ import {
   ClipboardCopy,
   History,
   Search,
+  Truck,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -43,7 +44,10 @@ const CONFERE_LINK = { href: '/confere', label: 'ConfereAI', icon: Search }
 const CONFERE_SUBLINKS = [{ href: '/confere/historico', label: 'Histórico', icon: History }]
 
 const RELATORIOS_LINK = { href: '/clientes', label: 'Relatórios dos clientes', icon: Building2 }
-const RELATORIOS_SUBLINKS = [{ href: '/', label: 'Todos os documentos', icon: FileText }]
+const RELATORIOS_SUBLINKS = [
+  { href: '/', label: 'Todos os documentos', icon: FileText },
+  { href: '/fornecedores', label: 'Fornecedores', icon: Truck },
+]
 
 // "Proposta Comercial (Conversão SEI)" é outro módulo à parte — mesmo padrão
 // de "Relatórios dos clientes": o cabeçalho já é um link de verdade pro

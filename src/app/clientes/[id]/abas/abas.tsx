@@ -5,6 +5,7 @@
 import type { ComponentType } from 'react'
 import { ClipboardList, FileSignature, FileText, Receipt, Truck, Users, type LucideIcon } from 'lucide-react'
 import { AbaDocumentos } from './aba-documentos'
+import { AbaFornecedores } from './aba-fornecedores'
 import { AbaResponsaveis } from './aba-responsaveis'
 
 export interface PropsAba {
@@ -24,7 +25,7 @@ export const ABAS = [
   { id: 'documentos', label: 'Documentos', icon: FileText, Componente: AbaDocumentos },
   { id: 'contratos', label: 'Contratos', icon: FileSignature, Componente: EmConstrucao },
   { id: 'faturamento', label: 'Faturamento', icon: Receipt, Componente: EmConstrucao },
-  { id: 'fornecedores', label: 'Fornecedores', icon: Truck, Componente: EmConstrucao },
+  { id: 'fornecedores', label: 'Fornecedores', icon: Truck, Componente: AbaFornecedores },
   { id: 'demandas', label: 'Demandas', icon: ClipboardList, Componente: EmConstrucao },
   { id: 'responsaveis', label: 'Responsáveis', icon: Users, Componente: AbaResponsaveis },
 ] as const satisfies ReadonlyArray<{ id: string; label: string; icon: LucideIcon; Componente: ComponentType<PropsAba> }>

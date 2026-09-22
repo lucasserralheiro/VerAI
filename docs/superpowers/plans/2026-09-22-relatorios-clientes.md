@@ -222,7 +222,18 @@ componente `aba-<nome>.tsx` dela).
 
 ### Task 4: Fornecedores — cadastro, CO e termos de confirmação
 
-**Status:** Não iniciada.
+**Status:** Concluída (commits `d4b7975`, `445b485`, `e43bc9c` e o commit das telas). Colunas
+acrescentadas (migração `20260922170000_fornecedor_co_termo_colunas_legado`, aplicada no Postgres
+local): `Fornecedor.acordo/numeroAcordo/dataAssinatura/sei`, `ContratoOperacionalizacao.sei`,
+`TermoConfirmacao.numero/valor/vigenciaFim/sei` e `data` → `vigenciaInicio` (RENAME). No Access,
+`Valor` e `Contrato Receita` do termo são **texto**: o que não parseia vai pra `observacao`.
+Ficou de fora: `T_TermoConfirmação.[Nº CO]` (inteiro sem uso claro; `ContratoDespesa` já liga o
+CO). Reimport: T_Fornecedor 4/4, T_CO 1/1, T_TermoConfirmação 0 (vazia na cópia de teste).
+Novos helpers compartilhados: `respostaErroPrisma` (P2025→404, P2003→400) e `lerCorpo(..., rotulos)`
+(rótulo em português na mensagem de erro). "Fornecedores" entrou como sub-item do menu.
+**Pendência pra Task 5:** o formulário de termo (`src/components/relatorios-clientes/secao-termos.tsx`)
+mostra o contrato ligado, mas ainda não tem seletor de contrato — depende da listagem
+`GET /api/clientes/[clienteId]/contratos` da Task 5; a API do termo já valida `contratoId`.
 
 **Decisão de tela:** CO (`ContratoOperacionalizacao`) vive na ficha do fornecedor. Termo de
 confirmação (ponte fornecedor ↔ cliente/contrato) aparece nos dois lados: ficha do fornecedor e aba
@@ -251,12 +262,12 @@ confirmação (ponte fornecedor ↔ cliente/contrato) aparece nos dois lados: fi
 opcional mas, se vier, tem que ser um `Contrato` **do mesmo cliente** (400 senão); acesso checado
 pelo `clienteId`.
 
-- [ ] **Step 1:** Levantar colunas no `.accdb`, schema + migração + import (se houver campo novo);
+- [x] **Step 1:** Levantar colunas no `.accdb`, schema + migração + import (se houver campo novo);
       rodar o import de novo no banco local e registrar contagens.
-- [ ] **Step 2:** Rotas de fornecedor e CO com testes.
-- [ ] **Step 3:** Rotas de termo com testes (incluindo contrato de outro cliente → 400).
-- [ ] **Step 4:** Páginas `/fornecedores`, `/fornecedores/[id]` e aba Fornecedores do cliente.
-- [ ] **Step 5:** Commit.
+- [x] **Step 2:** Rotas de fornecedor e CO com testes.
+- [x] **Step 3:** Rotas de termo com testes (incluindo contrato de outro cliente → 400).
+- [x] **Step 4:** Páginas `/fornecedores`, `/fornecedores/[id]` e aba Fornecedores do cliente.
+- [x] **Step 5:** Commit.
 
 ---
 
@@ -313,7 +324,8 @@ o cliente dele.
 - [ ] **Step 1:** Colunas do `.accdb`, schema + migração + import; reimportar e registrar contagens.
 - [ ] **Step 2:** `saldo.ts` e `vencimento.ts` com testes.
 - [ ] **Step 3:** Rotas de contrato/histórico/itens com testes.
-- [ ] **Step 4:** Aba Contratos e página de detalhe do contrato (com vinculação de itens).
+- [ ] **Step 4:** Aba Contratos e página de detalhe do contrato (com vinculação de itens). Incluir o
+      seletor de contrato no formulário de termo de confirmação (pendência da Task 4).
 - [ ] **Step 5:** Commit.
 
 ---

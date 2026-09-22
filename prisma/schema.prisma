@@ -149,6 +149,13 @@ model Contrato {
   seiCliente        String?
   seiProdam         String?
   situacao          String?
+  // Colunas reais de T_ContratoReceita (Task 5): Descrição, Início, Término (= vencimento),
+  // Vigente, Link SEI (hiperlink do Access, sem os "#").
+  descricao         String?
+  dataInicio        DateTime?
+  dataVencimento    DateTime?
+  vigente           Boolean?
+  linkSei           String?
   createdAt         DateTime            @default(now())
   historico         HistoricoContrato[]
   itens             ItemContrato[]
@@ -171,16 +178,24 @@ enum TipoHistoricoContrato {
 }
 
 model HistoricoContrato {
-  id         String                @id @default(cuid())
-  legacyId   Int?                  @unique
-  contratoId String
-  contrato   Contrato              @relation(fields: [contratoId], references: [id])
-  tipo       TipoHistoricoContrato
-  numero     String?
-  data       DateTime?
-  valor      Decimal?              @db.Decimal(14, 2)
-  observacao String?
-  createdAt  DateTime              @default(now())
+  id             String                @id @default(cuid())
+  legacyId       Int?                  @unique
+  contratoId     String
+  contrato       Contrato              @relation(fields: [contratoId], references: [id])
+  tipo           TipoHistoricoContrato
+  numero         String?
+  data           DateTime?
+  valor          Decimal?              @db.Decimal(14, 2)
+  observacao     String?
+  // Colunas reais de T_Propostas (Task 5): Objeto, Proposta, Situação, Data início,
+  // Vencimento, Envio. `data` continua sendo "Assinada em".
+  objeto         String?
+  proposta       String?
+  situacao       String?
+  dataInicio     DateTime?
+  dataVencimento DateTime?
+  dataEnvio      DateTime?
+  createdAt      DateTime              @default(now())
 
   @@index([contratoId])
 }

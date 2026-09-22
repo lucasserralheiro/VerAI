@@ -179,6 +179,16 @@ function parseValorTexto(v: string | null): string | null {
   return /^\d+(\.\d+)?$/.test(t) ? t : null
 }
 
+/** Campo Hiperlink do Access vem como "texto#endereço#subendereço" (ex. "#https://sei...#"):
+ *  devolve o endereço, ou o texto quando não há "#". */
+function parseHiperlinkAccess(v: unknown): string | null {
+  const s = toStr(v)
+  if (!s) return null
+  if (!s.includes('#')) return s
+  const [texto, endereco] = s.split('#')
+  return toStr(endereco) ?? toStr(texto)
+}
+
 function normSigla(v: unknown): string | null {
   const s = toStr(v)
   return s ? s.toUpperCase() : null
@@ -418,7 +428,8 @@ async function importarContratoOperacionalizacao() {
 async function importarContratos() {
   const s = novaStat('T_ContratoReceita')
   const rows = queryAccess(
-    "SELECT [ID_ContrReceit], Cliente, [Nº do Termo], Situação, SEI, [SEI PRODAM] FROM [T_ContratoReceita]"
+    // Documento/Contrato/PublicaçãoDOM/Minuta são objetos OLE embutidos (Word inteiro) — fora.
+    "SELECT [ID_ContrReceit], Cliente, [Nº do Termo], [Descrição], [Início], [Término], Situação, SEI, Vigente, [Link SEI], [SEI PRODAM] FROM [T_ContratoReceita]"
   )
   s.lidas = rows.length
 
@@ -440,6 +451,11 @@ async function importarContratos() {
       seiCliente: toStr(row['SEI']),
       seiProdam: toStr(row['SEI PRODAM']),
       situacao: toStr(row['Situação']),
+      descricao: toStr(row['Descrição']),
+      dataInicio: parseAccessDate(row['Início']),
+      dataVencimento: parseAccessDate(row['Término']),
+      vigente: typeof row['Vigente'] === 'boolean' ? row['Vigente'] : null,
+      linkSei: parseHiperlinkAccess(row['Link SEI']),
     }
     const contrato = await prisma.contrato.upsert({
       where: { legacyId },
@@ -453,10 +469,9 @@ async function importarContratos() {
 
 async function importarHistoricoContrato() {
   const s = novaStat('T_Propostas')
-  // Exclui DocProposta/TA (objetos OLE embutidos — Word inteiro por linha, GBs em produção) e
-  // Envio/Objeto (não usados no mapeamento).
+  // Exclui DocProposta/TA (objetos OLE embutidos — Word inteiro por linha, GBs em produção).
   const rows = queryAccess(
-    "SELECT [ID_Proposta], Tipo, Contrato, Proposta, Termo, [Assinada em], Valor, [Situação] FROM [T_Propostas]"
+    "SELECT [ID_Proposta], Tipo, Objeto, Contrato, Proposta, Termo, [Assinada em], Valor, [Data início], Vencimento, [Situação], Envio FROM [T_Propostas]"
   )
   s.lidas = rows.length
 
@@ -477,19 +492,21 @@ async function importarHistoricoContrato() {
       pular(s, 'Tipo nulo/não mapeado')
       continue
     }
-    const situacao = toStr(row['Situação'])
-    const proposta = toStr(row['Proposta'])
-    const observacao =
-      [situacao ? `Situação: ${situacao}` : null, proposta ? `Proposta: ${proposta}` : null]
-        .filter(Boolean)
-        .join(' | ') || null
+    // Situação/Proposta iam pra `observacao` antes da Task 5; agora têm coluna própria e
+    // `observacao` fica pra anotação manual (o upsert limpa o texto antigo gerado pelo import).
     const data = {
       contratoId,
       tipo,
       numero: toStr(row['Termo']),
       data: parseAccessDate(row['Assinada em']),
       valor: toNum(row['Valor']),
-      observacao,
+      objeto: toStr(row['Objeto']),
+      proposta: toStr(row['Proposta']),
+      situacao: toStr(row['Situação']),
+      dataInicio: parseAccessDate(row['Data início']),
+      dataVencimento: parseAccessDate(row['Vencimento']),
+      dataEnvio: parseAccessDate(row['Envio']),
+      observacao: null,
     }
     await prisma.historicoContrato.upsert({
       where: { legacyId },

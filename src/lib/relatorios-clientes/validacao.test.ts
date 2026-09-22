@@ -7,6 +7,7 @@ import {
   decimalObrigatorio,
   decimalOpcional,
   emailOpcional,
+  inteiroEntre,
   lerCorpo,
   textoObrigatorio,
   textoOpcional,
@@ -135,6 +136,28 @@ describe('emailOpcional', () => {
 
   it('rejeita e-mail inválido', () => {
     expect(emailOpcional.safeParse('nao-e-email').success).toBe(false)
+  })
+})
+
+describe('inteiroEntre', () => {
+  const mes = inteiroEntre(1, 12)
+
+  it('aceita número ou texto inteiro dentro da faixa', () => {
+    expect(mes.parse(3)).toBe(3)
+    expect(mes.parse(' 12 ')).toBe(12)
+  })
+
+  it('rejeita fora da faixa, fracionário e texto não numérico', () => {
+    expect(mes.safeParse(0).success).toBe(false)
+    expect(mes.safeParse(13).success).toBe(false)
+    expect(mes.safeParse('1.5').success).toBe(false)
+    expect(mes.safeParse('abc').success).toBe(false)
+    expect(mes.safeParse(13).error?.issues[0].message).toBe('deve ser um número inteiro entre 1 e 12')
+  })
+
+  it('é obrigatório: ausente ou vazio dá "campo obrigatório"', () => {
+    expect(mes.safeParse(undefined).error?.issues[0].message).toBe('campo obrigatório')
+    expect(mes.safeParse('').error?.issues[0].message).toBe('campo obrigatório')
   })
 })
 

@@ -25,3 +25,12 @@ export async function carregarContratoComAcesso(request: NextRequest, id: string
   const negado = await verificarAcessoCliente(autenticado.usuario, contrato.clienteId)
   return negado ? { erro: negado } : { usuario: autenticado.usuario, contrato }
 }
+
+/** 400 pronto quando o contrato informado não existe ou é de outro cliente; `null` quando pode.
+ *  Usado por termo de confirmação e faturamento, que apontam pra um contrato do próprio cliente. */
+export async function contratoForaDoCliente(contratoId: string, clienteId: string): Promise<NextResponse | null> {
+  const contrato = await prisma.contrato.findUnique({ where: { id: contratoId }, select: { clienteId: true } })
+  if (contrato?.clienteId === clienteId) return null
+  const mensagem = contrato ? 'Contrato: não pertence a este cliente' : 'Contrato: não encontrado'
+  return NextResponse.json({ error: mensagem }, { status: 400 })
+}

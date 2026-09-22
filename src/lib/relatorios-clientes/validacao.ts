@@ -96,6 +96,29 @@ export const decimalObrigatorio = z
     return resultado.valor
   })
 
+/** Inteiro obrigatório dentro de `[min, max]` (ano de competência, mês 1–12...). Aceita número ou
+ *  texto (`" 12 "`), porque campo de formulário chega como string. Para opcional, `.optional()`. */
+export function inteiroEntre(min: number, max: number) {
+  const foraDaFaixa = `deve ser um número inteiro entre ${min} e ${max}`
+  return z
+    .union([z.string(), z.number()], {
+      error: (issue) => (issue.input === undefined || issue.input === null ? OBRIGATORIO : foraDaFaixa),
+    })
+    .transform((bruto, ctx) => {
+      const texto = typeof bruto === 'string' ? bruto.trim() : String(bruto)
+      if (texto === '') {
+        ctx.addIssue({ code: 'custom', message: OBRIGATORIO })
+        return z.NEVER
+      }
+      const numero = Number(texto)
+      if (!/^-?\d+$/.test(texto) || numero < min || numero > max) {
+        ctx.addIssue({ code: 'custom', message: foraDaFaixa })
+        return z.NEVER
+      }
+      return numero
+    })
+}
+
 /** `AAAA-MM-DD` → `Date` à meia-noite UTC; rejeita data inexistente (`2026-02-30`). */
 export const dataOpcional = z
   .string({ error: 'data inválida (use AAAA-MM-DD)' })

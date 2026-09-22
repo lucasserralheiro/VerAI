@@ -1,10 +1,10 @@
-// Definição única das abas da ficha do cliente (/clientes/[id]). As Tasks 4–7
-// do plano de "Relatórios dos clientes" trocam o `EmConstrucao` da aba delas
-// pelo componente `aba-<nome>.tsx` correspondente — só aqui.
+// Definição única das abas da ficha do cliente (/clientes/[id]) — cada aba é o
+// componente `aba-<nome>.tsx` correspondente.
 
 import type { ComponentType } from 'react'
 import { ClipboardList, FileSignature, FileText, Receipt, Truck, Users, type LucideIcon } from 'lucide-react'
 import { AbaContratos } from './aba-contratos'
+import { AbaDemandas } from './aba-demandas'
 import { AbaDocumentos } from './aba-documentos'
 import { AbaFaturamento } from './aba-faturamento'
 import { AbaFornecedores } from './aba-fornecedores'
@@ -14,21 +14,12 @@ export interface PropsAba {
   clienteId: string
 }
 
-function EmConstrucao() {
-  return (
-    <div className="card-flush flex flex-col items-center gap-1 p-10 text-center">
-      <p className="text-sm font-semibold text-navy">Em construção</p>
-      <p className="text-xs text-mid-grey">Esta aba ainda está sendo migrada do sistema legado.</p>
-    </div>
-  )
-}
-
 export const ABAS = [
   { id: 'documentos', label: 'Documentos', icon: FileText, Componente: AbaDocumentos },
   { id: 'contratos', label: 'Contratos', icon: FileSignature, Componente: AbaContratos },
   { id: 'faturamento', label: 'Faturamento', icon: Receipt, Componente: AbaFaturamento },
   { id: 'fornecedores', label: 'Fornecedores', icon: Truck, Componente: AbaFornecedores },
-  { id: 'demandas', label: 'Demandas', icon: ClipboardList, Componente: EmConstrucao },
+  { id: 'demandas', label: 'Demandas', icon: ClipboardList, Componente: AbaDemandas },
   { id: 'responsaveis', label: 'Responsáveis', icon: Users, Componente: AbaResponsaveis },
 ] as const satisfies ReadonlyArray<{ id: string; label: string; icon: LucideIcon; Componente: ComponentType<PropsAba> }>
 

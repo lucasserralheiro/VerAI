@@ -20,6 +20,8 @@ import {
   History,
   Search,
   Truck,
+  ClipboardList,
+  Inbox,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -47,6 +49,8 @@ const RELATORIOS_LINK = { href: '/clientes', label: 'Relatórios dos clientes', 
 const RELATORIOS_SUBLINKS = [
   { href: '/', label: 'Todos os documentos', icon: FileText },
   { href: '/fornecedores', label: 'Fornecedores', icon: Truck },
+  { href: '/demandas', label: 'Demandas', icon: ClipboardList },
+  { href: '/solicitacoes', label: 'Solicitações', icon: Inbox },
 ]
 
 // "Proposta Comercial (Conversão SEI)" é outro módulo à parte — mesmo padrão

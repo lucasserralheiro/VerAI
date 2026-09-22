@@ -125,10 +125,11 @@ describe('ClienteDetalhePage', () => {
     expect(screen.getByRole('tab', { name: 'Responsáveis' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('abas ainda não construídas mostram "Em construção"', async () => {
+  it('nenhuma aba mostra mais "Em construção" — todas foram migradas', async () => {
     mockAba = 'demandas'
     await renderPagina()
-    expect(await screen.findByText('Em construção')).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'Demandas' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByText('Em construção')).not.toBeInTheDocument()
   })
 
   it('?aba= desconhecida cai na aba Documentos', async () => {

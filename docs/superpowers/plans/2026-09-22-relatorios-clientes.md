@@ -391,7 +391,21 @@ obrigatório ≥ 0.
 
 ### Task 7: Demandas (com trâmite) e Solicitações
 
-**Status:** Não iniciada.
+**Status:** Concluída (commits `3d62ce5`, `33e7f66` e o commit das telas). Colunas acrescentadas
+(migração `20260922230000_demanda_tramite_solicitacao_colunas_legado`, aplicada no Postgres local):
+`Demanda.tipoAssunto/documento/sei/notaImportacao`,
+`TramiteDemanda.responsavelAtual/dataRetorno/comApresentacao/assinado` e
+`Solicitacao.numero/dataFinal/comVisita/observacao` — tipo de assunto, responsável atual e nº do
+chamado deixaram de ir concatenados em outro campo. **Decisão do usuário (22/09/2026):** 109 das 136
+demandas do GRC-1 não têm cliente válido (60 com cliente vazio, 49 com ID apagado de `T_Cliente`) e
+entram na **SMS**, com `Demanda.notaImportacao` registrando a atribuição. A tela de demandas tem o
+filtro "Só com cliente atribuído no import" e a demanda mostra um aviso; trocar o cliente pelo
+"Editar demanda" limpa a nota. Já se vê no dado real que parte delas não é da SMS (ex.: 5 com
+"SMTUR" no texto). Reimport: T_Documento 136/136 (antes 27), T_Trâmite 338/369 (antes 71; 31 sem
+demanda), T_Solicitação 107/112 (5 de secretaria fora dos 6 clientes). Sugestões (`<datalist>`) vêm
+dos valores já existentes no banco, os mais usados primeiro. Todas as abas da ficha do cliente estão
+prontas — o placeholder "Em construção" foi removido. Demandas e Solicitações entraram no menu
+aqui (a Task 8 fica com "Relatórios").
 
 **Files:**
 - Modify: `prisma/schema.prisma` + migração + `scripts/importar-grc1.ts` — relatório da Task 2
@@ -418,10 +432,10 @@ continuam texto livre, mas a tela oferece sugestões (`<datalist>`) com os valor
 existentes no banco (rota GET devolve `sugestoes` junto) — resolve o minor deferido da Task 1
 sobre valores enum-like sem documentação.
 
-- [ ] **Step 1:** Colunas do `.accdb`, schema + migração + import; reimportar e registrar contagens.
-- [ ] **Step 2:** Rotas com testes.
-- [ ] **Step 3:** Páginas `/demandas`, `/demandas/[id]`, `/solicitacoes` e aba Demandas do cliente.
-- [ ] **Step 4:** Commit.
+- [x] **Step 1:** Colunas do `.accdb`, schema + migração + import; reimportar e registrar contagens.
+- [x] **Step 2:** Rotas com testes.
+- [x] **Step 3:** Páginas `/demandas`, `/demandas/[id]`, `/solicitacoes` e aba Demandas do cliente.
+- [x] **Step 4:** Commit.
 
 ---
 

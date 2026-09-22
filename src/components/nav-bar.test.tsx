@@ -80,9 +80,11 @@ describe('NavBar', () => {
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).toBeInTheDocument()
   })
 
-  it('"Fornecedores" é sub-item do grupo "Relatórios dos clientes"', () => {
+  it('"Fornecedores", "Demandas" e "Solicitações" são sub-itens do grupo "Relatórios dos clientes"', () => {
     render(<NavBar />)
     expect(screen.getByRole('link', { name: 'Fornecedores' })).toHaveAttribute('href', '/fornecedores')
+    expect(screen.getByRole('link', { name: 'Demandas' })).toHaveAttribute('href', '/demandas')
+    expect(screen.getByRole('link', { name: 'Solicitações' })).toHaveAttribute('href', '/solicitacoes')
   })
 
   it('"Proposta Comercial" é um link de verdade pro histórico, fora de "Relatórios", aberto por padrão', () => {

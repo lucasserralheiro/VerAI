@@ -133,4 +133,12 @@ describe('POST /api/clientes/[clienteId]/arquivos', () => {
     expect((registrarArquivo as jest.Mock).mock.calls[0][0].contratoId).toBeNull()
     await expect(resposta.json()).resolves.toMatchObject({ duplicado: true })
   })
+
+  it('502 quando falha ao ler o upload temporário', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {})
+    ;(registrarArquivo as jest.Mock).mockRejectedValue(new Error('Falha ao baixar arquivo do storage (404)'))
+    const resposta = await POST(post(valido), contexto())
+    expect(resposta.status).toBe(502)
+    await expect(resposta.json()).resolves.toEqual({ error: 'não foi possível ler o arquivo enviado — envie de novo' })
+  })
 })

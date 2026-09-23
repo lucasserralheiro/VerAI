@@ -49,16 +49,25 @@ export async function POST(request: NextRequest, { params }: Contexto) {
     if (contratoInvalido) return contratoInvalido
   }
 
-  const { arquivo, duplicado } = await registrarArquivo({
-    clienteId,
-    urlTemporaria: dados.urlTemporaria,
-    nome: dados.nome,
-    categoria: dados.categoria,
-    contratoId: dados.contratoId ?? null,
-    competenciaAno: dados.competenciaAno ?? null,
-    competenciaMes: dados.competenciaMes ?? null,
-    enviadoPorId: acesso.usuario.id,
-  })
+  let arquivo, duplicado
+  try {
+    ;({ arquivo, duplicado } = await registrarArquivo({
+      clienteId,
+      urlTemporaria: dados.urlTemporaria,
+      nome: dados.nome,
+      categoria: dados.categoria,
+      contratoId: dados.contratoId ?? null,
+      competenciaAno: dados.competenciaAno ?? null,
+      competenciaMes: dados.competenciaMes ?? null,
+      enviadoPorId: acesso.usuario.id,
+    }))
+  } catch (erro) {
+    console.error('[arquivos] falha ao registrar arquivo', erro)
+    return NextResponse.json(
+      { error: 'não foi possível ler o arquivo enviado — envie de novo' },
+      { status: 502 }
+    )
+  }
   const usos = await usosDosArquivos([arquivo.id])
   return NextResponse.json(
     { arquivo: serializarArquivo(arquivo, usos.get(arquivo.id) ?? []), duplicado },

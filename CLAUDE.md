@@ -147,3 +147,7 @@ navegador. Remoção é lógica e bloqueada enquanto `usosDosArquivos` achar uso
 referencia arquivo **acrescenta sua fonte em `usosDosArquivos`**. Design e fases:
 `docs/superpowers/specs/2026-09-23-repositorio-documentos-cliente-design.md`.
 
+Toda migração gerada daqui em diante deve ser conferida — se aparecer `DROP INDEX
+"ArquivoCliente_clienteId_sha256_ativo_key"`, remova a linha (o índice é único parcial, criado à mão
+em `20260924100000_repositorio_arquivos_cliente`).
+

@@ -135,3 +135,15 @@ com máscara, clicável em qualquer tela (abre o processo se houver link cadastr
 `NEXT_PUBLIC_SEI_URL_TEMPLATE`; senão o clique copia o número). Nunca renderizar `contrato.sei…` como
 texto puro. Formatação/URL em `src/lib/relatorios-clientes/sei.ts`.
 
+## Repositório de documentos do cliente
+
+**Arquivo de cliente existe num lugar só: `ArquivoCliente`** (aba Documentos da ficha,
+`src/app/clientes/[id]/abas/aba-documentos.tsx`; serviço em `src/lib/arquivos/`). Quem usa um
+arquivo guarda `...ArquivoId` — nunca URL própria nem cópia do blob. Upload sempre direto ao Blob
+(`/api/arquivos/upload-token`, caminho `tmp-arquivos/`) e registro servidor a servidor
+(`registrarArquivo`: hash SHA-256, sem duplicado no cliente); entrega sempre por
+`/api/arquivos/[id]` (checa `podeVerCliente`, grava `AcessoArquivo`) — `urlBlob` nunca vai pro
+navegador. Remoção é lógica e bloqueada enquanto `usosDosArquivos` achar uso; módulo novo que
+referencia arquivo **acrescenta sua fonte em `usosDosArquivos`**. Design e fases:
+`docs/superpowers/specs/2026-09-23-repositorio-documentos-cliente-design.md`.
+

@@ -2,7 +2,7 @@ import type { Documento, Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 import type { AuthUser } from './auth'
 
-async function clienteIdsPermitidos(usuario: AuthUser): Promise<string[] | null> {
+export async function clienteIdsPermitidos(usuario: AuthUser): Promise<string[] | null> {
   // null = sem restrição (admin vê todos os clientes)
   if (usuario.role === 'admin') return null
 

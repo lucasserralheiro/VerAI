@@ -37,6 +37,15 @@ export function mockFetch() {
     if (u === '/api/documentos?clienteId=cliente-1') {
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) }) as unknown as Promise<Response>
     }
+    if (u === '/api/clientes/cliente-1/arquivos') {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ arquivos: [], resumo: { total: 0, bytes: 0 } }),
+      }) as unknown as Promise<Response>
+    }
+    if (u === '/api/clientes/cliente-1/contratos') {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) }) as unknown as Promise<Response>
+    }
     if (u === '/api/clientes/cliente-1/responsaveis') {
       return Promise.resolve({
         ok: true,

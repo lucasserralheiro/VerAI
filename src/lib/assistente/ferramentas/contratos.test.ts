@@ -97,15 +97,50 @@ describe('contratosVencendo', () => {
     ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([contrato('a'), contrato('b'), contrato('c'), contrato('d')])
     ;(consolidarContratos as jest.Mock).mockResolvedValue(
       new Map([
-        ['a', consolidado({ vigenciaFim: new Date('2026-12-15T00:00:00Z') })],
-        ['b', consolidado({ vigenciaFim: new Date('2026-10-01T00:00:00Z') })],
-        ['c', consolidado({ vigenciaFim: new Date('2026-10-01T00:00:00Z'), rescindido: true })],
-        ['d', consolidado({ vigenciaFim: new Date('2026-01-01T00:00:00Z') })],
+        ['a', consolidado({ vigenciaFim: new Date('2026-12-15T00:00:00Z'), vencimento: { nivel: 'atencao', dias: 83 } })],
+        ['b', consolidado({ vigenciaFim: new Date('2026-10-01T00:00:00Z'), vencimento: { nivel: 'critico', dias: 8 } })],
+        ['c', consolidado({ vigenciaFim: new Date('2026-10-01T00:00:00Z'), vencimento: { nivel: 'critico', dias: 8 }, rescindido: true })],
+        ['d', consolidado({ vigenciaFim: new Date('2026-01-01T00:00:00Z'), vencimento: { nivel: 'vencido', dias: -265 } })],
       ])
     )
     const r = (await rodar(contratosVencendo, { ate: '2026-12-31' })) as { total: number; contratos: { id: string }[] }
     expect(r.total).toBe(2)
     expect(r.contratos.map((c) => c.id)).toEqual(['b', 'a'])
+  })
+
+  it('vence hoje (dias: 0) entra mesmo sem incluirVencidos, mesmo com vigenciaFim antes do timestamp de hoje', async () => {
+    ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([contrato('a')])
+    ;(consolidarContratos as jest.Mock).mockResolvedValue(
+      new Map([['a', consolidado({ vigenciaFim: new Date('2026-09-23T00:00:00Z'), vencimento: { nivel: 'critico', dias: 0 } })]])
+    )
+    const r = (await rodar(contratosVencendo, { ate: '2026-09-23' })) as { total: number; contratos: { id: string }[] }
+    expect(r.total).toBe(1)
+    expect(r.contratos.map((c) => c.id)).toEqual(['a'])
+  })
+
+  it('já vencido (dias: -1) só entra com incluirVencidos', async () => {
+    ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([contrato('a')])
+    ;(consolidarContratos as jest.Mock).mockResolvedValue(
+      new Map([['a', consolidado({ vigenciaFim: new Date('2026-09-22T00:00:00Z'), vencimento: { nivel: 'vencido', dias: -1 } })]])
+    )
+    const semIncluir = (await rodar(contratosVencendo, { ate: '2026-09-23' })) as { total: number }
+    expect(semIncluir.total).toBe(0)
+    const comIncluir = (await rodar(contratosVencendo, { ate: '2026-09-23', incluirVencidos: true })) as {
+      total: number
+      contratos: { id: string }[]
+    }
+    expect(comIncluir.total).toBe(1)
+    expect(comIncluir.contratos.map((c) => c.id)).toEqual(['a'])
+  })
+
+  it('fronteira: dias igual ao limite (ate) entra', async () => {
+    ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([contrato('a')])
+    ;(consolidarContratos as jest.Mock).mockResolvedValue(
+      new Map([['a', consolidado({ vigenciaFim: new Date('2026-10-23T00:00:00Z'), vencimento: { nivel: 'critico', dias: 30 } })]])
+    )
+    const r = (await rodar(contratosVencendo, { ate: '2026-10-23' })) as { total: number; contratos: { id: string }[] }
+    expect(r.total).toBe(1)
+    expect(r.contratos.map((c) => c.id)).toEqual(['a'])
   })
 })
 

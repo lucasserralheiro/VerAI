@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { podeVerCliente } from '@/lib/visibilidade'
 import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
 import { digitosDoSei } from '@/lib/relatorios-clientes/sei'
+import { situacaoVencimento } from '@/lib/relatorios-clientes/vencimento'
 import { SELECT_CONTRATO } from '@/app/api/contratos/esquema'
 import {
   data,
@@ -129,14 +130,19 @@ export const contratosVencendo = definirFerramenta({
       select: { ...SELECT_CONTRATO, cliente: { select: { nome: true } } },
     })
     const consolidados = await consolidarContratos(contratos, hoje)
-    const limite = new Date(`${ate}T23:59:59Z`)
+    // Regra única de vencimento (dias de calendário em America/Sao_Paulo) vem de
+    // situacaoVencimento/consolidarContratos — nunca recomputada a partir do Date bruto (senão um
+    // contrato que vence HOJE fica excluído por horas da tarde, ou a virada de dia em UTC erra o
+    // limite). `ate` (AAAA-MM-DD) vira "dias até `ate`" pela mesma função, com meio-dia UTC pra
+    // cair no dia certo dentro de diaDoVencimento.
+    const diasAte = situacaoVencimento(new Date(`${ate}T00:00:00Z`), hoje).dias!
     const lista = contratos
       .map((contrato) => ({ contrato, consolidado: consolidados.get(contrato.id)! }))
       .filter(({ consolidado: k }) => {
-        if (k.vazio || k.rescindido || !k.vigenciaFim) return false
-        return k.vigenciaFim <= limite && (incluirVencidos || k.vigenciaFim >= hoje)
+        if (k.vazio || k.rescindido || k.vencimento.dias === null) return false
+        return k.vencimento.dias <= diasAte && (incluirVencidos || k.vencimento.dias >= 0)
       })
-      .sort((a, b) => a.consolidado.vigenciaFim!.getTime() - b.consolidado.vigenciaFim!.getTime())
+      .sort((a, b) => a.consolidado.vencimento.dias! - b.consolidado.vencimento.dias!)
     return {
       total: lista.length,
       contratos: lista.slice(0, LIMITE_PADRAO).map(({ contrato, consolidado }) => ({

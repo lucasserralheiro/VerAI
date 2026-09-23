@@ -7,9 +7,11 @@ jest.mock('unpdf', () => ({}))
 jest.mock('ai', () => ({ tool: jest.fn((config: unknown) => config) }))
 import { z } from 'zod'
 import { definirFerramenta } from './comum'
-import { executarComSeguranca, FERRAMENTAS, ROTULOS_FERRAMENTAS } from './index'
+import { criarFerramentas, executarComSeguranca, FERRAMENTAS, ROTULOS_FERRAMENTAS } from './index'
 
 const ctx = { usuario: { id: 'u', nome: 'U', email: 'u@x', role: 'admin' as const }, hoje: new Date() }
+
+type FerramentaStub = { description: string; inputSchema: unknown; execute: (entrada: unknown) => Promise<unknown> }
 
 it('registra as 15 ferramentas, todas com rótulo de progresso', () => {
   expect(Object.keys(FERRAMENTAS).sort()).toEqual(
@@ -30,4 +32,43 @@ it('erro da ferramenta vira { erro } para a IA, sem lançar', async () => {
 it('resultado grande é truncado', async () => {
   const grande = definirFerramenta({ descricao: 'x', entrada: z.object({}), executar: async () => ({ s: 'x'.repeat(9000) }) })
   expect(await executarComSeguranca('grande', grande, {}, ctx)).toMatchObject({ truncado: true })
+})
+
+describe('criarFerramentas', () => {
+  it('expõe as 15 ferramentas com description/inputSchema vindos de cada Ferramenta', () => {
+    const ferramentas = criarFerramentas(ctx) as unknown as Record<string, FerramentaStub>
+    expect(Object.keys(ferramentas).sort()).toEqual(Object.keys(FERRAMENTAS).sort())
+    for (const [nome, ferramenta] of Object.entries(FERRAMENTAS)) {
+      expect(ferramentas[nome].description).toBe(ferramenta.descricao)
+      expect(ferramentas[nome].inputSchema).toBe(ferramenta.entrada)
+    }
+  })
+
+  it('execute() invoca a ferramenta.executar com o MESMO objeto de contexto passado a criarFerramentas — a entrada não pode smugglar outro usuário', async () => {
+    const espiao = jest.spyOn(FERRAMENTAS.buscarClientes, 'executar').mockResolvedValue({ total: 0, clientes: [] })
+    try {
+      const ferramentas = criarFerramentas(ctx) as unknown as Record<string, FerramentaStub>
+      const entrada = { termo: 'x', usuario: { role: 'admin' } }
+      await ferramentas.buscarClientes.execute(entrada)
+      expect(espiao).toHaveBeenCalledTimes(1)
+      const [entradaRecebida, contextoRecebido] = espiao.mock.calls[0]
+      expect(entradaRecebida).toBe(entrada) // não é reescrita — o "usuario" dentro dela é só um campo qualquer pro zod, nunca vira o contexto
+      expect(contextoRecebido).toBe(ctx) // mesma referência: o usuário real entra por closure, não pela entrada da ferramenta
+      expect(contextoRecebido.usuario).toBe(ctx.usuario)
+      expect(contextoRecebido.usuario).not.toEqual(entrada.usuario)
+    } finally {
+      espiao.mockRestore()
+    }
+  })
+
+  it('erro lançado dentro de executar chega em execute() como { erro } (via executarComSeguranca)', async () => {
+    const espiao = jest.spyOn(FERRAMENTAS.buscarClientes, 'executar').mockRejectedValue(new Error('banco fora'))
+    try {
+      const ferramentas = criarFerramentas(ctx) as unknown as Record<string, FerramentaStub>
+      const resultado = await ferramentas.buscarClientes.execute({ termo: 'x' })
+      expect(resultado).toEqual({ erro: 'falha ao consultar buscarClientes' })
+    } finally {
+      espiao.mockRestore()
+    }
+  })
 })

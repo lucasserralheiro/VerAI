@@ -26,6 +26,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           allowedContentTypes: ['application/*', 'text/*', 'image/*'],
           addRandomSuffix: true,
           maximumSizeInBytes: TAMANHO_MAXIMO_ARQUIVO_BYTES,
+          // Só limita quanto tempo ESTE TOKEN vale pro navegador subir o arquivo — não apaga o
+          // blob. Um upload que nunca é registrado (usuário fechou a aba, POST falhou) fica em
+          // `tmp-arquivos/` pra sempre; o Vercel Blob não expira nada sozinho. Falta um job de
+          // limpeza periódica desse prefixo (pendente — a ser tratado no próximo plano).
           validUntil: Date.now() + 60 * 60 * 1000,
         }
       },

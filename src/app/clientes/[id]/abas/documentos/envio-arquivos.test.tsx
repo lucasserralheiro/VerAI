@@ -80,6 +80,21 @@ describe('EnvioArquivos', () => {
     expect(aoConcluir).toHaveBeenCalled()
   })
 
+  it('arquivo maior que 50 MB: erro na linha, sem calcular hash nem subir', async () => {
+    const aoConcluir = jest.fn()
+    const { container } = render(<EnvioArquivos clienteId="c1" contratos={[]} aoConcluir={aoConcluir} aoCancelar={jest.fn()} />)
+    const gigante = new File(['x'], 'PC_SMS_012.pdf')
+    Object.defineProperty(gigante, 'size', { value: 51 * 1024 * 1024 })
+    selecionar(container, gigante)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar 1 arquivo' }))
+
+    expect(await screen.findByText('arquivo maior que 50 MB')).toBeInTheDocument()
+    expect(sha256DoArquivo).not.toHaveBeenCalled()
+    expect(upload).not.toHaveBeenCalled()
+    expect(aoConcluir).not.toHaveBeenCalled()
+  })
+
   it('falha no envio de um arquivo mostra o erro na linha e não conclui', async () => {
     ;(upload as jest.Mock).mockRejectedValue(new Error('rede caiu'))
     const aoConcluir = jest.fn()

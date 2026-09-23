@@ -6,6 +6,10 @@ import { contratoForaDoCliente } from '@/app/api/contratos/carregar'
 import { SELECT_ARQUIVO, registrarArquivo, serializarArquivo, usosDosArquivos } from '@/lib/arquivos/servico'
 import { ROTULOS_ARQUIVO, esquemaRegistro } from './esquema'
 
+// Registro baixa o temporário e sobe pro caminho final servidor a servidor (até 50 MB) — mais que
+// os 10s padrão de uma função serverless em conexão lenta.
+export const maxDuration = 60
+
 type Contexto = { params: Promise<{ clienteId: string }> }
 
 async function clienteExiste(clienteId: string) {

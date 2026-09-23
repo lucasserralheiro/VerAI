@@ -57,7 +57,10 @@ function existente(clienteId: string, sha256: string) {
 
 /** Registra um arquivo que o navegador subiu direto pro Blob (caminho temporário): baixa servidor a
  *  servidor, calcula o hash, e — se o cliente ainda não tem esse conteúdo — copia pro caminho final e
- *  grava. O temporário é apagado nos dois casos (best-effort: o `validUntil` do token limpa o resto). */
+ *  grava. O temporário é apagado nos dois casos, mas só best-effort (`.catch(() => {})`): se essa
+ *  chamada falhar, o blob fica órfão em `tmp-arquivos/` — o `validUntil` do token de upload só limita
+ *  o token do navegador, o Vercel Blob não apaga o blob sozinho. Falta um job de limpeza periódica
+ *  pra esse prefixo (pendente — a ser tratado no próximo plano). */
 export async function registrarArquivo(dados: DadosRegistro): Promise<{ arquivo: ArquivoSelecionado; duplicado: boolean }> {
   const buffer = await getUpload(dados.urlTemporaria)
   const sha256 = sha256Hex(buffer)

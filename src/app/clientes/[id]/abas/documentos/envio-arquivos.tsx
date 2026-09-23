@@ -6,7 +6,7 @@ import { AlertCircle, Check, Loader2 } from 'lucide-react'
 import type { CategoriaArquivo } from '@prisma/client'
 import { BTN_OUTLINE, BTN_PRIMARY, INPUT_BASE } from '@/lib/ui'
 import { CATEGORIAS, sugerirCategoria } from '@/lib/arquivos/tipos'
-import { caminhoTemporario } from '@/lib/arquivos/caminhos'
+import { caminhoTemporario, TAMANHO_MAXIMO_ARQUIVO_BYTES } from '@/lib/arquivos/caminhos'
 import { sha256DoArquivo } from '@/lib/arquivos/hash-navegador'
 import { MultiFileDropzone, type ArquivoProposta } from '@/components/multi-file-dropzone'
 import type { OpcaoContrato } from './tipos'
@@ -25,6 +25,8 @@ interface Classificacao {
 }
 
 async function enviarUm(clienteId: string, file: File, c: Classificacao): Promise<Situacao> {
+  if (file.size > TAMANHO_MAXIMO_ARQUIVO_BYTES) return { tipo: 'erro', mensagem: 'arquivo maior que 50 MB' }
+
   const sha256 = await sha256DoArquivo(file)
   const respostaExiste = await fetch(`/api/clientes/${clienteId}/arquivos/existe?sha256=${sha256}`)
   const existe = await respostaExiste.json().catch(() => null)

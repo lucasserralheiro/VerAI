@@ -64,6 +64,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     )
   }
 
+  // Um `ArquivoCliente` migrado (ou outro Documento, por dedupe de sha256) pode apontar pro mesmo
+  // blob do original deste documento — não pode ir junto com o prefixo.
+  const arquivoQueUsaOMesmoBlob = await prisma.arquivoCliente.findFirst({
+    where: { urlBlob: documento.caminhoOriginal },
+    select: { id: true },
+  })
+
   await prisma.$transaction([
     prisma.acessoDocumento.deleteMany({ where: { documentoId: id } }),
     prisma.notificacao.deleteMany({ where: { documentoId: id } }),
@@ -71,10 +78,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     prisma.documento.delete({ where: { id } }),
   ])
 
-  // Apaga todos os blobs do documento (original + relatório PDF em cache) —
-  // best-effort: se já não existirem, segue sem erro.
+  // Apaga todos os blobs do documento (original + relatório PDF em cache) — best-effort: se já não
+  // existirem, segue sem erro. Preserva o original quando um ArquivoCliente ainda usa esse blob.
   const prefixoDocumento = buildDocumentoPrefix(documento.id, documento.createdAt)
-  await deleteUploadPrefix(prefixoDocumento).catch(() => {})
+  const exceto = arquivoQueUsaOMesmoBlob ? [documento.caminhoOriginal] : []
+  await deleteUploadPrefix(prefixoDocumento, exceto).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

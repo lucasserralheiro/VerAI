@@ -1,12 +1,16 @@
 /**
  * @jest-environment node
  */
+jest.mock('@vercel/blob', () => ({ put: jest.fn(), del: jest.fn(), list: jest.fn() }))
+
+import { list, del } from '@vercel/blob'
 import {
   buildUploadPath,
   buildRelatorioPath,
   buildRelatorioConsolidadoPath,
   buildRelatorioEvolucaoPath,
   buildDocumentoPrefix,
+  deleteUploadPrefix,
 } from './storage'
 
 describe('buildUploadPath', () => {
@@ -46,5 +50,41 @@ describe('buildDocumentoPrefix', () => {
   it('monta o prefixo ano/mes/documentoId/ pra apagar tudo do documento', () => {
     const data = new Date('2026-08-18T12:00:00Z')
     expect(buildDocumentoPrefix('doc123', data)).toBe('2026/08/doc123/')
+  })
+})
+
+describe('deleteUploadPrefix', () => {
+  beforeEach(() => jest.clearAllMocks())
+
+  it('sem `exceto`: apaga todos os blobs do prefixo', async () => {
+    ;(list as jest.Mock).mockResolvedValue({ blobs: [{ url: 'https://x/a' }, { url: 'https://x/b' }] })
+
+    await deleteUploadPrefix('2026/08/doc123/')
+
+    expect(del).toHaveBeenCalledWith(['https://x/a', 'https://x/b'])
+  })
+
+  it('com `exceto`: tira as URLs listadas antes de apagar', async () => {
+    ;(list as jest.Mock).mockResolvedValue({ blobs: [{ url: 'https://x/a' }, { url: 'https://x/b' }] })
+
+    await deleteUploadPrefix('2026/08/doc123/', ['https://x/b'])
+
+    expect(del).toHaveBeenCalledWith(['https://x/a'])
+  })
+
+  it('`exceto` cobre tudo que sobrou: não chama `del`', async () => {
+    ;(list as jest.Mock).mockResolvedValue({ blobs: [{ url: 'https://x/a' }] })
+
+    await deleteUploadPrefix('2026/08/doc123/', ['https://x/a'])
+
+    expect(del).not.toHaveBeenCalled()
+  })
+
+  it('prefixo vazio: não chama `del`', async () => {
+    ;(list as jest.Mock).mockResolvedValue({ blobs: [] })
+
+    await deleteUploadPrefix('2026/08/doc123/')
+
+    expect(del).not.toHaveBeenCalled()
   })
 })

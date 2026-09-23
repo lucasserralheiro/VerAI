@@ -83,11 +83,15 @@ export async function getUpload(url: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer())
 }
 
-/** Apaga todos os blobs sob um prefixo (equivalente a apagar a "pasta" de um documento). */
-export async function deleteUploadPrefix(prefix: string): Promise<void> {
+/** Apaga todos os blobs sob um prefixo (equivalente a apagar a "pasta" de um documento).
+ *  `exceto` tira URLs específicas da lista antes de apagar — usado quando um `ArquivoCliente`
+ *  migrado aponta pro mesmo blob de um `Documento` antigo (dedupe do repositório de arquivos:
+ *  outro `Documento` pode compartilhar o mesmo conteúdo/URL). */
+export async function deleteUploadPrefix(prefix: string, exceto: string[] = []): Promise<void> {
   const { blobs } = await list({ prefix })
-  if (blobs.length === 0) return
-  await del(blobs.map((b) => b.url))
+  const paraApagar = blobs.filter((b) => !exceto.includes(b.url))
+  if (paraApagar.length === 0) return
+  await del(paraApagar.map((b) => b.url))
 }
 
 /** Apaga um único blob a partir da URL salva no banco (ex.: um arquivo

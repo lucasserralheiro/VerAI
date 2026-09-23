@@ -1,0 +1,109 @@
+/** @jest-environment node */
+import { NextRequest } from 'next/server'
+
+jest.mock('@/lib/auth', () => ({
+  ...jest.requireActual('@/lib/auth'),
+  getAuthUser: jest.fn(),
+}))
+jest.mock('@/lib/prisma', () => ({
+  prisma: {
+    cliente: { findUnique: jest.fn() },
+    itemContrato: { groupBy: jest.fn() },
+    notaFiscal: { groupBy: jest.fn() },
+    usuario: { findUnique: jest.fn() },
+    $queryRaw: jest.fn(),
+  },
+}))
+
+import { getAuthUser } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { GET } from './route'
+
+const admin = { id: 'u1', nome: 'Admin', email: 'a@x', role: 'admin' as const }
+const comum = { id: 'u2', nome: 'Comum', email: 'c@x', role: 'responsavel' as const }
+const get = (clienteId = 'c1') =>
+  GET(new NextRequest(`http://localhost/api/clientes/${clienteId}/indicadores`), {
+    params: Promise.resolve({ clienteId }),
+  })
+
+const diasAPartirDeHoje = (dias: number) => new Date(Date.now() + dias * 24 * 60 * 60 * 1000)
+
+beforeEach(() => {
+  jest.clearAllMocks()
+  ;(getAuthUser as jest.Mock).mockResolvedValue(admin)
+  ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [{ id: 'c1' }] })
+  ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue({ contratos: [], faturamentos: [], demandas: [] })
+  ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([])
+  ;(prisma.notaFiscal.groupBy as jest.Mock).mockResolvedValue([])
+  ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([])
+})
+
+describe('GET /api/clientes/[clienteId]/indicadores', () => {
+  it('401 sem usuário', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(null)
+    expect((await get()).status).toBe(401)
+  })
+
+  it('403 sem acesso ao cliente', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    expect((await get('c9')).status).toBe(403)
+  })
+
+  it('404 quando o cliente não existe', async () => {
+    ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue(null)
+    expect((await get()).status).toBe(404)
+  })
+
+  it('cliente sem nada: zeros e sem último mês', async () => {
+    expect(await (await get()).json()).toEqual({
+      contratosAtivos: 0,
+      vencendoEm30Dias: 0,
+      valorContratado: '0',
+      faturadoUltimoMes: null,
+      demandasAbertas: 0,
+      abertasHaMaisDe30Dias: 0,
+    })
+  })
+
+  it('calcula os quatro indicadores', async () => {
+    ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue({
+      contratos: [
+        { id: 'k1', situacao: 'Ativo', dataVencimento: diasAPartirDeHoje(10) },
+        { id: 'k2', situacao: 'Ativo', dataVencimento: diasAPartirDeHoje(200) },
+        { id: 'k3', situacao: 'Finalizado', dataVencimento: diasAPartirDeHoje(5) },
+        { id: 'k4', situacao: 'Ativo', dataVencimento: diasAPartirDeHoje(-3) },
+      ],
+      faturamentos: [
+        { id: 'f1', competenciaAno: 2026, competenciaMes: 7, valor: '999' },
+        { id: 'f2', competenciaAno: 2026, competenciaMes: 8, valor: null },
+        { id: 'f3', competenciaAno: 2026, competenciaMes: 8, valor: '50.25' },
+        { id: 'f4', competenciaAno: 20252, competenciaMes: 1, valor: '1' },
+        { id: 'f5', competenciaAno: 2026, competenciaMes: 88, valor: '1' },
+      ],
+      demandas: [
+        { situacao: 'Em andamento', dataAbertura: diasAPartirDeHoje(-45), createdAt: new Date() },
+        { situacao: null, dataAbertura: null, createdAt: diasAPartirDeHoje(-2) },
+        { situacao: 'Concluído', dataAbertura: diasAPartirDeHoje(-90), createdAt: new Date() },
+      ],
+    })
+    ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([
+      { contratoId: 'k1', _sum: { valorTotal: '1000.10' } },
+      { contratoId: 'k2', _sum: { valorTotal: '200' } },
+    ])
+    ;(prisma.notaFiscal.groupBy as jest.Mock).mockResolvedValue([
+      { faturamentoId: 'f2', servico: null, _sum: { valor: '100.50' } },
+    ])
+
+    expect(await (await get()).json()).toEqual({
+      contratosAtivos: 2,
+      vencendoEm30Dias: 1,
+      valorContratado: '1200.1',
+      faturadoUltimoMes: { ano: 2026, mes: 8, valor: '150.75' },
+      demandasAbertas: 2,
+      abertasHaMaisDe30Dias: 1,
+    })
+    expect(prisma.itemContrato.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { contratoId: { in: ['k1', 'k2'] } } })
+    )
+  })
+})

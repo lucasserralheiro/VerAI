@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { clientesVisiveisWhere } from '@/lib/visibilidade'
 import { exigirUsuario } from '@/lib/relatorios-clientes/acesso'
-import { contratoAtivo } from '@/lib/relatorios-clientes/regras'
+import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
 import { ANO, MES, resumoDasNotas } from '@/app/api/faturamentos/esquema'
 
 /** `?ano=&mes=` (obrigatórios): para cada contrato ativo — ou que tenha faturamento na competência —
@@ -44,8 +44,8 @@ export async function GET(request: NextRequest) {
     },
   })
 
-  const hoje = new Date()
-  const relevantes = contratos.filter((contrato) => contrato.faturamentos.length > 0 || contratoAtivo(contrato, hoje))
+  const consolidados = await consolidarContratos(contratos, new Date())
+  const relevantes = contratos.filter((contrato) => contrato.faturamentos.length > 0 || consolidados.get(contrato.id)!.ativo)
   const resumos = await resumoDasNotas(relevantes.flatMap((contrato) => contrato.faturamentos.map((f) => f.id)))
 
   return NextResponse.json(
@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
       faturamentos: faturamentos.map(({ valor, ...faturamento }) => ({
         ...faturamento,
         valorExibido: valor?.toString() ?? resumos.get(faturamento.id)?.valorNotas ?? '0',
+        semNota: valor === null && !resumos.has(faturamento.id),
       })),
     }))
   )

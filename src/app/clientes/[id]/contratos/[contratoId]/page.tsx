@@ -1,11 +1,12 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { AlertCircle, ChevronRight, ExternalLink, Info, Loader2, Pencil } from 'lucide-react'
+import { AlertCircle, ChevronRight, Info, Loader2, Pencil } from 'lucide-react'
 import { BTN_OUTLINE } from '@/lib/ui'
 import { formatarData, formatarMoeda } from '@/lib/relatorios-clientes/formatacao'
 import { BarraFaturado, PillVencimento } from '@/components/relatorios-clientes/indicadores-contrato'
+import { SeiLink } from '@/components/relatorios-clientes/sei-link'
 import { FormularioContrato, type Contrato } from '../formulario-contrato'
 import { SecaoHistorico, type LinhaHistorico } from './secao-historico'
 import { SecaoItens, type Item } from './secao-itens'
@@ -15,33 +16,79 @@ interface ContratoDetalhe extends Contrato {
   itens: Item[]
 }
 
+function Dado({ rotulo, children }: { rotulo: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[0.68rem] font-semibold tracking-wide text-mid-grey uppercase">{rotulo}</dt>
+      <dd className="mt-0.5 text-sm text-foreground">{children}</dd>
+    </div>
+  )
+}
+
+/** Ficha do contrato: vigência, os dois SEI e o resumo do histórico, em blocos rotulados — no lugar
+ *  da linha corrida em monoespaçada, que misturava tudo e não deixava escanear. */
+function FichaContrato({ contrato }: { contrato: ContratoDetalhe }) {
+  const aditivos = contrato.historico.filter((linha) => linha.tipo === 'ADITIVO').length
+  const prorrogacoes = contrato.historico.filter((linha) => linha.tipo === 'PRORROGACAO').length
+  const resumo = [
+    aditivos > 0 && `${aditivos} ${aditivos === 1 ? 'aditivo' : 'aditivos'}`,
+    prorrogacoes > 0 && `${prorrogacoes} ${prorrogacoes === 1 ? 'prorrogação' : 'prorrogações'}`,
+  ].filter(Boolean)
+
+  return (
+    <dl
+      aria-label="Ficha do contrato"
+      className="grid grid-cols-1 gap-x-8 gap-y-4 rounded-xl border border-border-grey bg-white px-5 py-4 shadow-xs sm:grid-cols-2 lg:grid-cols-4"
+    >
+      <Dado rotulo="Vigência">
+        <span className="font-mono text-[0.8rem] whitespace-nowrap">
+          {formatarData(contrato.dataInicio)} <span className="text-mid-grey">→</span> {formatarData(contrato.vigenciaFim ?? contrato.dataVencimento)}
+        </span>
+      </Dado>
+      <Dado rotulo="SEI cliente">
+        <SeiLink numero={contrato.seiCliente} link={contrato.linkSei} className="text-[0.8rem]" />
+      </Dado>
+      <Dado rotulo="SEI PRODAM">
+        <SeiLink numero={contrato.seiProdam} link={contrato.linkSei} className="text-[0.8rem]" />
+      </Dado>
+      <Dado rotulo="Histórico">
+        {resumo.length > 0 ? resumo.join(' · ') : <span className="text-mid-grey">Só o contrato original</span>}
+      </Dado>
+    </dl>
+  )
+}
+
 function CartaoSaldo({ contrato }: { contrato: Contrato }) {
   const { saldo } = contrato
+  if (saldo.saldo === null) {
+    // Sem itens não há o que mostrar de saldo: uma faixa discreta em vez de um cartão inteiro.
+    return (
+      <section
+        aria-label="Saldo do contrato"
+        className="flex items-start gap-2 rounded-xl border border-orange/30 bg-orange-light/60 px-4 py-3 text-sm text-orange-dark"
+      >
+        <Info className="mt-0.5 size-4 shrink-0" strokeWidth={2.25} />
+        <span className="font-semibold">Saldo</span>
+        <p>Sem valor — nem no histórico (contrato/aditivo) nem em itens vinculados. Informe o valor no histórico ou cadastre os itens.</p>
+      </section>
+    )
+  }
   return (
     <section aria-label="Saldo do contrato" className="card space-y-3">
       <h2 className="text-[0.95rem] font-semibold text-navy">Saldo</h2>
-      {saldo.saldo === null ? (
-        <p className="flex items-start gap-1.5 rounded-lg bg-orange-light px-3 py-2 text-sm text-orange-dark">
-          <Info className="mt-0.5 size-4 shrink-0" strokeWidth={2.25} />
-          Sem itens vinculados — saldo não calculável. Vincule os itens importados ou cadastre os itens do contrato.
-        </p>
-      ) : (
-        <>
-          <dl className="grid grid-cols-3 gap-3">
-            {[
-              { rotulo: 'Valor dos itens', valor: saldo.valorItens },
-              { rotulo: 'Faturado', valor: saldo.faturado },
-              { rotulo: 'Saldo', valor: saldo.saldo },
-            ].map(({ rotulo, valor }) => (
-              <div key={rotulo}>
-                <dt className="text-xs text-mid-grey">{rotulo}</dt>
-                <dd className="font-mono text-sm font-semibold text-navy">{formatarMoeda(valor)}</dd>
-              </div>
-            ))}
-          </dl>
-          <BarraFaturado saldo={saldo} />
-        </>
-      )}
+      <dl className="grid grid-cols-3 gap-3">
+        {[
+          { rotulo: 'Valor contratado', valor: saldo.valorItens },
+          { rotulo: 'Faturado', valor: saldo.faturado },
+          { rotulo: 'Saldo', valor: saldo.saldo },
+        ].map(({ rotulo, valor }) => (
+          <div key={rotulo}>
+            <dt className="text-xs text-mid-grey">{rotulo}</dt>
+            <dd className="font-mono text-sm font-semibold text-navy">{formatarMoeda(valor)}</dd>
+          </div>
+        ))}
+      </dl>
+      <BarraFaturado saldo={saldo} />
     </section>
   )
 }
@@ -75,7 +122,7 @@ export default function ContratoDetalhePage({ params }: { params: Promise<{ id: 
 
   if (carregando) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 text-sm text-mid-grey">
           <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
           Carregando...
@@ -86,7 +133,7 @@ export default function ContratoDetalhePage({ params }: { params: Promise<{ id: 
 
   if (!contrato) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 rounded-xl bg-red-crit-light p-4 text-sm text-red-crit">
           <AlertCircle className="size-4 shrink-0" strokeWidth={2.25} />
           {erro ?? 'Contrato não encontrado.'}
@@ -98,7 +145,7 @@ export default function ContratoDetalhePage({ params }: { params: Promise<{ id: 
   const titulo = contrato.numeroTermo ?? '(sem número)'
 
   return (
-    <main className="mx-auto max-w-7xl space-y-8 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] space-y-8 px-6 py-8 lg:px-8">
       <div className="space-y-3">
         <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
           <span>Relatórios</span>
@@ -122,24 +169,6 @@ export default function ContratoDetalhePage({ params }: { params: Promise<{ id: 
               {contrato.situacao && <span className="text-sm text-mid-grey">{contrato.situacao}</span>}
             </div>
             {contrato.descricao && <p className="text-sm text-foreground">{contrato.descricao}</p>}
-            <p className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-mid-grey">
-              <span>
-                vigência {formatarData(contrato.dataInicio)} – {formatarData(contrato.dataVencimento)}
-              </span>
-              {contrato.seiCliente && <span>SEI cliente {contrato.seiCliente}</span>}
-              {contrato.seiProdam && <span>SEI PRODAM {contrato.seiProdam}</span>}
-              {contrato.linkSei && (
-                <a
-                  href={contrato.linkSei}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 font-sans font-medium text-navy hover:text-orange hover:underline"
-                >
-                  abrir no SEI
-                  <ExternalLink className="size-3" strokeWidth={2.25} />
-                </a>
-              )}
-            </p>
           </div>
           {!editando && (
             <button type="button" onClick={() => setEditando(true)} className={BTN_OUTLINE}>
@@ -149,6 +178,8 @@ export default function ContratoDetalhePage({ params }: { params: Promise<{ id: 
           )}
         </div>
       </div>
+
+      <FichaContrato contrato={contrato} />
 
       {editando && (
         <FormularioContrato

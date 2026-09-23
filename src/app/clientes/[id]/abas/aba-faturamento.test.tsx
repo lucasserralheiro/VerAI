@@ -63,7 +63,7 @@ describe('AbaFaturamento', () => {
   it('lista os faturamentos como no mockup', async () => {
     mockApi()
     render(<AbaFaturamento clienteId="c1" />)
-    const link = await screen.findByRole('link', { name: '08/2026' })
+    const link = await screen.findByRole('link', { name: '7010.2026/0009363-0' })
     expect(link).toHaveAttribute('href', '/clientes/c1/faturamentos/f1')
     const linha = link.closest('tr')!
     expect(within(linha).getByText('TC 107/2025/SI')).toBeInTheDocument()
@@ -72,12 +72,33 @@ describe('AbaFaturamento', () => {
     expect(within(linha).getByText('R$ 6.752.620,30')).toBeInTheDocument()
     expect(within(linha).getByText('sim')).toBeInTheDocument()
     expect(within(linha).getByText('pendente')).toBeInTheDocument()
+    expect(within(linha).getByText('Destino: SMS/CTIC')).toBeInTheDocument()
+  })
+
+  it('agrupa por competência, com total e pendências da faixa', async () => {
+    mockApi()
+    render(<AbaFaturamento clienteId="c1" />)
+    const faixa = (await screen.findByRole('heading', { name: 'Agosto de 2026' })).closest('tr')!
+    expect(within(faixa).getByText('1 lançamento')).toBeInTheDocument()
+    expect(within(faixa).getByText('R$ 6.752.620,30')).toBeInTheDocument()
+    expect(within(faixa).getByText('1 com envio pendente')).toBeInTheDocument()
+  })
+
+  it('resume o faturamento no topo e filtra só os pendentes de envio', async () => {
+    mockApi()
+    render(<AbaFaturamento clienteId="c1" />)
+    const resumo = await screen.findByLabelText('Resumo do faturamento')
+    expect(within(resumo).getByText('1/1')).toBeInTheDocument() // enviado ao cliente
+    expect(within(resumo).getByText('0/1')).toBeInTheDocument() // enviado ao GFP
+
+    fireEvent.click(screen.getByRole('button', { name: 'Só pendentes de envio' }))
+    expect(screen.getByRole('link', { name: '7010.2026/0009363-0' })).toBeInTheDocument() // GFP pendente: continua
   })
 
   it('filtra por competência e contrato', async () => {
     mockApi()
     render(<AbaFaturamento clienteId="c1" />)
-    await screen.findByText('08/2026')
+    await screen.findByText('Agosto de 2026')
     await screen.findByRole('option', { name: 'TC 207/2023' })
     fireEvent.change(screen.getByLabelText('Filtrar por ano'), { target: { value: '2026' } })
     fireEvent.change(screen.getByLabelText('Filtrar por mês'), { target: { value: '8' } })
@@ -85,6 +106,15 @@ describe('AbaFaturamento', () => {
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith('/api/clientes/c1/faturamentos?ano=2026&mes=8&contratoId=k2')
     )
+  })
+
+  it('"Lançamento" na faixa da competência abre o formulário já com mês, ano e contrato', async () => {
+    mockApi()
+    render(<AbaFaturamento clienteId="c1" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar lançamento em Agosto de 2026' }))
+    const form = await screen.findByRole('form', { name: 'Novo faturamento' })
+    expect(within(form).getByLabelText('Mês')).toHaveValue('8')
+    expect(within(form).getByLabelText('Ano')).toHaveValue('2026')
   })
 
   it('mostra erro quando a lista não carrega', async () => {
@@ -105,7 +135,7 @@ describe('AbaFaturamento', () => {
     fireEvent.change(within(form).getByLabelText('SEI'), { target: { value: '7010.2026/0008279-5' } })
     fireEvent.click(within(form).getByLabelText('Enviado ao cliente'))
     fireEvent.click(within(form).getByRole('button', { name: 'Salvar' }))
-    expect(await screen.findByRole('link', { name: '07/2026' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: '7010.2026/0008279-5' })).toBeInTheDocument()
     const post = (global.fetch as jest.Mock).mock.calls.find(([, init]) => init?.method === 'POST')!
     expect(JSON.parse(post[1].body)).toEqual(
       expect.objectContaining({

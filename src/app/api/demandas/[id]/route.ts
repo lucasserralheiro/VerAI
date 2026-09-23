@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { verificarAcessoCliente } from '@/lib/relatorios-clientes/acesso'
 import { respostaErroPrisma } from '@/lib/relatorios-clientes/erros-prisma'
@@ -52,5 +53,27 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
     return NextResponse.json(demanda)
   } catch (erro) {
     return respostaErroPrisma(erro, DEMANDA_NAO_ENCONTRADA)
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: Contexto) {
+  const { id } = await params
+  const carregado = await carregarDemandaComAcesso(request, id)
+  if ('erro' in carregado) return carregado.erro
+
+  try {
+    await prisma.demanda.delete({ where: { id } })
+    return NextResponse.json({ ok: true })
+  } catch (erro) {
+    if (erro instanceof Prisma.PrismaClientKnownRequestError) {
+      if (erro.code === 'P2025') return NextResponse.json({ error: DEMANDA_NAO_ENCONTRADA }, { status: 404 })
+      if (erro.code === 'P2003') {
+        return NextResponse.json(
+          { error: 'Não é possível excluir: há trâmites vinculados a esta demanda.' },
+          { status: 409 }
+        )
+      }
+    }
+    throw erro
   }
 }

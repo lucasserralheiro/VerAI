@@ -5,12 +5,16 @@
 
 import { useEffect, useState } from 'react'
 import { formatarMoeda } from '@/lib/relatorios-clientes/formatacao'
+import { aoMudarDados } from '@/lib/relatorios-clientes/atualizacao-dados'
 
 interface Indicadores {
   contratosAtivos: number
   vencendoEm30Dias: number
+  /** Ativos (situação "Ativo") cuja vigência já passou — alerta de renovação, não saem da soma. */
+  vencidos?: number
   valorContratado: string
-  faturadoUltimoMes: { ano: number; mes: number; valor: string } | null
+  contratosSemValor?: number
+  faturadoUltimoMes: { ano: number; mes: number; valor: string; semValor?: boolean } | null
   demandasAbertas: number
   abertasHaMaisDe30Dias: number
 }
@@ -31,33 +35,55 @@ export function IndicadoresCliente({ clienteId }: { clienteId: string }) {
   const [indicadores, setIndicadores] = useState<Indicadores | null>(null)
 
   useEffect(() => {
-    fetch(`/api/clientes/${clienteId}/indicadores`)
-      .then(async (response) => {
-        if (response.ok) setIndicadores(await response.json())
-      })
-      .catch(() => {})
+    let ativo = true
+    const carregar = () =>
+      fetch(`/api/clientes/${clienteId}/indicadores`, { cache: 'no-store' })
+        .then(async (response) => {
+          if (response.ok && ativo) setIndicadores(await response.json())
+        })
+        .catch(() => {})
+    carregar()
+    // Recalcula quando algo muda nesta ficha (contrato, faturamento, demanda) e quando a aba volta ao foco.
+    const parar = aoMudarDados(carregar)
+    return () => {
+      ativo = false
+      parar()
+    }
   }, [clienteId])
 
   // Indicador é complemento da ficha: falha ou carregamento não ocupa espaço nem mostra erro.
   if (!indicadores) return null
 
   const ultimo = indicadores.faturadoUltimoMes
+  const semValor = indicadores.contratosSemValor ?? 0
   return (
     <section aria-label="Indicadores do cliente" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Cartao
         rotulo="Contratos ativos"
         valor={String(indicadores.contratosAtivos)}
-        detalhe={`${indicadores.vencendoEm30Dias} vencendo em 30 dias`}
+        detalhe={`${indicadores.vencendoEm30Dias} vencendo em 30 dias${(indicadores.vencidos ?? 0) > 0 ? ` · ${indicadores.vencidos} com vigência vencida` : ''}`}
       />
       <Cartao
         rotulo="Valor contratado"
-        valor={formatarMoeda(indicadores.valorContratado)}
-        detalhe="itens vinculados aos contratos ativos"
+        valor={
+          semValor > 0 && semValor === indicadores.contratosAtivos ? '—' : formatarMoeda(indicadores.valorContratado)
+        }
+        detalhe={
+          semValor === 0
+            ? 'valor atual dos contratos ativos'
+            : semValor === indicadores.contratosAtivos
+              ? 'nenhum contrato ativo tem valor'
+              : `${semValor} ${semValor === 1 ? 'contrato ativo sem valor' : 'contratos ativos sem valor'} (fora da soma)`
+        }
       />
       <Cartao
         rotulo="Faturado (mês)"
-        valor={ultimo ? formatarMoeda(ultimo.valor) : '—'}
-        detalhe={ultimo ? `${MESES[ultimo.mes - 1]}/${ultimo.ano}` : 'nenhum faturamento'}
+        valor={ultimo && !ultimo.semValor ? formatarMoeda(ultimo.valor) : '—'}
+        detalhe={
+          ultimo
+            ? `${MESES[ultimo.mes - 1]}/${ultimo.ano}${ultimo.semValor ? ' · nenhum lançamento com valor' : ''}`
+            : 'nenhum faturamento'
+        }
       />
       <Cartao
         rotulo="Demandas abertas"

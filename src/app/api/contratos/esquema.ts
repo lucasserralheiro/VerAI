@@ -9,6 +9,7 @@ import {
 } from '@/lib/relatorios-clientes/validacao'
 import type { Saldo } from '@/lib/relatorios-clientes/saldo'
 import { situacaoVencimento } from '@/lib/relatorios-clientes/vencimento'
+import type { ContratoConsolidado } from '@/lib/relatorios-clientes/contratos-consolidados'
 
 // ---------------------------------------------------------------------------
 // Contrato (cabeçalho)
@@ -50,8 +51,24 @@ export const SELECT_CONTRATO = {
 
 type ContratoSelecionado = Prisma.ContratoGetPayload<{ select: typeof SELECT_CONTRATO }>
 
-export function serializarContrato(contrato: ContratoSelecionado, saldo: Saldo, hoje = new Date()) {
-  return { ...contrato, saldo, vencimento: situacaoVencimento(contrato.dataVencimento, hoje) }
+/** Com `consolidado` (regra única de `contratos-consolidados.ts`) o vencimento, o "ativo" e o fim de
+ *  vigência vêm do histórico também; sem ele, cai no cabeçalho (só testes e chamadas antigas). */
+export function serializarContrato(
+  contrato: ContratoSelecionado,
+  saldo: Saldo,
+  hoje = new Date(),
+  consolidado?: Pick<ContratoConsolidado, 'vigenciaFim' | 'vencimento' | 'ativo' | 'rescindido' | 'vazio'>
+) {
+  if (!consolidado) return { ...contrato, saldo, vencimento: situacaoVencimento(contrato.dataVencimento, hoje) }
+  return {
+    ...contrato,
+    saldo,
+    vencimento: consolidado.vencimento,
+    vigenciaFim: consolidado.vigenciaFim,
+    ativo: consolidado.ativo,
+    rescindido: consolidado.rescindido,
+    vazio: consolidado.vazio,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -99,6 +116,10 @@ export const SELECT_HISTORICO = {
   dataVencimento: true,
   dataEnvio: true,
   observacao: true,
+  propostaPdfUrl: true,
+  propostaPdfNome: true,
+  termoPdfUrl: true,
+  termoPdfNome: true,
 } satisfies Prisma.HistoricoContratoSelect
 
 type HistoricoSelecionado = Prisma.HistoricoContratoGetPayload<{ select: typeof SELECT_HISTORICO }>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { BTN_OUTLINE, BTN_PRIMARY, INPUT_BASE } from '@/lib/ui'
 
@@ -59,6 +59,7 @@ export function FormularioDemanda({
   sugestoes,
   aoSalvar,
   aoCancelar,
+  rodape,
 }: {
   demanda?: Demanda
   clienteFixo?: string
@@ -66,6 +67,7 @@ export function FormularioDemanda({
   sugestoes: SugestoesDemanda | null
   aoSalvar: (salva: Demanda) => void
   aoCancelar: () => void
+  rodape?: ReactNode
 }) {
   const titulo = demanda ? 'Editar demanda' : 'Nova demanda'
   const [campos, setCampos] = useState<Record<Campo, string>>(() => ({
@@ -167,6 +169,8 @@ export function FormularioDemanda({
           Cancelar
         </button>
       </div>
+
+      {rodape}
     </form>
   )
 }

@@ -138,32 +138,63 @@ describe('ClienteDetalhePage', () => {
     expect(await screen.findByRole('tab', { name: 'Documentos' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('"Editar cliente" abre o formulário e salva com PATCH', async () => {
+  it('"Editar cliente" abre o modal preenchido e salva com PATCH', async () => {
     await renderPagina()
     fireEvent.click(await screen.findByRole('button', { name: 'Editar cliente' }))
 
-    expect(screen.getByLabelText('Nome')).toHaveValue('Prefeitura X')
+    expect(await screen.findByLabelText(/^Nome \*/)).toHaveValue('Prefeitura X')
+    // Responsáveis do cliente carregam na grade do modal.
+    expect(await screen.findByDisplayValue('Ana Souza')).toBeInTheDocument()
+
     fireEvent.change(screen.getByLabelText('Sigla'), { target: { value: 'pxx' } })
     fireEvent.change(screen.getByLabelText('Bairro'), { target: { value: 'Sé' } })
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
 
     await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/clientes/cliente-1',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: JSON.stringify({
-            nome: 'Prefeitura X',
-            siglaLegado: 'pxx',
-            endereco: 'Rua Dr. Siqueira Campos',
-            numero: '176',
-            bairro: 'Sé',
-          }),
-        })
-      )
+      expect(global.fetch).toHaveBeenCalledWith('/api/clientes/cliente-1', expect.objectContaining({ method: 'PATCH' }))
+    )
+    const chamada = (global.fetch as jest.Mock).mock.calls.find(
+      ([url, init]) => url === '/api/clientes/cliente-1' && init?.method === 'PATCH'
+    )
+    expect(JSON.parse(chamada[1].body)).toEqual({
+      nome: 'Prefeitura X',
+      siglaLegado: 'pxx',
+      endereco: 'Rua Dr. Siqueira Campos',
+      numero: '176',
+      bairro: 'Sé',
+    })
+    // Responsável existente é atualizado (PATCH), não recriado.
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith('/api/responsaveis/r1', expect.objectContaining({ method: 'PATCH' }))
     )
     expect(await screen.findByText('Rua Dr. Siqueira Campos, 176 — Sé')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Salvar' })).not.toBeInTheDocument()
+  })
+
+  it('remover responsável na grade apaga no servidor ao salvar', async () => {
+    await renderPagina()
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar cliente' }))
+    await screen.findByDisplayValue('Ana Souza')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remover responsável (linha 1)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith('/api/responsaveis/r1', expect.objectContaining({ method: 'DELETE' }))
+    )
+  })
+
+  it('"Excluir cliente" no modal pede confirmação e chama DELETE', async () => {
+    await renderPagina()
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar cliente' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Excluir cliente' }))
+
+    expect(global.fetch).not.toHaveBeenCalledWith('/api/clientes/cliente-1', expect.objectContaining({ method: 'DELETE' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sim' }))
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith('/api/clientes/cliente-1', expect.objectContaining({ method: 'DELETE' }))
+    )
   })
 
   it('mostra o erro da API ao salvar o cliente', async () => {
@@ -180,6 +211,7 @@ describe('ClienteDetalhePage', () => {
     }) as jest.Mock
 
     fireEvent.click(await screen.findByRole('button', { name: 'Editar cliente' }))
+    await screen.findByDisplayValue('Ana Souza')
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
     expect(await screen.findByText('já existe cliente com esse nome/sigla')).toBeInTheDocument()
   })

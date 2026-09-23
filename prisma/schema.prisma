@@ -199,6 +199,13 @@ model HistoricoContrato {
   dataInicio     DateTime?
   dataVencimento DateTime?
   dataEnvio      DateTime?
+  // PDFs anexados à linha — colunas PC/PA (proposta comercial / de aditivo) e TC/TA (termo de
+  // contrato / termo aditivo) do histórico. Sobem pro Vercel Blob via
+  // /api/historico-contrato/[id]/pdf/[tipo], mesmo padrão do PDF do faturamento.
+  propostaPdfUrl  String?
+  propostaPdfNome String?
+  termoPdfUrl     String?
+  termoPdfNome    String?
   createdAt      DateTime              @default(now())
 
   @@index([contratoId])
@@ -226,6 +233,11 @@ model ItemContrato {
   // Valor bruto da coluna "Contrato" de T_ItensContrato (ex. "031/SEME/2017") quando não foi
   // possível casar com um Contrato do VerAI — só preenchido quando `contratoId` é null.
   contratoTextoLegado String?
+  // Sigla do cliente na linha de T_ItensContrato (SMSUB, SVMA, ...). É o que mantém o item
+  // "aguardando" um cliente que ainda não existe no VerAI: quando o cliente é criado com essa
+  // sigla (Cliente.siglaLegado), a ficha dele mostra os itens pendentes e o contrato criado a
+  // partir do texto já nasce ligado a eles (ver src/lib/relatorios-clientes/itens-aguardando.ts).
+  clienteSiglaLegado  String?
   descricao           String?
   quantidade          Decimal?  @db.Decimal(14, 2)
   valorUnitario       Decimal?  @db.Decimal(14, 2)
@@ -233,6 +245,7 @@ model ItemContrato {
   createdAt           DateTime  @default(now())
 
   @@index([contratoId])
+  @@index([clienteSiglaLegado])
 }
 
 // Faturamento mensal (T_Faturamentos). `clienteId` é direto (denormalizado),
@@ -257,6 +270,10 @@ model Faturamento {
   unidadeDestino String?
   enviadoCliente Boolean?
   enviadoGfp     Boolean?
+  // PDF anexado manualmente ao faturamento (ex.: a fatura/nota assinada) — sobe pro
+  // Vercel Blob via /api/faturamentos/[id]/pdf, mesmo padrão de storage.ts.
+  pdfUrl         String?
+  pdfNomeArquivo String?
   createdAt      DateTime     @default(now())
   notasFiscais   NotaFiscal[]
 
@@ -538,6 +555,18 @@ model ConfereExecucao {
   createdAt        DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// Endereço de abertura de um processo SEI, guardado POR NÚMERO (`digitos`, ver `chaveDoSei` em
+// src/lib/relatorios-clientes/sei.ts): quem cadastra o link uma vez vê o mesmo link em todo lugar
+// onde o número aparece (contrato, faturamento, demanda, fornecedor, termo). Sem FK de propósito —
+// o número SEI é a chave natural e aparece em várias tabelas.
+model LinkSei {
+  id        String   @id @default(cuid())
+  digitos   String   @unique
+  url       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ---------------------------------------------------------------------------

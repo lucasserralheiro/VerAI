@@ -14,6 +14,7 @@ import type { Saldo } from '@/lib/relatorios-clientes/saldo'
 import type { SituacaoVencimento } from '@/lib/relatorios-clientes/vencimento'
 import { BarraFaturado, PillVencimento } from '@/components/relatorios-clientes/indicadores-contrato'
 import { rotuloCliente, type OpcaoCliente } from '@/components/relatorios-clientes/formulario-demanda'
+import { SeiLink } from '@/components/relatorios-clientes/sei-link'
 
 type ClienteResumo = Pick<OpcaoCliente, 'id' | 'nome' | 'siglaLegado'>
 
@@ -90,6 +91,8 @@ interface LinhaVencimento {
   descricao: string | null
   situacao: string | null
   dataVencimento: string | null
+  /** Fim de vigência efetivo (cabeçalho + histórico) — é ele que dá o prazo e o "ativo". */
+  vigenciaFim?: string | null
   ativo: boolean
   vencimento: SituacaoVencimento
   saldo: Saldo
@@ -131,7 +134,7 @@ function AbaVencimento() {
                 </td>
                 <td>{linha.descricao ?? '—'}</td>
                 <td>{linha.situacao ?? '—'}</td>
-                <td className="font-mono text-xs whitespace-nowrap">{formatarData(linha.dataVencimento)}</td>
+                <td className="font-mono text-xs whitespace-nowrap">{formatarData(linha.vigenciaFim ?? linha.dataVencimento)}</td>
                 <td>
                   <PillVencimento vencimento={linha.vencimento} />
                 </td>
@@ -152,6 +155,7 @@ function AbaVencimento() {
 interface LinhaValorTotal extends ClienteResumo {
   contratos: number
   contratosAtivos: number
+  contratosSemValor?: number
   saldo: Saldo
 }
 
@@ -160,7 +164,8 @@ function AbaValorTotal() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-mid-grey">
-        Valor = soma dos itens vinculados aos contratos; itens importados sem vínculo não entram até serem reconciliados.
+        Valor contratado = valor atual (histórico) dos contratos ativos; sem histórico com valor, a soma dos itens vinculados.
+        É a mesma conta do cartão da ficha do cliente.
       </p>
       <Estado carregando={carregando} erro={erro} vazio={!dados?.length}>
         <table className="table-institucional">
@@ -169,7 +174,7 @@ function AbaValorTotal() {
               <th>Cliente</th>
               <th>Contratos</th>
               <th>Ativos</th>
-              <th>Valor dos itens</th>
+              <th>Valor contratado</th>
               <th>Faturado</th>
               <th>Saldo</th>
               <th>% faturado</th>
@@ -182,7 +187,12 @@ function AbaValorTotal() {
                   <CelulaCliente cliente={linha} />
                 </td>
                 <td className="font-mono text-xs">{linha.contratos}</td>
-                <td className="font-mono text-xs">{linha.contratosAtivos}</td>
+                <td className="font-mono text-xs">
+                  {linha.contratosAtivos}
+                  {(linha.contratosSemValor ?? 0) > 0 && (
+                    <span className="ml-1 font-sans text-[0.68rem] text-orange-dark">({linha.contratosSemValor} sem valor)</span>
+                  )}
+                </td>
                 <td className="font-mono text-xs whitespace-nowrap">{formatarMoeda(linha.saldo.valorItens)}</td>
                 <td className="font-mono text-xs whitespace-nowrap">{formatarMoeda(linha.saldo.faturado)}</td>
                 <td className="font-mono text-xs font-semibold whitespace-nowrap text-navy">{formatarMoeda(linha.saldo.saldo)}</td>
@@ -256,7 +266,6 @@ function AbaSeis() {
                 <th>Nº do termo</th>
                 <th>SEI cliente</th>
                 <th>SEI PRODAM</th>
-                <th>Link</th>
               </tr>
             </thead>
             <tbody>
@@ -268,16 +277,11 @@ function AbaSeis() {
                   <td>
                     <LinkContrato cliente={linha.cliente} contrato={linha} />
                   </td>
-                  <td className="font-mono text-xs">{linha.seiCliente ?? '—'}</td>
-                  <td className="font-mono text-xs">{linha.seiProdam ?? '—'}</td>
-                  <td className="text-xs">
-                    {linha.linkSei ? (
-                      <a href={linha.linkSei} target="_blank" rel="noreferrer" className="text-navy hover:text-orange hover:underline">
-                        abrir
-                      </a>
-                    ) : (
-                      '—'
-                    )}
+                  <td>
+                    <SeiLink numero={linha.seiCliente} link={linha.linkSei} />
+                  </td>
+                  <td>
+                    <SeiLink numero={linha.seiProdam} link={linha.linkSei} />
                   </td>
                 </tr>
               ))}
@@ -308,7 +312,9 @@ function AbaSeis() {
                     <LinkContrato cliente={linha.cliente} contrato={linha.contrato} />
                   </td>
                   <td className="font-mono text-xs">{competencia(linha.competenciaAno, linha.competenciaMes)}</td>
-                  <td className="font-mono text-xs">{linha.sei}</td>
+                  <td>
+                    <SeiLink numero={linha.sei} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -334,6 +340,7 @@ interface LinhaStatus {
     enviadoCliente: boolean | null
     enviadoGfp: boolean | null
     valorExibido: string
+    semNota?: boolean
   }>
 }
 
@@ -441,10 +448,12 @@ function AbaStatusFaturamento() {
                         <Link
                           href={`/clientes/${linha.cliente.id}/faturamentos/${faturamento.id}`}
                           className="hover:text-orange hover:underline">
-                          {formatarMoeda(faturamento.valorExibido)}
+                          {faturamento.semNota ? <span className="font-sans font-normal text-mid-grey">sem nota</span> : formatarMoeda(faturamento.valorExibido)}
                         </Link>
                       </td>
-                      <td className="font-mono text-xs">{faturamento.sei ?? '—'}</td>
+                      <td>
+                        <SeiLink numero={faturamento.sei} />
+                      </td>
                       <td>
                         <Enviado valor={faturamento.enviadoCliente} rotulo="Enviado cliente" />
                       </td>
@@ -476,7 +485,7 @@ export default function RelatoriosPage() {
   const Conteudo = aba.Componente
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] space-y-6 px-6 py-8 lg:px-8">
       <div className="space-y-3">
         <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
           <span>Relatórios</span>
@@ -489,7 +498,7 @@ export default function RelatoriosPage() {
         </div>
       </div>
 
-      <div role="tablist" className="flex gap-6 overflow-x-auto border-b border-border-grey">
+      <div role="tablist" className="flex gap-6 overflow-x-auto overflow-y-hidden border-b border-border-grey">
         {ABAS.map((item) => {
           const Icon = item.icon
           const ativa = item.id === abaId

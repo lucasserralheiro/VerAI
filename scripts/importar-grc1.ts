@@ -77,6 +77,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { config } from 'dotenv'
+import { vincularItensOrfaos } from '../src/lib/relatorios-clientes/vincular-itens'
+import { contratoVazio } from '../src/lib/relatorios-clientes/regras'
 
 if (!process.env.DATABASE_URL) {
   config({ path: '.env.local' })
@@ -590,6 +592,9 @@ async function importarItensContrato() {
       // Só grava o texto legado quando NÃO conseguiu casar — quando casou, o vínculo estruturado
       // (`contratoId`) já é a fonte de verdade e não precisa do texto bruto ao lado.
       contratoTextoLegado: contratoId ? null : textoContrato,
+      // Sigla do cliente da linha: mantém o item "aguardando" um cliente que ainda não existe no
+      // VerAI — quando ele for criado com essa sigla, os itens dele já são reconhecidos.
+      clienteSiglaLegado: sigla,
       descricao: toStr(row['Descrição Produto']),
       quantidade: toNum(row['Qtd']),
       valorUnitario: toNum(row['Vl Unit']),
@@ -946,12 +951,37 @@ async function main() {
   await importarContratos()
   await importarHistoricoContrato()
   await importarItensContrato()
+  // Casamento tolerante (caixa, acento, zero à esquerda, SEI e nº do histórico) dos itens que o
+  // casamento exato acima deixou órfãos. Só vincula quando o casamento é único.
+  {
+    const v = await vincularItensOrfaos(prisma)
+    console.log(`  · ItemContrato: vinculados na reconciliação=${v.vinculados}, ambíguos=${v.ambiguos}, sem correspondência=${v.semCorrespondencia}`)
+  }
   await importarTermosConfirmacao()
   await importarFaturamentos()
   await importarDemandas()
   await importarNotasFiscais()
   await importarTramites()
   await importarSolicitacoes()
+
+  // Linhas vazias de T_ContratoReceita (só o cliente preenchido) viram Contrato "fantasma" que
+  // inflaria "contratos ativos". Só sai o que não tem NADA ligado — nunca contrato com histórico,
+  // item ou faturamento. Idempotente: o próximo import recria e este passo apaga de novo.
+  {
+    const candidatos = await prisma.contrato.findMany({
+      select: {
+        id: true, numeroTermo: true, descricao: true, seiCliente: true, seiProdam: true, dataInicio: true, dataVencimento: true,
+        _count: { select: { historico: true, itens: true, faturamentos: true } },
+      },
+    })
+    const vazios = candidatos.filter((c) =>
+      contratoVazio({ ...c, historico: c._count.historico, itens: c._count.itens, faturamentos: c._count.faturamentos })
+    )
+    if (vazios.length > 0) {
+      const r = await prisma.contrato.deleteMany({ where: { id: { in: vazios.map((c) => c.id) } } })
+      console.log(`  · Contrato: ${r.count} linha(s) vazia(s) do legado removida(s) (sem nº, datas, histórico, itens nem faturamento)`)
+    }
+  }
 
   console.log('\n=== Resultado ===')
   for (const [tabela, s] of Object.entries(stats)) {

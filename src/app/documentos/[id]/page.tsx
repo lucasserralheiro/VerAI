@@ -302,7 +302,7 @@ export default function DocumentoDetalhePage({ params }: { params: Promise<{ id:
 
   if (!documento) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 text-sm text-mid-grey">
           <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
           Carregando...
@@ -312,7 +312,7 @@ export default function DocumentoDetalhePage({ params }: { params: Promise<{ id:
   }
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] space-y-6 px-6 py-8 lg:px-8">
       <div className="card flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-navy">{documento.nomeArquivo}</h1>

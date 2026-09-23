@@ -48,11 +48,11 @@ const CONFERE_SUBLINKS = [{ href: '/confere/historico', label: 'Histórico', ico
 
 const RELATORIOS_LINK = { href: '/clientes', label: 'Relatórios dos clientes', icon: Building2 }
 const RELATORIOS_SUBLINKS = [
-  { href: '/', label: 'Todos os documentos', icon: FileText },
   { href: '/fornecedores', label: 'Fornecedores', icon: Truck },
   { href: '/demandas', label: 'Demandas', icon: ClipboardList },
   { href: '/solicitacoes', label: 'Solicitações', icon: Inbox },
   { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
+  { href: '/', label: 'Todos os documentos', icon: FileText },
 ]
 
 // "Proposta Comercial (Conversão SEI)" é outro módulo à parte — mesmo padrão

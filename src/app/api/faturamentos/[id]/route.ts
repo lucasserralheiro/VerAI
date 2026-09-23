@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { respostaErroPrisma } from '@/lib/relatorios-clientes/erros-prisma'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
@@ -54,5 +55,24 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
     return NextResponse.json(serializarFaturamento(faturamento, resumos.get(id)))
   } catch (erro) {
     return respostaErroPrisma(erro, FATURAMENTO_NAO_ENCONTRADO)
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: Contexto) {
+  const { id } = await params
+  const carregado = await carregarFaturamentoComAcesso(request, id)
+  if ('erro' in carregado) return carregado.erro
+
+  try {
+    await prisma.faturamento.delete({ where: { id } })
+    return NextResponse.json({ ok: true })
+  } catch (erro) {
+    if (erro instanceof Prisma.PrismaClientKnownRequestError) {
+      if (erro.code === 'P2025') return NextResponse.json({ error: FATURAMENTO_NAO_ENCONTRADO }, { status: 404 })
+      if (erro.code === 'P2003') {
+        return NextResponse.json({ error: 'Não é possível excluir: há notas fiscais vinculadas a este faturamento.' }, { status: 409 })
+      }
+    }
+    throw erro
   }
 }

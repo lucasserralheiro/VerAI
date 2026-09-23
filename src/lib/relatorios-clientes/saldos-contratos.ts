@@ -4,8 +4,8 @@ import { calcularSaldo, type Saldo } from './saldo'
 
 /**
  * Saldo de cada contrato, agregado no banco sob demanda (sem campo cacheado — plano, "Saldo"):
- * soma de `ItemContrato.valorTotal` dos itens vinculados − soma de `NotaFiscal.valor` dos
- * faturamentos do contrato. Duas consultas pra qualquer quantidade de contratos.
+ * soma de `ItemContrato.valorTotal` dos itens vinculados − soma do faturado dos
+ * faturamentos do contrato (valor lançado ou, sem ele, as notas fiscais). Duas consultas pra qualquer quantidade de contratos.
  */
 export async function saldosDosContratos(contratoIds: string[]): Promise<Map<string, Saldo>> {
   const saldos = new Map<string, Saldo>()
@@ -17,12 +17,16 @@ export async function saldosDosContratos(contratoIds: string[]): Promise<Map<str
       where: { contratoId: { in: contratoIds } },
       _sum: { valorTotal: true },
     }),
-    // NotaFiscal só chega ao contrato via Faturamento — o groupBy do Prisma não agrupa por campo
-    // de relação, então a soma vai em SQL.
+    // Faturado = por faturamento, o `valor` lançado ou, na falta dele, a soma das notas fiscais —
+    // a mesma regra do "valor exibido" da aba Faturamento (senão o lançamento digitado à mão
+    // aparece na lista e não abate o saldo). NotaFiscal só chega ao contrato via Faturamento, e o
+    // groupBy do Prisma não agrupa por campo de relação, então a soma vai em SQL.
     prisma.$queryRaw<Array<{ contratoId: string; faturado: Prisma.Decimal | null }>>`
-      SELECT f."contratoId" AS "contratoId", SUM(n."valor") AS "faturado"
-      FROM "NotaFiscal" n
-      JOIN "Faturamento" f ON f."id" = n."faturamentoId"
+      SELECT f."contratoId" AS "contratoId", SUM(COALESCE(f."valor", n."soma")) AS "faturado"
+      FROM "Faturamento" f
+      LEFT JOIN (
+        SELECT "faturamentoId", SUM("valor") AS "soma" FROM "NotaFiscal" GROUP BY "faturamentoId"
+      ) n ON n."faturamentoId" = f."id"
       WHERE f."contratoId" IN (${Prisma.join(contratoIds)})
       GROUP BY f."contratoId"
     `,

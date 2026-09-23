@@ -4,7 +4,7 @@ import ContratoDetalhePage from './page'
 
 const HISTORICO = [
   { id: 'h1', contratoId: 'k1', tipo: 'CONTRATO', numero: 'TC 203/2023', data: '2023-12-28T00:00:00.000Z', valor: '1000000', objeto: null, proposta: null, situacao: 'Assinada', dataInicio: null, dataVencimento: null, dataEnvio: null, observacao: null },
-  { id: 'h2', contratoId: 'k1', tipo: 'ADITIVO', numero: '1º TA', data: '2024-06-01T00:00:00.000Z', valor: '250000', objeto: 'Acréscimo de pontos', proposta: null, situacao: null, dataInicio: null, dataVencimento: null, dataEnvio: null, observacao: null },
+  { id: 'h2', contratoId: 'k1', tipo: 'ADITIVO', numero: '1º TA', data: '2024-06-01T00:00:00.000Z', valor: '250000', objeto: 'Acréscimo de pontos', proposta: null, situacao: null, dataInicio: null, dataVencimento: null, dataEnvio: null, observacao: null, propostaPdfUrl: 'https://blob.example/h2-proposta.pdf', propostaPdfNome: 'PA-01.pdf', termoPdfUrl: null, termoPdfNome: null },
 ]
 
 const ITEM = { id: 'i1', contratoId: 'k1', contratoTextoLegado: null, descricao: 'Ponto de acesso Wi-fi', quantidade: '10', valorUnitario: '100', valorTotal: '1000' }
@@ -62,6 +62,14 @@ function mockApi(options: { semItens?: boolean; erroHistorico?: string } = {}) {
       historico = [...historico, nova]
       return resposta(true, nova)
     }
+    if (u === '/api/historico-contrato/h1/pdf/proposta' && metodo === 'POST') {
+      historico = historico.map((h) => (h.id === 'h1' ? { ...h, propostaPdfUrl: 'https://blob.example/h1-proposta.pdf', propostaPdfNome: 'PC-01.pdf' } : h))
+      return resposta(true, { propostaPdfUrl: 'https://blob.example/h1-proposta.pdf', propostaPdfNome: 'PC-01.pdf' })
+    }
+    if (u === '/api/historico-contrato/h2/pdf/proposta' && metodo === 'DELETE') {
+      historico = historico.map((h) => (h.id === 'h2' ? { ...h, propostaPdfUrl: null, propostaPdfNome: null } : h))
+      return resposta(true, { propostaPdfUrl: null, propostaPdfNome: null })
+    }
     if (u === '/api/historico-contrato/h2' && metodo === 'DELETE') {
       historico = historico.filter((h) => h.id !== 'h2')
       return resposta(true, { ok: true })
@@ -117,6 +125,73 @@ describe('ContratoDetalhePage', () => {
         'Sem itens vinculados — saldo não calculável. Vincule os itens importados ou cadastre os itens do contrato.'
       )
     ).toBeInTheDocument()
+  })
+
+  it('histórico em grade: botão "Ver" onde há PDF anexado e clipe pra anexar onde falta', async () => {
+    mockApi()
+    await renderizar()
+    const historico = await screen.findByRole('region', { name: 'Histórico do contrato' })
+
+    expect(within(historico).getAllByRole('button', { name: 'Ver PDF PC/PA' })).toHaveLength(1)
+    // h1 não tem proposta; h1 e h2 não têm termo.
+    expect(within(historico).getAllByLabelText('Anexar PDF PC/PA')).toHaveLength(1)
+    expect(within(historico).getAllByLabelText('Anexar PDF TC/TA')).toHaveLength(2)
+  })
+
+  it('"Ver" abre o visualizador com o PDF e as ações abrir, baixar, substituir e remover', async () => {
+    mockApi()
+    await renderizar()
+    const historico = await screen.findByRole('region', { name: 'Histórico do contrato' })
+
+    fireEvent.click(within(historico).getByRole('button', { name: 'Ver PDF PC/PA' }))
+
+    const visualizador = await within(historico).findByTitle('Visualização do PDF PC/PA')
+    expect(visualizador).toHaveAttribute('src', 'https://blob.example/h2-proposta.pdf')
+    expect(within(historico).getByRole('link', { name: /Abrir em nova aba/ })).toHaveAttribute(
+      'href',
+      'https://blob.example/h2-proposta.pdf'
+    )
+    expect(within(historico).getByRole('link', { name: /Baixar/ })).toHaveAttribute(
+      'href',
+      'https://blob.example/h2-proposta.pdf?download=1'
+    )
+    expect(within(historico).getByText(/PA-01\.pdf/)).toBeInTheDocument()
+    expect(within(historico).getByRole('button', { name: /Remover PDF/ })).toBeInTheDocument()
+  })
+
+  it('anexa o PDF da proposta direto da grade', async () => {
+    mockApi()
+    await renderizar()
+    const historico = await screen.findByRole('region', { name: 'Histórico do contrato' })
+
+    const arquivo = new File(['%PDF-1.4'], 'PC-01.pdf', { type: 'application/pdf' })
+    fireEvent.change(within(historico).getByLabelText('Anexar PDF PC/PA'), { target: { files: [arquivo] } })
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/historico-contrato/h1/pdf/proposta',
+        expect.objectContaining({ method: 'POST' })
+      )
+    )
+    await waitFor(() => expect(within(historico).getAllByRole('button', { name: 'Ver PDF PC/PA' })).toHaveLength(2))
+  })
+
+  it('remove o PDF pelo visualizador, depois de confirmar', async () => {
+    mockApi()
+    await renderizar()
+    const historico = await screen.findByRole('region', { name: 'Histórico do contrato' })
+
+    fireEvent.click(within(historico).getByRole('button', { name: 'Ver PDF PC/PA' }))
+    fireEvent.click(await within(historico).findByRole('button', { name: /Remover PDF/ }))
+    fireEvent.click(within(historico).getByRole('button', { name: 'Sim' }))
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/historico-contrato/h2/pdf/proposta',
+        expect.objectContaining({ method: 'DELETE' })
+      )
+    )
+    await waitFor(() => expect(within(historico).queryByRole('button', { name: 'Ver PDF PC/PA' })).not.toBeInTheDocument())
   })
 
   it('adiciona uma linha ao histórico', async () => {

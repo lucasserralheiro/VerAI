@@ -1,10 +1,11 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { AlertCircle, ChevronRight, Loader2, Pencil } from 'lucide-react'
 import { BTN_OUTLINE } from '@/lib/ui'
 import { formatarMoeda } from '@/lib/relatorios-clientes/formatacao'
+import { SeiLink } from '@/components/relatorios-clientes/sei-link'
 import { FormularioFaturamento, competencia, type Faturamento, type OpcaoContrato } from '../formulario-faturamento'
 import { SecaoNotas, type Nota } from './secao-notas'
 
@@ -58,7 +59,7 @@ export default function FaturamentoDetalhePage({ params }: { params: Promise<{ i
 
   if (carregando) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 text-sm text-mid-grey">
           <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
           Carregando...
@@ -69,7 +70,7 @@ export default function FaturamentoDetalhePage({ params }: { params: Promise<{ i
 
   if (!faturamento) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 rounded-xl bg-red-crit-light p-4 text-sm text-red-crit">
           <AlertCircle className="size-4 shrink-0" strokeWidth={2.25} />
           {erro ?? 'Faturamento não encontrado.'}
@@ -79,17 +80,17 @@ export default function FaturamentoDetalhePage({ params }: { params: Promise<{ i
   }
 
   const titulo = `Faturamento ${competencia(faturamento)}`
-  const detalhes: Array<{ rotulo: string; valor: string }> = [
+  const detalhes: Array<{ rotulo: string; valor: ReactNode }> = [
     { rotulo: 'Contrato', valor: faturamento.contrato.numeroTermo ?? '—' },
-    { rotulo: 'SEI', valor: faturamento.sei ?? '—' },
+    { rotulo: 'SEI', valor: <SeiLink numero={faturamento.sei} className="text-sm" /> },
     { rotulo: 'Unidade destino', valor: faturamento.unidadeDestino ?? '—' },
-    { rotulo: 'Valor', valor: formatarMoeda(faturamento.valorExibido) },
+    { rotulo: 'Valor', valor: faturamento.semNota ? 'sem nota' : formatarMoeda(faturamento.valorExibido) },
     { rotulo: 'Enviado ao cliente', valor: simNao(faturamento.enviadoCliente) },
     { rotulo: 'Enviado à GFP', valor: simNao(faturamento.enviadoGfp) },
   ]
 
   return (
-    <main className="mx-auto max-w-7xl space-y-8 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] space-y-8 px-6 py-8 lg:px-8">
       <div className="space-y-3">
         <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
           <span>Relatórios</span>

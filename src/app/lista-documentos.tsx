@@ -1,8 +1,8 @@
 'use client'
 
-// Implementação da listagem de documentos. Fica fora do page.tsx enquanto a
-// tela está marcada como "em desenvolvimento" — quando for liberar, é só
-// trocar a flag EM_DESENVOLVIMENTO em ./page.tsx.
+// Implementação da listagem de documentos. Fica fora do page.tsx pra que a
+// tela possa voltar a ser marcada como "em desenvolvimento" — é só
+// ligar a flag EM_DESENVOLVIMENTO em ./page.tsx.
 
 import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
@@ -134,7 +134,7 @@ export function ListaDocumentos() {
   ]
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] space-y-6 px-6 py-8 lg:px-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
           <span className="text-xs font-semibold tracking-wide text-orange uppercase">Painel</span>

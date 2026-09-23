@@ -66,6 +66,8 @@ export const SELECT_FATURAMENTO = {
   unidadeDestino: true,
   enviadoCliente: true,
   enviadoGfp: true,
+  pdfUrl: true,
+  pdfNomeArquivo: true,
   contrato: { select: { id: true, numeroTermo: true } },
 } satisfies Prisma.FaturamentoSelect
 
@@ -105,7 +107,10 @@ export async function resumoDasNotas(faturamentoIds: string[]): Promise<Map<stri
  *  `valor` nulo — a origem não tem essa coluna). */
 export function serializarFaturamento(faturamento: FaturamentoSelecionado, resumo: ResumoNotas = RESUMO_VAZIO) {
   const valor = faturamento.valor?.toString() ?? null
-  return { ...faturamento, valor, ...resumo, valorExibido: valor ?? resumo.valorNotas }
+  // Sem valor lançado e sem nenhuma nota fiscal: o legado simplesmente não tem esse dado (só 158
+  // notas pra 635 lançamentos). A tela mostra "sem nota" em vez de um R$ 0,00 que pareceria real.
+  const semNota = valor === null && resumo === RESUMO_VAZIO
+  return { ...faturamento, valor, ...resumo, valorExibido: valor ?? resumo.valorNotas, semNota }
 }
 
 // ---------------------------------------------------------------------------

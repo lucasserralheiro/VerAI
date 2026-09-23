@@ -39,6 +39,36 @@ describe('IndicadoresCliente', () => {
     expect(await screen.findByText('nenhum faturamento')).toBeInTheDocument()
   })
 
+  it('nenhum contrato ativo com valor: traço e explicação em vez de R$ 0,00', async () => {
+    mockFetch(true, {
+      contratosAtivos: 4,
+      vencendoEm30Dias: 0,
+      valorContratado: '0',
+      contratosSemValor: 4,
+      faturadoUltimoMes: null,
+      demandasAbertas: 0,
+      abertasHaMaisDe30Dias: 0,
+    })
+    render(<IndicadoresCliente clienteId="c1" />)
+    expect(await screen.findByText('nenhum contrato ativo tem valor')).toBeInTheDocument()
+    expect(screen.queryByText(/R\$\s0,00/)).not.toBeInTheDocument()
+  })
+
+  it('parte dos contratos sem valor: mostra a soma e avisa quantos ficaram fora', async () => {
+    mockFetch(true, {
+      contratosAtivos: 4,
+      vencendoEm30Dias: 0,
+      valorContratado: '1000',
+      contratosSemValor: 1,
+      faturadoUltimoMes: null,
+      demandasAbertas: 0,
+      abertasHaMaisDe30Dias: 0,
+    })
+    render(<IndicadoresCliente clienteId="c1" />)
+    expect(await screen.findByText(/R\$\s1\.000,00/)).toBeInTheDocument()
+    expect(screen.getByText('1 contrato ativo sem valor (fora da soma)')).toBeInTheDocument()
+  })
+
   it('falha na rota não mostra nada', async () => {
     mockFetch(false, { error: 'acesso negado' })
     const { container } = render(<IndicadoresCliente clienteId="c1" />)

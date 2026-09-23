@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { BTN_OUTLINE, BTN_PRIMARY, INPUT_BASE } from '@/lib/ui'
 import type { Saldo } from '@/lib/relatorios-clientes/saldo'
 import type { SituacaoVencimento } from '@/lib/relatorios-clientes/vencimento'
+import type { ResumoHistorico } from '@/lib/relatorios-clientes/resumo-historico'
 
 export interface Contrato {
   id: string
@@ -20,9 +21,20 @@ export interface Contrato {
   linkSei: string | null
   saldo: Saldo
   vencimento: SituacaoVencimento
+  /** Fim de vigência efetivo: o maior vencimento entre o cabeçalho e o histórico (aditivo/prorrogação). */
+  vigenciaFim?: string | null
+  ativo?: boolean
+  rescindido?: boolean
+  /** Linha vazia do legado (sem número, datas, histórico...): não conta como contrato. */
+  vazio?: boolean
+  /** Só vem da listagem (GET /api/clientes/[clienteId]/contratos); POST/PATCH não devolvem. */
+  resumoHistorico?: ResumoHistorico
 }
 
 type CampoTexto = 'numeroTermo' | 'descricao' | 'seiCliente' | 'seiProdam' | 'situacao' | 'dataInicio' | 'dataVencimento' | 'linkSei'
+
+// Mesmas duas opções do combo "Situação" do Access legado (FT_ContratosReceita).
+const SITUACOES = ['Ativo', 'Finalizado'] as const
 
 const CAMPOS: Array<{ campo: CampoTexto; rotulo: string; tipo?: string; largo?: boolean }> = [
   { campo: 'numeroTermo', rotulo: 'Nº do termo' },
@@ -41,14 +53,21 @@ export function FormularioContrato({
   contrato,
   aoSalvar,
   aoCancelar,
+  rodape,
+  numeroSugerido,
 }: {
   clienteId: string
   contrato?: Contrato
+  /** Nº do termo já preenchido ao criar (vem dos itens do legado que esperam este contrato). */
+  numeroSugerido?: string
   aoSalvar: (salvo: Contrato) => void
   aoCancelar: () => void
+  /** Conteúdo extra (link pro histórico, excluir...) — dentro do mesmo `card` do formulário, não
+   *  como irmão fora dele, pra não abrir um vão transparente no `<dialog>` que o usa como modal. */
+  rodape?: ReactNode
 }) {
   const [campos, setCampos] = useState<Record<CampoTexto, string>>(() => ({
-    numeroTermo: contrato?.numeroTermo ?? '',
+    numeroTermo: contrato?.numeroTermo ?? numeroSugerido ?? '',
     descricao: contrato?.descricao ?? '',
     seiCliente: contrato?.seiCliente ?? '',
     seiProdam: contrato?.seiProdam ?? '',
@@ -91,14 +110,30 @@ export function FormularioContrato({
         {CAMPOS.map(({ campo, rotulo, tipo, largo }) => (
           <label key={campo} className={`flex flex-col gap-1 text-sm ${largo ? 'lg:col-span-2' : ''}`}>
             <span className="text-xs font-medium text-mid-grey">{rotulo}</span>
-            <input
-              aria-label={rotulo}
-              type={tipo ?? 'text'}
-              value={campos[campo]}
-              onChange={(e) => setCampos((atual) => ({ ...atual, [campo]: e.target.value }))}
-              required={campo === 'numeroTermo'}
-              className={INPUT_BASE}
-            />
+            {campo === 'situacao' ? (
+              <select
+                aria-label={rotulo}
+                value={campos.situacao}
+                onChange={(e) => setCampos((atual) => ({ ...atual, situacao: e.target.value }))}
+                className={INPUT_BASE}
+              >
+                <option value="">—</option>
+                {SITUACOES.map((situacao) => (
+                  <option key={situacao} value={situacao}>
+                    {situacao}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                aria-label={rotulo}
+                type={tipo ?? 'text'}
+                value={campos[campo]}
+                onChange={(e) => setCampos((atual) => ({ ...atual, [campo]: e.target.value }))}
+                required={campo === 'numeroTermo'}
+                className={INPUT_BASE}
+              />
+            )}
           </label>
         ))}
         <label className="flex items-center gap-2 self-end pb-2 text-sm text-navy">
@@ -120,6 +155,7 @@ export function FormularioContrato({
           Cancelar
         </button>
       </div>
+      {rodape}
     </form>
   )
 }

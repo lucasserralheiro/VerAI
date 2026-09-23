@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { AlertCircle, ChevronRight, Inbox, Loader2, Plus, Search } from 'lucide-react'
 import { BTN_OUTLINE, BTN_OUTLINE_SM, BTN_PRIMARY, INPUT_BASE } from '@/lib/ui'
 import { formatarData } from '@/lib/relatorios-clientes/formatacao'
@@ -48,6 +48,40 @@ function paraFormulario(solicitacao?: Solicitacao): Record<CampoTexto, string> {
     dataFinal: solicitacao?.dataFinal?.slice(0, 10) ?? '',
     observacao: solicitacao?.observacao ?? '',
   }
+}
+
+/** Modal nativo (<dialog> + showModal()), mesmo padrão de clientes/modal-cliente.tsx. */
+function ModalSolicitacao({
+  aberto,
+  aoFechar,
+  children,
+}: {
+  aberto: boolean
+  aoFechar: () => void
+  children: ReactNode
+}) {
+  const dialogoRef = useRef<HTMLDialogElement>(null)
+
+  useEffect(() => {
+    const el = dialogoRef.current
+    if (!el) return
+    if (aberto && !el.open) el.showModal()
+    else if (!aberto && el.open) el.close()
+  }, [aberto])
+
+  return (
+    <dialog
+      ref={dialogoRef}
+      onClose={aoFechar}
+      onClick={(e) => {
+        if (e.target === dialogoRef.current) dialogoRef.current?.close()
+      }}
+      aria-label="Solicitação"
+      className="w-[min(56rem,calc(100vw-2rem))] border-0 bg-transparent p-0"
+    >
+      {aberto && children}
+    </dialog>
+  )
 }
 
 function FormularioSolicitacao({
@@ -211,7 +245,7 @@ export default function SolicitacoesPage() {
   const emEdicao = solicitacoes.find((solicitacao) => solicitacao.id === editando)
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] space-y-6 px-6 py-8 lg:px-8">
       <div className="space-y-3">
         <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
           <span>Relatórios</span>
@@ -223,16 +257,14 @@ export default function SolicitacoesPage() {
             <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">Solicitações</h1>
             <p className="text-sm text-mid-grey">Chamados (RDM, solicitações) abertos pelos clientes</p>
           </div>
-          {editando === null && (
-            <button type="button" onClick={() => setEditando('nova')} className={BTN_PRIMARY}>
-              <Plus className="size-3.5" strokeWidth={2.25} />
-              Nova solicitação
-            </button>
-          )}
+          <button type="button" onClick={() => setEditando('nova')} className={BTN_PRIMARY}>
+            <Plus className="size-3.5" strokeWidth={2.25} />
+            Nova solicitação
+          </button>
         </div>
       </div>
 
-      {editando !== null && (
+      <ModalSolicitacao aberto={editando !== null} aoFechar={() => setEditando(null)}>
         <FormularioSolicitacao
           key={editando}
           solicitacao={emEdicao}
@@ -244,7 +276,7 @@ export default function SolicitacoesPage() {
           }}
           aoCancelar={() => setEditando(null)}
         />
-      )}
+      </ModalSolicitacao>
 
       <div className="flex flex-wrap items-center gap-2">
         <select

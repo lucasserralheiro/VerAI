@@ -9,6 +9,7 @@ jest.mock('@/lib/prisma', () => ({
   prisma: {
     cliente: { findUnique: jest.fn() },
     contrato: { findMany: jest.fn(), create: jest.fn() },
+    historicoContrato: { findMany: jest.fn() },
     usuario: { findUnique: jest.fn() },
   },
 }))
@@ -33,6 +34,7 @@ beforeEach(() => {
   ;(getAuthUser as jest.Mock).mockResolvedValue(admin)
   ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue({ id: 'c1' })
   ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([])
+  ;(prisma.historicoContrato.findMany as jest.Mock).mockResolvedValue([])
   ;(saldosDosContratos as jest.Mock).mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, SEM_SALDO])))
 })
 
@@ -74,6 +76,36 @@ describe('GET /api/clientes/[clienteId]/contratos', () => {
     ])
     expect(prisma.contrato.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { clienteId: 'c1' } }))
     expect(saldosDosContratos).toHaveBeenCalledWith(['k1'])
+  })
+
+  it('resume o histórico de cada contrato: aditivos, prorrogações e PDFs PC/PA e TC/TA mais recentes', async () => {
+    ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([
+      { id: 'k1', clienteId: 'c1', numeroTermo: 'TC 142/2021', dataVencimento: null },
+      { id: 'k2', clienteId: 'c1', numeroTermo: 'TC 010/2026', dataVencimento: null },
+    ])
+    const base = { numero: null, proposta: null, valor: null, propostaPdfUrl: null, propostaPdfNome: null, termoPdfUrl: null, termoPdfNome: null }
+    ;(prisma.historicoContrato.findMany as jest.Mock).mockResolvedValue([
+      { ...base, contratoId: 'k1', tipo: 'CONTRATO', data: new Date('2021-11-09'), createdAt: new Date('2026-01-01'), numero: 'TC 142/2021', valor: '69687389.32', propostaPdfUrl: 'https://b/p-antiga.pdf', termoPdfUrl: 'https://b/t.pdf' },
+      { ...base, contratoId: 'k1', tipo: 'ADITIVO', data: new Date('2022-08-12'), createdAt: new Date('2026-01-01'), proposta: 'PA-02', propostaPdfUrl: 'https://b/p-nova.pdf' },
+      { ...base, contratoId: 'k1', tipo: 'PRORROGACAO', data: new Date('2023-10-31'), createdAt: new Date('2026-01-01'), valor: '65911280.84' },
+    ])
+
+    const resposta = await GET(new NextRequest(url), contexto)
+    const [k1, k2] = await resposta.json()
+
+    expect(k1.resumoHistorico).toEqual({
+      aditivos: 1,
+      prorrogacoes: 1,
+      valorAtual: { valor: '65911280.84', tipo: 'PRORROGACAO', data: '2023-10-31T00:00:00.000Z' },
+      proposta: { url: 'https://b/p-nova.pdf', nome: null, referencia: 'PA-02' },
+      termo: { url: 'https://b/t.pdf', nome: null, referencia: 'TC 142/2021' },
+    })
+    expect(k2.resumoHistorico).toEqual({ aditivos: 0, prorrogacoes: 0, valorAtual: null, proposta: null, termo: null })
+    // Uma consulta só pra todos os contratos (sem N+1).
+    expect(prisma.historicoContrato.findMany).toHaveBeenCalledTimes(1)
+    expect(prisma.historicoContrato.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { contratoId: { in: ['k1', 'k2'] } } })
+    )
   })
 })
 

@@ -38,6 +38,20 @@ export function buildDocumentoPrefix(documentoId: string, data: Date = new Date(
   return `${ano}/${mes}/${documentoId}/`
 }
 
+/** PDF anexado manualmente a um faturamento (aba Faturamento). Caminho fixo (sem ano/mês) pra
+ *  re-anexar sempre sobrescrever o mesmo blob, sem precisar apagar o antigo à parte. */
+export function buildFaturamentoPdfPath(faturamentoId: string): string {
+  return `faturamentos/${faturamentoId}/anexo.pdf`
+}
+
+/** PDF anexado a uma linha do histórico do contrato: `proposta` (PC/PA) ou `termo` (TC/TA).
+ *  Caminho fixo por linha e tipo, então reanexar sobrescreve o mesmo blob. */
+export type TipoPdfHistorico = 'proposta' | 'termo'
+
+export function buildHistoricoContratoPdfPath(historicoId: string, tipo: TipoPdfHistorico): string {
+  return `historico-contrato/${historicoId}/${tipo}.pdf`
+}
+
 /** Prefixo da pasta de imagens de um arquivo, deduzido da URL do original que
  *  está no banco — sem recalcular ano/mês, que podem ter virado desde o upload.
  *  Devolve `null` quando a URL não tem o formato esperado. */

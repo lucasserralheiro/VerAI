@@ -1,10 +1,10 @@
 import { EmDesenvolvimento } from '@/components/em-desenvolvimento'
 import { ListaDocumentos } from './lista-documentos'
 
-// A tela "Todos os documentos" ainda não foi feita. Enquanto isso fica no
-// lugar dela o aviso de "em desenvolvimento", pra ninguém achar que o que
-// aparece aqui já é a funcionalidade. Pra liberar, troque pra false.
-const EM_DESENVOLVIMENTO = true
+// Liberado em 2026-09-22. Flag preservada (não removida) pra poder voltar a
+// esconder rapidamente se aparecer algum problema, sem precisar de deploy
+// que mexa em mais nada.
+const EM_DESENVOLVIMENTO = false
 
 export default function DashboardPage() {
   if (!EM_DESENVOLVIMENTO) return <ListaDocumentos />

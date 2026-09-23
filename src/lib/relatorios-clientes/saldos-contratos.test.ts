@@ -14,6 +14,14 @@ import { saldosDosContratos } from './saldos-contratos'
 beforeEach(() => jest.clearAllMocks())
 
 describe('saldosDosContratos', () => {
+  it('faturado vem do valor lançado ou, sem ele, das notas — a mesma regra da lista de faturamentos', async () => {
+    ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([])
+    ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([])
+    await saldosDosContratos(['k1'])
+    const sql = ((prisma.$queryRaw as jest.Mock).mock.calls[0][0] as { strings: string[] }).strings.join(' ')
+    expect(sql).toMatch(/COALESCE\(f\."valor", n\."soma"\)/)
+  })
+
   it('soma itens e notas fiscais por contrato e devolve o saldo de cada um', async () => {
     ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([
       { contratoId: 'k1', _sum: { valorTotal: new Prisma.Decimal('1000') } },

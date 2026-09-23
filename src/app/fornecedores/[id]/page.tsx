@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AlertCircle, ChevronRight, Loader2, Pencil } from 'lucide-react'
 import { BTN_OUTLINE } from '@/lib/ui'
 import { formatarData } from '@/lib/relatorios-clientes/formatacao'
+import { SeiLink } from '@/components/relatorios-clientes/sei-link'
 import { SecaoTermos } from '@/components/relatorios-clientes/secao-termos'
 import { FormularioFornecedor, type Fornecedor } from '../formulario-fornecedor'
 import { SecaoCos, type Co } from './secao-cos'
@@ -42,7 +43,7 @@ export default function FornecedorDetalhePage({ params }: { params: Promise<{ id
 
   if (carregando) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 text-sm text-mid-grey">
           <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
           Carregando...
@@ -53,7 +54,7 @@ export default function FornecedorDetalhePage({ params }: { params: Promise<{ id
 
   if (!fornecedor) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 rounded-xl bg-red-crit-light p-4 text-sm text-red-crit">
           <AlertCircle className="size-4 shrink-0" strokeWidth={2.25} />
           {erro ?? 'Fornecedor não encontrado.'}
@@ -71,7 +72,7 @@ export default function FornecedorDetalhePage({ params }: { params: Promise<{ id
     .join(' · ')
 
   return (
-    <main className="mx-auto max-w-7xl space-y-8 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] space-y-8 px-6 py-8 lg:px-8">
       <div className="space-y-3">
         <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
           <span>Relatórios</span>
@@ -90,7 +91,11 @@ export default function FornecedorDetalhePage({ params }: { params: Promise<{ id
             {(fornecedor.cnpj || fornecedor.sei || fornecedor.contato) && (
               <p className="mt-1 flex flex-wrap gap-x-4 font-mono text-xs text-mid-grey">
                 {fornecedor.cnpj && <span>CNPJ {fornecedor.cnpj}</span>}
-                {fornecedor.sei && <span>SEI {fornecedor.sei}</span>}
+                {fornecedor.sei && (
+                  <span className="inline-flex items-center gap-1">
+                    SEI <SeiLink numero={fornecedor.sei} />
+                  </span>
+                )}
                 {fornecedor.contato && <span className="font-sans">{fornecedor.contato}</span>}
               </p>
             )}

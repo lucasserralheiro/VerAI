@@ -113,3 +113,25 @@ Qualquer sessão que for mexer nisso lê os dois documentos acima antes de tocar
 são a fonte de verdade sobre o que já foi decidido e o que falta. Ao avançar o trabalho, atualize
 os dois (marque tarefa concluída, registre decisão nova) em vez de deixar o código divergir do que
 está escrito ali.
+
+## Relatórios dos clientes — regra única de contrato e SEI
+
+**Contrato tem UMA definição, em `src/lib/relatorios-clientes/contratos-consolidados.ts`.** Ficha do
+cliente (cartões), aba Contratos, detalhe do contrato, relatórios de vencimento, valor total e status
+de faturamento chamam `consolidarContratos()` — nenhuma rota recalcula "ativo", vencimento, valor ou
+saldo por conta própria (foi isso que fazia as telas divergirem). A regra: fim de vigência = maior
+vencimento entre o cabeçalho e o histórico (`vigenciaEfetiva` em `regras.ts`); ativo = não rescindido +
+situação sem encerramento + vigência que não passou; valor contratado = valor atual do histórico,
+senão soma dos itens, senão `null` (fora das somas, as telas avisam); saldo e % faturado usam essa
+mesma base. Rota nova que mostra contrato **usa o consolidado**, não `contratoAtivo`/`saldosDosContratos` direto.
+
+**Item de contrato nunca fica solto de propósito.** `vincularItensOrfaos()` (`vincular-itens.ts`) liga
+por casamento tolerante (caixa, acento, zero à esquerda, SEI, nº do histórico) e só quando é único; roda
+no importador e ao criar/editar contrato e histórico. `npx dotenv -e .env.development -- npx tsx
+scripts/reconciliar-clientes.ts [--aplicar] [--detalhe] [--integridade]` lista/corrige o que sobrou.
+
+**SEI sempre pelo componente `SeiLink`** (`src/components/relatorios-clientes/sei-link.tsx`): número
+com máscara, clicável em qualquer tela (abre o processo se houver link cadastrado ou o modelo
+`NEXT_PUBLIC_SEI_URL_TEMPLATE`; senão o clique copia o número). Nunca renderizar `contrato.sei…` como
+texto puro. Formatação/URL em `src/lib/relatorios-clientes/sei.ts`.
+

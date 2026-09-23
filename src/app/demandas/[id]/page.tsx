@@ -1,10 +1,11 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { AlertCircle, AlertTriangle, ChevronRight, Loader2, Pencil } from 'lucide-react'
 import { BTN_OUTLINE } from '@/lib/ui'
 import { formatarData } from '@/lib/relatorios-clientes/formatacao'
+import { SeiLink } from '@/components/relatorios-clientes/sei-link'
 import {
   FormularioDemanda,
   rotuloCliente,
@@ -74,7 +75,7 @@ export default function DemandaDetalhePage({ params }: { params: Promise<{ id: s
 
   if (carregando) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 text-sm text-mid-grey">
           <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
           Carregando...
@@ -85,7 +86,7 @@ export default function DemandaDetalhePage({ params }: { params: Promise<{ id: s
 
   if (!demanda) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 rounded-xl bg-red-crit-light p-4 text-sm text-red-crit">
           <AlertCircle className="size-4 shrink-0" strokeWidth={2.25} />
           {erro ?? 'Demanda não encontrada.'}
@@ -94,7 +95,7 @@ export default function DemandaDetalhePage({ params }: { params: Promise<{ id: s
     )
   }
 
-  const detalhes: Array<{ rotulo: string; valor: string }> = [
+  const detalhes: Array<{ rotulo: string; valor: ReactNode }> = [
     { rotulo: 'Cliente', valor: rotuloCliente(demanda.cliente) },
     { rotulo: 'Situação', valor: demanda.situacao ?? '—' },
     { rotulo: 'Tipo de assunto', valor: demanda.tipoAssunto ?? '—' },
@@ -102,11 +103,11 @@ export default function DemandaDetalhePage({ params }: { params: Promise<{ id: s
     { rotulo: 'Responsável', valor: demanda.responsavel ?? '—' },
     { rotulo: 'Abertura', valor: formatarData(demanda.dataAbertura) },
     { rotulo: 'Documento', valor: demanda.documento ?? '—' },
-    { rotulo: 'SEI', valor: demanda.sei ?? '—' },
+    { rotulo: 'SEI', valor: <SeiLink numero={demanda.sei} className="text-sm" /> },
   ]
 
   return (
-    <main className="mx-auto max-w-7xl space-y-8 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] space-y-8 px-6 py-8 lg:px-8">
       <div className="space-y-3">
         <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
           <span>Relatórios</span>

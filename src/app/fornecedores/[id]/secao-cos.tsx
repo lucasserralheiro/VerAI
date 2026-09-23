@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react'
 import { AlertCircle, FileStack, Plus } from 'lucide-react'
 import { BTN_OUTLINE, BTN_OUTLINE_SM, BTN_PRIMARY, INPUT_BASE, LINK_DANGER } from '@/lib/ui'
 import { formatarData, formatarMoeda } from '@/lib/relatorios-clientes/formatacao'
+import { SeiLink } from '@/components/relatorios-clientes/sei-link'
 
 export interface Co {
   id: string
@@ -186,7 +187,9 @@ export function SecaoCos({ fornecedorId, cos, aoMudar }: { fornecedorId: string;
                   <td className="font-mono text-xs font-semibold text-navy">{co.numero ?? '—'}</td>
                   <td className="font-mono text-xs whitespace-nowrap">{vigencia(co)}</td>
                   <td className="font-mono text-xs whitespace-nowrap">{formatarMoeda(co.valor)}</td>
-                  <td className="font-mono text-xs">{co.sei ?? '—'}</td>
+                  <td>
+                    <SeiLink numero={co.sei} />
+                  </td>
                   <td>
                     <div className="flex items-center justify-end gap-3 text-xs">
                       {confirmandoExclusao === co.id ? (

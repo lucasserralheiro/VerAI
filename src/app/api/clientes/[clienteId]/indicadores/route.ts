@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { exigirAcessoCliente } from '@/lib/relatorios-clientes/acesso'
-import { saldosDosContratos } from '@/lib/relatorios-clientes/saldos-contratos'
-import { situacaoVencimento } from '@/lib/relatorios-clientes/vencimento'
-import { competenciaValida, contratoAtivo, demandaAberta } from '@/lib/relatorios-clientes/regras'
+import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
+import { competenciaValida, demandaAberta } from '@/lib/relatorios-clientes/regras'
 import { resumoDasNotas } from '@/app/api/faturamentos/esquema'
 
 type Contexto = { params: Promise<{ clienteId: string }> }
@@ -31,26 +30,47 @@ export async function GET(request: NextRequest, { params }: Contexto) {
 
   const hoje = new Date()
 
-  const ativos = cliente.contratos.filter((contrato) => contratoAtivo(contrato, hoje))
+  // Regra única de contrato (contratos-consolidados.ts): a mesma da aba Contratos e dos relatórios.
+  const consolidados = await consolidarContratos(cliente.contratos, hoje)
+  const ativos = cliente.contratos.filter((contrato) => consolidados.get(contrato.id)!.ativo)
   const vencendoEm30Dias = ativos.filter((contrato) => {
-    const { dias } = situacaoVencimento(contrato.dataVencimento, hoje)
+    const { dias } = consolidados.get(contrato.id)!.vencimento
     return dias !== null && dias <= 30
   }).length
-  const saldos = await saldosDosContratos(ativos.map((contrato) => contrato.id))
-  const valorContratado = ativos.reduce((soma, contrato) => soma.plus(saldos.get(contrato.id)!.valorItens), new Prisma.Decimal(0))
+  const vencidos = ativos.filter((contrato) => consolidados.get(contrato.id)!.vencimento.nivel === 'vencido').length
+  // Valor contratado = base de cada contrato ativo. Contrato sem valor nenhum fica fora da soma e é
+  // contado, pro cartão avisar em vez de mostrar R$ 0,00 como se fosse resultado.
+  let semValor = 0
+  let valorContratado = new Prisma.Decimal(0)
+  for (const contrato of ativos) {
+    const base = consolidados.get(contrato.id)!.valorBase
+    if (base === null) semValor++
+    else valorContratado = valorContratado.plus(base)
+  }
 
+  // Último mês faturado = a última competência COM valor (lançado ou em nota fiscal). Se nenhum mês
+  // tem valor, cai na última competência lançada e avisa `semValor` — em vez de exibir R$ 0,00 como
+  // se fosse resultado.
   const validos = cliente.faturamentos.filter((f) => competenciaValida(f.competenciaAno, f.competenciaMes))
   const chave = (f: (typeof validos)[number]) => f.competenciaAno! * 100 + f.competenciaMes!
-  const ultimaChave = Math.max(...validos.map(chave))
-  let faturadoUltimoMes: { ano: number; mes: number; valor: string } | null = null
+  let faturadoUltimoMes: { ano: number; mes: number; valor: string; semValor: boolean } | null = null
   if (validos.length > 0) {
-    const doMes = validos.filter((f) => chave(f) === ultimaChave)
-    const resumos = await resumoDasNotas(doMes.map((f) => f.id))
+    const resumos = await resumoDasNotas(validos.map((f) => f.id))
+    const temValor = (f: (typeof validos)[number]) => f.valor !== null || resumos.has(f.id)
+    const comValor = validos.filter(temValor)
+    const base = comValor.length > 0 ? comValor : validos
+    const ultimaChave = Math.max(...base.map(chave))
+    const doMes = base.filter((f) => chave(f) === ultimaChave)
     const valor = doMes.reduce(
       (soma, f) => soma.plus(f.valor ?? resumos.get(f.id)?.valorNotas ?? 0),
       new Prisma.Decimal(0)
     )
-    faturadoUltimoMes = { ano: Math.floor(ultimaChave / 100), mes: ultimaChave % 100, valor: valor.toString() }
+    faturadoUltimoMes = {
+      ano: Math.floor(ultimaChave / 100),
+      mes: ultimaChave % 100,
+      valor: valor.toString(),
+      semValor: comValor.length === 0,
+    }
   }
 
   const abertas = cliente.demandas.filter((demanda) => demandaAberta(demanda.situacao))
@@ -61,7 +81,9 @@ export async function GET(request: NextRequest, { params }: Contexto) {
   return NextResponse.json({
     contratosAtivos: ativos.length,
     vencendoEm30Dias,
+    vencidos,
     valorContratado: valorContratado.toString(),
+    contratosSemValor: semValor,
     faturadoUltimoMes,
     demandasAbertas: abertas.length,
     abertasHaMaisDe30Dias,

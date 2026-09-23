@@ -4,7 +4,9 @@ import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { AlertCircle, ChevronRight, Loader2, Plus, Search, Truck } from 'lucide-react'
 import { BTN_OUTLINE, BTN_PRIMARY, INPUT_BASE } from '@/lib/ui'
-import { FormularioFornecedor, type Fornecedor } from './formulario-fornecedor'
+import { SeiLink } from '@/components/relatorios-clientes/sei-link'
+import type { Fornecedor } from './formulario-fornecedor'
+import { ModalFornecedor } from './modal-fornecedor'
 
 interface FornecedorNaLista extends Fornecedor {
   totalCos: number
@@ -43,7 +45,7 @@ export default function FornecedoresPage() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] space-y-6 px-6 py-8 lg:px-8">
       <div className="space-y-3">
         <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
           <span>Relatórios</span>
@@ -55,24 +57,21 @@ export default function FornecedoresPage() {
             <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">Fornecedores</h1>
             <p className="text-sm text-mid-grey">Acordos, contratos de operacionalização e termos de confirmação</p>
           </div>
-          {!criando && (
-            <button type="button" onClick={() => setCriando(true)} className={BTN_PRIMARY}>
-              <Plus className="size-3.5" strokeWidth={2.25} />
-              Novo fornecedor
-            </button>
-          )}
+          <button type="button" onClick={() => setCriando(true)} className={BTN_PRIMARY}>
+            <Plus className="size-3.5" strokeWidth={2.25} />
+            Novo fornecedor
+          </button>
         </div>
       </div>
 
-      {criando && (
-        <FormularioFornecedor
-          aoSalvar={async () => {
-            setCriando(false)
-            await carregar(busca.trim())
-          }}
-          aoCancelar={() => setCriando(false)}
-        />
-      )}
+      <ModalFornecedor
+        aberto={criando}
+        aoFechar={() => setCriando(false)}
+        aoSalvar={async () => {
+          setCriando(false)
+          await carregar(busca.trim())
+        }}
+      />
 
       <form role="search" onSubmit={handleBuscar} className="flex max-w-md gap-2">
         <input
@@ -129,7 +128,9 @@ export default function FornecedoresPage() {
                   </td>
                   <td>{fornecedor.acordo ?? '—'}</td>
                   <td className="font-mono text-xs">{fornecedor.numeroAcordo ?? '—'}</td>
-                  <td className="font-mono text-xs">{fornecedor.sei ?? '—'}</td>
+                  <td>
+                    <SeiLink numero={fornecedor.sei} />
+                  </td>
                   <td>{fornecedor.totalCos}</td>
                   <td>{fornecedor.totalTermos}</td>
                 </tr>

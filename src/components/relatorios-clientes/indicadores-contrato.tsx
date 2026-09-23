@@ -34,9 +34,9 @@ export function PillVencimento({ vencimento }: { vencimento: SituacaoVencimento 
   )
 }
 
-/** `percentualFaturado` null = contrato sem itens vinculados: sem base, nada de barra. */
+/** `percentualFaturado` null = contrato sem valor (nem histórico nem itens): sem base, nada de barra. */
 export function BarraFaturado({ saldo }: { saldo: Saldo }) {
-  if (saldo.percentualFaturado === null) return <span className="text-xs text-mid-grey">sem itens</span>
+  if (saldo.percentualFaturado === null) return <span className="text-xs text-mid-grey">sem valor</span>
   const percentual = Number(saldo.percentualFaturado)
   return (
     <div className="min-w-24">

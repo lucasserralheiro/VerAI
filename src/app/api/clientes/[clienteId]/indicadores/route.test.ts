@@ -9,6 +9,7 @@ jest.mock('@/lib/prisma', () => ({
   prisma: {
     cliente: { findUnique: jest.fn() },
     itemContrato: { groupBy: jest.fn() },
+    historicoContrato: { findMany: jest.fn() },
     notaFiscal: { groupBy: jest.fn() },
     usuario: { findUnique: jest.fn() },
     $queryRaw: jest.fn(),
@@ -34,6 +35,7 @@ beforeEach(() => {
   ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [{ id: 'c1' }] })
   ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue({ contratos: [], faturamentos: [], demandas: [] })
   ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([])
+  ;(prisma.historicoContrato.findMany as jest.Mock).mockResolvedValue([])
   ;(prisma.notaFiscal.groupBy as jest.Mock).mockResolvedValue([])
   ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([])
 })
@@ -59,6 +61,7 @@ describe('GET /api/clientes/[clienteId]/indicadores', () => {
       contratosAtivos: 0,
       vencendoEm30Dias: 0,
       valorContratado: '0',
+      contratosSemValor: 0,
       faturadoUltimoMes: null,
       demandasAbertas: 0,
       abertasHaMaisDe30Dias: 0,
@@ -98,6 +101,7 @@ describe('GET /api/clientes/[clienteId]/indicadores', () => {
       contratosAtivos: 2,
       vencendoEm30Dias: 1,
       valorContratado: '1200.1',
+      contratosSemValor: 0,
       faturadoUltimoMes: { ano: 2026, mes: 8, valor: '150.75' },
       demandasAbertas: 2,
       abertasHaMaisDe30Dias: 1,
@@ -105,5 +109,42 @@ describe('GET /api/clientes/[clienteId]/indicadores', () => {
     expect(prisma.itemContrato.groupBy).toHaveBeenCalledWith(
       expect.objectContaining({ where: { contratoId: { in: ['k1', 'k2'] } } })
     )
+  })
+
+  it('usa o valor atual do histórico e cai pros itens; conta quem não tem nenhum dos dois', async () => {
+    ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue({
+      contratos: [
+        { id: 'k1', situacao: 'Ativo', dataVencimento: diasAPartirDeHoje(100) },
+        { id: 'k2', situacao: 'Ativo', dataVencimento: diasAPartirDeHoje(100) },
+        { id: 'k3', situacao: 'Ativo', dataVencimento: diasAPartirDeHoje(100) },
+      ],
+      faturamentos: [],
+      demandas: [],
+    })
+    const linha = (contratoId: string, tipo: string, dia: number, valor: string | null) => ({
+      contratoId,
+      tipo,
+      data: new Date(2026, 0, dia),
+      createdAt: new Date(2026, 0, dia),
+      numero: null,
+      proposta: null,
+      valor,
+      propostaPdfUrl: null,
+      propostaPdfNome: null,
+      termoPdfUrl: null,
+      termoPdfNome: null,
+    })
+    // k1: o aditivo (mais recente) vence o contrato original — cada linha guarda o total do momento.
+    ;(prisma.historicoContrato.findMany as jest.Mock).mockResolvedValue([
+      linha('k1', 'CONTRATO', 1, '1000'),
+      linha('k1', 'ADITIVO', 2, '1500'),
+    ])
+    // k2: sem histórico, mas com itens. k3: nada.
+    ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([{ contratoId: 'k2', _sum: { valorTotal: '500' } }])
+
+    const corpo = await (await get()).json()
+    expect(corpo.contratosAtivos).toBe(3)
+    expect(corpo.valorContratado).toBe('2000')
+    expect(corpo.contratosSemValor).toBe(1)
   })
 })

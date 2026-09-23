@@ -10,8 +10,12 @@ describe('contratoAtivo', () => {
     }
   )
 
-  it('vencimento que já passou não é ativo', () => {
-    expect(contratoAtivo({ situacao: 'Ativo', dataVencimento: new Date('2026-09-22T03:00:00Z') }, hoje)).toBe(false)
+  it('sem situação, vencimento que já passou não é ativo', () => {
+    expect(contratoAtivo({ situacao: null, dataVencimento: new Date('2026-09-22T03:00:00Z') }, hoje)).toBe(false)
+  })
+
+  it('situação "Ativo" vale mais que a data: vencido segue ativo (a data é só alerta)', () => {
+    expect(contratoAtivo({ situacao: 'Ativo', dataVencimento: new Date('2026-03-21T03:00:00Z') }, hoje)).toBe(true)
   })
 
   it('vence hoje ainda é ativo', () => {

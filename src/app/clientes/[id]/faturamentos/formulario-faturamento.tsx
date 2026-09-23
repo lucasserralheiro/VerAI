@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { BTN_OUTLINE, BTN_PRIMARY, INPUT_BASE } from '@/lib/ui'
 
@@ -18,15 +18,26 @@ export interface Faturamento {
   unidadeDestino: string | null
   enviadoCliente: boolean | null
   enviadoGfp: boolean | null
+  pdfUrl: string | null
+  pdfNomeArquivo: string | null
   contrato: { id: string; numeroTermo: string | null }
   valorNotas: string
   servicos: string[]
   valorExibido: string
+  /** Sem valor lançado e sem nota fiscal — a tela mostra "sem nota", não R$ 0,00. */
+  semNota?: boolean
 }
 
 export interface OpcaoContrato {
   id: string
   numeroTermo: string | null
+}
+
+/** Pré-preenchimento de um faturamento NOVO (ex.: "+ Lançamento" na faixa de uma competência). */
+export interface ModeloFaturamento {
+  competenciaAno: number
+  competenciaMes: number
+  contratoId?: string
 }
 
 export const MESES = [
@@ -63,20 +74,26 @@ export function FormularioFaturamento({
   clienteId,
   contratos,
   faturamento,
+  modelo,
   aoSalvar,
   aoCancelar,
+  rodape,
 }: {
   clienteId: string
   contratos: OpcaoContrato[] | null
   faturamento?: Faturamento
+  modelo?: ModeloFaturamento
   aoSalvar: (salvo: Faturamento) => void
   aoCancelar: () => void
+  rodape?: ReactNode
 }) {
   const titulo = faturamento ? 'Editar faturamento' : 'Novo faturamento'
   const [textos, setTextos] = useState<Record<CampoTexto, string>>(() => ({
-    contratoId: faturamento?.contratoId ?? '',
-    competenciaMes: faturamento?.competenciaMes ? String(faturamento.competenciaMes) : '',
-    competenciaAno: faturamento?.competenciaAno ? String(faturamento.competenciaAno) : String(new Date().getFullYear()),
+    contratoId: faturamento?.contratoId ?? modelo?.contratoId ?? '',
+    competenciaMes: faturamento?.competenciaMes ? String(faturamento.competenciaMes) : modelo ? String(modelo.competenciaMes) : '',
+    competenciaAno: faturamento?.competenciaAno
+      ? String(faturamento.competenciaAno)
+      : String(modelo?.competenciaAno ?? new Date().getFullYear()),
     sei: faturamento?.sei ?? '',
     unidadeDestino: faturamento?.unidadeDestino ?? '',
     valor: faturamento?.valor ?? '',
@@ -197,6 +214,7 @@ export function FormularioFaturamento({
           Cancelar
         </button>
       </div>
+      {rodape}
     </form>
   )
 }

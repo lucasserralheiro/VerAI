@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { AlertCircle, Link2, Package, Plus, Search } from 'lucide-react'
+import { AlertCircle, FileSpreadsheet, Link2, Package, Plus, Search } from 'lucide-react'
 import { BTN_OUTLINE, BTN_OUTLINE_SM, BTN_PRIMARY, INPUT_BASE, LINK_DANGER } from '@/lib/ui'
 import { formatarMoeda } from '@/lib/relatorios-clientes/formatacao'
+import { ImportarPlanilhaItens } from './importar-planilha-itens'
 
 export interface Item {
   id: string
@@ -141,6 +142,7 @@ export function SecaoItens({ contratoId, itens, aoMudar }: { contratoId: string;
   // null = formulário fechado; 'novo' = criando; id = editando aquele item
   const [editando, setEditando] = useState<string | null>(null)
   const [vinculando, setVinculando] = useState(false)
+  const [importando, setImportando] = useState(false)
   const [formulario, setFormulario] = useState(FORMULARIO_VAZIO)
   const [erro, setErro] = useState<string | null>(null)
   const [erroExclusao, setErroExclusao] = useState<string | null>(null)
@@ -214,6 +216,10 @@ export function SecaoItens({ contratoId, itens, aoMudar }: { contratoId: string;
               <Link2 className="size-3.5" strokeWidth={2.25} />
               Vincular itens importados
             </button>
+            <button type="button" onClick={() => setImportando((atual) => !atual)} className={BTN_OUTLINE}>
+              <FileSpreadsheet className="size-3.5" strokeWidth={2.25} />
+              Importar planilha
+            </button>
             <button type="button" onClick={() => abrirFormulario()} className={BTN_PRIMARY}>
               <Plus className="size-3.5" strokeWidth={2.25} />
               Novo item
@@ -223,6 +229,15 @@ export function SecaoItens({ contratoId, itens, aoMudar }: { contratoId: string;
       </div>
 
       {vinculando && editando === null && <VincularItens contratoId={contratoId} aoVincular={aoMudar} />}
+      {importando && editando === null && (
+        <ImportarPlanilhaItens
+          contratoId={contratoId}
+          aoImportar={async () => {
+            setImportando(false)
+            await aoMudar()
+          }}
+        />
+      )}
 
       {editando !== null && (
         <form onSubmit={handleSalvar} className="card space-y-3">

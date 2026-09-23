@@ -17,6 +17,8 @@ model Usuario {
   documentos         Documento[]
   acessos            AcessoDocumento[]
   clientesPermitidos Cliente[]         @relation("UsuarioClientes")
+  arquivosEnviados   ArquivoCliente[]  @relation("ArquivosEnviados")
+  acessosArquivo     AcessoArquivo[]   @relation("AcessosArquivo")
 }
 
 model Cliente {
@@ -40,6 +42,7 @@ model Cliente {
   faturamentos         Faturamento[]
   demandas             Demanda[]
   solicitacoes         Solicitacao[]
+  arquivos             ArquivoCliente[]
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +164,7 @@ model Contrato {
   itens             ItemContrato[]
   faturamentos      Faturamento[]
   termosConfirmacao TermoConfirmacao[]
+  arquivos          ArquivoCliente[]
 
   @@index([clienteId])
 }
@@ -406,6 +410,11 @@ model Documento {
   cliente              Cliente              @relation(fields: [clienteId], references: [id])
   competenciaAno       Int
   competenciaMes       Int
+  // Registro no repositório do cliente (mesmo blob de `caminhoOriginal`) — preenchido pelo
+  // script scripts/migrar-documentos-para-repositorio.ts. O fluxo antigo continua lendo
+  // `caminhoOriginal`.
+  arquivoId            String?
+  arquivo              ArquivoCliente?      @relation(fields: [arquivoId], references: [id])
   createdAt            DateTime             @default(now())
   analise              Analise?
   acessos              AcessoDocumento[]
@@ -529,4 +538,75 @@ model ConfereExecucao {
   createdAt        DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Repositório de documentos do cliente — ver
+// docs/superpowers/specs/2026-09-23-repositorio-documentos-cliente-design.md.
+// `ArquivoCliente` é o ÚNICO lugar onde arquivo de cliente existe: quem usa o
+// arquivo (histórico do contrato, faturamento, ConfereAI, proposta, Documento)
+// guarda a referência (`...ArquivoId`), nunca uma URL própria nem uma cópia.
+// Unicidade de (clienteId, sha256) entre os NÃO removidos é um índice único
+// parcial criado à mão na migração 20260924100000 — o Prisma não expressa
+// `WHERE "removidoEm" IS NULL`.
+// ---------------------------------------------------------------------------
+
+enum CategoriaArquivo {
+  PROPOSTA_COMERCIAL
+  PROPOSTA_ADITIVO
+  TERMO_CONTRATO
+  TERMO_ADITIVO
+  MEDICAO
+  FATURA_NF
+  PLANILHA
+  OFICIO_SEI
+  RELATORIO_GERADO
+  OUTRO
+}
+
+enum OrigemArquivo {
+  upload
+  gerado
+  migrado
+}
+
+model ArquivoCliente {
+  id             String           @id
+  clienteId      String
+  cliente        Cliente          @relation(fields: [clienteId], references: [id])
+  contratoId     String?
+  contrato       Contrato?        @relation(fields: [contratoId], references: [id])
+  competenciaAno Int?
+  competenciaMes Int?
+  categoria      CategoriaArquivo
+  nome           String
+  extensao       String
+  contentType    String
+  tamanhoBytes   Int
+  sha256         String
+  // Nunca vai pro navegador — a entrega é sempre por /api/arquivos/[id].
+  urlBlob        String
+  origem         OrigemArquivo
+  enviadoPorId   String?
+  enviadoPor     Usuario?         @relation("ArquivosEnviados", fields: [enviadoPorId], references: [id])
+  createdAt      DateTime         @default(now())
+  removidoEm     DateTime?
+  documentos     Documento[]
+  acessos        AcessoArquivo[]
+
+  @@index([clienteId, createdAt])
+  @@index([clienteId, categoria])
+  @@index([contratoId])
+}
+
+model AcessoArquivo {
+  id        String         @id @default(cuid())
+  arquivoId String
+  arquivo   ArquivoCliente @relation(fields: [arquivoId], references: [id])
+  usuarioId String
+  usuario   Usuario        @relation("AcessosArquivo", fields: [usuarioId], references: [id])
+  acao      String // visualizou | baixou
+  createdAt DateTime       @default(now())
+
+  @@index([arquivoId])
 }

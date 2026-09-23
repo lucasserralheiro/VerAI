@@ -5,30 +5,20 @@ import Link from 'next/link'
 import { AlertCircle, Download, X } from 'lucide-react'
 import { BTN_OUTLINE, BTN_OUTLINE_SM, BTN_PRIMARY, INPUT_BASE, LINK_DANGER } from '@/lib/ui'
 import { CATEGORIAS, formatarTamanho } from '@/lib/arquivos/tipos'
-import type { ArquivoRepositorio, OpcaoContrato } from './tipos'
-
-function mesAno(arquivo: ArquivoRepositorio) {
-  return arquivo.competenciaAno && arquivo.competenciaMes
-    ? `${arquivo.competenciaAno}-${String(arquivo.competenciaMes).padStart(2, '0')}`
-    : ''
-}
+import type { ArquivoRepositorio } from './tipos'
 
 export function PainelArquivo({
   arquivo,
-  contratos,
   aoAtualizar,
   aoRemover,
   aoFechar,
 }: {
   arquivo: ArquivoRepositorio
-  contratos: OpcaoContrato[]
   aoAtualizar: (arquivo: ArquivoRepositorio) => void
   aoRemover: (id: string) => void
   aoFechar: () => void
 }) {
   const [categoria, setCategoria] = useState(arquivo.categoria)
-  const [contratoId, setContratoId] = useState(arquivo.contratoId ?? '')
-  const [competencia, setCompetencia] = useState(mesAno(arquivo))
   const [confirmando, setConfirmando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const emUso = arquivo.usos.length > 0
@@ -36,11 +26,10 @@ export function PainelArquivo({
   async function salvar(event: FormEvent) {
     event.preventDefault()
     setErro(null)
-    const [ano, mes] = competencia ? competencia.split('-').map(Number) : [null, null]
     const response = await fetch(`/api/arquivos/${arquivo.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ categoria, contratoId, competenciaAno: ano, competenciaMes: mes }),
+      body: JSON.stringify({ categoria }),
     }).catch(() => null)
     const corpo = await response?.json().catch(() => null)
     if (!response?.ok) return setErro(corpo?.error ?? 'Falha ao salvar a classificação.')
@@ -91,23 +80,8 @@ export function PainelArquivo({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium text-mid-grey">Contrato</span>
-          <select value={contratoId} onChange={(e) => setContratoId(e.target.value)} className={INPUT_BASE}>
-            <option value="">Nenhum</option>
-            {contratos.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.numeroTermo ?? '(sem número)'}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium text-mid-grey">Competência</span>
-          <input type="month" value={competencia} onChange={(e) => setCompetencia(e.target.value)} className={INPUT_BASE} />
-        </label>
         <button type="submit" className={BTN_OUTLINE_SM}>
-          Salvar classificação
+          Salvar categoria
         </button>
       </form>
 

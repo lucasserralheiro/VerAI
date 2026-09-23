@@ -12,12 +12,11 @@ import { formatarTamanho } from '@/lib/arquivos/tipos'
 import { ListaArquivos } from './documentos/lista-arquivos'
 import { PainelArquivo } from './documentos/painel-arquivo'
 import { EnvioArquivos } from './documentos/envio-arquivos'
-import type { ArquivoRepositorio, OpcaoContrato } from './documentos/tipos'
+import type { ArquivoRepositorio } from './documentos/tipos'
 
 export function AbaDocumentos({ clienteId }: { clienteId: string }) {
   const [arquivos, setArquivos] = useState<ArquivoRepositorio[]>([])
   const [resumo, setResumo] = useState({ total: 0, bytes: 0 })
-  const [contratos, setContratos] = useState<OpcaoContrato[]>([])
   const [selecionado, setSelecionado] = useState<ArquivoRepositorio | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
@@ -38,10 +37,7 @@ export function AbaDocumentos({ clienteId }: { clienteId: string }) {
 
   useEffect(() => {
     carregar()
-    fetch(`/api/clientes/${clienteId}/contratos`)
-      .then(async (response) => (response.ok ? setContratos(await response.json()) : undefined))
-      .catch(() => {})
-  }, [carregar, clienteId])
+  }, [carregar])
 
   if (carregando) {
     return (
@@ -72,7 +68,6 @@ export function AbaDocumentos({ clienteId }: { clienteId: string }) {
       {enviando && (
         <EnvioArquivos
           clienteId={clienteId}
-          contratos={contratos}
           aoCancelar={() => setEnviando(false)}
           aoConcluir={() => {
             setEnviando(false)
@@ -91,7 +86,6 @@ export function AbaDocumentos({ clienteId }: { clienteId: string }) {
       <div className={selecionado ? 'grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]' : undefined}>
         <ListaArquivos
           arquivos={arquivos}
-          contratos={contratos}
           selecionadoId={selecionado?.id ?? null}
           aoSelecionar={setSelecionado}
         />
@@ -99,7 +93,6 @@ export function AbaDocumentos({ clienteId }: { clienteId: string }) {
           <PainelArquivo
             key={selecionado.id}
             arquivo={selecionado}
-            contratos={contratos}
             aoFechar={() => setSelecionado(null)}
             aoAtualizar={(atualizado) => {
               setArquivos((lista) => lista.map((a) => (a.id === atualizado.id ? atualizado : a)))

@@ -7,9 +7,6 @@ export type { UsoArquivo } from '@/lib/arquivos/tipos'
 export interface ArquivoRepositorio {
   id: string
   clienteId: string
-  contratoId: string | null
-  competenciaAno: number | null
-  competenciaMes: number | null
   categoria: CategoriaArquivo
   nome: string
   extensao: string
@@ -19,11 +16,5 @@ export interface ArquivoRepositorio {
   origem: 'upload' | 'gerado' | 'migrado'
   createdAt: string
   enviadoPor: { nome: string } | null
-  contrato: { id: string; numeroTermo: string | null } | null
   usos: UsoArquivo[]
-}
-
-export interface OpcaoContrato {
-  id: string
-  numeroTermo: string | null
 }

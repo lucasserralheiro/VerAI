@@ -9,7 +9,6 @@ import { CATEGORIAS, sugerirCategoria } from '@/lib/arquivos/tipos'
 import { caminhoTemporario, TAMANHO_MAXIMO_ARQUIVO_BYTES } from '@/lib/arquivos/caminhos'
 import { sha256DoArquivo } from '@/lib/arquivos/hash-navegador'
 import { MultiFileDropzone, type ArquivoProposta } from '@/components/multi-file-dropzone'
-import type { OpcaoContrato } from './tipos'
 
 type Situacao =
   | { tipo: 'pendente' }
@@ -20,8 +19,6 @@ type Situacao =
 
 interface Classificacao {
   categoria: CategoriaArquivo
-  contratoId: string
-  competencia: string // AAAA-MM do <input type="month">, '' = sem competência
 }
 
 async function enviarUm(clienteId: string, file: File, c: Classificacao): Promise<Situacao> {
@@ -37,18 +34,10 @@ async function enviarUm(clienteId: string, file: File, c: Classificacao): Promis
     access: 'public',
     handleUploadUrl: '/api/arquivos/upload-token',
   })
-  const [ano, mes] = c.competencia ? c.competencia.split('-').map(Number) : [null, null]
   const response = await fetch(`/api/clientes/${clienteId}/arquivos`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      urlTemporaria: blob.url,
-      nome: file.name,
-      categoria: c.categoria,
-      contratoId: c.contratoId,
-      competenciaAno: ano,
-      competenciaMes: mes,
-    }),
+    body: JSON.stringify({ urlTemporaria: blob.url, nome: file.name, categoria: c.categoria }),
   })
   const corpo = await response.json().catch(() => null)
   if (!response.ok) return { tipo: 'erro', mensagem: corpo?.error ?? 'Falha ao registrar o arquivo.' }
@@ -57,12 +46,10 @@ async function enviarUm(clienteId: string, file: File, c: Classificacao): Promis
 
 export function EnvioArquivos({
   clienteId,
-  contratos,
   aoConcluir,
   aoCancelar,
 }: {
   clienteId: string
-  contratos: OpcaoContrato[]
   aoConcluir: () => void
   aoCancelar: () => void
 }) {
@@ -76,14 +63,14 @@ export function EnvioArquivos({
     setClassificacao((atual) => {
       const proximo: Record<string, Classificacao> = {}
       for (const { id, file } of novos) {
-        proximo[id] = atual[id] ?? { categoria: sugerirCategoria(file.name), contratoId: '', competencia: '' }
+        proximo[id] = atual[id] ?? { categoria: sugerirCategoria(file.name) }
       }
       return proximo
     })
   }
 
-  function classificar(id: string, campo: keyof Classificacao, valor: string) {
-    setClassificacao((atual) => ({ ...atual, [id]: { ...atual[id], [campo]: valor } }))
+  function classificar(id: string, valor: CategoriaArquivo) {
+    setClassificacao((atual) => ({ ...atual, [id]: { ...atual[id], categoria: valor } }))
   }
 
   async function enviar() {
@@ -117,33 +104,23 @@ export function EnvioArquivos({
         const c = classificacao[id]
         const s = situacao[id] ?? { tipo: 'pendente' }
         return (
-          <fieldset key={id} role="group" aria-label={file.name} className="grid gap-2 rounded-lg border border-border-grey p-3 sm:grid-cols-4">
+          <fieldset key={id} role="group" aria-label={file.name} className="grid gap-2 rounded-lg border border-border-grey p-3 sm:grid-cols-2">
             <legend className="sr-only">{file.name}</legend>
-            <p className="truncate text-sm font-medium text-navy sm:col-span-4">{file.name}</p>
+            <p className="truncate text-sm font-medium text-navy sm:col-span-2">{file.name}</p>
             <label className="flex flex-col gap-1 text-sm">
               <span className="text-xs font-medium text-mid-grey">Categoria</span>
-              <select value={c.categoria} onChange={(e) => classificar(id, 'categoria', e.target.value)} className={INPUT_BASE} disabled={enviando}>
+              <select
+                value={c.categoria}
+                onChange={(e) => classificar(id, e.target.value as CategoriaArquivo)}
+                className={INPUT_BASE}
+                disabled={enviando}
+              >
                 {CATEGORIAS.map((cat) => (
                   <option key={cat.valor} value={cat.valor}>
                     {cat.rotulo}
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-xs font-medium text-mid-grey">Contrato</span>
-              <select value={c.contratoId} onChange={(e) => classificar(id, 'contratoId', e.target.value)} className={INPUT_BASE} disabled={enviando}>
-                <option value="">Nenhum</option>
-                {contratos.map((k) => (
-                  <option key={k.id} value={k.id}>
-                    {k.numeroTermo ?? '(sem número)'}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-xs font-medium text-mid-grey">Competência</span>
-              <input type="month" value={c.competencia} onChange={(e) => classificar(id, 'competencia', e.target.value)} className={INPUT_BASE} disabled={enviando} />
             </label>
             <div className="flex items-end text-sm">
               {s.tipo === 'enviando' && (

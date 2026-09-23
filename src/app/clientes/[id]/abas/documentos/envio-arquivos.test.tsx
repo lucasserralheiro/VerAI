@@ -34,22 +34,23 @@ beforeEach(() => {
 
 describe('EnvioArquivos', () => {
   it('sugere a categoria pelo nome e deixa trocar', () => {
-    const { container } = render(<EnvioArquivos clienteId="c1" contratos={[]} aoConcluir={jest.fn()} aoCancelar={jest.fn()} />)
+    const { container } = render(<EnvioArquivos clienteId="c1" aoConcluir={jest.fn()} aoCancelar={jest.fn()} />)
     selecionar(container, new File(['x'], 'PC_SMS_012.pdf'))
 
     const linha = screen.getByRole('group', { name: 'PC_SMS_012.pdf' })
     expect(within(linha).getByLabelText('Categoria')).toHaveValue('PROPOSTA_COMERCIAL')
+    fireEvent.change(within(linha).getByLabelText('Categoria'), { target: { value: 'TERMO_CONTRATO' } })
+    expect(within(linha).getByLabelText('Categoria')).toHaveValue('TERMO_CONTRATO')
+    expect(within(linha).queryByLabelText('Contrato')).not.toBeInTheDocument()
+    expect(within(linha).queryByLabelText('Competência')).not.toBeInTheDocument()
   })
 
   it('arquivo novo: upload direto no caminho temporário e registro com a classificação', async () => {
     const aoConcluir = jest.fn()
     const { container } = render(
-      <EnvioArquivos clienteId="c1" contratos={[{ id: 'k1', numeroTermo: 'TC 012/2020' }]} aoConcluir={aoConcluir} aoCancelar={jest.fn()} />
+      <EnvioArquivos clienteId="c1" aoConcluir={aoConcluir} aoCancelar={jest.fn()} />
     )
     selecionar(container, new File(['x'], 'PC_SMS_012.pdf'))
-    const linha = screen.getByRole('group', { name: 'PC_SMS_012.pdf' })
-    fireEvent.change(within(linha).getByLabelText('Contrato'), { target: { value: 'k1' } })
-    fireEvent.change(within(linha).getByLabelText('Competência'), { target: { value: '2026-08' } })
 
     fireEvent.click(screen.getByRole('button', { name: 'Enviar 1 arquivo' }))
 
@@ -58,19 +59,12 @@ describe('EnvioArquivos', () => {
     expect(caminho).toMatch(/^tmp-arquivos\/.+-PC_SMS_012\.pdf$/)
     expect(opcoes).toMatchObject({ access: 'public', handleUploadUrl: '/api/arquivos/upload-token' })
     const post = (global.fetch as jest.Mock).mock.calls.find(([, i]) => i?.method === 'POST')!
-    expect(JSON.parse(post[1].body)).toEqual({
-      urlTemporaria: TMP,
-      nome: 'PC_SMS_012.pdf',
-      categoria: 'PROPOSTA_COMERCIAL',
-      contratoId: 'k1',
-      competenciaAno: 2026,
-      competenciaMes: 8,
-    })
+    expect(JSON.parse(post[1].body)).toEqual({ urlTemporaria: TMP, nome: 'PC_SMS_012.pdf', categoria: 'PROPOSTA_COMERCIAL' })
   })
 
   it('arquivo que o cliente já tem: não sobe e avisa', async () => {
     const aoConcluir = jest.fn()
-    const { container } = render(<EnvioArquivos clienteId="c1" contratos={[]} aoConcluir={aoConcluir} aoCancelar={jest.fn()} />)
+    const { container } = render(<EnvioArquivos clienteId="c1" aoConcluir={aoConcluir} aoCancelar={jest.fn()} />)
     selecionar(container, new File(['y'], 'medicao-junho.xlsx'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Enviar 1 arquivo' }))
@@ -82,7 +76,7 @@ describe('EnvioArquivos', () => {
 
   it('arquivo maior que 50 MB: erro na linha, sem calcular hash nem subir', async () => {
     const aoConcluir = jest.fn()
-    const { container } = render(<EnvioArquivos clienteId="c1" contratos={[]} aoConcluir={aoConcluir} aoCancelar={jest.fn()} />)
+    const { container } = render(<EnvioArquivos clienteId="c1" aoConcluir={aoConcluir} aoCancelar={jest.fn()} />)
     const gigante = new File(['x'], 'PC_SMS_012.pdf')
     Object.defineProperty(gigante, 'size', { value: 51 * 1024 * 1024 })
     selecionar(container, gigante)
@@ -98,7 +92,7 @@ describe('EnvioArquivos', () => {
   it('falha no envio de um arquivo mostra o erro na linha e não conclui', async () => {
     ;(upload as jest.Mock).mockRejectedValue(new Error('rede caiu'))
     const aoConcluir = jest.fn()
-    const { container } = render(<EnvioArquivos clienteId="c1" contratos={[]} aoConcluir={aoConcluir} aoCancelar={jest.fn()} />)
+    const { container } = render(<EnvioArquivos clienteId="c1" aoConcluir={aoConcluir} aoCancelar={jest.fn()} />)
     selecionar(container, new File(['x'], 'PC_SMS_012.pdf'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Enviar 1 arquivo' }))
@@ -115,7 +109,7 @@ describe('EnvioArquivos', () => {
       return resposta(false, { error: 'inesperado' })
     }) as jest.Mock
     const aoConcluir = jest.fn()
-    const { container } = render(<EnvioArquivos clienteId="c1" contratos={[]} aoConcluir={aoConcluir} aoCancelar={jest.fn()} />)
+    const { container } = render(<EnvioArquivos clienteId="c1" aoConcluir={aoConcluir} aoCancelar={jest.fn()} />)
     selecionar(container, new File(['x'], 'PC_SMS_012.pdf'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Enviar 1 arquivo' }))

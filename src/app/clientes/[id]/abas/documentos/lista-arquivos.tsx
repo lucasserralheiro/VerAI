@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils'
 import { INPUT_BASE } from '@/lib/ui'
 import { CATEGORIAS, formatarTamanho, rotuloCategoria } from '@/lib/arquivos/tipos'
 import { formatarData } from '@/lib/relatorios-clientes/formatacao'
-import { nomeCompetencia } from '@/lib/competencia'
-import type { ArquivoRepositorio, OpcaoContrato } from './tipos'
+import { competenciasDoArquivo, contratosDoArquivo, opcoesDeContrato, rotuloCompetencias, rotuloContratos } from './derivados'
+import type { ArquivoRepositorio } from './tipos'
 
 function IconeArquivo({ extensao }: { extensao: string }) {
   if (['xlsx', 'xls', 'csv'].includes(extensao)) return <FileSpreadsheet className="size-4 shrink-0 text-green-ok" strokeWidth={2} />
@@ -15,18 +15,12 @@ function IconeArquivo({ extensao }: { extensao: string }) {
   return <FileIcon className="size-4 shrink-0 text-mid-grey" strokeWidth={2} />
 }
 
-export function competenciaDoArquivo(arquivo: Pick<ArquivoRepositorio, 'competenciaAno' | 'competenciaMes'>) {
-  return arquivo.competenciaAno && arquivo.competenciaMes ? nomeCompetencia(arquivo.competenciaAno, arquivo.competenciaMes) : '—'
-}
-
 export function ListaArquivos({
   arquivos,
-  contratos,
   selecionadoId,
   aoSelecionar,
 }: {
   arquivos: ArquivoRepositorio[]
-  contratos: OpcaoContrato[]
   selecionadoId: string | null
   aoSelecionar: (arquivo: ArquivoRepositorio) => void
 }) {
@@ -36,15 +30,16 @@ export function ListaArquivos({
   const [competencia, setCompetencia] = useState('') // AAAA-MM do <input type="month">
   const [busca, setBusca] = useState('')
 
+  const contratos = opcoesDeContrato(arquivos)
   const tipos = [...new Set(arquivos.map((a) => a.extensao).filter(Boolean))].sort()
   const termo = busca.trim().toLowerCase()
   const [anoFiltro, mesFiltro] = competencia ? competencia.split('-').map(Number) : [null, null]
   const visiveis = arquivos.filter(
     (a) =>
       (!categoria || a.categoria === categoria) &&
-      (!contratoId || a.contratoId === contratoId) &&
+      (!contratoId || contratosDoArquivo(a).some((c) => c.id === contratoId)) &&
       (!tipo || a.extensao === tipo) &&
-      (!competencia || (a.competenciaAno === anoFiltro && a.competenciaMes === mesFiltro)) &&
+      (!competencia || competenciasDoArquivo(a).some((c) => c.ano === anoFiltro && c.mes === mesFiltro)) &&
       (!termo || a.nome.toLowerCase().includes(termo))
   )
 
@@ -134,13 +129,13 @@ export function ListaArquivos({
                     </button>
                   </td>
                   <td className="whitespace-nowrap">{rotuloCategoria(a.categoria)}</td>
-                  <td className="font-mono text-xs whitespace-nowrap">{a.contrato?.numeroTermo ?? '—'}</td>
-                  <td className="whitespace-nowrap">{competenciaDoArquivo(a)}</td>
+                  <td className="font-mono text-xs whitespace-nowrap">{rotuloContratos(a)}</td>
+                  <td className="whitespace-nowrap">{rotuloCompetencias(a)}</td>
                   <td className="font-mono text-xs whitespace-nowrap">{formatarTamanho(a.tamanhoBytes)}</td>
                   <td className="text-xs whitespace-nowrap text-mid-grey">
                     {a.enviadoPor?.nome ?? (a.origem === 'migrado' ? 'migrado' : '—')} · {formatarData(a.createdAt)}
                   </td>
-                  <td className="font-mono text-xs">{a.usos.length || '—'}</td>
+                  <td className="font-mono text-xs">{a.usos.length || <span className="font-sans text-mid-grey">não usado</span>}</td>
                 </tr>
               ))}
             </tbody>

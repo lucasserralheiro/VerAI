@@ -6,9 +6,6 @@ jest.mock('./documentos/envio-arquivos', () => ({ EnvioArquivos: () => null }))
 const PROPOSTA = {
   id: 'a1',
   clienteId: 'c1',
-  contratoId: 'k1',
-  competenciaAno: null,
-  competenciaMes: null,
   categoria: 'PROPOSTA_COMERCIAL',
   nome: 'PC_SMS_012.pdf',
   extensao: 'pdf',
@@ -18,21 +15,19 @@ const PROPOSTA = {
   origem: 'upload',
   createdAt: '2026-09-20T12:00:00.000Z',
   enviadoPor: { nome: 'Ana' },
-  contrato: { id: 'k1', numeroTermo: 'TC 012/2020' },
-  usos: [],
+  usos: [
+    { tipo: 'analise-documento', rotulo: 'Histórico do TC 012/2020', href: '/clientes/c1/contratos/k1', contrato: { id: 'k1', numeroTermo: 'TC 012/2020' }, competencia: null },
+  ],
 }
 const MEDICAO = {
   ...PROPOSTA,
   id: 'a2',
-  contratoId: null,
-  contrato: null,
   categoria: 'MEDICAO',
   nome: 'medicao-junho.xlsx',
   extensao: 'xlsx',
-  competenciaAno: 2026,
-  competenciaMes: 6,
-  usos: [{ tipo: 'analise-documento', rotulo: 'Análise por IA · Junho/2026', href: '/clientes/c1/2026-06' }],
+  usos: [{ tipo: 'analise-documento', rotulo: 'Análise por IA · Junho/2026', href: '/clientes/c1/2026-06', contrato: null, competencia: { ano: 2026, mes: 6 } }],
 }
+const SOLTO = { ...MEDICAO, id: 'a3', nome: 'oficio.pdf', extensao: 'pdf', categoria: 'OFICIO_SEI', usos: [] }
 
 function resposta(ok: boolean, corpo: unknown) {
   return Promise.resolve({ ok, json: () => Promise.resolve(corpo) }) as unknown as Promise<Response>
@@ -40,15 +35,14 @@ function resposta(ok: boolean, corpo: unknown) {
 
 function mockApi() {
   // Lista mutável: o DELETE tira o arquivo, e o recarregamento da aba já não o devolve.
-  let lista = [PROPOSTA, MEDICAO]
+  let lista = [PROPOSTA, MEDICAO, SOLTO]
   global.fetch = jest.fn((url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url)
     const metodo = init?.method ?? 'GET'
     if (u === '/api/clientes/c1/arquivos')
       return resposta(true, { arquivos: lista, resumo: { total: lista.length, bytes: lista.length * 2048 } })
-    if (u === '/api/clientes/c1/contratos') return resposta(true, [{ id: 'k1', numeroTermo: 'TC 012/2020' }])
-    if (u === '/api/arquivos/a1' && metodo === 'DELETE') {
-      lista = lista.filter((a) => a.id !== 'a1')
+    if (u === '/api/arquivos/a3' && metodo === 'DELETE') {
+      lista = lista.filter((a) => a.id !== 'a3')
       return resposta(true, { ok: true })
     }
     if (u === '/api/arquivos/a1' && metodo === 'PATCH') return resposta(true, { ...PROPOSTA, categoria: 'TERMO_CONTRATO' })
@@ -63,11 +57,13 @@ describe('AbaDocumentos', () => {
     render(<AbaDocumentos clienteId="c1" />)
 
     expect(await screen.findByText('PC_SMS_012.pdf')).toBeInTheDocument()
-    expect(screen.getByText('2 arquivos · 4 KB')).toBeInTheDocument()
+    expect(screen.getByText('3 arquivos · 6 KB')).toBeInTheDocument()
     const linha = screen.getByText('medicao-junho.xlsx').closest('tr')!
     expect(within(linha).getByText('Medição')).toBeInTheDocument()
     expect(within(linha).getByText('Junho/2026')).toBeInTheDocument()
     expect(within(screen.getByText('PC_SMS_012.pdf').closest('tr')!).getByText('TC 012/2020')).toBeInTheDocument()
+    expect(within(screen.getByText('oficio.pdf').closest('tr')!).getByText('não usado')).toBeInTheDocument()
+    expect(global.fetch).not.toHaveBeenCalledWith('/api/clientes/c1/contratos')
   })
 
   it('filtra por categoria e por busca de nome', async () => {
@@ -84,6 +80,11 @@ describe('AbaDocumentos', () => {
     expect(screen.getByText('medicao-junho.xlsx')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Filtrar por competência'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Filtrar por contrato'), { target: { value: 'k1' } })
+    expect(screen.getByText('PC_SMS_012.pdf')).toBeInTheDocument()
+    expect(screen.queryByText('medicao-junho.xlsx')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Filtrar por contrato'), { target: { value: '' } })
+
     fireEvent.change(screen.getByLabelText('Buscar por nome'), { target: { value: 'sms' } })
     expect(screen.getByText('PC_SMS_012.pdf')).toBeInTheDocument()
     expect(screen.queryByText('medicao-junho.xlsx')).not.toBeInTheDocument()
@@ -118,14 +119,14 @@ describe('AbaDocumentos', () => {
 
   it('remove arquivo sem uso após confirmação inline', async () => {
     render(<AbaDocumentos clienteId="c1" />)
-    fireEvent.click(await screen.findByText('PC_SMS_012.pdf'))
-    const painel = screen.getByRole('complementary', { name: 'PC_SMS_012.pdf' })
+    fireEvent.click(await screen.findByText('oficio.pdf'))
+    const painel = screen.getByRole('complementary', { name: 'oficio.pdf' })
 
     fireEvent.click(within(painel).getByRole('button', { name: 'Remover' }))
     fireEvent.click(within(painel).getByRole('button', { name: 'Sim' }))
 
-    await waitFor(() => expect(screen.queryByText('PC_SMS_012.pdf')).not.toBeInTheDocument())
-    expect(global.fetch).toHaveBeenCalledWith('/api/arquivos/a1', { method: 'DELETE' })
+    await waitFor(() => expect(screen.queryByText('oficio.pdf')).not.toBeInTheDocument())
+    expect(global.fetch).toHaveBeenCalledWith('/api/arquivos/a3', { method: 'DELETE' })
   })
 
   it('reclassifica pelo painel', async () => {
@@ -133,8 +134,9 @@ describe('AbaDocumentos', () => {
     fireEvent.click(await screen.findByText('PC_SMS_012.pdf'))
     const painel = screen.getByRole('complementary', { name: 'PC_SMS_012.pdf' })
 
+    expect(within(painel).queryByLabelText('Contrato')).not.toBeInTheDocument()
     fireEvent.change(within(painel).getByLabelText('Categoria'), { target: { value: 'TERMO_CONTRATO' } })
-    fireEvent.click(within(painel).getByRole('button', { name: 'Salvar classificação' }))
+    fireEvent.click(within(painel).getByRole('button', { name: 'Salvar categoria' }))
 
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith(
@@ -143,7 +145,7 @@ describe('AbaDocumentos', () => {
       )
     )
     const corpo = JSON.parse(((global.fetch as jest.Mock).mock.calls.find(([, i]) => i?.method === 'PATCH')![1] as RequestInit).body as string)
-    expect(corpo).toEqual({ categoria: 'TERMO_CONTRATO', contratoId: 'k1', competenciaAno: null, competenciaMes: null })
+    expect(corpo).toEqual({ categoria: 'TERMO_CONTRATO' })
   })
 
   it('"Enviar arquivos" abre o envio', async () => {

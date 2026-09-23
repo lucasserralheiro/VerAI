@@ -91,4 +91,22 @@ describe('EnvioArquivos', () => {
     expect(await screen.findByText('rede caiu')).toBeInTheDocument()
     expect(aoConcluir).not.toHaveBeenCalled()
   })
+
+  it('falha na checagem de duplicado (ex.: sessão expirada) mostra o erro na linha e não sobe', async () => {
+    global.fetch = jest.fn((url: RequestInfo | URL) => {
+      const u = String(url)
+      if (u === `/api/clientes/c1/arquivos/existe?sha256=${'a'.repeat(64)}`)
+        return resposta(false, { error: 'não autenticado' })
+      return resposta(false, { error: 'inesperado' })
+    }) as jest.Mock
+    const aoConcluir = jest.fn()
+    const { container } = render(<EnvioArquivos clienteId="c1" contratos={[]} aoConcluir={aoConcluir} aoCancelar={jest.fn()} />)
+    selecionar(container, new File(['x'], 'PC_SMS_012.pdf'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar 1 arquivo' }))
+
+    expect(await screen.findByText('não autenticado')).toBeInTheDocument()
+    expect(upload).not.toHaveBeenCalled()
+    expect(aoConcluir).not.toHaveBeenCalled()
+  })
 })

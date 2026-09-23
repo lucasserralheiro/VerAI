@@ -26,7 +26,9 @@ interface Classificacao {
 
 async function enviarUm(clienteId: string, file: File, c: Classificacao): Promise<Situacao> {
   const sha256 = await sha256DoArquivo(file)
-  const existe = await fetch(`/api/clientes/${clienteId}/arquivos/existe?sha256=${sha256}`).then((r) => r.json())
+  const respostaExiste = await fetch(`/api/clientes/${clienteId}/arquivos/existe?sha256=${sha256}`)
+  const existe = await respostaExiste.json().catch(() => null)
+  if (!respostaExiste.ok) return { tipo: 'erro', mensagem: existe?.error ?? 'Falha ao verificar o arquivo.' }
   if (existe?.arquivo) return { tipo: 'existente', nome: existe.arquivo.nome }
 
   const blob = await upload(caminhoTemporario(file.name), file, {

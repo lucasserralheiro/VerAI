@@ -17,9 +17,6 @@ export function sha256Hex(buffer: Buffer): string {
 export const SELECT_ARQUIVO = {
   id: true,
   clienteId: true,
-  contratoId: true,
-  competenciaAno: true,
-  competenciaMes: true,
   categoria: true,
   nome: true,
   extensao: true,
@@ -29,7 +26,6 @@ export const SELECT_ARQUIVO = {
   origem: true,
   createdAt: true,
   enviadoPor: { select: { nome: true } },
-  contrato: { select: { id: true, numeroTermo: true } },
 } satisfies Prisma.ArquivoClienteSelect
 
 export type ArquivoSelecionado = Prisma.ArquivoClienteGetPayload<{ select: typeof SELECT_ARQUIVO }>
@@ -45,9 +41,6 @@ export interface DadosRegistro {
   urlTemporaria: string
   nome: string
   categoria: CategoriaArquivo
-  contratoId: string | null
-  competenciaAno: number | null
-  competenciaMes: number | null
   enviadoPorId: string
 }
 
@@ -80,9 +73,6 @@ export async function registrarArquivo(dados: DadosRegistro): Promise<{ arquivo:
       data: {
         id,
         clienteId: dados.clienteId,
-        contratoId: dados.contratoId,
-        competenciaAno: dados.competenciaAno,
-        competenciaMes: dados.competenciaMes,
         categoria: dados.categoria,
         nome: dados.nome,
         extensao: extensaoDe(dados.nome),

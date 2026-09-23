@@ -165,7 +165,6 @@ model Contrato {
   itens             ItemContrato[]
   faturamentos      Faturamento[]
   termosConfirmacao TermoConfirmacao[]
-  arquivos          ArquivoCliente[]
 
   @@index([clienteId])
 }
@@ -579,6 +578,8 @@ model LinkSei {
 // Unicidade de (clienteId, sha256) entre os NÃO removidos é um índice único
 // parcial criado à mão na migração 20260924100000 — o Prisma não expressa
 // `WHERE "removidoEm" IS NULL`.
+// Contrato e competência NÃO ficam no arquivo (spec §7.1): vêm de quem usa (histórico, faturamento,
+// ConfereAI, Documento) — ver usosDosArquivos em src/lib/arquivos/servico.ts.
 // ---------------------------------------------------------------------------
 
 enum CategoriaArquivo {
@@ -604,10 +605,6 @@ model ArquivoCliente {
   id             String           @id
   clienteId      String
   cliente        Cliente          @relation(fields: [clienteId], references: [id])
-  contratoId     String?
-  contrato       Contrato?        @relation(fields: [contratoId], references: [id])
-  competenciaAno Int?
-  competenciaMes Int?
   categoria      CategoriaArquivo
   nome           String
   extensao       String
@@ -626,7 +623,6 @@ model ArquivoCliente {
 
   @@index([clienteId, createdAt])
   @@index([clienteId, categoria])
-  @@index([contratoId])
 }
 
 model AcessoArquivo {

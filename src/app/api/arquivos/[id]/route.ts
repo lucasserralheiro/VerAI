@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
-import { contratoForaDoCliente } from '@/app/api/contratos/carregar'
 import { SELECT_ARQUIVO, serializarArquivo, usosDosArquivos } from '@/lib/arquivos/servico'
 import { ROTULOS_ARQUIVO, esquemaEdicao } from '@/app/api/clientes/[clienteId]/arquivos/esquema'
 import { carregarArquivoComAcesso } from '../carregar'
@@ -64,14 +63,11 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
   const corpo = await lerCorpo(request, esquemaEdicao, ROTULOS_ARQUIVO)
   if ('erro' in corpo) return corpo.erro
 
-  if (corpo.dados.contratoId) {
-    const contratoInvalido = await contratoForaDoCliente(corpo.dados.contratoId, carregado.arquivo.clienteId)
-    if (contratoInvalido) return contratoInvalido
-  }
-
-  // Só o que veio no corpo (undefined = não mexe). `textoOpcional` já trocou '' por null.
-  const data = Object.fromEntries(Object.entries(corpo.dados).filter(([, valor]) => valor !== undefined))
-  const arquivo = await prisma.arquivoCliente.update({ where: { id }, data, select: SELECT_ARQUIVO })
+  const arquivo = await prisma.arquivoCliente.update({
+    where: { id },
+    data: { categoria: corpo.dados.categoria },
+    select: SELECT_ARQUIVO,
+  })
   const usos = await usosDosArquivos([id])
   return NextResponse.json(serializarArquivo(arquivo, usos.get(id) ?? []))
 }

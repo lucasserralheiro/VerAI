@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { exigirAcessoCliente } from '@/lib/relatorios-clientes/acesso'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
-import { contratoForaDoCliente } from '@/app/api/contratos/carregar'
 import { SELECT_ARQUIVO, registrarArquivo, serializarArquivo, usosDosArquivos } from '@/lib/arquivos/servico'
 import { ROTULOS_ARQUIVO, esquemaRegistro } from './esquema'
 
@@ -48,11 +47,6 @@ export async function POST(request: NextRequest, { params }: Contexto) {
   if ('erro' in corpo) return corpo.erro
   const dados = corpo.dados
 
-  if (dados.contratoId) {
-    const contratoInvalido = await contratoForaDoCliente(dados.contratoId, clienteId)
-    if (contratoInvalido) return contratoInvalido
-  }
-
   let arquivo, duplicado
   try {
     ;({ arquivo, duplicado } = await registrarArquivo({
@@ -60,9 +54,6 @@ export async function POST(request: NextRequest, { params }: Contexto) {
       urlTemporaria: dados.urlTemporaria,
       nome: dados.nome,
       categoria: dados.categoria,
-      contratoId: dados.contratoId ?? null,
-      competenciaAno: dados.competenciaAno ?? null,
-      competenciaMes: dados.competenciaMes ?? null,
       enviadoPorId: acesso.usuario.id,
     }))
   } catch (erro) {

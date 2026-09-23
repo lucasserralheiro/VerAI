@@ -5,7 +5,6 @@ jest.mock('@/lib/auth', () => ({ ...jest.requireActual('@/lib/auth'), getAuthUse
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     cliente: { findUnique: jest.fn() },
-    contrato: { findUnique: jest.fn() },
     arquivoCliente: { findMany: jest.fn(), aggregate: jest.fn() },
     usuario: { findUnique: jest.fn() },
   },
@@ -34,7 +33,6 @@ beforeEach(() => {
   ;(getAuthUser as jest.Mock).mockResolvedValue(admin)
   ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [{ id: 'c1' }] })
   ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue({ id: 'c1' })
-  ;(prisma.contrato.findUnique as jest.Mock).mockResolvedValue({ clienteId: 'c1' })
   ;(prisma.arquivoCliente.findMany as jest.Mock).mockResolvedValue([])
   ;(prisma.arquivoCliente.aggregate as jest.Mock).mockResolvedValue({ _count: { _all: 0 }, _sum: { tamanhoBytes: null } })
   ;(usosDosArquivos as jest.Mock).mockResolvedValue(new Map())
@@ -77,7 +75,7 @@ describe('GET /api/clientes/[clienteId]/arquivos', () => {
 })
 
 describe('POST /api/clientes/[clienteId]/arquivos', () => {
-  const valido = { urlTemporaria: tmp, nome: 'PC 01.pdf', categoria: 'PROPOSTA_COMERCIAL', contratoId: 'k1' }
+  const valido = { urlTemporaria: tmp, nome: 'PC 01.pdf', categoria: 'PROPOSTA_COMERCIAL' }
 
   it('401 sem usuário', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(null)
@@ -93,8 +91,6 @@ describe('POST /api/clientes/[clienteId]/arquivos', () => {
     [{ ...valido, urlTemporaria: 'https://evil.example.com/tmp-arquivos/x.pdf' }, 'Arquivo: upload inválido'],
     [{ ...valido, categoria: 'QUALQUER' }, 'Categoria: categoria inválida'],
     [{ ...valido, nome: '  ' }, 'Nome: campo obrigatório'],
-    [{ ...valido, competenciaAno: 2026 }, 'Competência: informe mês e ano juntos'],
-    [{ ...valido, competenciaAno: 2026, competenciaMes: 13 }, 'Mês: deve ser um número inteiro entre 1 e 12'],
   ])('400 com corpo inválido (%#)', async (corpo, mensagem) => {
     const resposta = await POST(post(corpo), contexto())
     expect(resposta.status).toBe(400)
@@ -102,15 +98,8 @@ describe('POST /api/clientes/[clienteId]/arquivos', () => {
     expect(registrarArquivo).not.toHaveBeenCalled()
   })
 
-  it('400 quando o contrato é de outro cliente', async () => {
-    ;(prisma.contrato.findUnique as jest.Mock).mockResolvedValue({ clienteId: 'c2' })
-    const resposta = await POST(post(valido), contexto())
-    expect(resposta.status).toBe(400)
-    await expect(resposta.json()).resolves.toEqual({ error: 'Contrato: não pertence a este cliente' })
-  })
-
-  it('201 registra com o usuário como autor', async () => {
-    const resposta = await POST(post({ ...valido, competenciaAno: '2026', competenciaMes: '8' }), contexto())
+  it('201 registra com o usuário como autor — contrato/competência enviados são ignorados', async () => {
+    const resposta = await POST(post({ ...valido, contratoId: 'k1', competenciaAno: 2026, competenciaMes: 8 }), contexto())
 
     expect(resposta.status).toBe(201)
     expect(registrarArquivo).toHaveBeenCalledWith({
@@ -118,9 +107,6 @@ describe('POST /api/clientes/[clienteId]/arquivos', () => {
       urlTemporaria: tmp,
       nome: 'PC 01.pdf',
       categoria: 'PROPOSTA_COMERCIAL',
-      contratoId: 'k1',
-      competenciaAno: 2026,
-      competenciaMes: 8,
       enviadoPorId: 'u1',
     })
     await expect(resposta.json()).resolves.toEqual({ arquivo: { id: 'a1', usos: [] }, duplicado: false })
@@ -128,9 +114,8 @@ describe('POST /api/clientes/[clienteId]/arquivos', () => {
 
   it('200 quando o conteúdo já estava no cliente', async () => {
     ;(registrarArquivo as jest.Mock).mockResolvedValue({ arquivo: { id: 'a-velho' }, duplicado: true })
-    const resposta = await POST(post({ ...valido, contratoId: '' }), contexto())
+    const resposta = await POST(post(valido), contexto())
     expect(resposta.status).toBe(200)
-    expect((registrarArquivo as jest.Mock).mock.calls[0][0].contratoId).toBeNull()
     await expect(resposta.json()).resolves.toMatchObject({ duplicado: true })
   })
 

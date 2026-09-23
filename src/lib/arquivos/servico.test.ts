@@ -25,9 +25,6 @@ const dados = {
   urlTemporaria: tmp,
   nome: 'PC 01.pdf',
   categoria: 'PROPOSTA_COMERCIAL' as const,
-  contratoId: 'k1',
-  competenciaAno: null,
-  competenciaMes: null,
   enviadoPorId: 'u1',
 }
 
@@ -55,7 +52,6 @@ describe('registrarArquivo', () => {
     expect(putUpload).toHaveBeenCalledWith(`clientes/c1/${data.id}/PC_01.pdf`, conteudo, 'application/pdf')
     expect(data).toMatchObject({
       clienteId: 'c1',
-      contratoId: 'k1',
       categoria: 'PROPOSTA_COMERCIAL',
       nome: 'PC 01.pdf',
       extensao: 'pdf',
@@ -66,6 +62,9 @@ describe('registrarArquivo', () => {
       enviadoPorId: 'u1',
       urlBlob: 'https://x.public.blob.vercel-storage.com/clientes/c1/id/PC_01.pdf',
     })
+    expect(data).not.toHaveProperty('contratoId')
+    expect(data).not.toHaveProperty('competenciaAno')
+    expect(data).not.toHaveProperty('competenciaMes')
     expect(arquivo.id).toBe(data.id)
     expect(deleteUpload).toHaveBeenCalledWith(tmp)
   })

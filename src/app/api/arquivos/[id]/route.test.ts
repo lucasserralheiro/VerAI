@@ -6,7 +6,6 @@ jest.mock('@/lib/prisma', () => ({
   prisma: {
     arquivoCliente: { findFirst: jest.fn(), update: jest.fn() },
     acessoArquivo: { create: jest.fn() },
-    contrato: { findUnique: jest.fn() },
     documento: { findMany: jest.fn() },
     usuario: { findUnique: jest.fn() },
   },
@@ -35,7 +34,6 @@ beforeEach(() => {
   ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [{ id: 'c9' }] })
   ;(prisma.arquivoCliente.findFirst as jest.Mock).mockResolvedValue(registro)
   ;(prisma.arquivoCliente.update as jest.Mock).mockResolvedValue({ id: 'a1', categoria: 'MEDICAO' })
-  ;(prisma.contrato.findUnique as jest.Mock).mockResolvedValue({ clienteId: 'c1' })
   ;(prisma.documento.findMany as jest.Mock).mockResolvedValue([])
   global.fetch = jest.fn().mockResolvedValue(
     new Response(new Blob(['xlsx']).stream(), { status: 200, headers: { 'content-length': '4' } })
@@ -117,24 +115,20 @@ describe('PATCH /api/arquivos/[id]', () => {
     expect((await PATCH(patch({ categoria: 'X' }), contexto)).status).toBe(400)
   })
 
-  it('400 contrato de outro cliente', async () => {
-    ;(prisma.contrato.findUnique as jest.Mock).mockResolvedValue({ clienteId: 'c2' })
-    expect((await PATCH(patch({ contratoId: 'k2' }), contexto)).status).toBe(400)
-  })
-
-  it('atualiza só o que veio e devolve com usos', async () => {
-    const resposta = await PATCH(patch({ categoria: 'MEDICAO', competenciaAno: 2026, competenciaMes: 8 }), contexto)
+  it('atualiza só a categoria — contrato/competência enviados são ignorados — e devolve com usos', async () => {
+    const resposta = await PATCH(patch({ categoria: 'MEDICAO', contratoId: 'k1', competenciaAno: 2026, competenciaMes: 8 }), contexto)
 
     expect(resposta.status).toBe(200)
     expect(prisma.arquivoCliente.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'a1' }, data: { categoria: 'MEDICAO', competenciaAno: 2026, competenciaMes: 8 } })
+      expect.objectContaining({ where: { id: 'a1' }, data: { categoria: 'MEDICAO' } })
     )
     await expect(resposta.json()).resolves.toEqual({ id: 'a1', categoria: 'MEDICAO', usos: [] })
   })
 
-  it('contratoId "" desvincula', async () => {
-    await PATCH(patch({ contratoId: '' }), contexto)
-    expect((prisma.arquivoCliente.update as jest.Mock).mock.calls[0][0].data).toEqual({ contratoId: null })
+  it('400 sem categoria', async () => {
+    const resposta = await PATCH(patch({}), contexto)
+    expect(resposta.status).toBe(400)
+    await expect(resposta.json()).resolves.toEqual({ error: 'Categoria: categoria inválida' })
   })
 })
 

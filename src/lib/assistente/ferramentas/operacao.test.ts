@@ -4,7 +4,7 @@ jest.mock('@/lib/prisma', () => ({
     faturamento: { findMany: jest.fn(), aggregate: jest.fn() },
     demanda: { count: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
     solicitacao: { count: jest.fn(), findMany: jest.fn() },
-    fornecedor: { findMany: jest.fn() },
+    fornecedor: { findMany: jest.fn(), count: jest.fn() },
   },
 }))
 jest.mock('@/lib/visibilidade', () => ({ clienteIdsPermitidos: jest.fn(), podeVerCliente: jest.fn() }))
@@ -89,9 +89,23 @@ describe('solicitacoes', () => {
 
 describe('fornecedores', () => {
   it('termos de confirmação só dos clientes liberados', async () => {
+    ;(prisma.fornecedor.count as jest.Mock).mockResolvedValue(0)
     ;(prisma.fornecedor.findMany as jest.Mock).mockResolvedValue([])
     await rodar(fornecedores, {})
     const select = (prisma.fornecedor.findMany as jest.Mock).mock.calls[0][0].select
     expect(select.termosConfirmacao.where).toEqual({ clienteId: { in: ['c1'] } })
+  })
+
+  it('total vem da contagem, não do tamanho da página (lista pode estar truncada pelo limite)', async () => {
+    ;(prisma.fornecedor.count as jest.Mock).mockResolvedValue(25)
+    ;(prisma.fornecedor.findMany as jest.Mock).mockResolvedValue(
+      Array.from({ length: 20 }, (_, i) => ({
+        id: `f${i}`, razaoSocial: `Fornecedor ${i}`, cnpj: null, contato: null, acordo: null, numeroAcordo: null,
+        dataAssinatura: null, sei: null, contratosOperacionalizacao: [], termosConfirmacao: [],
+      })),
+    )
+    const resultado = (await rodar(fornecedores, {})) as { total: number; fornecedores: unknown[] }
+    expect(resultado.total).toBe(25)
+    expect(resultado.fornecedores).toHaveLength(20)
   })
 })

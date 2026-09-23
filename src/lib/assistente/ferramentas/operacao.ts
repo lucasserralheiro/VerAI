@@ -222,21 +222,25 @@ export const fornecedores = definirFerramenta({
   entrada: z.object({ busca: z.string().optional(), limite: esquemaLimite }),
   async executar({ busca, limite }, { usuario }) {
     const filtro = await filtroDeClientes(usuario)
-    const lista = await prisma.fornecedor.findMany({
-      where: busca ? { OR: [{ razaoSocial: contem(busca) }, { acordo: contem(busca) }, { cnpj: contem(busca) }] } : {},
-      orderBy: { razaoSocial: 'asc' },
-      take: limite,
-      select: {
-        id: true, razaoSocial: true, cnpj: true, contato: true, acordo: true, numeroAcordo: true, dataAssinatura: true, sei: true,
-        contratosOperacionalizacao: { select: { numero: true, dataInicio: true, dataFim: true, valor: true, sei: true } },
-        termosConfirmacao: {
-          where: filtro ? { clienteId: filtro } : {},
-          select: { numero: true, valor: true, vigenciaInicio: true, vigenciaFim: true, sei: true, cliente: { select: { nome: true } } },
+    const where: Prisma.FornecedorWhereInput = busca ? { OR: [{ razaoSocial: contem(busca) }, { acordo: contem(busca) }, { cnpj: contem(busca) }] } : {}
+    const [total, lista] = await Promise.all([
+      prisma.fornecedor.count({ where }),
+      prisma.fornecedor.findMany({
+        where,
+        orderBy: { razaoSocial: 'asc' },
+        take: limite,
+        select: {
+          id: true, razaoSocial: true, cnpj: true, contato: true, acordo: true, numeroAcordo: true, dataAssinatura: true, sei: true,
+          contratosOperacionalizacao: { select: { numero: true, dataInicio: true, dataFim: true, valor: true, sei: true } },
+          termosConfirmacao: {
+            where: filtro ? { clienteId: filtro } : {},
+            select: { numero: true, valor: true, vigenciaInicio: true, vigenciaFim: true, sei: true, cliente: { select: { nome: true } } },
+          },
         },
-      },
-    })
+      }),
+    ])
     return {
-      total: lista.length,
+      total,
       fornecedores: lista.map((f) => ({
         razaoSocial: f.razaoSocial,
         cnpj: f.cnpj,

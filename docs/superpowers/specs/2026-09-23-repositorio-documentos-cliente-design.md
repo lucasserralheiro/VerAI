@@ -1,7 +1,9 @@
 # Repositório de documentos do cliente (design)
 
-**Status**: Desenho aprovado com o usuário em 23/09/2026 (três seções, uma por vez). Implementação em
-quatro fases, um plano por fase — nenhuma iniciada.
+**Status**: Desenho aprovado com o usuário em 23/09/2026. **Fase 1 concluída** (plano
+`docs/superpowers/plans/2026-09-24-repositorio-documentos-fase-1.md`) e **ajuste da §7 concluído**
+(plano `docs/superpowers/plans/2026-09-24-repositorio-documentos-ajuste-s7.md`) — contrato e
+competência vêm dos usos. Fases 2–4 não iniciadas. **A §7 manda sobre §3.2, §3.3, §3.5 e §3.6.**
 **Data**: 23/09/2026
 
 ---
@@ -60,7 +62,7 @@ sobre um arquivo do repositório fica fora de escopo (§5).
 
 | Campo | Observação |
 |---|---|
-| `id` | cuid |
+| `id` | UUID gerado pelo serviço (`randomUUID`) |
 | `clienteId` | obrigatório |
 | `contratoId?` | opcional |
 | `competenciaAno?`, `competenciaMes?` | opcionais, juntos ou nenhum |
@@ -218,3 +220,59 @@ O ConfereAI pede três arquivos, e cada um tem lugar natural no domínio de cont
   `src/lib/confere/cliente.ts`.
 - `docs/superpowers/specs/2026-09-21-integracao-confere-design.md`,
   `docs/superpowers/specs/2026-09-22-relatorios-clientes-design.md`.
+
+## 7. Revisão de 23/09/2026 (fim da tarde) — decisões do usuário que mudam §3.2, §3.3 e §3.6
+
+Vêm da varredura de consistência de contrato/cliente feita no mesmo dia (tudo que liga a cliente,
+contrato, proposta e aditivo tem que ter UMA fonte). **Onde conflitam com as seções acima, valem estas.**
+
+### 7.1 Decisão 1 — contrato e competência ficam SÓ em quem usa o arquivo
+
+`ArquivoCliente` **não guarda** `contratoId` nem `competenciaAno/Mes`. Quem diz "este arquivo é do
+contrato X, competência Y" é o consumidor (§3.3): a linha do histórico (pelo contrato dela), o
+faturamento (contrato + competência dele), a execução do ConfereAI (contrato + competência dela), o
+`Documento` (competência dele). Motivo: com o dado nos dois lados nada impede que divirjam (arquivo
+"do contrato A" pendurado no faturamento do contrato B), e a aba mostraria o contrato errado.
+
+- `ArquivoCliente` fica com: cliente, **categoria** (o que o arquivo É — proposta, termo, medição…),
+  nome, tipo, tamanho, hash, origem, quem enviou, datas.
+- "Contrato" e "competência" na lista, nos filtros e no painel da aba Documentos são **derivados dos
+  usos** (`usosDosArquivos`): um arquivo pode aparecer em vários contratos/competências; arquivo ainda
+  sem uso aparece como "não usado".
+- O envio pela aba classifica só a **categoria**. Ligar a contrato/competência é anexar no lugar certo
+  (linha do histórico, faturamento, ConfereAI) — escolhendo do repositório.
+- Reclassificação (`PATCH /api/arquivos/[id]`) muda só a categoria.
+
+### 7.2 Decisão 2 — o mesmo arquivo pode servir a vários contratos
+
+Consequência direta da 7.1: como o arquivo não tem "um contrato", o mesmo PDF pode ser o PA de um
+aditivo no contrato A e estar no histórico do contrato B, sem cópia e sem registro duplicado. A regra
+§3.4.1 (mesmo hash no mesmo cliente = mesmo registro) continua; ela deixa de ter o efeito colateral de
+"voltar com a classificação antiga".
+
+### 7.3 O que muda no que já foi feito (Fase 1, Tasks 1–7) — ajuste antes da Fase 2
+
+1. Migração: remover `contratoId`, `competenciaAno`, `competenciaMes` e o índice `(contratoId)` de
+   `ArquivoCliente` (e a relação `Contrato.arquivos`).
+2. `src/app/api/clientes/[clienteId]/arquivos/esquema.ts` e `route.ts`, `src/app/api/arquivos/[id]/route.ts`,
+   `src/lib/arquivos/servico.ts` (`SELECT_ARQUIVO`, `DadosRegistro`): sem contrato/competência.
+3. `usosDosArquivos` passa a devolver contrato e competência de cada uso (hoje só `Documento`); a aba
+   filtra por eles.
+4. Envio na aba (Task 7): tirar os campos contrato e competência de cada linha.
+5. Script de migração dos `Documento` (Task 8): não copia competência pro arquivo — ela já está no
+   `Documento`.
+
+Concluído em 24/09/2026 (migração 20260924140000_arquivo_cliente_sem_contrato_competencia).
+
+### 7.4 Fases 2 e 3 com a decisão
+
+- **Fase 2**: as colunas `propostaPdfUrl/termoPdfUrl/pdfUrl` **já foram commitadas** (`b46541a`), então a
+  fase 2 inclui migrar os anexos existentes (um `ArquivoCliente` por blob, dedup por hash, preencher
+  `*ArquivoId`) antes de apagar as colunas. **E o índice do assistente de IA**
+  (`src/lib/assistente/indexacao/fontes.ts`, origens `HISTORICO_PROPOSTA`, `HISTORICO_TERMO`,
+  `FATURAMENTO_PDF`) lê essas colunas: migrar junto, trocando para a origem `ARQUIVO_CLIENTE` ou
+  lendo pelo `*ArquivoId`.
+- **Fase 3 (ConfereAI)**: candidatos de "Contrato" = PC das linhas `CONTRATO` do histórico do contrato;
+  sem candidato, lista das `PROPOSTA_COMERCIAL` **do cliente**. "Levantamento" = `MEDICAO` já usada numa
+  execução daquele contrato + competência; senão, lista das `MEDICAO` do cliente para escolher. A
+  execução gravada é que passa a dizer contrato + competência do arquivo.

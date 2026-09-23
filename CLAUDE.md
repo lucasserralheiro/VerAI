@@ -144,7 +144,13 @@ arquivo guarda `...ArquivoId` — nunca URL própria nem cópia do blob. Upload 
 (`registrarArquivo`: hash SHA-256, sem duplicado no cliente); entrega sempre por
 `/api/arquivos/[id]` (checa `podeVerCliente`, grava `AcessoArquivo`) — `urlBlob` nunca vai pro
 navegador. Remoção é lógica e bloqueada enquanto `usosDosArquivos` achar uso; módulo novo que
-referencia arquivo **acrescenta sua fonte em `usosDosArquivos`**. Design e fases:
+referencia arquivo **acrescenta sua fonte em `usosDosArquivos`**.
+
+Contrato e competência **não** são do arquivo: cada uso (`UsoArquivo`, em `src/lib/arquivos/tipos.ts`)
+traz o seu `contrato`/`competencia`, e a aba deriva as colunas e os filtros daí — fonte nova de uso
+precisa preencher os dois.
+
+Design e fases:
 `docs/superpowers/specs/2026-09-23-repositorio-documentos-cliente-design.md`.
 
 Toda migração gerada daqui em diante deve ser conferida — se aparecer `DROP INDEX

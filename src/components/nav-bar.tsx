@@ -22,6 +22,7 @@ import {
   Truck,
   ClipboardList,
   Inbox,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -51,6 +52,7 @@ const RELATORIOS_SUBLINKS = [
   { href: '/fornecedores', label: 'Fornecedores', icon: Truck },
   { href: '/demandas', label: 'Demandas', icon: ClipboardList },
   { href: '/solicitacoes', label: 'Solicitações', icon: Inbox },
+  { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
 ]
 
 // "Proposta Comercial (Conversão SEI)" é outro módulo à parte — mesmo padrão
@@ -122,6 +124,7 @@ function LinkMenu({
 }) {
   return (
     <Link
+      aria-current={ativo ? 'page' : undefined}
       href={href}
       aria-label={label}
       className={cn(
@@ -153,6 +156,12 @@ function LinkMenu({
   )
 }
 
+/** Sub-item ativo na própria rota e nas de detalhe abaixo dela (`/demandas/[id]` acende
+ *  "Demandas"). `/` ("Todos os documentos") só na raiz, senão acenderia em tudo. */
+function rotaAtiva(pathname: string, href: string) {
+  return pathname === href || (href !== '/' && pathname.startsWith(`${href}/`))
+}
+
 function GrupoMenu({
   link,
   sublinks,
@@ -168,7 +177,7 @@ function GrupoMenu({
   pathname: string
   expandida: boolean
 }) {
-  const ativo = pathname === link.href || sublinks.some((s) => s.href === pathname)
+  const ativo = pathname === link.href || sublinks.some((s) => rotaAtiva(pathname, s.href))
 
   return (
     <div className="flex flex-col gap-0.5">
@@ -209,7 +218,7 @@ function GrupoMenu({
               href={sub.href}
               label={sub.label}
               icon={sub.icon}
-              ativo={pathname === sub.href}
+              ativo={rotaAtiva(pathname, sub.href)}
               expandida={expandida}
             />
           ))}
@@ -282,7 +291,7 @@ export function NavBar() {
   // Se por algum motivo o grupo Relatórios estiver fechado e a navegação cair
   // num dos seus sub-itens, reabre — pra quem está lá dentro sempre ver onde está.
   useEffect(() => {
-    if (RELATORIOS_SUBLINKS.some((link) => link.href === pathname)) {
+    if (RELATORIOS_SUBLINKS.some((link) => rotaAtiva(pathname, link.href))) {
       setRelatoriosAberto(true)
     }
   }, [pathname])

@@ -69,7 +69,8 @@ describe('NavBar', () => {
 
   it('usa "Relatórios" como cabeçalho de seção, não mais "Análise de Documentos"', () => {
     render(<NavBar />)
-    expect(screen.getByText('Relatórios')).toBeInTheDocument()
+    // O sub-item "Relatórios" (/relatorios) tem o mesmo texto — o cabeçalho é o que não é link.
+    expect(screen.getAllByText('Relatórios').some((el) => !el.closest('a'))).toBe(true)
     expect(screen.queryByText('Análise de Documentos')).not.toBeInTheDocument()
   })
 
@@ -85,6 +86,22 @@ describe('NavBar', () => {
     expect(screen.getByRole('link', { name: 'Fornecedores' })).toHaveAttribute('href', '/fornecedores')
     expect(screen.getByRole('link', { name: 'Demandas' })).toHaveAttribute('href', '/demandas')
     expect(screen.getByRole('link', { name: 'Solicitações' })).toHaveAttribute('href', '/solicitacoes')
+  })
+
+  it('"Relatórios" (consultas cross-cliente) é sub-item do grupo "Relatórios dos clientes"', () => {
+    render(<NavBar />)
+    expect(screen.getByRole('link', { name: 'Relatórios' })).toHaveAttribute('href', '/relatorios')
+  })
+
+  it.each([
+    ['/demandas/d1', 'Demandas'],
+    ['/fornecedores/f1', 'Fornecedores'],
+    ['/relatorios', 'Relatórios'],
+  ])('em %s o sub-item "%s" fica ativo', (rota, item) => {
+    pathnameMock = rota
+    render(<NavBar />)
+    expect(screen.getByRole('link', { name: item })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Todos os documentos' })).not.toHaveAttribute('aria-current')
   })
 
   it('"Proposta Comercial" é um link de verdade pro histórico, fora de "Relatórios", aberto por padrão', () => {

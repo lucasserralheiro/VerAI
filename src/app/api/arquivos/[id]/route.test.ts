@@ -11,11 +11,8 @@ jest.mock('@/lib/prisma', () => ({
     usuario: { findUnique: jest.fn() },
   },
 }))
-jest.mock('@/lib/storage', () => ({ getUpload: jest.fn() }))
-
 import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getUpload } from '@/lib/storage'
 import { DELETE, GET, PATCH } from './route'
 
 const admin = { id: 'u1', nome: 'Admin', email: 'a@x', role: 'admin' as const }
@@ -40,7 +37,9 @@ beforeEach(() => {
   ;(prisma.arquivoCliente.update as jest.Mock).mockResolvedValue({ id: 'a1', categoria: 'MEDICAO' })
   ;(prisma.contrato.findUnique as jest.Mock).mockResolvedValue({ clienteId: 'c1' })
   ;(prisma.documento.findMany as jest.Mock).mockResolvedValue([])
-  ;(getUpload as jest.Mock).mockResolvedValue(Buffer.from('xlsx'))
+  global.fetch = jest.fn().mockResolvedValue(
+    new Response(new Blob(['xlsx']).stream(), { status: 200, headers: { 'content-length': '4' } })
+  ) as jest.Mock
 })
 
 describe('acesso (vale pros três métodos)', () => {
@@ -65,15 +64,16 @@ describe('acesso (vale pros três métodos)', () => {
 })
 
 describe('GET /api/arquivos/[id]', () => {
-  it('download: attachment com nome UTF-8 e acesso "baixou"', async () => {
+  it('download: attachment com nome ASCII (fallback) + UTF-8, nosniff, e acesso "baixou"', async () => {
     const resposta = await GET(new NextRequest(url), contexto)
 
     expect(resposta.status).toBe(200)
-    expect(getUpload).toHaveBeenCalledWith(registro.urlBlob)
+    expect(global.fetch).toHaveBeenCalledWith(registro.urlBlob)
     expect(resposta.headers.get('Content-Type')).toBe(registro.contentType)
     expect(resposta.headers.get('Content-Disposition')).toBe(
-      `attachment; filename*=UTF-8''${encodeURIComponent('Medição agosto.xlsx')}`
+      `attachment; filename="Medicao agosto.xlsx"; filename*=UTF-8''${encodeURIComponent('Medição agosto.xlsx')}`
     )
+    expect(resposta.headers.get('X-Content-Type-Options')).toBe('nosniff')
     expect(prisma.acessoArquivo.create).toHaveBeenCalledWith({ data: { arquivoId: 'a1', usuarioId: 'u1', acao: 'baixou' } })
     expect(Buffer.from(await resposta.arrayBuffer()).toString()).toBe('xlsx')
   })
@@ -84,9 +84,9 @@ describe('GET /api/arquivos/[id]', () => {
     expect(prisma.acessoArquivo.create).toHaveBeenCalledWith({ data: { arquivoId: 'a1', usuarioId: 'u1', acao: 'visualizou' } })
   })
 
-  it('502 quando o storage falha ao ler — sem registrar acesso', async () => {
+  it('502 quando o storage falha ao ler (fetch rejeita) — sem registrar acesso', async () => {
     const spy = jest.spyOn(console, 'error').mockImplementation(() => {})
-    ;(getUpload as jest.Mock).mockRejectedValue(new Error('falhou'))
+    ;(global.fetch as jest.Mock).mockRejectedValue(new Error('falhou'))
 
     const resposta = await GET(new NextRequest(url), contexto)
 
@@ -94,6 +94,18 @@ describe('GET /api/arquivos/[id]', () => {
     await expect(resposta.json()).resolves.toEqual({
       error: 'não foi possível ler o arquivo agora — tente de novo',
     })
+    expect(prisma.acessoArquivo.create).not.toHaveBeenCalled()
+    expect(spy).toHaveBeenCalledWith('[arquivos] falha ao ler arquivo do storage', expect.any(Error))
+    spy.mockRestore()
+  })
+
+  it('502 quando o storage responde com erro — sem registrar acesso', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    ;(global.fetch as jest.Mock).mockResolvedValue(new Response(null, { status: 404 }))
+
+    const resposta = await GET(new NextRequest(url), contexto)
+
+    expect(resposta.status).toBe(502)
     expect(prisma.acessoArquivo.create).not.toHaveBeenCalled()
     expect(spy).toHaveBeenCalledWith('[arquivos] falha ao ler arquivo do storage', expect.any(Error))
     spy.mockRestore()

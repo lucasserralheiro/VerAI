@@ -84,13 +84,21 @@ describe('registrarArquivo', () => {
     expect(deleteUpload).toHaveBeenCalledWith(tmp)
   })
 
-  it('corrida (P2002 no índice único): devolve o que o outro gravou', async () => {
+  it('corrida (P2002 no índice único): devolve o que o outro gravou, apaga blob final órfão', async () => {
     ;(prisma.arquivoCliente.findFirst as jest.Mock).mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'a-outro' })
     ;(prisma.arquivoCliente.create as jest.Mock).mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('unique', { code: 'P2002', clientVersion: 'x' })
     )
 
     expect(await registrarArquivo(dados)).toEqual({ arquivo: { id: 'a-outro' }, duplicado: true })
+    expect(deleteUpload).toHaveBeenCalledWith('https://x.public.blob.vercel-storage.com/clientes/c1/id/PC_01.pdf')
+  })
+
+  it('erro não-P2002 na criação: apaga blob final órfão e propaga', async () => {
+    ;(prisma.arquivoCliente.create as jest.Mock).mockRejectedValue(new Error('db conectivity'))
+
+    await expect(registrarArquivo(dados)).rejects.toThrow('db conectivity')
+    expect(deleteUpload).toHaveBeenCalledWith('https://x.public.blob.vercel-storage.com/clientes/c1/id/PC_01.pdf')
   })
 
   it('falha em apagar o temporário não derruba o registro', async () => {

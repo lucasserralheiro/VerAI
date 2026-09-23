@@ -95,6 +95,9 @@ export async function registrarArquivo(dados: DadosRegistro): Promise<{ arquivo:
     await apagarTemporario()
     return { arquivo, duplicado: false }
   } catch (erro) {
+    // Registração falhou: apaga o blob final (órfão, nunca foi referenciado).
+    await deleteUpload(urlBlob).catch(() => {})
+
     // Dois envios do mesmo conteúdo ao mesmo tempo: o índice único parcial barra o segundo.
     if (erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === 'P2002') {
       const doOutro = await existente(dados.clienteId, sha256)

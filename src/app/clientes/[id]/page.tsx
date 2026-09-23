@@ -7,6 +7,7 @@ import { ChevronRight, Loader2, AlertCircle, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BTN_PRIMARY, BTN_OUTLINE, INPUT_BASE } from '@/lib/ui'
 import { ABAS, abaPorId } from './abas/abas'
+import { IndicadoresCliente } from './indicadores-cliente'
 
 interface Cliente {
   id: string
@@ -191,6 +192,8 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
           aoCancelar={() => setEditando(false)}
         />
       )}
+
+      <IndicadoresCliente clienteId={id} />
 
       <div role="tablist" className="flex gap-6 overflow-x-auto border-b border-border-grey">
         {ABAS.map((aba) => {

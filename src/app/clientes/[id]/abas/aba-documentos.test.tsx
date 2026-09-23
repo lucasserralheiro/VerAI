@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AbaDocumentos } from './aba-documentos'
 
-jest.mock('./documentos/envio-arquivos', () => ({ EnvioArquivos: () => null }), { virtual: true })
+jest.mock('./documentos/envio-arquivos', () => ({ EnvioArquivos: () => null }))
 
 const PROPOSTA = {
   id: 'a1',
@@ -144,5 +144,11 @@ describe('AbaDocumentos', () => {
     )
     const corpo = JSON.parse(((global.fetch as jest.Mock).mock.calls.find(([, i]) => i?.method === 'PATCH')![1] as RequestInit).body as string)
     expect(corpo).toEqual({ categoria: 'TERMO_CONTRATO', contratoId: 'k1', competenciaAno: null, competenciaMes: null })
+  })
+
+  it('"Enviar arquivos" abre o envio', async () => {
+    render(<AbaDocumentos clienteId="c1" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar arquivos' }))
+    expect(screen.queryByRole('button', { name: 'Enviar arquivos' })).not.toBeInTheDocument()
   })
 })

@@ -6,10 +6,12 @@
 // continuam existindo — o painel do arquivo leva até elas pelo "onde é usado".
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle, Loader2, Upload } from 'lucide-react'
+import { BTN_PRIMARY } from '@/lib/ui'
 import { formatarTamanho } from '@/lib/arquivos/tipos'
 import { ListaArquivos } from './documentos/lista-arquivos'
 import { PainelArquivo } from './documentos/painel-arquivo'
+import { EnvioArquivos } from './documentos/envio-arquivos'
 import type { ArquivoRepositorio, OpcaoContrato } from './documentos/tipos'
 
 export function AbaDocumentos({ clienteId }: { clienteId: string }) {
@@ -19,6 +21,7 @@ export function AbaDocumentos({ clienteId }: { clienteId: string }) {
   const [selecionado, setSelecionado] = useState<ArquivoRepositorio | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
 
   const carregar = useCallback(async () => {
     const response = await fetch(`/api/clientes/${clienteId}/arquivos`).catch(() => null)
@@ -58,7 +61,25 @@ export function AbaDocumentos({ clienteId }: { clienteId: string }) {
             {resumo.total} arquivo{resumo.total === 1 ? '' : 's'} · {formatarTamanho(resumo.bytes)}
           </p>
         </div>
+        {!enviando && (
+          <button type="button" onClick={() => setEnviando(true)} className={BTN_PRIMARY}>
+            <Upload className="size-3.5" strokeWidth={2.25} />
+            Enviar arquivos
+          </button>
+        )}
       </div>
+
+      {enviando && (
+        <EnvioArquivos
+          clienteId={clienteId}
+          contratos={contratos}
+          aoCancelar={() => setEnviando(false)}
+          aoConcluir={() => {
+            setEnviando(false)
+            carregar()
+          }}
+        />
+      )}
 
       {erro && (
         <p className="flex items-center gap-1.5 rounded-xl bg-red-crit-light p-4 text-sm text-red-crit">

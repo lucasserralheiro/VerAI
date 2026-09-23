@@ -4,7 +4,9 @@ import { prisma } from '@/lib/prisma'
 import { deleteUpload, getUpload, putUpload } from '@/lib/storage'
 import { formatarCompetencia, nomeCompetencia } from '@/lib/competencia'
 import { caminhoFinalArquivo } from './caminhos'
-import { contentTypeDe, extensaoDe } from './tipos'
+import { contentTypeDe, extensaoDe, type UsoArquivo } from './tipos'
+
+export type { UsoArquivo } from './tipos'
 
 // Serviço do repositório de documentos do cliente (spec
 // docs/superpowers/specs/2026-09-23-repositorio-documentos-cliente-design.md). Só servidor.
@@ -29,12 +31,6 @@ export const SELECT_ARQUIVO = {
 } satisfies Prisma.ArquivoClienteSelect
 
 export type ArquivoSelecionado = Prisma.ArquivoClienteGetPayload<{ select: typeof SELECT_ARQUIVO }>
-
-export interface UsoArquivo {
-  tipo: 'analise-documento'
-  rotulo: string
-  href: string
-}
 
 export interface DadosRegistro {
   clienteId: string
@@ -118,6 +114,8 @@ export async function usosDosArquivos(ids: string[]): Promise<Map<string, UsoArq
       tipo: 'analise-documento',
       rotulo: `Análise por IA · ${nomeCompetencia(doc.competenciaAno, doc.competenciaMes)}`,
       href: `/clientes/${doc.clienteId}/${formatarCompetencia(doc.competenciaAno, doc.competenciaMes)}`,
+      contrato: null,
+      competencia: { ano: doc.competenciaAno, mes: doc.competenciaMes },
     })
   }
   return usos

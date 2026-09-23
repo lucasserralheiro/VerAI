@@ -1,10 +1,7 @@
 import type { CategoriaArquivo } from '@prisma/client'
+import type { UsoArquivo } from '@/lib/arquivos/tipos'
 
-export interface UsoArquivo {
-  tipo: string
-  rotulo: string
-  href: string
-}
+export type { UsoArquivo } from '@/lib/arquivos/tipos'
 
 /** Forma que GET /api/clientes/[clienteId]/arquivos devolve (sem `urlBlob`). */
 export interface ArquivoRepositorio {

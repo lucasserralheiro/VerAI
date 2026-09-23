@@ -142,7 +142,7 @@ describe('DELETE /api/arquivos/[id]', () => {
     expect(resposta.status).toBe(409)
     await expect(resposta.json()).resolves.toEqual({
       error: 'arquivo em uso',
-      usos: [{ tipo: 'analise-documento', rotulo: 'Análise por IA · Junho/2026', href: '/clientes/c1/2026-06' }],
+      usos: [{ tipo: 'analise-documento', rotulo: 'Análise por IA · Junho/2026', href: '/clientes/c1/2026-06', contrato: null, competencia: { ano: 2026, mes: 6 } }],
     })
     expect(prisma.arquivoCliente.update).not.toHaveBeenCalled()
   })

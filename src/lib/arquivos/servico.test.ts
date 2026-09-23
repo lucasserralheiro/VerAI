@@ -118,7 +118,13 @@ describe('usosDosArquivos', () => {
       expect.objectContaining({ where: { arquivoId: { in: ['a1', 'a2'] } } })
     )
     expect(usos.get('a1')).toEqual([
-      { tipo: 'analise-documento', rotulo: 'Análise por IA · Junho/2026', href: '/clientes/c1/2026-06' },
+      {
+        tipo: 'analise-documento',
+        rotulo: 'Análise por IA · Junho/2026',
+        href: '/clientes/c1/2026-06',
+        contrato: null,
+        competencia: { ano: 2026, mes: 6 },
+      },
     ])
     expect(usos.get('a2')).toEqual([])
   })

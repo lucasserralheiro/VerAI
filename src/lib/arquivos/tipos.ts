@@ -69,3 +69,15 @@ export function formatarTamanho(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+/** Um lugar onde o arquivo é usado. Contrato e competência do arquivo são SEMPRE derivados daqui
+ *  (spec §7.1) — o `ArquivoCliente` não guarda nenhum dos dois. Fases 2–4 acrescentam tipos. */
+export interface UsoArquivo {
+  tipo: 'analise-documento'
+  rotulo: string
+  href: string
+  /** Contrato a que este uso liga o arquivo; `null` quando o uso não é de contrato. */
+  contrato: { id: string; numeroTermo: string | null } | null
+  /** Competência deste uso; `null` quando não se aplica. */
+  competencia: { ano: number; mes: number } | null
+}

@@ -180,7 +180,7 @@ Tomadas antes de detalhar as Tasks 3–8 — valem para todas elas (registradas 
 
 ### Task 3: Base compartilhada + ficha do cliente com abas + Responsáveis
 
-**Status:** Não iniciada.
+**Status:** Concluída (commits `5d01667` e `edf2a85` — fix round 1: decimal ambíguo como "1.500" é rejeitado). Review de subagente limpa.
 
 **Files:**
 - Create: `src/lib/relatorios-clientes/{validacao,acesso,formatacao}.ts` (+ `.test.ts` de cada)
@@ -200,23 +200,23 @@ conteúdo, senão `documentos` — nesta task, default `documentos`), e um place
 "Em construção" para as abas que as Tasks 4–7 vão preencher (cada uma troca o placeholder pelo
 componente `aba-<nome>.tsx` dela).
 
-- [ ] **Step 1:** Helpers com testes (validação: casos `"1.234,56"`→`"1234.56"`, `-1`→erro,
+- [x] **Step 1:** Helpers com testes (validação: casos `"1.234,56"`→`"1234.56"`, `-1`→erro,
       `"2026-02-30"`→erro, `"  "`→`null`; acesso: 401 sem usuário, 403 sem permissão, ok com admin;
       formatação: `1234.5`→`R$ 1.234,50`, `null`→`—`, `"2026-09-22T00:00:00.000Z"`→`22/09/2026`).
-- [ ] **Step 2:** `PATCH /api/clientes/[clienteId]` — campos `nome` (obrigatório), `siglaLegado`,
+- [x] **Step 2:** `PATCH /api/clientes/[clienteId]` — campos `nome` (obrigatório), `siglaLegado`,
       `endereco`, `numero`, `bairro` (opcionais). Sigla normalizada em maiúsculas; colisão de
       `nome` ou `siglaLegado` (`P2002`) → 409 `{ error: 'já existe cliente com esse nome/sigla' }`.
-- [ ] **Step 3:** Responsáveis — `GET/POST /api/clientes/[clienteId]/responsaveis` (ordenado por
+- [x] **Step 3:** Responsáveis — `GET/POST /api/clientes/[clienteId]/responsaveis` (ordenado por
       nome; `nome` obrigatório; `area, email, telefone, celular` opcionais; e-mail, se vier, validado
       como e-mail), `PATCH/DELETE /api/responsaveis/[id]` (checa acesso pelo `clienteId` do registro).
-- [ ] **Step 4:** Ficha do cliente: cabeçalho com sigla (badge), nome, endereço
+- [x] **Step 4:** Ficha do cliente: cabeçalho com sigla (badge), nome, endereço
       (`endereco, numero — bairro`) e botão "Editar cliente" (form inline com os 5 campos).
       Abas conforme o mockup. Aba **Documentos** = o conteúdo atual da página (competências +
       nova competência), movido sem mudança de comportamento — os testes existentes de
       `src/app/clientes/[id]/page.test.tsx` continuam passando (ajustar só seletor, não asserção).
       Aba **Responsáveis** = cartões como no mockup + criar/editar/excluir.
-- [ ] **Step 5:** Lista `/clientes` mostra a sigla ao lado do nome.
-- [ ] **Step 6:** Commit.
+- [x] **Step 5:** Lista `/clientes` mostra a sigla ao lado do nome.
+- [x] **Step 6:** Commit.
 
 ---
 
@@ -441,7 +441,7 @@ sobre valores enum-like sem documentação.
 
 ### Task 8: Relatórios cross-cliente, indicadores da ficha e navegação
 
-**Status:** Não iniciada.
+**Status:** Concluída em 23/09/2026 (commits `04625e0`, `01c4490`, `b6f6f3a`; inline, smoke test com dados reais no banco local OK). Desvios do texto abaixo, todos registrados no design doc §3.9: a regra de "ativo" ficou em `src/lib/relatorios-clientes/regras.ts` (junto de `demandaAberta` e `competenciaValida`), não em `vencimento.ts`, e ganhou `finaliz`/`conclu` — os valores reais são "Finalizado"/"Concluído"; o status do faturamento inclui também encerrados que tenham faturamento no mês; "Fornecedores", "Demandas" e "Solicitações" já estavam no menu desde a Task 7, aqui entrou só "Relatórios" + item ativo nas sub-rotas (com `aria-current`). Com os dados atuais, valor contratado sai R$ 0 (itens sem vínculo) e o faturado do último mês também (notas fiscais só até mar/2026).
 
 **Files:**
 - Create: `src/app/api/relatorios/vencimentos/route.ts` (contratos de todos os clientes visíveis
@@ -464,17 +464,17 @@ sobre valores enum-like sem documentação.
 "Contrato ativo" = `situacao` não contém "encerr"/"rescind"/"cancel" (case-insensitive) e
 vencimento não passou — regra num helper testado em `vencimento.ts`.
 
-- [ ] **Step 1:** Rotas de relatório e indicadores com testes.
-- [ ] **Step 2:** Página `/relatorios` e cartões da ficha.
-- [ ] **Step 3:** Navegação + testes.
-- [ ] **Step 4:** Commit.
+- [x] **Step 1:** Rotas de relatório e indicadores com testes.
+- [x] **Step 2:** Página `/relatorios` e cartões da ficha.
+- [x] **Step 3:** Navegação + testes.
+- [x] **Step 4:** Commit.
 
 ---
 
 ### Task 9: Atualizar os docs deste plano
 
-**Status:** Contínua — fazer ao final de cada task acima.
+**Status:** Concluída em 23/09/2026 — plano e design doc (§3.9) atualizados até a Task 8.
 
-- [ ] Marcar cada task como concluída neste arquivo conforme for terminando
-- [ ] Registrar no design doc qualquer decisão nova tomada durante a implementação que não estava
+- [x] Marcar cada task como concluída neste arquivo conforme for terminando
+- [x] Registrar no design doc qualquer decisão nova tomada durante a implementação que não estava
       prevista (ex.: mecanismo final de leitura do `.accdb`, se ItensContrato tem exclusão)

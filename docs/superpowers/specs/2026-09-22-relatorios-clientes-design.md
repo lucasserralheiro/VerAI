@@ -1,7 +1,8 @@
 # Relatórios dos clientes — migração do GRC-1 (design)
 
-**Status**: Decisões de escopo, arquitetura e detalhamento fechadas (§3.7–3.8); implementação em
-andamento pelo plano.
+**Status**: Decisões de escopo, arquitetura e detalhamento fechadas (§3.7–3.8); Tasks 1–8 do plano
+implementadas (23/09/2026), decisões de implementação em §3.9. Falta: aplicar em produção (Neon) e
+revisar as pendências de dado (§3.9).
 **Data**: 22/09/2026
 
 ---
@@ -177,6 +178,28 @@ tela dedicada nova prevista só pra isso.
 - **Colunas do Access sem destino** — onde uma tela precisa de um campo que a Task 2 descartou por
   falta de coluna (ex. SEI/unidade destino/enviado GFP do faturamento, vencimento do contrato,
   dados do termo de confirmação), a task daquela tela acrescenta o campo ao schema e ao import.
+
+### 3.9 Decisões tomadas durante a implementação (Tasks 4–8, 22–23/09/2026)
+
+- **Demandas sem cliente válido vão para a SMS** (decisão do usuário, Task 7) — 109 das 136
+  demandas do GRC-1 não têm cliente válido; entram na SMS com `Demanda.notaImportacao` registrando
+  a atribuição, e a tela de demandas filtra essas ("Só com cliente atribuído no import") pra
+  revisão. Parte delas visivelmente não é da SMS (ex. 5 com "SMTUR").
+- **Valor exibido do faturamento** — `Faturamento.valor` veio nulo nas 601 linhas (a origem não tem
+  a coluna); o valor mostrado é `valor` quando preenchido, senão a soma das notas fiscais. Vale para
+  a aba Faturamento, o status do faturamento e o cartão "Faturado (mês)".
+- **"Contrato ativo" e "demanda aberta"** (Task 8, `src/lib/relatorios-clientes/regras.ts`) — a
+  situação é texto livre, então a regra procura palavra de encerramento (`encerr`, `rescin`,
+  `cancel`, `finaliz`, `conclu`) em vez de lista fechada. O plano previa só as três primeiras;
+  `finaliz` e `conclu` entraram porque os valores reais são contrato `Ativo`/`Finalizado` e demanda
+  `Em andamento`/`Concluído`. Contrato ativo também exige vencimento não passado (sem data conta
+  como não vencido). `Contrato.vigente` não é usado: veio `false` em todos os contratos importados.
+- **Competência com lixo do import** — há faturamentos com ano `26`/`20252` e mês `88`; ficam fora
+  do "último mês com faturamento" (`competenciaValida`: ano 2000–2100, mês 1–12).
+- **Status do faturamento do mês** lista os contratos ativos **e** os encerrados que tenham
+  faturamento na competência; contrato ativo sem faturamento aparece marcado "sem faturamento".
+- **Valor contratado / saldo** dependem dos itens vinculados — enquanto os itens importados não
+  forem reconciliados com o contrato (§3.6), aparecem como R$ 0 / "sem itens".
 
 ## 4. Modelo de dados — legado → VerAI
 

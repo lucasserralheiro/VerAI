@@ -1,0 +1,18 @@
+/** Texto da linha "Consultando…" no painel enquanto a ferramenta roda. Sem import: vai pro navegador. */
+export const ROTULOS_FERRAMENTAS: Record<string, string> = {
+  buscarClientes: 'Procurando o cliente',
+  resumoDoCliente: 'Consultando o cliente',
+  detalheDoContrato: 'Consultando o contrato',
+  itensDoContrato: 'Consultando os itens do contrato',
+  contratosVencendo: 'Consultando vencimentos',
+  buscarPorSei: 'Procurando o processo SEI',
+  faturamentos: 'Consultando o faturamento',
+  demandas: 'Consultando demandas',
+  tramitesDaDemanda: 'Consultando os trâmites',
+  solicitacoes: 'Consultando solicitações',
+  fornecedores: 'Consultando fornecedores',
+  propostasComerciais: 'Consultando propostas comerciais',
+  analisesDeDocumentos: 'Consultando análises de documentos',
+  execucoesConfere: 'Consultando o ConfereAI',
+  buscarNosDocumentos: 'Lendo os documentos',
+}

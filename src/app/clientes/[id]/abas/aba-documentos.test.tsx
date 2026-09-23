@@ -106,6 +106,16 @@ describe('AbaDocumentos', () => {
     )
   })
 
+  it('nome do arquivo é um botão focável — abre o painel também por teclado', async () => {
+    render(<AbaDocumentos clienteId="c1" />)
+    await screen.findByText('PC_SMS_012.pdf')
+
+    const botao = screen.getByRole('button', { name: 'PC_SMS_012.pdf' })
+    fireEvent.click(botao)
+
+    expect(screen.getByRole('complementary', { name: 'PC_SMS_012.pdf' })).toBeInTheDocument()
+  })
+
   it('remove arquivo sem uso após confirmação inline', async () => {
     render(<AbaDocumentos clienteId="c1" />)
     fireEvent.click(await screen.findByText('PC_SMS_012.pdf'))

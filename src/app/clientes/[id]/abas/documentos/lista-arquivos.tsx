@@ -117,14 +117,21 @@ export function ListaArquivos({
                 <tr
                   key={a.id}
                   onClick={() => aoSelecionar(a)}
-                  aria-selected={a.id === selecionadoId}
                   className={cn('cursor-pointer', a.id === selecionadoId && 'bg-orange/[0.06]')}
                 >
                   <td>
-                    <span className="flex items-center gap-2 font-medium text-navy">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        aoSelecionar(a)
+                      }}
+                      aria-current={a.id === selecionadoId ? 'true' : undefined}
+                      className="flex items-center gap-2 text-left font-medium text-navy hover:text-orange hover:underline"
+                    >
                       <IconeArquivo extensao={a.extensao} />
                       <span className="truncate">{a.nome}</span>
-                    </span>
+                    </button>
                   </td>
                   <td className="whitespace-nowrap">{rotuloCategoria(a.categoria)}</td>
                   <td className="font-mono text-xs whitespace-nowrap">{a.contrato?.numeroTermo ?? '—'}</td>

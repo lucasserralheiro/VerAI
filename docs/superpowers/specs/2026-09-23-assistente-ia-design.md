@@ -341,3 +341,27 @@ misturar migrações.
 - Qualquer ação de escrita pelo assistente (criar/editar contrato, faturamento etc.).
 - Ler imagem (DeepSeek não tem visão).
 - Arquivos de entrada do ConfereAI (não são guardados — decisão de 21/09).
+
+## 10. Ajustes do plano (23/09/2026)
+
+Decididos ao escrever `docs/superpowers/plans/2026-09-23-assistente-ia.md`, depois de ler o código.
+Onde conflitam com §5–§7 acima, **valem estes**:
+
+1. **Indexação por sincronização, sem gancho nas rotas de upload** (substitui §5.3 item 1–2). As
+   rotas de PDF do histórico e do faturamento são trabalho sem commit de outra sessão, e o plano do
+   repositório de documentos proíbe mexer nelas agora. `sincronizarIndice()` compara o banco com
+   `IndiceDocumento` e indexa novo/trocado, remove órfão. Roda: sob demanda na busca de um cliente
+   (até 2 arquivos, sem HEAD), no cron diário da Vercel (`/api/assistente/indexar/cron`, 06h),
+   no botão de `/admin/assistente` e no script. Arquivo sobrescrito no mesmo caminho do Blob é
+   detectado pelo `uploadedAt` (`head()`), só no cron/admin/script.
+2. **`tsvector` gravado no INSERT**, não coluna gerada: dispensa a função `unaccent_imutavel`.
+   Só `CREATE EXTENSION unaccent` na migração.
+3. **`IndiceDocumento` único por `(origem, origemId)`** (um arquivo por registro), com `url` e
+   `versao` como campos comuns.
+4. **Sem `@ai-sdk/react`**: a versão compatível com `ai` 7 exige React ≥ 19.1.2 (o projeto está em
+   19.1.0). O painel usa `DefaultChatTransport` + `readUIMessageStream`, que já vêm no pacote `ai`.
+   Dependências novas: só `react-markdown` e `remark-gfm`.
+5. **SEI na resposta**: a IA escreve `[número](sei:dígitos)` e o painel renderiza com `SeiLink`.
+6. `buscarClientes` devolve nº de contratos, não nº de ativos (ativo exige consolidar; fica no
+   `resumoDoCliente`).
+7. Resposta vazia (provedor abortou/falhou) não é gravada; a pergunta fica.

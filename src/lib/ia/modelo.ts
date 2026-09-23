@@ -10,14 +10,16 @@ import { createDeepSeek } from '@ai-sdk/deepseek'
  * padrão — usado pela revisão de português, que roda num modelo mais rápido
  * (AI_REVISAO_MODEL) por ser tarefa mecânica.
  */
-export function getModel(modelo?: string) {
+export function getModel(modelo?: string, opcoes: { provedor?: string; apiKey?: string } = {}) {
   const nomeModelo = modelo || process.env.AI_MODEL!
-  switch (process.env.AI_PROVIDER) {
+  const apiKey = opcoes.apiKey ?? process.env.AI_API_KEY
+  const provedor = opcoes.provedor ?? process.env.AI_PROVIDER
+  switch (provedor) {
     case 'anthropic':
-      return createAnthropic({ apiKey: process.env.AI_API_KEY })(nomeModelo)
+      return createAnthropic({ apiKey })(nomeModelo)
     case 'google':
       // Google AI Studio (aistudio.google.com/apikey) — tier gratuito, sem projeto GCP.
-      return createGoogleGenerativeAI({ apiKey: process.env.AI_API_KEY })(nomeModelo)
+      return createGoogleGenerativeAI({ apiKey })(nomeModelo)
     case 'vertex':
       // Sem apiKey: usa Application Default Credentials (gcloud auth application-default login).
       return createVertex({
@@ -26,12 +28,12 @@ export function getModel(modelo?: string) {
       })(nomeModelo)
     case 'groq':
       // Groq (console.groq.com/keys) — tier gratuito sem cartão de crédito, "forever free".
-      return createGroq({ apiKey: process.env.AI_API_KEY })(nomeModelo)
+      return createGroq({ apiKey })(nomeModelo)
     case 'deepseek':
       // DeepSeek (platform.deepseek.com/api_keys) — OpenAI-compatible; deepseek-chat
       // suporta saída JSON estruturada (deepseek-reasoner não de forma confiável).
-      return createDeepSeek({ apiKey: process.env.AI_API_KEY })(nomeModelo)
+      return createDeepSeek({ apiKey })(nomeModelo)
     default:
-      throw new Error(`AI_PROVIDER "${process.env.AI_PROVIDER}" não suportado`)
+      throw new Error(`AI_PROVIDER "${provedor}" não suportado`)
   }
 }

@@ -17,6 +17,7 @@ model Usuario {
   documentos         Documento[]
   acessos            AcessoDocumento[]
   clientesPermitidos Cliente[]         @relation("UsuarioClientes")
+  conversasAssistente ConversaAssistente[]
   arquivosEnviados   ArquivoCliente[]  @relation("ArquivosEnviados")
   acessosArquivo     AcessoArquivo[]   @relation("AcessosArquivo")
 }
@@ -638,4 +639,90 @@ model AcessoArquivo {
   createdAt DateTime       @default(now())
 
   @@index([arquivoId])
+}
+
+// ---------------------------------------------------------------------------
+// Assistente de IA — ver docs/superpowers/specs/2026-09-23-assistente-ia-design.md
+// ---------------------------------------------------------------------------
+
+enum OrigemTrecho {
+  HISTORICO_PROPOSTA
+  HISTORICO_TERMO
+  FATURAMENTO_PDF
+  PROPOSTA_COMERCIAL_ARQUIVO
+  DOCUMENTO
+}
+
+// Estado da indexação de UM arquivo (um por origem+registro). `versao` é o `uploadedAt` do blob
+// (ISO) ou o hash do texto já extraído; muda quando o arquivo é trocado no mesmo caminho.
+model IndiceDocumento {
+  id           String            @id @default(cuid())
+  origem       OrigemTrecho
+  origemId     String
+  url          String
+  versao       String?
+  nomeArquivo  String
+  clienteId    String?
+  contratoId   String?
+  status       String // ok | sem_texto | erro
+  mensagem     String?
+  totalTrechos Int               @default(0)
+  indexadoEm   DateTime          @default(now())
+  trechos      TrechoDocumento[]
+
+  @@unique([origem, origemId])
+  @@index([clienteId])
+}
+
+// Trecho pesquisável. `busca` é gravado no INSERT (to_tsvector('portuguese', unaccent(texto)))
+// por SQL cru — o Prisma não escreve tsvector. Sem FK para Cliente/Contrato de propósito: é
+// desnormalizado só para filtrar por permissão.
+model TrechoDocumento {
+  id          String                    @id @default(cuid())
+  indiceId    String
+  indice      IndiceDocumento           @relation(fields: [indiceId], references: [id], onDelete: Cascade)
+  origem      OrigemTrecho
+  origemId    String
+  clienteId   String?
+  contratoId  String?
+  nomeArquivo String
+  pagina      Int?
+  ordem       Int
+  texto       String                    @db.Text
+  busca       Unsupported("tsvector")?
+  createdAt   DateTime                  @default(now())
+
+  @@index([indiceId])
+  @@index([clienteId])
+  @@index([contratoId])
+  @@index([busca], type: Gin)
+}
+
+model ConversaAssistente {
+  id              String               @id @default(cuid())
+  usuarioId       String
+  usuario         Usuario              @relation(fields: [usuarioId], references: [id])
+  titulo          String
+  contextoInicial Json?
+  createdAt       DateTime             @default(now())
+  atualizadaEm    DateTime             @default(now())
+  mensagens       MensagemAssistente[]
+
+  @@index([usuarioId, atualizadaEm])
+}
+
+model MensagemAssistente {
+  id            String             @id @default(cuid())
+  conversaId    String
+  conversa      ConversaAssistente @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  papel         String // usuario | assistente
+  conteudo      String             @db.Text
+  // Nomes + entradas das ferramentas usadas (auditoria). NÃO guarda os resultados.
+  ferramentas   Json?
+  tokensEntrada Int?
+  tokensSaida   Int?
+  tokensCache   Int?
+  createdAt     DateTime           @default(now())
+
+  @@index([conversaId, createdAt])
 }

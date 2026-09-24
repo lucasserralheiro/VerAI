@@ -35,7 +35,7 @@ function resposta(ok: boolean, corpo: unknown) {
 }
 
 function mockApi(options: { semItens?: boolean; erroHistorico?: string } = {}) {
-  let historico = [...HISTORICO]
+  let historico: Array<Record<string, unknown>> = [...HISTORICO]
   let itens: Array<Record<string, unknown>> = options.semItens ? [] : [ITEM]
   const soltos = [{ id: 'i7', contratoId: null, contratoTextoLegado: '031/SEME/2017', descricao: 'Licença', quantidade: null, valorUnitario: null, valorTotal: '500' }]
   global.fetch = jest.fn((url: RequestInfo | URL, init?: RequestInit) => {

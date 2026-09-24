@@ -178,8 +178,8 @@ export async function principalRepetido(dados: {
   contratoId: string
   competenciaAno: number | null
   competenciaMes: number | null
-  complementar: boolean | null | undefined
-  situacao: string | null | undefined
+  complementar?: boolean | null
+  situacao?: string | null
   ignorarId?: string
 }): Promise<NextResponse | null> {
   if (dados.complementar || dados.competenciaAno === null || dados.competenciaMes === null) return null

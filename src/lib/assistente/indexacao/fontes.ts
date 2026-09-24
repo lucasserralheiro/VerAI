@@ -20,17 +20,16 @@ export async function listarFontes(filtro: { clienteId?: string } = {}): Promise
   const [historicos, faturamentos, documentos, arquivosProposta] = await Promise.all([
     prisma.historicoContrato.findMany({
       where: {
-        OR: [{ propostaPdfUrl: { not: null } }, { termoPdfUrl: { not: null } }],
+        OR: [{ propostaArquivoId: { not: null } }, { termoArquivoId: { not: null } }],
         ...(clienteId ? { contrato: { clienteId } } : {}),
       },
       select: {
         id: true,
         contratoId: true,
         contrato: { select: { clienteId: true } },
-        propostaPdfUrl: true,
-        propostaPdfNome: true,
-        termoPdfUrl: true,
-        termoPdfNome: true,
+        // Servidor lendo o blob pra indexar — `urlBlob` não sai daqui.
+        propostaArquivo: { select: { urlBlob: true, nome: true } },
+        termoArquivo: { select: { urlBlob: true, nome: true } },
       },
     }),
     prisma.faturamento.findMany({
@@ -52,11 +51,11 @@ export async function listarFontes(filtro: { clienteId?: string } = {}): Promise
   const fontes: FonteDocumento[] = []
   for (const h of historicos) {
     const base = { origemId: h.id, tipo: 'pdf', clienteId: h.contrato.clienteId, contratoId: h.contratoId, textoPronto: null }
-    if (h.propostaPdfUrl) {
-      fontes.push({ ...base, origem: 'HISTORICO_PROPOSTA', url: h.propostaPdfUrl, nomeArquivo: h.propostaPdfNome ?? 'proposta.pdf' })
+    if (h.propostaArquivo) {
+      fontes.push({ ...base, origem: 'HISTORICO_PROPOSTA', url: h.propostaArquivo.urlBlob, nomeArquivo: h.propostaArquivo.nome })
     }
-    if (h.termoPdfUrl) {
-      fontes.push({ ...base, origem: 'HISTORICO_TERMO', url: h.termoPdfUrl, nomeArquivo: h.termoPdfNome ?? 'termo.pdf' })
+    if (h.termoArquivo) {
+      fontes.push({ ...base, origem: 'HISTORICO_TERMO', url: h.termoArquivo.urlBlob, nomeArquivo: h.termoArquivo.nome })
     }
   }
   for (const f of faturamentos) {

@@ -3,6 +3,7 @@ import { contratoAtivo, contratoVazio, prorrogacaoEmAndamento, situacaoDizAtivo,
 import { calcularSaldo, type Saldo } from './saldo'
 import { saldosDosContratos } from './saldos-contratos'
 import { baseDoContrato } from './valor-contratado'
+import { SELECAO_ANEXOS, anexosDaLinha } from './anexos-historico'
 import { resumirHistorico, type LinhaResumoHistorico, type ResumoHistorico } from './resumo-historico'
 import { situacaoVencimento, type SituacaoVencimento } from './vencimento'
 
@@ -92,7 +93,7 @@ export async function consolidarContratos(
   if (contratos.length === 0) return consolidados
 
   const ids = contratos.map((contrato) => contrato.id)
-  const [linhasHistorico, saldos, identidades] = await Promise.all([
+  const [linhasBrutas, saldos, identidades] = await Promise.all([
     prisma.historicoContrato.findMany({
       where: { contratoId: { in: ids } },
       select: {
@@ -105,10 +106,7 @@ export async function consolidarContratos(
         valor: true,
         situacao: true,
         dataVencimento: true,
-        propostaPdfUrl: true,
-        propostaPdfNome: true,
-        termoPdfUrl: true,
-        termoPdfNome: true,
+        ...SELECAO_ANEXOS,
       },
     }),
     saldosDosContratos(ids),
@@ -126,6 +124,11 @@ export async function consolidarContratos(
       },
     }),
   ])
+  // A forma que `resumirHistorico` conhece (url/nome), calculada da referência ao repositório.
+  const linhasHistorico = linhasBrutas.map(({ propostaArquivo, termoArquivo, propostaDoSharepoint, termoDoSharepoint, ...linha }) => ({
+    ...linha,
+    ...anexosDaLinha({ propostaArquivo, termoArquivo, propostaDoSharepoint, termoDoSharepoint }),
+  }))
   const vazios = new Set(
     identidades
       .filter((c) =>

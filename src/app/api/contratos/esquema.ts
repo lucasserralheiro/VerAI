@@ -8,6 +8,7 @@ import {
   textoOpcional,
 } from '@/lib/relatorios-clientes/validacao'
 import type { Saldo } from '@/lib/relatorios-clientes/saldo'
+import { SELECAO_ANEXOS, anexosDaLinha } from '@/lib/relatorios-clientes/anexos-historico'
 import { situacaoVencimento } from '@/lib/relatorios-clientes/vencimento'
 import type { ContratoConsolidado } from '@/lib/relatorios-clientes/contratos-consolidados'
 
@@ -118,16 +119,18 @@ export const SELECT_HISTORICO = {
   dataVencimento: true,
   dataEnvio: true,
   observacao: true,
-  propostaPdfUrl: true,
-  propostaPdfNome: true,
-  termoPdfUrl: true,
-  termoPdfNome: true,
+  ...SELECAO_ANEXOS,
 } satisfies Prisma.HistoricoContratoSelect
 
 type HistoricoSelecionado = Prisma.HistoricoContratoGetPayload<{ select: typeof SELECT_HISTORICO }>
 
 export function serializarHistorico(linha: HistoricoSelecionado) {
-  return { ...linha, valor: linha.valor?.toString() ?? null }
+  const { propostaArquivo, termoArquivo, propostaDoSharepoint, termoDoSharepoint, ...resto } = linha
+  return {
+    ...resto,
+    valor: linha.valor?.toString() ?? null,
+    ...anexosDaLinha({ propostaArquivo, termoArquivo, propostaDoSharepoint, termoDoSharepoint }),
+  }
 }
 
 // ---------------------------------------------------------------------------

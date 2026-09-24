@@ -110,3 +110,9 @@ describe('montarEstrutura — finalizado só quando TODAS as pastas estão em "C
     expect(porChave['SMIT|13 2024']).toMatchObject({ finalizado: true, tambemEmFinalizados: false })
   })
 })
+
+describe('apostilamento é aditivo, não contrato inicial', () => {
+  it.each(['2) TC 001-2023-SMTUR - Apostila alt CNPJ Prodam', '2) TC 07-2023-SMUL - Apostilamento'])('%s', (pasta) => {
+    expect(classificarTermo(pasta).tipo).toBe('ADITIVO')
+  })
+})

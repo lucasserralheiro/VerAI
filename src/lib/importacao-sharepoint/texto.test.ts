@@ -62,3 +62,14 @@ describe('auxiliares', () => {
     expect(somarMeses(new Date(Date.UTC(2023, 9, 15)), 12).toISOString().slice(0, 10)).toBe('2024-10-14')
   })
 })
+
+describe('caractere nulo vindo do PDF', () => {
+  it('some dos campos lidos — o Postgres recusa o byte 0 (SEME TC 25/2024, SME TC 378/2024)', () => {
+    // O mesmo contrato do SEI, com NUL no meio do objeto e do contratante (como sai de alguns PDFs).
+    const nul = String.fromCharCode(0)
+    const k = extrairCampos(contrato.replace('SUSTENTAÇÃO E', `SUSTENTAÇÃO${nul} E`).replace('CONTROLADORIA', `CONTROLA${nul}DORIA`), 'CONTRATO')
+    expect(k.objeto).toBeTruthy()
+    expect(k.contratante).toBeTruthy()
+    expect(Object.values(k).filter((v) => typeof v === 'string' && v.includes(nul))).toEqual([])
+  })
+})

@@ -104,7 +104,7 @@ export function classificarTermo(nomePasta: string): Pick<TermoPasta, 'ordem' | 
   if (/\bTRA\b|rescis|indeniza/i.test(resto)) tipo = 'RESCISAO'
   else if (!termo && (resto === '' || /contrato\s+inicial/i.test(resto))) tipo = 'CONTRATO'
   else if (/prorrog|alt\.?\s*vig|\d+\s*(?:m\b|meses|m[eê]s)/i.test(resto)) tipo = 'PRORROGACAO'
-  else if (termo || /aditivo|acr[eé]sc|redu[cç]|reajust|remanej|cronograma|inclus|sub-?roga/i.test(resto)) tipo = 'ADITIVO'
+  else if (termo || /aditivo|apostil|acr[eé]sc|redu[cç]|reajust|remanej|cronograma|inclus|sub-?roga/i.test(resto)) tipo = 'ADITIVO'
   else tipo = 'CONTRATO'
 
   let aviso: TermoPasta['aviso'] = null

@@ -81,7 +81,8 @@ function primeiro(texto: string, padroes: RegExp[]): RegExpExecArray | null {
 }
 
 export function extrairCampos(textoBruto: string, tipo: 'CONTRATO' | 'ADITIVO' | 'PRORROGACAO' | 'RESCISAO'): CamposTermo {
-  const texto = achatar(textoBruto)
+  // Alguns PDFs trazem o byte 0 no meio do texto — o Postgres recusa (SEME TC 25/2024, SME TC 378/2024).
+  const texto = achatar(textoBruto.replace(/\u0000/g, ''))
   const semTexto = texto.replace(/[^A-Za-z]/g, '').length < 200
 
   const numeroDocumento = /TERMO DE CONTRATO\s*N[º°o.]*\s*:?\s*([\w./-]*\d[\w./-]*)/i.exec(texto)?.[1] ?? null

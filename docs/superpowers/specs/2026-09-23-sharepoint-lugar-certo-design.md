@@ -334,3 +334,22 @@ administrador, grátis até 10 GB (a biblioteca tem 1,15 GB). Onde conflitar com
   "Finalizado" com pasta ativa no SharePoint (SGM 17/2025, SMS 138/2021, 142/2021, 203/2023 — este com
   vigência até 2032, a conferir) e SVMA TC 074/2022 (todas as pastas em finalizados, mas vigência lida até
   2028-01-08).
+
+### 10.3 Proteção contra erro novo (24/09/2026, noite)
+
+- **Auditoria automática** a cada `--aplicar` (`src/lib/importacao-sharepoint/auditoria.ts` +
+  `auditoria-banco.ts`, pelo `consolidarContratos()`), só dos clientes tocados na execução: finalizado com
+  vigência correndo, ativo sem valor, contrato inicial duplicado, termo duplicado (mesmo número), contrato
+  duplicado (mesmo número e ano). Só aponta — sai no log e em `logs/sharepoint-sincronizacao.json`.
+- A primeira rodada achou SMS TC 105/2025 e 107/2025 em dobro: o casamento com o contrato do legado usava
+  `chaveNumerica`, que pegava o "1" de "SMS-1" (`TC 105/2025/SMS-1/CONTRATOS`). Agora casa por
+  `chaveDoNome` (número + ano); e `fundirComLegado` (etapa 2b da migração) funde a cópia criada pelo
+  SharePoint no contrato do legado quando o candidato é único e a cópia não tem item, faturamento nem termo.
+  Auditoria: 41 → 37 pontos (33 ativos sem valor; SMS 203/2023 e SVMA 074/2022 finalizado × vigência;
+  SMDHC "TA 001" ×2 com PDFs diferentes; SEGES TC 024/2025 ×3, dois deles no legado — decisão humana).
+- **Régua da leitura** (`src/lib/importacao-sharepoint/regua.ts`, `scripts/regua-sharepoint.ts`): fotografa
+  como cada pasta vira contrato/termo (tipo, número, aviso, PDF do termo, PDF da proposta, nº de arquivos)
+  e guarda a lista de arquivos junto; depois de mudar regra, relê a **mesma** lista com o código novo e
+  mostra, por cliente, o que mudou. Sem banco, sem PDF, ~9 s na biblioteca inteira (1.174 arquivos → 231
+  contratos, 631 pastas de termo). Validada quebrando uma regra de propósito (tirar "apostil" do aditivo):
+  acusou exatamente SMTUR TC 001/2023 e SMUL TC 07/2023.

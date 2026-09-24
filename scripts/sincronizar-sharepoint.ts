@@ -13,12 +13,12 @@
  * Idempotente; o agendador roda scripts/sincronizar-sharepoint.bat.
  */
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
-import { readdir, readFile, stat } from 'node:fs/promises'
-import { homedir, tmpdir } from 'node:os'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import { config } from 'dotenv'
-import { sincronizarSharepoint, type ArquivoFonte, type FonteArquivos } from '../src/lib/arquivos/sharepoint/sincronizar'
+import { fonteDaPasta, pastaPadraoDaBiblioteca } from '../src/lib/arquivos/sharepoint/fonte-pasta'
+import { sincronizarSharepoint } from '../src/lib/arquivos/sharepoint/sincronizar'
 import { ROTULO_ACHADO } from '../src/lib/importacao-sharepoint/auditoria'
 import { auditarNoBanco } from '../src/lib/importacao-sharepoint/auditoria-banco'
 import { textoDoPdf } from '../src/lib/importacao-sharepoint/pdf-texto'
@@ -32,32 +32,6 @@ const prisma = new PrismaClient()
 function argumento(nome: string): string | undefined {
   const achado = process.argv.find((a) => a.startsWith(`--${nome}=`))
   return achado?.slice(nome.length + 3).replace(/^"|"$/g, '')
-}
-
-function fonteDaPasta(raiz: string): FonteArquivos {
-  return {
-    async listar() {
-      const saida: ArquivoFonte[] = []
-      async function andar(relativo: string[]) {
-        const entradas = await readdir(path.join(raiz, ...relativo), { withFileTypes: true })
-        for (const e of entradas) {
-          const proximo = [...relativo, e.name]
-          if (e.isDirectory()) {
-            await andar(proximo)
-          } else if (e.isFile()) {
-            // stat não baixa o conteúdo (Arquivos On-Demand) — só a leitura baixa.
-            const s = await stat(path.join(raiz, ...proximo))
-            saida.push({ caminho: proximo.join('/'), tamanhoBytes: s.size, modificadoEm: s.mtime })
-          }
-        }
-      }
-      await andar([])
-      return saida
-    },
-    ler(caminho) {
-      return readFile(path.join(raiz, ...caminho.split('/')))
-    },
-  }
 }
 
 /** Duas execuções ao mesmo tempo (agendador + manual) gravariam o mesmo arquivo duas vezes. */
@@ -78,7 +52,7 @@ async function main() {
   const aplicar = process.argv.includes('--aplicar')
   const relerTudo = process.argv.includes('--reler-tudo')
   const clientes = argumento('clientes')?.split(',').map((s) => s.trim()).filter(Boolean)
-  const raiz = argumento('pasta') ?? process.env.SHAREPOINT_PASTA ?? path.join(homedir(), 'rede.sp', 'rede.sp - ContratosReceita')
+  const raiz = argumento('pasta') ?? pastaPadraoDaBiblioteca()
   if (!existsSync(raiz)) throw new Error(`pasta não encontrada: ${raiz}`)
 
   const arquivoConfig = path.join(__dirname, 'sharepoint-clientes.json')

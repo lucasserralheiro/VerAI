@@ -22,6 +22,10 @@
   sincronização religa ao original (`--incluir-sharepoint` para sobras); a trava só exige anexos à mão;
   (2) fusão de linhas reconhece o PDF pelo nome da cópia e trata contrato inicial como único por contrato;
   (3) Task 3 Step 7 (chave da lista de usos no painel) já estava feito em 13ac5f5.
+- ✅ Depois do R2 (24/09): biblioteca inteira em dev, conferência 1.171/1.171 (spec §10.2); auditoria
+  automática das contas a cada execução, fusão da cópia do SharePoint no contrato do legado (etapa 2b da
+  migração) e régua da leitura (`scripts/regua-sharepoint.ts`) — spec §10.3. Falta a Task 14 (produção,
+  com OK do usuário a cada passo) e a Task 15 (limpeza).
 - Base já vinha com 19 suítes de teste falhando (maioria `el.showModal is not a function` no jsdom);
   nenhuma falha nova. Lista em `falhas-base` da sessão; `sincronizar.test.ts` voltou a passar.
 

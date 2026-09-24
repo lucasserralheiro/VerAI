@@ -189,10 +189,19 @@ que revisa `2026-09-24-sincronizacao-sharepoint-contratos-design.md`):
 - Sumiu do SharePoint: coluna do SharePoint esvazia e o arquivo sai (remoção lógica), a não ser que
   algo do VerAI o use (análise, anexo à mão) — aí fica marcado "fora do SharePoint".
 - Cada execução com `--aplicar` termina com **conferência** por cliente (caminhos no SharePoint × no
-  VerAI); divergência sai no log e o script termina com código 2.
+  VerAI); divergência sai no log e o script termina com código 2. Depois vem a **auditoria das contas**
+  (`src/lib/importacao-sharepoint/auditoria.ts`, pelo `consolidarContratos()`) dos clientes tocados:
+  finalizado com vigência correndo, ativo sem valor, contrato inicial/termo/contrato duplicado. Só
+  aponta, não corrige — tipo de achado novo entra lá, com teste.
 - Nada grava sem `--aplicar`; `--clientes=` restringe listagem **e** remoção (use em dev: dev e
-  produção dividem o mesmo Vercel Blob). Antes da primeira execução num banco:
+  produção dividem o mesmo bucket do Cloudflare R2). Antes da primeira execução num banco:
   `scripts/migrar-sharepoint-lugar-certo.ts` (a sincronização recusa rodar com migração pendente).
+- **Régua da leitura**: antes de mexer em regra de estrutura ou identidade (`estrutura.ts`,
+  `identidade.ts`, `regras.ts`, `scripts/sharepoint-clientes.json`), rode
+  `npx tsx scripts/regua-sharepoint.ts --salvar`; depois da mudança, rode sem `--salvar`. Ela relê a
+  **mesma** lista de arquivos com o código novo e lista, por cliente, cada pasta que passou a ser lida
+  de outro jeito. Consertar o exemplar da vez sem olhar a régua quebra outro cliente (tirar "apostil"
+  do aditivo muda SMTUR e SMUL, por exemplo).
 
 ## Consistência de números e vínculos (varredura de 23/09/2026)
 

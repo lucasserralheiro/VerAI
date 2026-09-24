@@ -95,12 +95,14 @@ describe('AbaDocumentos', () => {
     fireEvent.click(await screen.findByText('medicao-junho.xlsx'))
 
     const painel = screen.getByRole('complementary', { name: 'medicao-junho.xlsx' })
+    expect(within(painel).getByText('Contrato: — · Competência: Junho/2026')).toBeInTheDocument()
     expect(within(painel).getByRole('link', { name: 'Análise por IA · Junho/2026' })).toHaveAttribute('href', '/clientes/c1/2026-06')
     expect(within(painel).getByRole('button', { name: 'Remover' })).toBeDisabled()
     expect(within(painel).getByRole('link', { name: 'Baixar' })).toHaveAttribute('href', '/api/arquivos/a2')
 
     fireEvent.click(screen.getByText('PC_SMS_012.pdf'))
     const painelPdf = screen.getByRole('complementary', { name: 'PC_SMS_012.pdf' })
+    expect(within(painelPdf).getByText('Contrato: TC 012/2020 · Competência: —')).toBeInTheDocument()
     expect(within(painelPdf).getByTitle('Pré-visualização de PC_SMS_012.pdf')).toHaveAttribute(
       'src',
       '/api/arquivos/a1?modo=inline'

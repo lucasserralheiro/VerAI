@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AlertCircle, Download, X } from 'lucide-react'
 import { BTN_OUTLINE, BTN_OUTLINE_SM, BTN_PRIMARY, INPUT_BASE, LINK_DANGER } from '@/lib/ui'
 import { CATEGORIAS, formatarTamanho } from '@/lib/arquivos/tipos'
+import { rotuloCompetencias, rotuloContratos } from './derivados'
 import type { ArquivoRepositorio } from './tipos'
 
 export function PainelArquivo({
@@ -85,12 +86,16 @@ export function PainelArquivo({
         </button>
       </form>
 
+      <p className="text-xs text-mid-grey">
+        Contrato: {rotuloContratos(arquivo)} · Competência: {rotuloCompetencias(arquivo)}
+      </p>
+
       <div className="space-y-1.5">
         <h4 className="text-xs font-semibold tracking-wide text-mid-grey uppercase">Onde é usado</h4>
         {emUso ? (
           <ul className="space-y-1 text-sm">
-            {arquivo.usos.map((uso) => (
-              <li key={uso.href}>
+            {arquivo.usos.map((uso, i) => (
+              <li key={`${uso.tipo}:${uso.href}:${i}`}>
                 <Link href={uso.href} className="text-navy hover:text-orange hover:underline">
                   {uso.rotulo}
                 </Link>

@@ -131,11 +131,17 @@ o SharePoint.
 - Coluna preenchida **pelo SharePoint acompanha o SharePoint**: PDF trocado → a coluna passa a apontar
   para o novo; PDF removido da pasta → a coluna esvazia.
 - Coluna preenchida **à mão** nunca é trocada pela sincronização: diferença vira aviso no relatório.
-- Tela do histórico: "anexar" sobe pelo repositório (upload direto ao Blob, `registrarArquivo`, sem o
-  limite de 4,5 MB do corpo da requisição) e grava a referência; "escolher PDF já cadastrado" lista os
-  PDFs do repositório do cliente; "remover" solta a referência (o arquivo continua no repositório); a
-  visualização usa `/api/arquivos/[id]?modo=inline` (a URL do Blob não vai mais ao navegador e o
-  acesso fica em `AcessoArquivo`).
+- Tela do histórico: "anexar" continua pela rota da linha (`POST /api/historico-contrato/[id]/pdf/[tipo]`,
+  mesmo limite de hoje), mas o PDF é **registrado no repositório** (`registrarConteudo`, dedup por
+  hash) e a linha guarda a referência; "escolher PDF já cadastrado" lista os PDFs do repositório do
+  cliente e os da tela Propostas comerciais (este é registrado no repositório ao ser escolhido);
+  "remover" solta a referência (o arquivo continua no repositório); a visualização usa
+  `/api/arquivos/[id]?modo=inline` (a URL do Blob não vai mais ao navegador e o acesso fica em
+  `AcessoArquivo`). A API continua devolvendo `propostaPdfUrl/Nome` e `termoPdfUrl/Nome` — calculados
+  a partir da referência — para a tela não mudar de forma.
+- Coluna vinda do SharePoint removida na tela **volta** na próxima sincronização (a fonte é o
+  SharePoint); o visualizador avisa isso. Para trocar de vez, anexa-se outro PDF: anexo manual nunca é
+  substituído.
 - API e leitores (`esquema.ts`, `resumo-historico.ts`, `contratos-consolidados.ts`, índice do
   assistente em `src/lib/assistente/indexacao/fontes.ts`) leem pela referência.
 - `usosDosArquivos` ganha o uso `historico-contrato` (contrato + rótulo da linha).

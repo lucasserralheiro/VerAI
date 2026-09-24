@@ -17,7 +17,9 @@ export interface DepsIndexacao {
 
 export const depsPadrao: DepsIndexacao = {
   baixar: getUpload,
-  versaoDoBlob: async (url) => (await head(url)).uploadedAt.toISOString(),
+  // Arquivo no Cloudflare R2 (`r2:`, vindo do SharePoint) nunca é sobrescrito — a chave tem o id do
+  // arquivo e conteúdo novo vira arquivo novo —, então o próprio endereço é a versão.
+  versaoDoBlob: async (url) => (url.startsWith('r2:') ? url : (await head(url)).uploadedAt.toISOString()),
 }
 
 export interface ResumoSincronizacao {

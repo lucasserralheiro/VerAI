@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { abrirUpload } from '@/lib/storage'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
 import { SELECT_ARQUIVO, serializarArquivo, usosDosArquivos } from '@/lib/arquivos/servico'
 import { ROTULOS_ARQUIVO, esquemaEdicao } from '@/app/api/clientes/[clienteId]/arquivos/esquema'
@@ -28,7 +29,8 @@ export async function GET(request: NextRequest, { params }: Contexto) {
 
   const inline = request.nextUrl.searchParams.get('modo') === 'inline'
 
-  const res = await fetch(arquivo.urlBlob).catch(() => null)
+  // Blob (https) ou Cloudflare R2 (`r2:`, arquivos vindos do SharePoint) — `abrirUpload` decide.
+  const res = await abrirUpload(arquivo.urlBlob).catch(() => null)
   if (!res?.ok || !res.body) {
     console.error(
       '[arquivos] falha ao ler arquivo do storage',

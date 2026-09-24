@@ -1,4 +1,10 @@
 import { put, del, list } from '@vercel/blob'
+import { PREFIXO_R2, deleteR2, getR2 } from './r2'
+
+// Endereço guardado no banco: URL https do Vercel Blob ou `r2:<chave>` (Cloudflare R2 — arquivos que
+// a sincronização traz da biblioteca do SharePoint, spec
+// docs/superpowers/specs/2026-09-23-sharepoint-lugar-certo-design.md §11). Ler e apagar aceitam os dois.
+const chaveR2 = (url: string) => (url.startsWith(PREFIXO_R2) ? url.slice(PREFIXO_R2.length) : null)
 
 export function buildUploadPath(documentoId: string, extensao: string, data: Date = new Date()): string {
   const ano = String(data.getFullYear())
@@ -76,9 +82,15 @@ export async function putUpload(pathname: string, data: Buffer, contentType?: st
   return blob.url
 }
 
+/** Resposta crua (corpo em streaming) do arquivo guardado — Blob ou R2. Quem chama confere `ok`. */
+export async function abrirUpload(url: string): Promise<Response> {
+  const chave = chaveR2(url)
+  return chave !== null ? getR2(chave) : fetch(url)
+}
+
 /** Baixa o conteúdo de um blob a partir da URL salva no banco. */
 export async function getUpload(url: string): Promise<Buffer> {
-  const res = await fetch(url)
+  const res = await abrirUpload(url)
   if (!res.ok) throw new Error(`Falha ao baixar arquivo do storage (${res.status})`)
   return Buffer.from(await res.arrayBuffer())
 }
@@ -97,7 +109,9 @@ export async function deleteUploadPrefix(prefix: string, exceto: string[] = []):
 /** Apaga um único blob a partir da URL salva no banco (ex.: um arquivo
  *  específico dentro de uma proposta comercial com vários arquivos). */
 export async function deleteUpload(url: string): Promise<void> {
-  await del(url)
+  const chave = chaveR2(url)
+  if (chave !== null) await deleteR2(chave)
+  else await del(url)
 }
 
 /** Os dois documentos gerados por uma execução do ConfereAI (`/confere`).

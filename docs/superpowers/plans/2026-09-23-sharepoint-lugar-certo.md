@@ -4075,11 +4075,12 @@ Rode de novo com `--aplicar`: `novos 0`, `processados 0`.
 
 - [ ] **Step 6: Agendador (configuração persistente — confirmar antes)**
 
-Com o ok do usuário:
+Com o ok do usuário (detalhes no plano `docs/superpowers/plans/2026-09-24-sharepoint-automacao.md` — lá a
+tarefa já foi instalada em 24/09, a pedido do usuário):
 ```bash
-schtasks /create /tn "VerAI - Sincronizar SharePoint" /tr "C:\projeto\VerAI\scripts\sincronizar-sharepoint.bat" /sc minute /mo 30 /f
+powershell -ExecutionPolicy Bypass -File scripts\agendador-sharepoint.ps1 -Instalar
 ```
-Confira: `schtasks /query /tn "VerAI - Sincronizar SharePoint" /v /fo LIST` e, após 30 min, o fim de `logs/sincronizar-sharepoint.log` com `TUDO NO VERAI`.
+Confira: `powershell -ExecutionPolicy Bypass -File scripts\agendador-sharepoint.ps1 -Estado` e, após 30 min, a última execução com `TUDO NO VERAI` e `codigo 0`.
 
 - [ ] **Step 7: Registrar**
 

@@ -1,6 +1,7 @@
 # SharePoint sempre em dia — automação da sincronização (design)
 
-**Status:** proposto (24/09/2026) · **Plano:** `docs/superpowers/plans/2026-09-24-sharepoint-automacao.md`
+**Status:** implementado (aguardando produção) — agendador instalado no PC do Lucas em 24/09/2026, já
+apontado para produção (§7) · **Plano:** `docs/superpowers/plans/2026-09-24-sharepoint-automacao.md`
 **Base:** `docs/superpowers/specs/2026-09-23-sharepoint-lugar-certo-design.md` (o que a sincronização faz).
 Este documento trata de **quando** e **onde** ela roda.
 
@@ -48,7 +49,12 @@ administrador**), no lugar do `schtasks` da Task 14 do plano lugar-certo:
 - Sem janela piscando a cada 30 min: a ação chama `conhost.exe --headless` com o `.bat`.
 - Se o Windows recusar o gatilho de logon sem administrador, fica só o de 30 min — com "executar o
   quanto antes", ele roda logo depois do logon do mesmo jeito.
-- `-Instalar`, `-Remover`, `-Estado` (última execução, resultado e o fim do log).
+- `-Instalar`, `-Remover`, `-Estado` (horários do Agendador e o resumo da última execução: conferência,
+  auditoria e o código de saída).
+- **O resultado vem do log, não do Agendador.** O `conhost --headless` devolve sempre 0 ao Agendador,
+  qualquer que seja o código do `.bat` (medido em 24/09: `cmd /c exit 3` → 0). Por isso o `.bat` grava
+  `[inicio …]` e `[fim … - codigo N]` no log (0 = ok, 1 = erro, 2 = divergência na conferência) e o
+  `-Estado` lê dali. O "resultado" do Agendador só aparece quando ele nem conseguiu abrir o `.bat`.
 - O `.bat` passa a girar o log: acima de 5 MB vira `sincronizar-sharepoint.1.log`.
 
 Pré-requisito no PC: pasta da biblioteca com **"Sempre manter neste dispositivo"** (botão direito no
@@ -60,7 +66,7 @@ Explorer) — sem isso cada leitura de PDF novo espera o download do OneDrive.
 |---|---|---|
 | PC desligado, hibernado, Lucas deslogado | não roda; ao logar, roda e alcança tudo | nada a fazer |
 | OneDrive fechado, pausado ou deslogado | pasta local para no tempo; listagem pela metade → nada é apagado | abrir o OneDrive; conferir o ícone da bandeja |
-| Erro (internet, Neon, R2) | tenta de novo em 30 min | `agendador-sharepoint.ps1 -Estado` mostra o resultado e o fim do log |
+| Erro (internet, Neon, R2) | tenta de novo em 30 min | `agendador-sharepoint.ps1 -Estado` mostra `codigo 1` e a mensagem do erro |
 | Senha do banco ou chave do R2 trocada | toda execução falha | atualizar `.env.production.local` / `.env.local` no PC |
 | Pasta sem cliente, arquivo > 50 MB | fica de fora, listado no log | mapear em `scripts/sharepoint-clientes.json` |
 | Mudança de regra quebra a leitura | — | régua (`scripts/regua-sharepoint.ts`) + testes antes do deploy (CLAUDE.md) |
@@ -69,8 +75,8 @@ Explorer) — sem isso cada leitura de PDF novo espera o download do OneDrive.
 
 - **Automático:** a cada 30 min, nada a fazer.
 - **De vez em quando:** `powershell -ExecutionPolicy Bypass -File scripts\agendador-sharepoint.ps1 -Estado`
-  — resultado `0` e `TUDO NO VERAI` no fim do log = em dia. O mesmo log traz "Sem cliente" e a
-  auditoria das contas (valor a digitar, duplicados).
+  — `TUDO NO VERAI` e `codigo 0` na última execução = em dia. O resumo traz também "Sem cliente" e a
+  contagem da auditoria das contas; a lista inteira (valor a digitar, duplicados) fica no log.
 - **Trocou de PC:** clonar o repositório, `npm ci`, copiar os dois arquivos `.env`, sincronizar a
   biblioteca no OneDrive, `-Instalar` — e `-Remover` no PC antigo (duas máquinas ao mesmo tempo não
   têm trava entre si).
@@ -86,11 +92,18 @@ não é a sigla nem está mapeado. Convenção que mantém tudo no lugar:
 
 ## 7. Entrada em produção (ordem)
 
+O agendador **já está instalado e ligado, apontado para produção** (24/09/2026, a pedido do usuário). Até a
+migração de produção, cada execução para na checagem de migração pendente — a primeira coisa que ela faz
+no banco, só leitura — e o log registra `codigo 1`, sem gravar nada.
+
 1. Variáveis `R2_*` (4) na Vercel; pasta com "Sempre manter neste dispositivo".
-2. Deploy do código e `prisma migrate deploy`; `migrar-sharepoint-lugar-certo.ts` listagem → `--aplicar`
-   (Task 14 do plano lugar-certo, Steps 2–4).
+2. **Pausar a tarefa** (`Disable-ScheduledTask -TaskName 'VerAI - Sincronizar SharePoint'`): entre o
+   `migrate deploy` e o código novo no ar, uma execução automática poderia gravar `r2:` que o código antigo
+   não abre. Depois: `prisma migrate deploy`; `migrar-sharepoint-lugar-certo.ts` listagem → `--aplicar`;
+   deploy do código (Task 14 do plano lugar-certo, Steps 2–4).
 3. Primeira sincronização completa manual (Task 14 Step 5) → `TUDO NO VERAI`.
-4. `agendador-sharepoint.ps1 -Instalar` → depois de 30 min, `-Estado` com resultado `0`.
+4. Religar (`Enable-ScheduledTask -TaskName 'VerAI - Sincronizar SharePoint'`) → depois de 30 min,
+   `-Estado` com `TUDO NO VERAI` e `codigo 0`.
 5. Cada passo com o ok do usuário (mexe em produção ou em configuração persistente do Windows).
 
 ## 8. Fora do escopo

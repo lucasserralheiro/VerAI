@@ -23,6 +23,7 @@ import {
   ClipboardList,
   Inbox,
   BarChart3,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -73,6 +74,7 @@ const CONFIG_LINKS = [
   { href: '/admin/usuarios', label: 'Usuários', icon: UserCog },
   { href: '/admin/clientes', label: 'Gerenciar clientes', icon: Users },
   { href: '/admin/regras-notificacao', label: 'Regras de notificação', icon: BellRing },
+  { href: '/admin/assistente', label: 'Assistente de IA', icon: Sparkles },
 ]
 
 // Menu temporariamente simplificado: só "Relatórios" e "Proposta Comercial"

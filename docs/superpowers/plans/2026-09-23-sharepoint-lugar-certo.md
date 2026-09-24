@@ -8,6 +8,23 @@
 
 **Tech Stack:** Next.js 15 (App Router), TypeScript, Prisma 6/Postgres, Jest, Vercel Blob, `tsx` para scripts.
 
+## Andamento (24/09/2026)
+
+- ✅ Tasks 0–12 concluídas na `main` (b86fde9 base, b868ea7, 0aa53f0, 357dfe2, 44a9c81, 5a472b6, 67cb0db,
+  7445422, f624fc9, e93934d, 07aa23b, 92b8313, 565e452) + ajuste da migração 4e9931d.
+- ⏸ Task 13 parada no Step 2: o **Vercel Blob estourou o limite do plano Hobby (1 GB)** — 980 MB, dos
+  quais 849 MB são as cópias que o importador antigo gravou a partir do dev em 23/09; toda leitura pública
+  devolve 403 e toda gravação falha ("Storage quota exceeded for Hobby plan"). Feito em dev: migração dos
+  dados aplicada (SUB-ITP e SMIT TC 52 fundidos, idempotente) e listagem da sincronização com a amostra
+  (277 arquivos, 1 contrato novo, 17 linhas novas — aditivos que o importador antigo perdeu quando o Blob
+  lotou —, 218 PDFs ligados, 0 falhas). Gravação depende da decisão do usuário sobre o armazenamento.
+- Desvios do plano, descobertos na execução: (1) cópia de linha vinda do SharePoint não é baixada — a
+  sincronização religa ao original (`--incluir-sharepoint` para sobras); a trava só exige anexos à mão;
+  (2) fusão de linhas reconhece o PDF pelo nome da cópia e trata contrato inicial como único por contrato;
+  (3) Task 3 Step 7 (chave da lista de usos no painel) já estava feito em 13ac5f5.
+- Base já vinha com 19 suítes de teste falhando (maioria `el.showModal is not a function` no jsdom);
+  nenhuma falha nova. Lista em `falhas-base` da sessão; `sincronizar.test.ts` voltou a passar.
+
 ## Global Constraints
 
 - Spec manda: `docs/superpowers/specs/2026-09-23-sharepoint-lugar-certo-design.md`. Onde este plano e o spec divergirem, pare e pergunte.

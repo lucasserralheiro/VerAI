@@ -260,3 +260,22 @@ Script `scripts/migrar-sharepoint-lugar-certo.ts` (lista; `--aplicar` grava), id
   conferindo Documentos e Contratos.
 - Em dev, contra a pasta real: listagem, `--aplicar`, conferência com **zero divergência**, segunda
   execução sem nenhuma mudança (idempotência).
+
+## 10. Execução em dev (24/09/2026) — o que se descobriu
+
+- **Vercel Blob no limite do plano Hobby (1 GB).** 980 MB ocupados; 849 MB (`historico-contrato/`) são as
+  cópias de PDF que o importador antigo gravou a partir do dev em 23/09. Desde então toda leitura pública
+  devolve 403 e toda gravação falha com "Storage quota exceeded for Hobby plan (1GB maximum)". O mesmo
+  armazenamento (token de `.env.local`) é, muito provavelmente, o da produção. A biblioteca inteira
+  (1,15 GB) não cabe no Hobby nem com o armazenamento vazio: a primeira carga exige plano maior (ou outro
+  armazenamento) — decisão do usuário.
+- **O importador antigo parou no meio de 53 contratos** quando o Blob lotou: criou o contrato inicial e
+  perdeu os aditivos. A sincronização nova recupera (na amostra de 5 clientes: 17 linhas).
+- **Todas as 462 linhas com cópia vieram do SharePoint** (nenhuma anexada à mão). Por isso a migração
+  deixou de baixar essas cópias: a sincronização religa cada coluna ao arquivo original da biblioteca, e
+  as cópias viram lixo apagável (`--apagar-copias`, depois da sincronização). §6.3 fica valendo só para
+  anexo feito à mão.
+- **Fusão de duplicados**: além do mesmo PDF por referência, vale o mesmo nome de PDF da cópia (antes da
+  sincronização ainda não há referência), e contrato inicial é um só por contrato — duas linhas dele vindas
+  do SharePoint se fundem, salvo PDFs diferentes (vai pra revisão). Aplicado em dev: SUB-ITP (contrato e
+  linha) e SMIT TC 52.

@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { INPUT_BASE } from '@/lib/ui'
 import { CATEGORIAS, formatarTamanho, rotuloCategoria } from '@/lib/arquivos/tipos'
 import { formatarData } from '@/lib/relatorios-clientes/formatacao'
-import { competenciasDoArquivo, contratosDoArquivo, opcoesDeContrato, rotuloCompetencias, rotuloContratos } from './derivados'
+import { competenciasDoArquivo, contratosDoArquivo, foraDoSharepoint, opcoesDeContrato, rotuloCompetencias, rotuloContratos } from './derivados'
 import type { ArquivoRepositorio } from './tipos'
 
 function IconeArquivo({ extensao }: { extensao: string }) {
@@ -126,6 +126,11 @@ export function ListaArquivos({
                     >
                       <IconeArquivo extensao={a.extensao} />
                       <span className="truncate">{a.nome}</span>
+                      {foraDoSharepoint(a) && (
+                        <span className="shrink-0 rounded bg-light-grey px-1.5 py-0.5 text-[0.65rem] font-medium text-mid-grey">
+                          fora do SharePoint
+                        </span>
+                      )}
                     </button>
                   </td>
                   <td className="whitespace-nowrap">{rotuloCategoria(a.categoria)}</td>

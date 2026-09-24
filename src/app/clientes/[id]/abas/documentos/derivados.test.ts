@@ -1,6 +1,7 @@
 import {
   competenciasDoArquivo,
   contratosDoArquivo,
+  foraDoSharepoint,
   opcoesDeContrato,
   rotuloCompetencias,
   rotuloContratos,
@@ -43,5 +44,14 @@ describe('derivados dos usos', () => {
     const arquivos = [{ usos: [uso(k1, null), uso(k3, null)] }, { usos: [uso(k2, null), uso(k1, null)] }]
     expect(opcoesDeContrato(arquivos)).toEqual([k2, k1, k3])
     expect(rotuloContratos({ usos: [uso(k3, null)] })).toBe('(sem número)')
+  })
+})
+
+describe('foraDoSharepoint', () => {
+  const lugar = { tipo: 'sharepoint' as const, rotulo: 'SharePoint · SMS/a.pdf', href: '/clientes/c1', contrato: null, competencia: null, daSincronizacao: true }
+  it('veio do SharePoint e não está mais lá', () => {
+    expect(foraDoSharepoint({ origem: 'sharepoint', usos: [] })).toBe(true)
+    expect(foraDoSharepoint({ origem: 'sharepoint', usos: [lugar] })).toBe(false)
+    expect(foraDoSharepoint({ origem: 'upload', usos: [] })).toBe(false)
   })
 })

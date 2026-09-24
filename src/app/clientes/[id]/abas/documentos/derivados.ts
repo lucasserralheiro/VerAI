@@ -42,3 +42,9 @@ export function opcoesDeContrato(arquivos: ComUsos[]): ContratoDoUso[] {
     return a.numeroTermo.localeCompare(b.numeroTermo, 'pt-BR')
   })
 }
+
+/** Arquivo que veio do SharePoint e saiu de lá, mas ficou porque algo do VerAI ainda o usa
+ *  (spec docs/superpowers/specs/2026-09-23-sharepoint-lugar-certo-design.md §3.1). */
+export function foraDoSharepoint(arquivo: Pick<ArquivoRepositorio, 'origem' | 'usos'>): boolean {
+  return arquivo.origem === 'sharepoint' && !arquivo.usos.some((u) => u.tipo === 'sharepoint')
+}

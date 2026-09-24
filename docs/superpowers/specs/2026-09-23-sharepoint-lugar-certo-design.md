@@ -261,6 +261,34 @@ Script `scripts/migrar-sharepoint-lugar-certo.ts` (lista; `--aplicar` grava), id
 - Em dev, contra a pasta real: listagem, `--aplicar`, conferência com **zero divergência**, segunda
   execução sem nenhuma mudança (idempotência).
 
+## 11. Decisão de 24/09/2026 — os arquivos do SharePoint ficam no SharePoint (sem cópia)
+
+Com o Vercel Blob no limite (§10) e a biblioteca maior que o plano gratuito, o usuário escolheu, entre
+"copiar para um armazenamento gratuito de terceiro (Cloudflare R2 / Backblaze B2)" e "apontar para o
+SharePoint", **apontar para o SharePoint**. Onde conflitar com §3.1 e §3.4, vale isto:
+
+- A sincronização **não sobe** arquivo do SharePoint para o Blob: `ArquivoCliente` com `origem =
+  sharepoint` tem `urlBlob = null`. Hash, categoria, contrato/termo, dedup e conferência não mudam.
+- **Abrir/baixar** (`/api/arquivos/[id]`): arquivo sem blob redireciona (302) para o SharePoint —
+  `?modo=inline` → visualizador da biblioteca (`<biblioteca>/Forms/AllItems.aspx?id=<caminho>&parent=<pasta>`),
+  sem `modo` → arquivo direto com `?download=1`. O endereço é montado na hora a partir do caminho
+  **atual** em `ArquivoSharepoint` (arquivo movido/renomeado → link certo) e da variável
+  `SHAREPOINT_BIBLIOTECA_URL` (`https://cloudprodamazhotmail.sharepoint.com/sites/Prodam.DAF.GFP.Services/ContratosReceita`).
+  Sem caminho ativo (saiu do SharePoint): 410. O acesso continua registrado em `AcessoArquivo`.
+- **Quem abre precisa de leitura na biblioteca ContratosReceita** (login do próprio SharePoint). O VerAI
+  continua checando `podeVerCliente` antes de redirecionar.
+- **Telas**: arquivo só no SharePoint não tem pré-visualização dentro do VerAI (o SharePoint não deixa
+  ser embutido) — painel da aba Documentos e visualizador do histórico mostram "Abrir no SharePoint".
+- **Texto para busca/assistente**: a sincronização extrai o texto dos PDFs no PC (mesmo `textoDoPdf` do
+  importador) e grava em `ArquivoCliente.textoExtraido`; o índice do assistente usa esse texto quando o
+  arquivo não tem blob.
+- **Removido do SharePoint mas em uso no VerAI**: o registro fica, marcado "fora do SharePoint", mas o
+  conteúdo não está mais disponível (410) — não há cópia.
+- Uploads feitos na tela (aba Documentos, anexo manual do histórico) continuam no Blob.
+- As 849 MB de cópias antigas (`historico-contrato/` das linhas do SharePoint) viram lixo depois da
+  primeira sincronização: `migrar-sharepoint-lugar-certo.ts --apagar-copias --aplicar` (quem roda é o
+  usuário — exclusão permanente).
+
 ## 10. Execução em dev (24/09/2026) — o que se descobriu
 
 - **Vercel Blob no limite do plano Hobby (1 GB).** 980 MB ocupados; 849 MB (`historico-contrato/`) são as

@@ -4098,3 +4098,41 @@ Só com produção migrada (Task 14 Step 4 concluído). Remove o que ficou por c
 - [ ] **Step 3:** Apague `migracao-anexos.ts` e o teste; no script de migração, tire a etapa 1 e o `--apagar-copias`.
 - [ ] **Step 4:** `npx jest` e `npx tsc --noEmit -p .` limpos (só a base). `grep -rn "PdfUrl" src --include=*.ts --include=*.tsx` deve mostrar só os campos **calculados** (`anexosDaLinha`, `secao-historico.tsx`, `resumo-historico.ts`, fixtures de teste).
 - [ ] **Step 5:** Commit; aplicar a migração em produção com o usuário (`migrate deploy`) junto do próximo deploy.
+
+---
+
+## Parte 2 — arquivos do SharePoint ficam no SharePoint (decisão de 24/09/2026, spec §11)
+
+Substitui, para arquivos com `origem = sharepoint`, o "sobe para o Blob" das Tasks 3 e 9. Executar
+antes de retomar a Task 13. Mesmas Global Constraints.
+
+### Task 16: Arquivo sem blob e com texto extraído (modelo + registro)
+- Migração (carimbo > `20260924170000`): `ArquivoCliente.urlBlob` opcional; `ArquivoCliente.textoExtraido String? @db.Text`.
+- `registrarConteudo`: `dados.semBlob?: boolean` (não chama `gravarBlob`, grava `urlBlob: null`) e
+  `dados.textoExtraido?: string | null`. Teste: sem blob não sobe nada e grava `urlBlob: null`.
+- Compilar com `urlBlob` opcional: `src/app/api/arquivos/[id]/route.ts` (tratado na Task 17),
+  `src/lib/assistente/indexacao/fontes.ts` (Task 18).
+
+### Task 17: Abrir/baixar pelo SharePoint + telas
+- `src/lib/arquivos/sharepoint/link.ts` (puro): `linkSharepoint(base, caminho, modo: 'abrir' | 'baixar')`.
+  Teste com caminho com espaço, acento e "&".
+- `GET /api/arquivos/[id]`: sem `urlBlob` → caminho ativo em `ArquivoSharepoint` (ordem alfabética) →
+  `AcessoArquivo` + redirect 302; sem caminho → 410; sem `SHAREPOINT_BIBLIOTECA_URL` → 503. Testes.
+- `SELECAO_ANEXOS` seleciona `origem` dos arquivos; `anexosDaLinha` devolve `propostaSoNoSharepoint` /
+  `termoSoNoSharepoint`. `ModalPdf` (histórico) e `PainelArquivo` (Documentos): sem iframe para arquivo
+  só no SharePoint — botão "Abrir no SharePoint" (`/api/arquivos/[id]?modo=inline`, nova aba).
+- `.env.example` documenta `SHAREPOINT_BIBLIOTECA_URL`.
+
+### Task 18: Sincronização sem upload, com texto; índice do assistente
+- `sincronizarSharepoint`: `registrarConteudo(..., { semBlob: true, textoExtraido })`; opção
+  `extrairTexto?: (conteudo, nome) => Promise<string | null>` (script: `textoDoPdf` só para PDF; falha
+  vira `null`). Sai a opção `gravarBlob`. Testes ajustados (nenhum blob gravado, `urlBlob: null`, texto).
+- `fontes.ts`: arquivo sem blob entra com `textoPronto = textoExtraido` (sem texto → fica fora).
+
+### Task 19: Execução em dev
+- `SHAREPOINT_BIBLIOTECA_URL` no `.env.local`.
+- Sincronização: amostra (`--clientes=SMSUB,SMIT,SUB-ITP,SPURBANISMO,SMDHC`) listagem → `--aplicar` →
+  conferência "TUDO NO VERAI" → repetir (idempotência); depois a biblioteca inteira (não usa Blob).
+- Cenários numa cópia (Task 13 Step 4) e conferência na tela, incluindo abrir um PDF e um `.xlsx` pelo
+  link do SharePoint (o usuário confirma que abre).
+- Registrar números no spec §10.

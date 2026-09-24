@@ -64,8 +64,8 @@ sobre um arquivo do repositório fica fora de escopo (§5).
 |---|---|
 | `id` | UUID gerado pelo serviço (`randomUUID`) |
 | `clienteId` | obrigatório |
-| `contratoId?` | opcional |
-| `competenciaAno?`, `competenciaMes?` | opcionais, juntos ou nenhum |
+| `contratoId?` | **removido — §7.1** (vem dos usos) |
+| `competenciaAno?`, `competenciaMes?` | **removido — §7.1** (vem dos usos) |
 | `categoria` | enum `CategoriaArquivo` (abaixo), obrigatória |
 | `nome` | nome original do arquivo |
 | `extensao`, `contentType`, `tamanhoBytes` | |
@@ -263,6 +263,10 @@ aditivo no contrato A e estar no histórico do contrato B, sem cópia e sem regi
    `Documento`.
 
 Concluído em 24/09/2026 (migração 20260924140000_arquivo_cliente_sem_contrato_competencia).
+A migração descarta de vez a classificação por contrato/competência gravada no arquivo; no banco
+local havia 0 arquivos (`0|0|0` — com contrato | com competência | total) e a Fase 1 não foi para
+produção, então nada se perdeu. Em qualquer banco onde a Fase 1 tenha rodado com uso real, contar
+antes de aplicar.
 
 ### 7.4 Fases 2 e 3 com a decisão
 

@@ -18,7 +18,7 @@ function termo(t: Partial<TermoLido> & Pick<TermoLido, 'pasta'>): TermoLido {
 }
 
 function contrato(termos: TermoLido[], extra: Partial<ContratoLido> = {}): ContratoLido {
-  return { chave: 'SMSUB|211 2022', pastaCliente: 'SMSUB', numeroTermo: 'TC 211/2022', descricao: 'Acesso à Rede', finalizado: false, pastas: [], termos, ...extra }
+  return { chave: 'SMSUB|211 2022', pastaCliente: 'SMSUB', numeroTermo: 'TC 211/2022', descricao: 'Acesso à Rede', finalizado: false, tambemEmFinalizados: false, pastas: [], termos, ...extra }
 }
 
 type Estado = { contrato?: unknown; linhas?: unknown[] }
@@ -105,4 +105,25 @@ it('marcadores da própria importação ("TA XX", "Em elaboração") são trocad
   await importarContratos(banco as unknown as PrismaClient, { aplicar: true, contratos: [contrato([ta])], clientes, arquivoIdPorCaminho: new Map() })
   const data = (banco.historicoContrato.update as jest.Mock).mock.calls[0][0].data
   expect(data).toMatchObject({ numero: 'TA 03', situacao: null })
+})
+
+it('"Finalizado" gravado pela importação sai quando o contrato tem pasta ativa no SharePoint (com aviso)', async () => {
+  const banco = db({ contrato: { id: 'k1', chaveSharepoint: 'SMSUB|211 2022', situacao: 'Finalizado', legacyId: null }, linhas: [linhaDb({})] })
+  const r = await importarContratos(banco as unknown as PrismaClient, { aplicar: true, contratos: [contrato([termoInicial])], clientes, arquivoIdPorCaminho: arquivos })
+  expect((banco.contrato.update as jest.Mock).mock.calls[0][0].data).toMatchObject({ situacao: null })
+  expect(r.avisos.join('\n')).toMatch(/pasta ativa/)
+})
+
+it('"Finalizado" de contrato do legado (GRC-1) não é mexido — só aviso', async () => {
+  const banco = db({ contrato: { id: 'k1', chaveSharepoint: 'SMSUB|211 2022', situacao: 'Finalizado', legacyId: 77 }, linhas: [linhaDb({})] })
+  const r = await importarContratos(banco as unknown as PrismaClient, { aplicar: true, contratos: [contrato([termoInicial])], clientes, arquivoIdPorCaminho: arquivos })
+  const dados = (banco.contrato.update as jest.Mock).mock.calls.map((c) => c[0].data)
+  expect(dados.every((d) => !('situacao' in d))).toBe(true)
+  expect(r.avisos.join('\n')).toMatch(/pasta ativa/)
+})
+
+it('contrato que aparece em ativos e em finalizados gera aviso pra arrumar a pasta', async () => {
+  const banco = db()
+  const r = await importarContratos(banco as unknown as PrismaClient, { aplicar: true, contratos: [contrato([termoInicial], { tambemEmFinalizados: true })], clientes, arquivoIdPorCaminho: arquivos })
+  expect(r.avisos.join('\n')).toMatch(/também aparece em "Contratos Finalizados"/)
 })

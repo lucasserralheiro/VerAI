@@ -42,7 +42,10 @@ export interface ContratoPasta {
   /** "TC 073/2019" — pela pasta; o importador prefere o número impresso no termo, se houver. */
   numeroTermo: string
   descricao: string | null
+  /** TODAS as pastas do contrato estão em "Contratos Finalizados". Com qualquer pasta ativa, é ativo. */
   finalizado: boolean
+  /** Tem pasta ativa E aparece também em "Contratos Finalizados" (cópia arquivada) — aviso pra arrumar. */
+  tambemEmFinalizados: boolean
   pastas: string[]
   termos: TermoPasta[]
 }
@@ -140,6 +143,7 @@ function escolherTermo(candidatos: string[]): string | null {
 export function montarEstrutura(caminhos: string[], siglaDaPastaCliente: (pasta: string) => string = normalizarChave): ContratoPasta[] {
   const contratos = new Map<string, ContratoPasta>()
   const arquivosPorTermo = new Map<string, string[]>()
+  const presencaPorContrato = new Map<string, { emFinalizados: boolean; emAtivos: boolean }>()
 
   for (const caminho of caminhos) {
     const segmentos = caminho.split('/')
@@ -178,13 +182,19 @@ export function montarEstrutura(caminhos: string[], siglaDaPastaCliente: (pasta:
         pastaCliente,
         numeroTermo: numeroTermoDe(ehPastaDeContrato ? pastaContrato : pastaTermo ?? pastaContrato) ?? `TC ${chave.numero}/${chave.ano}`,
         descricao: ehPastaDeContrato ? descricaoDe(pastaContrato) : null,
-        finalizado,
+        finalizado: false,
+        tambemEmFinalizados: false,
         pastas: [],
         termos: [],
       }
       contratos.set(chaveContrato, contrato)
     }
-    contrato.finalizado ||= finalizado
+    // Resolvido no fim: finalizado só se NENHUM arquivo do contrato estiver fora de "Contratos Finalizados"
+    // (SMIT TC 52/2024 tem cópia arquivada dentro de outro contrato finalizado e pasta própria ativa).
+    const presenca = presencaPorContrato.get(chaveContrato) ?? { emFinalizados: false, emAtivos: false }
+    if (finalizado) presenca.emFinalizados = true
+    else presenca.emAtivos = true
+    presencaPorContrato.set(chaveContrato, presenca)
     if (!contrato.descricao && ehPastaDeContrato) contrato.descricao = descricaoDe(pastaContrato)
     const caminhoPastaContrato = [pastaCliente, ...pastasAll.slice(0, pastasAll.indexOf(pastaContrato) + 1)].join('/')
     if (ehPastaDeContrato && !contrato.pastas.includes(caminhoPastaContrato)) contrato.pastas.push(caminhoPastaContrato)
@@ -202,6 +212,9 @@ export function montarEstrutura(caminhos: string[], siglaDaPastaCliente: (pasta:
   }
 
   for (const contrato of contratos.values()) {
+    const presenca = presencaPorContrato.get(contrato.chave)
+    contrato.finalizado = !!presenca?.emFinalizados && !presenca.emAtivos
+    contrato.tambemEmFinalizados = !!presenca?.emFinalizados && !!presenca.emAtivos
     for (const termo of contrato.termos) {
       const arquivos = arquivosPorTermo.get(termo.chave) ?? []
       const nome = (c: string) => c.split('/').pop()!

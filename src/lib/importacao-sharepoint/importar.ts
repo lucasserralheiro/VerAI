@@ -185,12 +185,26 @@ async function importarContrato(prisma: Db, contrato: ContratoLido, clienteId: s
     }
   }
 
+  if (contrato.tambemEmFinalizados) {
+    r.avisos.push(`${contrato.chave}: tem pasta ativa e também aparece em "Contratos Finalizados" — tratado como ativo; arrume a pasta no SharePoint`)
+  }
+
   let contratoId: string
   if (existente) {
     if (contrato.finalizado && existente.situacao && !/finaliz|encerr|rescind/i.test(existente.situacao)) {
       r.avisos.push(`${contrato.chave}: está em "Contratos Finalizados" no SharePoint, mas a situação no VerAI é "${existente.situacao}" — mantida`)
     }
-    const completar = soOsVazios(existente, dadosContrato)
+    const completar: Record<string, unknown> = soOsVazios(existente, dadosContrato)
+    // "Finalizado" é o que a própria importação grava pela pasta: com pasta ativa, deixa de valer — mas só
+    // em contrato que nasceu da importação (o do legado GRC-1 pode ter sido encerrado de verdade).
+    if (!contrato.finalizado && existente.situacao === 'Finalizado') {
+      if (existente.legacyId === null) {
+        completar.situacao = null
+        r.avisos.push(`${contrato.chave}: estava "Finalizado", mas tem pasta ativa no SharePoint — situação limpa (volta a contar como ativo)`)
+      } else {
+        r.avisos.push(`${contrato.chave}: tem pasta ativa no SharePoint, mas a situação no VerAI (legado) é "Finalizado" — mantida, revise`)
+      }
+    }
     if (Object.keys(completar).length > 0 || !existente.chaveSharepoint) {
       r.contratosCompletados++
       if (ctx.aplicar) await prisma.contrato.update({ where: { id: existente.id }, data: { ...completar, chaveSharepoint: contrato.chave } })

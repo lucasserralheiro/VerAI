@@ -92,3 +92,21 @@ describe('montarEstrutura — chave pela sigla do cliente', () => {
     expect(e[0].termos).toHaveLength(2)
   })
 })
+
+describe('montarEstrutura — finalizado só quando TODAS as pastas estão em "Contratos Finalizados"', () => {
+  const e = montarEstrutura([
+    // SMIT TC 52/2024: cópia do contrato inicial arquivada dentro do aditivo de outro contrato finalizado…
+    'SMIT/Contratos Finalizados/TC 12-SMIT-2023 - Infra/2) TC 12-SMIT-2023 - TA XX - Redução/1) TC 52-SMIT-2024 - Contrato Inicial/TC 52-SMIT-2024.pdf',
+    // …e a pasta própria, ativa, com as prorrogações.
+    'SMIT/TC 52-SMIT-2024 - Infra/1) TC 52-SMIT-2024 - Contrato inicial/TC 52-SMIT-2024.pdf',
+    'SMIT/TC 52-SMIT-2024 - Infra/2) TC 52-SMIT-2024 - TA 01 - Prorrogação 12 meses/TA 01.pdf',
+    'SMIT/Contratos Finalizados/TC 13-SMIT-2024 - Descomplica/TC 13-SMIT-2024 - Contrato Inicial/TC 13.pdf',
+  ])
+  const porChave = Object.fromEntries(e.map((c) => [c.chave, c]))
+  it('com pasta ativa não é finalizado, e fica marcado que também aparece em finalizados', () => {
+    expect(porChave['SMIT|52 2024']).toMatchObject({ finalizado: false, tambemEmFinalizados: true })
+  })
+  it('só em finalizados continua finalizado', () => {
+    expect(porChave['SMIT|13 2024']).toMatchObject({ finalizado: true, tambemEmFinalizados: false })
+  })
+})

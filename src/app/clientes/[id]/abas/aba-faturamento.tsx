@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { fetchComPreCarga } from '@/lib/relatorios-clientes/prefetch'
 import Link from 'next/link'
 import { AlertCircle, FileText, Loader2, Plus, Receipt, Search, Trash2, Upload, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -68,7 +69,7 @@ export function AbaFaturamento({ clienteId }: { clienteId: string }) {
   async function carregar() {
     const query = new URLSearchParams(Object.entries(filtros).filter(([, valor]) => valor)).toString()
     try {
-      const response = await fetch(`/api/clientes/${clienteId}/faturamentos${query ? `?${query}` : ''}`)
+      const response = await fetchComPreCarga(`/api/clientes/${clienteId}/faturamentos${query ? `?${query}` : ''}`)
       if (!response.ok) {
         const body = await response.json().catch(() => null)
         setErro(body?.error ?? 'Falha ao carregar faturamentos.')

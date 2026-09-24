@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { podeVerCliente } from '@/lib/visibilidade'
 import { exigirAcessoCliente } from '@/lib/relatorios-clientes/acesso'
+import { excluirCliente } from '@/lib/relatorios-clientes/excluir-cliente'
 import { lerCorpo, textoObrigatorio, textoOpcional } from '@/lib/relatorios-clientes/validacao'
 
 const SELECAO_CLIENTE = { id: true, nome: true, siglaLegado: true, endereco: true, numero: true, bairro: true } as const
@@ -63,42 +64,23 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { clienteId } = await params
   const acesso = await exigirAcessoCliente(request, clienteId)
   if ('erro' in acesso) return acesso.erro
+  // Excluir cliente apaga contratos, faturamento, demandas e arquivos: só admin — a mesma regra de
+  // "Gerenciar clientes" (criar cliente também é só admin).
+  if (acesso.usuario.role !== 'admin') {
+    return NextResponse.json({ error: 'Só administrador pode excluir cliente.' }, { status: 403 })
+  }
 
   try {
-    // Nenhuma relação do Cliente tem `onDelete: Cascade`, então excluir de verdade significa apagar
-    // a árvore inteira de baixo pra cima, numa transação só (ou some tudo, ou nada). É destrutivo
-    // e irreversível — a confirmação fica por conta da tela. Arquivos já enviados ao storage
-    // (uploads, PDFs de relatório em cache) não são removidos daqui.
-    const doCliente = { clienteId }
-    await prisma.$transaction([
-      prisma.notaFiscal.deleteMany({ where: { faturamento: doCliente } }),
-      prisma.faturamento.deleteMany({ where: doCliente }),
-      prisma.historicoContrato.deleteMany({ where: { contrato: doCliente } }),
-      prisma.itemContrato.deleteMany({ where: { contrato: doCliente } }),
-      prisma.termoConfirmacao.deleteMany({ where: doCliente }),
-      prisma.contrato.deleteMany({ where: doCliente }),
-      prisma.tramiteDemanda.deleteMany({ where: { demanda: doCliente } }),
-      prisma.demanda.deleteMany({ where: doCliente }),
-      prisma.solicitacao.deleteMany({ where: doCliente }),
-      prisma.notificacao.deleteMany({ where: { documento: doCliente } }),
-      prisma.acessoDocumento.deleteMany({ where: { documento: doCliente } }),
-      prisma.analise.deleteMany({ where: { documento: doCliente } }),
-      prisma.analiseConsolidada.deleteMany({ where: doCliente }),
-      prisma.documento.deleteMany({ where: doCliente }),
-      prisma.analiseEvolucao.deleteMany({ where: doCliente }),
-      prisma.responsavelCliente.deleteMany({ where: doCliente }),
-      prisma.cliente.delete({ where: { id: clienteId } }),
-    ])
+    // Regra única (excluir-cliente.ts): a mesma de /api/admin/clientes/[id]. Destrutivo e
+    // irreversível — a confirmação fica por conta da tela.
+    await excluirCliente(clienteId)
     return NextResponse.json({ ok: true })
   } catch (error) {
-    // P2025: sumiu entre a leitura e a escrita → 404. P2003: FK travada — documentos, contratos,
-    // faturamentos, demandas etc. (relação obrigatória, sem cascade) → 409 com mensagem específica,
-    // em vez de deixar estourar 500 por um cliente que ainda tem dado vinculado.
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2025') return NextResponse.json({ error: 'cliente não encontrado' }, { status: 404 })
       if (error.code === 'P2003') {
         return NextResponse.json(
-          { error: 'Não é possível excluir: há documentos, contratos, faturamentos ou outros dados vinculados a este cliente.' },
+          { error: 'Não é possível excluir: ainda há dados vinculados a este cliente.' },
           { status: 409 }
         )
       }

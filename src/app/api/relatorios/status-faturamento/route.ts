@@ -4,6 +4,7 @@ import { clientesVisiveisWhere } from '@/lib/visibilidade'
 import { exigirUsuario } from '@/lib/relatorios-clientes/acesso'
 import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
 import { ANO, MES, resumoDasNotas } from '@/app/api/faturamentos/esquema'
+import { faturamentoCancelado } from '@/lib/relatorios-clientes/situacao-faturamento'
 
 /** `?ano=&mes=` (obrigatórios): para cada contrato ativo — ou que tenha faturamento na competência —
  *  os faturamentos daquele mês, com valor (o do faturamento ou a soma das notas) e envio
@@ -55,6 +56,8 @@ export async function GET(request: NextRequest) {
         ...faturamento,
         valorExibido: valor?.toString() ?? resumos.get(faturamento.id)?.valorNotas ?? '0',
         semNota: valor === null && !resumos.has(faturamento.id),
+        // Cancelado aparece (é histórico), mas não conta como "faturado" (situacao-faturamento.ts).
+        cancelado: faturamentoCancelado(faturamento.situacao),
       })),
     }))
   )

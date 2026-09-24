@@ -10,7 +10,8 @@ import { aoMudarDados } from '@/lib/relatorios-clientes/atualizacao-dados'
 interface Indicadores {
   contratosAtivos: number
   vencendoEm30Dias: number
-  /** Ativos (situação "Ativo") cuja vigência já passou — alerta de renovação, não saem da soma. */
+  /** Ativos (situação "Ativo") cuja vigência já passou sem prorrogação: aviso de cadastro
+   *  desatualizado — continuam ativos e na soma (decisão do usuário, 23/09/2026). */
   vencidos?: number
   valorContratado: string
   contratosSemValor?: number
@@ -61,7 +62,7 @@ export function IndicadoresCliente({ clienteId }: { clienteId: string }) {
       <Cartao
         rotulo="Contratos ativos"
         valor={String(indicadores.contratosAtivos)}
-        detalhe={`${indicadores.vencendoEm30Dias} vencendo em 30 dias${(indicadores.vencidos ?? 0) > 0 ? ` · ${indicadores.vencidos} com vigência vencida` : ''}`}
+        detalhe={`${indicadores.vencendoEm30Dias} vencendo em 30 dias${(indicadores.vencidos ?? 0) > 0 ? ` · ${indicadores.vencidos} com situação desatualizada (prazo vencido) — confira o cadastro` : ''}`}
       />
       <Cartao
         rotulo="Valor contratado"

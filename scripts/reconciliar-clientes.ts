@@ -66,7 +66,7 @@ async function detalhe() {
           numeroTermo: true,
           situacao: true,
           dataVencimento: true,
-          historico: { select: { tipo: true, valor: true, data: true, dataVencimento: true } },
+          historico: { select: { tipo: true, valor: true, data: true, situacao: true, dataVencimento: true } },
           _count: { select: { itens: true } },
         },
       },
@@ -153,7 +153,7 @@ async function integridade(aplicar: boolean) {
       dataInicio: true,
       dataVencimento: true,
       cliente: { select: { siglaLegado: true } },
-      historico: { select: { tipo: true, valor: true, dataVencimento: true } },
+      historico: { select: { tipo: true, valor: true, data: true, situacao: true, dataVencimento: true } },
       _count: { select: { itens: true, faturamentos: true } },
     },
   })
@@ -197,7 +197,10 @@ async function integridade(aplicar: boolean) {
   for (const c of conflitos) console.log(`     -> ${c.cliente.siglaLegado ?? '—'} ${c.numeroTermo ?? '(sem nº)'} situação=${c.situacao}`)
   linha('contratos sem número do termo (fora as linhas vazias acima)', contratos.filter((c) => !c.numeroTermo?.trim() && !vazios.includes(c)).length)
   linha('contratos sem data de vencimento', contratos.filter((c) => !c.dataVencimento).length)
-  linha('contratos sem nenhum valor no histórico e sem itens (ver --detalhe)', contratos.filter((c) => !c.historico.some((h) => h.valor !== null && Number(h.valor) > 0)).length)
+  linha(
+    'contratos sem nenhum valor no histórico e sem itens (ver --detalhe)',
+    contratos.filter((c) => c._count.itens === 0 && !c.historico.some((h) => h.valor !== null && Number(h.valor) > 0)).length
+  )
   const porChave = new Map<string, string[]>()
   for (const c of contratos) {
     const k = chaveExata(c.numeroTermo)

@@ -10,6 +10,7 @@ import {
   ROTULOS_FATURAMENTO,
   SELECT_FATURAMENTO,
   esquemaNovoFaturamento,
+  principalRepetido,
   resumoDasNotas,
   serializarFaturamento,
 } from '@/app/api/faturamentos/esquema'
@@ -73,6 +74,9 @@ export async function POST(request: NextRequest, { params }: Contexto) {
 
   const contratoInvalido = await contratoForaDoCliente(corpo.dados.contratoId, clienteId)
   if (contratoInvalido) return contratoInvalido
+
+  const repetido = await principalRepetido(corpo.dados)
+  if (repetido) return repetido
 
   const faturamento = await prisma.faturamento.create({ data: { clienteId, ...corpo.dados }, select: SELECT_FATURAMENTO })
   return NextResponse.json(serializarFaturamento(faturamento), { status: 201 })

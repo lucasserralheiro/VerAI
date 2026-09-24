@@ -13,12 +13,12 @@ describe('numeroPtBr', () => {
   it.each([
     ['R$ 1.234,56', '1234.56'],
     ['1234.5', '1234.5'],
-    ['1.234', '1234'],
+    ['1.234.567', '1234567'],
     ['10,5', '10.5'],
     ['0', '0'],
   ])('%s → %s', (entrada, esperado) => expect(numeroPtBr(entrada)).toBe(esperado))
 
-  it.each(['abc', '', '1,2,3', 'R$'])('%p não é número', (entrada) => expect(numeroPtBr(entrada)).toBeNull())
+  it.each(['abc', '', '1,2,3', 'R$', '1.234', '0.125', '-5'])('%p não é número', (entrada) => expect(numeroPtBr(entrada)).toBeNull())
 })
 
 describe('lerPlanilhaItens', () => {

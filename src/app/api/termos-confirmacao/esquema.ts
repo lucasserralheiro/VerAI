@@ -4,6 +4,7 @@ import { dataOpcional, decimalOpcional, textoObrigatorio, textoOpcional } from '
 
 const camposTermo = {
   contratoId: textoOpcional,
+  contratoOperacionalizacaoId: textoOpcional,
   numero: textoOpcional,
   valor: decimalOpcional,
   vigenciaInicio: dataOpcional,
@@ -30,6 +31,7 @@ export const ROTULOS_TERMO = {
   fornecedorId: 'Fornecedor',
   clienteId: 'Cliente',
   contratoId: 'Contrato',
+  contratoOperacionalizacaoId: 'CO',
   valor: 'Valor',
   vigenciaInicio: 'Início da vigência',
   vigenciaFim: 'Fim da vigência',
@@ -40,6 +42,7 @@ export const SELECT_TERMO = {
   fornecedorId: true,
   clienteId: true,
   contratoId: true,
+  contratoOperacionalizacaoId: true,
   numero: true,
   valor: true,
   vigenciaInicio: true,
@@ -49,6 +52,7 @@ export const SELECT_TERMO = {
   fornecedor: { select: { id: true, razaoSocial: true } },
   cliente: { select: { id: true, nome: true, siglaLegado: true } },
   contrato: { select: { id: true, numeroTermo: true } },
+  contratoOperacionalizacao: { select: { id: true, numero: true } },
 } satisfies Prisma.TermoConfirmacaoSelect
 
 type TermoSelecionado = Prisma.TermoConfirmacaoGetPayload<{ select: typeof SELECT_TERMO }>

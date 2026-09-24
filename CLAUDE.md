@@ -120,10 +120,14 @@ está escrito ali.
 cliente (cartões), aba Contratos, detalhe do contrato, relatórios de vencimento, valor total e status
 de faturamento chamam `consolidarContratos()` — nenhuma rota recalcula "ativo", vencimento, valor ou
 saldo por conta própria (foi isso que fazia as telas divergirem). A regra: fim de vigência = maior
-vencimento entre o cabeçalho e o histórico (`vigenciaEfetiva` em `regras.ts`); ativo = não rescindido +
-situação sem encerramento + vigência que não passou; valor contratado = valor atual do histórico,
-senão soma dos itens, senão `null` (fora das somas, as telas avisam); saldo e % faturado usam essa
-mesma base. Rota nova que mostra contrato **usa o consolidado**, não `contratoAtivo`/`saldosDosContratos` direto.
+vencimento entre o cabeçalho e as linhas do histórico **assinadas** (`vigenciaEfetiva`/`linhaAssinada`
+em `regras.ts` — aditivo/prorrogação sem "Assinada em" nem situação assinada não estende; vira o aviso
+`prorrogacaoEmAndamento`); ativo = não rescindido + situação sem encerramento + (situação "Ativo" OU
+vigência que não passou) — "Ativo" com prazo vencido segue ativo com o aviso `situacaoDesatualizada`;
+valor contratado = valor do último termo assinado do histórico (nunca rescisão nem prospecção), senão
+soma dos itens, senão `null` (fora das somas, as telas avisam); saldo e % faturado usam essa mesma base,
+e faturamento **Cancelado** não entra no faturado (`situacao-faturamento.ts`). Um lançamento
+**principal** por contrato + competência; complementar à parte. Rota nova que mostra contrato **usa o consolidado**, não `contratoAtivo`/`saldosDosContratos` direto.
 
 **Item de contrato nunca fica solto de propósito.** `vincularItensOrfaos()` (`vincular-itens.ts`) liga
 por casamento tolerante (caixa, acento, zero à esquerda, SEI, nº do histórico) e só quando é único; roda
@@ -133,7 +137,8 @@ scripts/reconciliar-clientes.ts [--aplicar] [--detalhe] [--integridade]` lista/c
 **SEI sempre pelo componente `SeiLink`** (`src/components/relatorios-clientes/sei-link.tsx`): número
 com máscara, clicável em qualquer tela (abre o processo se houver link cadastrado ou o modelo
 `NEXT_PUBLIC_SEI_URL_TEMPLATE`; senão o clique copia o número). Nunca renderizar `contrato.sei…` como
-texto puro. Formatação/URL em `src/lib/relatorios-clientes/sei.ts`.
+texto puro. Link é **por número** (tabela `LinkSei`): `Contrato.linkSei` do legado é o do SEI do
+cliente e foi migrado pra lá (migração `20260924130000`) — não passar `link={contrato.linkSei}` pro SEI PRODAM. Formatação/URL em `src/lib/relatorios-clientes/sei.ts`.
 
 ## Repositório de documentos do cliente
 
@@ -157,3 +162,37 @@ Toda migração gerada daqui em diante deve ser conferida — se aparecer `DROP 
 "ArquivoCliente_clienteId_sha256_ativo_key"`, remova a linha (o índice é único parcial, criado à mão
 em `20260924100000_repositorio_arquivos_cliente`).
 
+## Sincronização com o SharePoint (ContratosReceita)
+
+Os termos de contrato do financeiro entram no `ArquivoCliente` (origem `sharepoint`) por
+`scripts/sincronizar-sharepoint.ts`, lendo a biblioteca sincronizada pelo OneDrive no PC do Lucas e
+rodando pelo Agendador de Tarefas (`scripts/sincronizar-sharepoint.bat`). Estado por caminho em
+`ArquivoSharepoint`; regras em `src/lib/arquivos/sharepoint/`. Pasta de cliente casa só por
+`siglaLegado` ou pelo mapa `scripts/sharepoint-clientes.json` — nunca cria cliente. Remoção só lógica,
+só de arquivo `sharepoint`, e só sem uso. Spec:
+`docs/superpowers/specs/2026-09-24-sincronizacao-sharepoint-contratos-design.md`.
+
+A mesma biblioteca alimenta o **fluxo de cliente** por `scripts/importar-sharepoint-contratos.ts`
+(`src/lib/importacao-sharepoint/`): cria cliente que falta (nome oficial em
+`scripts/sharepoint-clientes.json` → `nomes`), contrato e linhas do histórico com SEI, datas, vigência e
+valor lidos do PDF do termo, e anexa PDF de termo/proposta. Identidade por `chaveSharepoint` (Contrato e
+HistoricoContrato); **só preenche campo vazio**, nunca sobrescreve. Spec §8.
+
+## Consistência de números e vínculos (varredura de 23/09/2026)
+
+- **Uma regra só pra ler valor digitado**: `src/lib/relatorios-clientes/numero.ts`
+  (`normalizarDecimal`). Tela (validação das rotas), planilha de itens e importador do GRC-1 usam a
+  mesma — "1.500" é ambíguo e é recusado em todo lugar; célula numérica do Excel entra como número.
+  Não escrever parser de valor novo.
+- **Reimportar o GRC-1 não sobrescreve** o que já existe (valor digitado, item vinculado à mão,
+  demanda trocada de cliente...). `--sobrescrever` força a origem por cima de tudo — só de propósito.
+- **Item do legado nunca vai pra contrato de outro cliente**, nem no vínculo manual
+  (`PATCH /api/itens-contrato/[id]` recusa; a busca `?contratoId=` só lista os do cliente).
+- **Contrato com itens ou termos não é excluído** (409), nem CO com termos — a FK deles é `SET NULL` e
+  soltaria tudo em silêncio. Nº do termo repetido no mesmo cliente (chave tolerante) é recusado.
+- **Excluir cliente tem UMA regra** (`src/lib/relatorios-clientes/excluir-cliente.ts`), só admin, usada
+  pela ficha e por "Gerenciar clientes". Model novo ligado a cliente entra lá (e no mesclar).
+- **Arquivo do repositório não guarda contrato nem competência** e pode servir a vários contratos
+  (decisão do usuário, 23/09) — quem diz contrato/competência é quem usa o arquivo. Ver §7 de
+  `docs/superpowers/specs/2026-09-23-repositorio-documentos-cliente-design.md`.
+- Achados ainda abertos e a ordem de correção: `docs/superpowers/plans/2026-09-23-consistencia-contratos.md`.

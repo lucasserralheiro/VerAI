@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { contratoAtivo, contratoVazio, vigenciaEfetiva } from './regras'
+import { contratoAtivo, contratoVazio, prorrogacaoEmAndamento, situacaoDizAtivo, vigenciaEfetiva } from './regras'
 import { calcularSaldo, type Saldo } from './saldo'
 import { saldosDosContratos } from './saldos-contratos'
 import { baseDoContrato } from './valor-contratado'
@@ -14,12 +14,12 @@ import { situacaoVencimento, type SituacaoVencimento } from './vencimento'
  *
  * Regras (as mesmas em todo lugar):
  *  - Vigência efetiva = a MAIOR data de vencimento entre o cabeçalho do contrato e as linhas do
- *    histórico (aditivo/prorrogação estendem o prazo; o cabeçalho do legado quase nunca é
- *    atualizado). Prospecção (proposta não assinada) e rescisão não estendem nada.
+ *    histórico (aditivo/prorrogação ASSINADOS estendem o prazo; o cabeçalho do legado quase nunca é
+ *    atualizado). Prospecção, rescisão e aditivo/prorrogação sem assinatura não estendem nada.
  *  - Ativo = não é linha vazia, não foi rescindido (linha RESCISAO no histórico) e passa em
  *    `contratoAtivo`: situação "Ativo" vale mesmo com data vencida (a data vira alerta); sem
  *    situação, a vigência efetiva decide.
- *  - Valor contratado = valor atual do histórico; sem ele, a soma dos itens vinculados; sem
+ *  - Valor contratado = valor do último termo assinado do histórico (nunca rescisão nem prospecção); sem ele, a soma dos itens vinculados; sem
  *    nenhum dos dois, `null` (o contrato fica fora das somas e as telas avisam).
  *  - Saldo/% faturado usam SEMPRE essa mesma base, nunca só os itens.
  */
@@ -34,6 +34,14 @@ export interface ContratoConsolidado {
   /** Linha vazia do legado (ver `contratoVazio`): não conta como contrato. */
   vazio: boolean
   ativo: boolean
+  /**
+   * Aviso de UX, não regra: a situação diz "Ativo" mas a vigência efetiva já passou (sem prorrogação
+   * no histórico). O contrato CONTINUA ativo — decisão do usuário (23/09/2026): não encerra sozinho,
+   * a tela mostra "situação desatualizada — confira o cadastro" pra quem mantém o cadastro decidir.
+   */
+  situacaoDesatualizada: boolean
+  /** Aviso: há aditivo/prorrogação ainda sem assinatura que estenderia o prazo — não conta até assinar. */
+  prorrogacaoEmAndamento: boolean
   resumoHistorico: ResumoHistorico
   /** Base do valor contratado (string decimal) ou `null` quando o contrato não tem valor nenhum. */
   valorBase: string | null
@@ -59,12 +67,16 @@ export function consolidarContrato(
   const rescindido = linhas.some((linha) => linha.tipo === 'RESCISAO')
   const resumoHistorico = resumirHistorico(linhas)
   const valorBase = baseDoContrato(resumoHistorico.valorAtual?.valor ?? null, saldoDosItens.valorItens)
+  const vencimento = situacaoVencimento(vigenciaFim, hoje)
+  const ativo = !vazio && !rescindido && contratoAtivo({ situacao: contrato.situacao, dataVencimento: vigenciaFim }, hoje)
   return {
     vigenciaFim,
-    vencimento: situacaoVencimento(vigenciaFim, hoje),
+    vencimento,
     rescindido,
     vazio,
-    ativo: !vazio && !rescindido && contratoAtivo({ situacao: contrato.situacao, dataVencimento: vigenciaFim }, hoje),
+    ativo,
+    situacaoDesatualizada: ativo && situacaoDizAtivo(contrato.situacao) && vencimento.nivel === 'vencido',
+    prorrogacaoEmAndamento: prorrogacaoEmAndamento(vigenciaFim, linhas),
     resumoHistorico,
     valorBase,
     saldo: calcularSaldo({ valorItens: valorBase, faturado: saldoDosItens.faturado }),
@@ -91,6 +103,7 @@ export async function consolidarContratos(
         numero: true,
         proposta: true,
         valor: true,
+        situacao: true,
         dataVencimento: true,
         propostaPdfUrl: true,
         propostaPdfNome: true,

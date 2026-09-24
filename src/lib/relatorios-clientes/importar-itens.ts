@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import { Readable } from 'stream'
 import { Prisma } from '@prisma/client'
+import { normalizarDecimal } from './numero'
 
 /**
  * Leitura de planilha (.xlsx ou .csv) de itens de contrato — determinística, sem IA.
@@ -64,19 +65,35 @@ function textoDaCelula(valor: ExcelJS.CellValue): string {
   return String(valor).trim()
 }
 
-/** "R$ 1.234,56" → "1234.56"; "1234.5" → "1234.5"; "1.234" → "1234". `null` quando não é número. */
+/** Texto de célula → decimal, pela MESMA regra da tela e do importador (`numero.ts`): "R$ 1.234,56" →
+ *  "1234.56"; "1.234" é ambíguo e é recusado. `null` quando não é número válido. */
 export function numeroPtBr(bruto: string): string | null {
-  let texto = bruto.replace(/R\$|\s/g, '')
-  if (texto === '') return null
-  if (texto.includes(',')) texto = texto.replace(/\./g, '').replace(',', '.')
-  else if (/^-?\d{1,3}(\.\d{3})+$/.test(texto)) texto = texto.replace(/\./g, '')
-  return /^-?\d+(\.\d+)?$/.test(texto) ? texto : null
+  if (!bruto.replace(/R\$|\s/gi, '')) return null
+  const lido = normalizarDecimal(bruto)
+  return 'valor' in lido ? lido.valor : null
+}
+
+/** Célula numérica do Excel vai direto (número JS nunca é ambíguo — `0.125` não pode virar 125);
+ *  texto passa pela regra única. */
+function lerNumeroDaCelula(valor: ExcelJS.CellValue): { valor: string } | { erro: string } | null {
+  if (valor === null || valor === undefined) return null
+  if (typeof valor === 'number') return normalizarDecimal(valor)
+  if (typeof valor === 'object' && !(valor instanceof Date) && 'result' in valor && typeof valor.result === 'number') {
+    return normalizarDecimal(valor.result)
+  }
+  const texto = textoDaCelula(valor)
+  if (!texto.replace(/R\$|\s/gi, '')) return null
+  return normalizarDecimal(texto)
 }
 
 async function carregarPlanilha(buffer: Buffer, nomeArquivo: string): Promise<ExcelJS.Worksheet> {
   const workbook = new ExcelJS.Workbook()
   if (/\.csv$/i.test(nomeArquivo)) {
-    return workbook.csv.read(Readable.from(buffer), { parserOptions: { delimiter: detectarSeparador(buffer) } })
+    // `map` identidade: sem ele o ExcelJS converte "1.500" em 1.5 antes de a regra única ver o texto.
+    return workbook.csv.read(Readable.from(buffer), {
+      parserOptions: { delimiter: detectarSeparador(buffer) },
+      map: (valor: string) => valor,
+    })
   }
   await workbook.xlsx.load(buffer as unknown as ArrayBuffer)
   const aba = workbook.worksheets[0]
@@ -122,10 +139,11 @@ export async function lerPlanilhaItens(buffer: Buffer, nomeArquivo: string): Pro
 
   const linhas: LinhaItemImportada[] = []
   const erros: ErroImportacao[] = []
-  const ler = (numeroLinha: number, coluna: Coluna): string => {
+  const bruta = (numeroLinha: number, coluna: Coluna): ExcelJS.CellValue => {
     const indice = colunas.get(coluna)
-    return indice ? textoDaCelula(aba.getRow(numeroLinha).getCell(indice).value) : ''
+    return indice ? aba.getRow(numeroLinha).getCell(indice).value : null
   }
+  const ler = (numeroLinha: number, coluna: Coluna): string => textoDaCelula(bruta(numeroLinha, coluna))
 
   for (let numeroLinha = 2; numeroLinha <= aba.rowCount; numeroLinha++) {
     const descricao = ler(numeroLinha, 'descricao')
@@ -145,11 +163,12 @@ export async function lerPlanilhaItens(buffer: Buffer, nomeArquivo: string): Pro
     let invalido = false
     for (const campo of ['quantidade', 'valorUnitario', 'valorTotal'] as const) {
       if (!bruto[campo]) continue
-      const numero = numeroPtBr(bruto[campo])
-      if (numero === null || numero.startsWith('-')) {
-        erros.push({ linha: numeroLinha, mensagem: `${ROTULO[campo]} inválido: "${bruto[campo]}"` })
+      const lido = lerNumeroDaCelula(bruta(numeroLinha, campo))
+      if (lido === null) continue
+      if ('erro' in lido) {
+        erros.push({ linha: numeroLinha, mensagem: `${ROTULO[campo]} "${bruto[campo]}": ${lido.erro}` })
         invalido = true
-      } else numeros[campo] = numero
+      } else numeros[campo] = lido.valor
     }
     if (invalido) continue
 

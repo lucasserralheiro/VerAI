@@ -1,43 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { buildDocumentoPrefix, deleteUploadPrefix } from '@/lib/storage'
+import { excluirCliente } from '@/lib/relatorios-clientes/excluir-cliente'
 
+/** "Gerenciar clientes" (admin — o middleware barra quem não é). Mesma exclusão da ficha do cliente
+ *  (`excluir-cliente.ts`); aqui só pede `?forcar=true` quando há dado vinculado, pra tela confirmar. */
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const forcar = request.nextUrl.searchParams.get('forcar') === 'true'
 
-  const documentos = await prisma.documento.findMany({
-    where: { clienteId: id },
-    select: { id: true, caminhoOriginal: true, createdAt: true },
+  const cliente = await prisma.cliente.findUnique({
+    where: { id },
+    select: { _count: { select: { documentos: true, contratos: true, faturamentos: true, demandas: true, arquivos: true } } },
   })
+  if (!cliente) return NextResponse.json({ error: 'cliente não encontrado' }, { status: 404 })
 
-  if (documentos.length > 0 && !forcar) {
+  const { documentos, contratos, faturamentos, demandas, arquivos } = cliente._count
+  const vinculados = [
+    documentos && `${documentos} documento(s)`,
+    contratos && `${contratos} contrato(s)`,
+    faturamentos && `${faturamentos} faturamento(s)`,
+    demandas && `${demandas} demanda(s)`,
+    arquivos && `${arquivos} arquivo(s)`,
+  ].filter(Boolean)
+  if (vinculados.length > 0 && !forcar) {
     return NextResponse.json(
-      {
-        error: `cliente tem ${documentos.length} documento(s) vinculado(s) — mescle com outro cliente, ou exclua com forcar=true`,
-      },
+      { error: `cliente tem ${vinculados.join(', ')} — mescle com outro cliente, ou exclua com forcar=true` },
       { status: 409 }
     )
   }
 
-  const documentoIds = documentos.map((d) => d.id)
-
-  await prisma.$transaction([
-    prisma.acessoDocumento.deleteMany({ where: { documentoId: { in: documentoIds } } }),
-    prisma.notificacao.deleteMany({ where: { documentoId: { in: documentoIds } } }),
-    prisma.analise.deleteMany({ where: { documentoId: { in: documentoIds } } }),
-    prisma.documento.deleteMany({ where: { id: { in: documentoIds } } }),
-    prisma.analiseConsolidada.deleteMany({ where: { clienteId: id } }),
-    prisma.analiseEvolucao.deleteMany({ where: { clienteId: id } }),
-    prisma.cliente.delete({ where: { id } }),
-  ])
-
-  // Apaga os blobs de cada documento no storage — best-effort, fora da transação
-  // (é IO externo, não de banco).
-  for (const documento of documentos) {
-    const prefixo = buildDocumentoPrefix(documento.id, documento.createdAt)
-    await deleteUploadPrefix(prefixo).catch(() => {})
+  try {
+    await excluirCliente(id)
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return NextResponse.json({ error: 'cliente não encontrado' }, { status: 404 })
+    }
+    throw error
   }
-
   return NextResponse.json({ ok: true })
 }

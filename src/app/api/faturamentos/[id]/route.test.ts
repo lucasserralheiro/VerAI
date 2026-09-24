@@ -8,7 +8,7 @@ jest.mock('@/lib/auth', () => ({
 }))
 jest.mock('@/lib/prisma', () => ({
   prisma: {
-    faturamento: { findUnique: jest.fn(), update: jest.fn() },
+    faturamento: { findUnique: jest.fn(), update: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
     contrato: { findUnique: jest.fn() },
     notaFiscal: { findMany: jest.fn(), groupBy: jest.fn() },
     usuario: { findUnique: jest.fn() },

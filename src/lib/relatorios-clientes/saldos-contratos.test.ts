@@ -22,6 +22,14 @@ describe('saldosDosContratos', () => {
     expect(sql).toMatch(/COALESCE\(f\."valor", n\."soma"\)/)
   })
 
+  it('faturamento cancelado fica fora do faturado', async () => {
+    ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([])
+    ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([])
+    await saldosDosContratos(['k1'])
+    const sql = ((prisma.$queryRaw as jest.Mock).mock.calls[0][0] as { strings: string[] }).strings.join(' ')
+    expect(sql).toMatch(/f\."situacao" !~\* 'cancel'/)
+  })
+
   it('soma itens e notas fiscais por contrato e devolve o saldo de cada um', async () => {
     ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([
       { contratoId: 'k1', _sum: { valorTotal: new Prisma.Decimal('1000') } },

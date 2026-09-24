@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { NextResponse } from 'next/server'
+import { SITUACOES_FATURAMENTO, situacaoFaturamentoCanonica } from '@/lib/relatorios-clientes/situacao-faturamento'
 import {
   booleanoOpcional,
   dataOpcional,
@@ -15,9 +17,20 @@ import {
 // Faturamento (um lançamento por mês/contrato)
 // ---------------------------------------------------------------------------
 
+/** Situação: lista fechada; aceita qualquer caixa/acento e grava a forma canônica. */
+const situacaoFaturamento = textoOpcional.transform((valor, ctx) => {
+  if (valor === undefined || valor === null) return valor
+  const canonica = situacaoFaturamentoCanonica(valor)
+  if (!canonica) {
+    ctx.addIssue({ code: 'custom', message: `use uma destas: ${SITUACOES_FATURAMENTO.join(', ')}` })
+    return z.NEVER
+  }
+  return canonica
+})
+
 const camposFaturamento = {
   valor: decimalOpcional,
-  situacao: textoOpcional,
+  situacao: situacaoFaturamento,
   sei: textoOpcional,
   complementar: booleanoOpcional,
   observacao: textoOpcional,
@@ -46,6 +59,7 @@ export const esquemaEdicaoFaturamento = z.object({
 })
 
 export const ROTULOS_FATURAMENTO = {
+  situacao: 'Situação',
   contratoId: 'Contrato',
   competenciaAno: 'Ano',
   competenciaMes: 'Mês',
@@ -151,4 +165,45 @@ type NotaSelecionada = Prisma.NotaFiscalGetPayload<{ select: typeof SELECT_NOTA 
 
 export function serializarNota(nota: NotaSelecionada) {
   return { ...nota, valor: nota.valor?.toString() ?? null, quantidade: nota.quantidade?.toString() ?? null }
+}
+
+// ---------------------------------------------------------------------------
+// Um lançamento PRINCIPAL por contrato + competência (decisão do usuário, 23/09/2026)
+// ---------------------------------------------------------------------------
+
+/** 409 pronto quando já existe outro lançamento principal (não complementar, não cancelado) do mesmo
+ *  contrato na mesma competência. Complementar (retroativo de reajuste, eventual, glosa) pode quantos
+ *  quiser; cancelado não conta. Evita o duplicado por engano, que somava duas vezes no saldo. */
+export async function principalRepetido(dados: {
+  contratoId: string
+  competenciaAno: number | null
+  competenciaMes: number | null
+  complementar: boolean | null | undefined
+  situacao: string | null | undefined
+  ignorarId?: string
+}): Promise<NextResponse | null> {
+  if (dados.complementar || dados.competenciaAno === null || dados.competenciaMes === null) return null
+  if (dados.situacao && /cancel/i.test(dados.situacao)) return null
+  const outro = await prisma.faturamento.findFirst({
+    where: {
+      contratoId: dados.contratoId,
+      competenciaAno: dados.competenciaAno,
+      competenciaMes: dados.competenciaMes,
+      ...(dados.ignorarId ? { id: { not: dados.ignorarId } } : {}),
+      // NULL não passa em NOT/≠ no SQL: complementar e situação vazios têm que entrar explicitamente.
+      AND: [
+        { OR: [{ complementar: null }, { complementar: false }] },
+        { OR: [{ situacao: null }, { NOT: { situacao: { contains: 'cancel', mode: 'insensitive' } } }] },
+      ],
+    },
+    select: { id: true },
+  })
+  if (!outro) return null
+  return NextResponse.json(
+    {
+      error:
+        'Já existe o lançamento principal deste contrato nesta competência. Edite o existente ou marque este como complementar.',
+    },
+    { status: 409 }
+  )
 }

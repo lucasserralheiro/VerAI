@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from '@prisma/client'
+import { Prisma, type PrismaClient } from '@prisma/client'
 
 type Db = PrismaClient | Prisma.TransactionClient
 
@@ -38,20 +38,19 @@ export async function itensAguardandoDoCliente(
     where: { contratoId: null, contratoTextoLegado: { not: null } },
     select: { contratoTextoLegado: true, clienteSiglaLegado: true, valorTotal: true },
   })
-  const grupos = new Map<string, { itens: number; centavos: bigint }>()
+  const grupos = new Map<string, { itens: number; valor: Prisma.Decimal }>()
   for (const item of orfaos) {
     const daSigla = item.clienteSiglaLegado?.trim().toUpperCase()
     // Sigla gravada no item manda; sem ela, vale a citação no texto.
     const pertence = daSigla ? daSigla === sigla : textoCitaSigla(item.contratoTextoLegado, sigla)
     if (!pertence) continue
     const texto = item.contratoTextoLegado!.trim()
-    const atual = grupos.get(texto) ?? { itens: 0, centavos: BigInt(0) }
+    const atual = grupos.get(texto) ?? { itens: 0, valor: new Prisma.Decimal(0) }
     atual.itens++
-    atual.centavos += BigInt(Math.round(Number(item.valorTotal.toString()) * 100))
+    atual.valor = atual.valor.plus(item.valorTotal.toString())
     grupos.set(texto, atual)
   }
-  const emReais = (centavos: bigint) => `${centavos / BigInt(100)}.${String(centavos % BigInt(100)).padStart(2, '0')}`
   return [...grupos.entries()]
-    .map(([texto, g]) => ({ texto, itens: g.itens, valor: emReais(g.centavos) }))
+    .map(([texto, g]) => ({ texto, itens: g.itens, valor: g.valor.toFixed(2) }))
     .sort((a, b) => b.itens - a.itens || a.texto.localeCompare(b.texto, 'pt-BR'))
 }

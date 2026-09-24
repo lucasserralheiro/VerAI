@@ -1,3 +1,5 @@
+import { faturamentoCancelado } from './situacao-faturamento'
+
 /**
  * Agregações da aba Faturamento: resumo geral (cartões do topo) e agrupamento por competência
  * (uma faixa por mês, com total e pendências). Puro — sem React — pra ser testável.
@@ -14,6 +16,8 @@ export interface FaturamentoResumivel {
   valorExibido: string
   enviadoCliente: boolean | null
   enviadoGfp: boolean | null
+  /** "Cancelado" fica fora das somas de valor (situacao-faturamento.ts). */
+  situacao?: string | null
 }
 
 export interface ResumoFaturamentos {
@@ -36,7 +40,7 @@ function somarValores(valores: string[]): string {
 export function resumirFaturamentos(lista: FaturamentoResumivel[]): ResumoFaturamentos {
   return {
     total: lista.length,
-    valorTotal: somarValores(lista.map((item) => item.valorExibido)),
+    valorTotal: somarValores(lista.filter((item) => !faturamentoCancelado(item.situacao)).map((item) => item.valorExibido)),
     enviadoCliente: lista.filter((item) => item.enviadoCliente).length,
     enviadoGfp: lista.filter((item) => item.enviadoGfp).length,
   }
@@ -73,7 +77,7 @@ export function agruparPorCompetencia<T extends FaturamentoResumivel>(lista: T[]
     grupo.itens.push(item)
   }
   for (const grupo of grupos.values()) {
-    grupo.valorTotal = somarValores(grupo.itens.map((item) => item.valorExibido))
+    grupo.valorTotal = somarValores(grupo.itens.filter((item) => !faturamentoCancelado(item.situacao)).map((item) => item.valorExibido))
     grupo.pendentes = grupo.itens.filter((item) => !item.enviadoCliente || !item.enviadoGfp).length
   }
   return [...grupos.values()]

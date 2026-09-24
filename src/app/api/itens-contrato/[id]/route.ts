@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type { AuthUser } from '@/lib/auth'
 import { exigirUsuario, verificarAcessoCliente } from '@/lib/relatorios-clientes/acesso'
@@ -33,7 +34,14 @@ async function carregarComAcesso(request: NextRequest, id: string) {
 
   const item = await prisma.itemContrato.findUnique({
     where: { id },
-    select: { id: true, quantidade: true, valorUnitario: true, contrato: { select: { clienteId: true } } },
+    select: {
+      id: true,
+      quantidade: true,
+      valorUnitario: true,
+      valorTotal: true,
+      clienteSiglaLegado: true,
+      contrato: { select: { clienteId: true } },
+    },
   })
   if (!item) return { erro: NextResponse.json({ error: NAO_ENCONTRADO }, { status: 404 }) }
 
@@ -53,17 +61,41 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
 
   // Vincular a um contrato: ele tem que existir e o usuário tem que ver o cliente dele.
   if (dados.contratoId) {
-    const destino = await prisma.contrato.findUnique({ where: { id: dados.contratoId }, select: { clienteId: true } })
+    const destino = await prisma.contrato.findUnique({
+      where: { id: dados.contratoId },
+      select: { clienteId: true, cliente: { select: { siglaLegado: true } } },
+    })
     if (!destino) return NextResponse.json({ error: 'Contrato: não encontrado' }, { status: 400 })
     const negado = await verificarAcessoCliente(usuario, destino.clienteId)
     if (negado) return negado
+    // Item do legado traz a sigla do cliente dono: nunca vai pro contrato de OUTRO cliente — a mesma
+    // regra do vínculo automático (vincular-itens.ts), agora também no vínculo manual.
+    const siglaDoItem = item.clienteSiglaLegado?.trim().toUpperCase()
+    const siglaDoDestino = destino.cliente?.siglaLegado?.trim().toUpperCase()
+    if (siglaDoItem && destino.cliente && siglaDoItem !== siglaDoDestino) {
+      return NextResponse.json(
+        { error: `Contrato: este item é do cliente ${siglaDoItem} no legado — não pode ir para contrato de outro cliente` },
+        { status: 400 }
+      )
+    }
   }
 
   // valorTotal é obrigatório na coluna: não pode ser apagado; mudou quantidade/valor unitário sem
   // mandar o total → recalcula com o que já está gravado.
   if (valorTotalInformado === null) return NextResponse.json({ error: ERRO_VALOR_TOTAL }, { status: 400 })
   let valorTotal = valorTotalInformado
-  if (valorTotal === undefined && (dados.quantidade !== undefined || dados.valorUnitario !== undefined)) {
+  // O formulário da tela reenvia o total que já estava gravado junto com a quantidade/unitário
+  // novos: total igual ao gravado não é "total informado", é o antigo — recalcula.
+  const mudouQuantidadeOuUnitario = dados.quantidade !== undefined || dados.valorUnitario !== undefined
+  if (
+    valorTotal !== undefined &&
+    mudouQuantidadeOuUnitario &&
+    item.valorTotal !== undefined &&
+    new Prisma.Decimal(valorTotal).equals(item.valorTotal)
+  ) {
+    valorTotal = undefined
+  }
+  if (valorTotal === undefined && mudouQuantidadeOuUnitario) {
     valorTotal =
       valorTotalDoItem({
         quantidade: dados.quantidade === undefined ? item.quantidade?.toString() : dados.quantidade,

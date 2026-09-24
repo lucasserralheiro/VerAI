@@ -3,6 +3,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { BTN_OUTLINE, BTN_PRIMARY, INPUT_BASE } from '@/lib/ui'
+import { SITUACOES_FATURAMENTO, situacaoFaturamentoCanonica } from '@/lib/relatorios-clientes/situacao-faturamento'
 
 export interface Faturamento {
   id: string
@@ -66,7 +67,7 @@ const TEXTOS: Array<{ campo: Exclude<CampoTexto, 'contratoId' | 'competenciaMes'
 const MARCAS: Array<{ campo: CampoMarca; rotulo: string }> = [
   { campo: 'enviadoCliente', rotulo: 'Enviado ao cliente' },
   { campo: 'enviadoGfp', rotulo: 'Enviado à GFP' },
-  { campo: 'complementar', rotulo: 'Complementar' },
+  { campo: 'complementar', rotulo: 'Complementar (além do lançamento principal do mês)' },
 ]
 
 /** Criar (`faturamento` ausente → POST no cliente) ou editar (PATCH /api/faturamentos/[id]). */
@@ -174,16 +175,31 @@ export function FormularioFaturamento({
         {TEXTOS.map(({ campo, rotulo, largo }) => (
           <label key={campo} className={`flex flex-col gap-1 text-sm ${largo ? 'lg:col-span-2' : ''}`}>
             <span className="text-xs font-medium text-mid-grey">{rotulo}</span>
-            <input
-              aria-label={rotulo}
-              type="text"
-              inputMode={campo === 'competenciaAno' ? 'numeric' : campo === 'valor' ? 'decimal' : undefined}
-              placeholder={campo === 'valor' ? 'vazio = soma das notas' : undefined}
-              value={textos[campo]}
-              onChange={(e) => alterar(campo, e.target.value)}
-              required={campo === 'competenciaAno'}
-              className={INPUT_BASE}
-            />
+            {campo === 'situacao' ? (
+              // Lista fechada (situacao-faturamento.ts): "Cancelado" não abate saldo nem conta no faturado.
+              <select aria-label={rotulo} value={textos.situacao} onChange={(e) => alterar('situacao', e.target.value)} className={INPUT_BASE}>
+                <option value="">—</option>
+                {textos.situacao && !situacaoFaturamentoCanonica(textos.situacao) && (
+                  <option value={textos.situacao}>{textos.situacao} (antigo — escolha uma da lista)</option>
+                )}
+                {SITUACOES_FATURAMENTO.map((situacao) => (
+                  <option key={situacao} value={situacao}>
+                    {situacao}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                aria-label={rotulo}
+                type="text"
+                inputMode={campo === 'competenciaAno' ? 'numeric' : campo === 'valor' ? 'decimal' : undefined}
+                placeholder={campo === 'valor' ? 'vazio = soma das notas' : undefined}
+                value={textos[campo]}
+                onChange={(e) => alterar(campo, e.target.value)}
+                required={campo === 'competenciaAno'}
+                className={INPUT_BASE}
+              />
+            )}
           </label>
         ))}
       </div>

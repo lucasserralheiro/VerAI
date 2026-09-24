@@ -6,6 +6,9 @@
  */
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { normalizarDecimal } from './numero'
+
+export { normalizarDecimal }
 
 const OBRIGATORIO = 'campo obrigatório'
 
@@ -31,37 +34,6 @@ export const booleanoOpcional = z.preprocess(
   (valor) => (valor === 'true' ? true : valor === 'false' ? false : aparOuNull(valor)),
   z.boolean().nullable().optional()
 )
-
-/**
- * Aceita `"1.234,56"`, `"1234,56"`, `",5"`, `"1234.56"` e número; devolve a
- * string normalizada (`"1234.56"`) pronta pro `Decimal` do Prisma. Regras para
- * texto:
- * - com vírgula: a vírgula é o decimal e os pontos são milhar (`"1.500,00"` → `"1500.00"`);
- * - sem vírgula e com vários pontos: todos são milhar (`"1.234.567"` → `"1234567"`);
- * - sem vírgula e com um único ponto seguido de exatamente 3 dígitos (`"1.500"`,
- *   `"12.345"`): **ambíguo** — em pt-BR é milhar, em notação de ponto é decimal —,
- *   então é rejeitado em vez de virar um erro silencioso de 1000×;
- * - sem vírgula e com um único ponto seguido de outra quantidade de dígitos: o
- *   ponto é o decimal (`"1.5"`, `"1234.56"`).
- * Número JS nunca é ambíguo (`1234.567` fica `"1234.567"`).
- */
-function normalizarDecimal(bruto: string | number): { valor: string } | { erro: string } {
-  let texto = typeof bruto === 'number' ? String(bruto) : bruto.trim().replace(/\s/g, '')
-  if (typeof bruto === 'string') {
-    const pontos = (texto.match(/\./g) ?? []).length
-    if (texto.includes(',')) {
-      texto = texto.replace(/\./g, '').replace(',', '.')
-    } else if (pontos > 1) {
-      texto = texto.replace(/\./g, '')
-    } else if (/\.\d{3}$/.test(texto)) {
-      return { erro: 'valor ambíguo — use vírgula para decimais (ex.: 1.500,00)' }
-    }
-    if (texto.startsWith('.')) texto = `0${texto}`
-  }
-  if (!/^-?\d+(\.\d+)?$/.test(texto)) return { erro: 'valor numérico inválido' }
-  if (texto.startsWith('-')) return { erro: 'valor não pode ser negativo' }
-  return { valor: texto }
-}
 
 const numeroOuTexto = z.union([z.string(), z.number()], { error: 'valor numérico inválido' })
 

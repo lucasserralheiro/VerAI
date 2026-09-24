@@ -72,7 +72,7 @@ export default function ExecucaoDoHistoricoPage({
 		: null;
 
 	return (
-		<main id="conteudo" className="mx-auto w-full max-w-4xl flex-1 scroll-mt-4 px-6 py-8">
+		<main id="conteudo" className="mx-auto w-full max-w-[110rem] flex-1 scroll-mt-4 px-6 py-8 lg:px-8">
 
 			{/* Sem link de voltar: o caminho de volta é o "Histórico" do menu
 			    lateral, que fica destacado enquanto esta página está aberta. Um

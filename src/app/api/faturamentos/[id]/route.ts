@@ -10,6 +10,7 @@ import {
   SELECT_FATURAMENTO,
   SELECT_NOTA,
   esquemaEdicaoFaturamento,
+  principalRepetido,
   resumoDasNotas,
   serializarFaturamento,
   serializarNota,
@@ -47,6 +48,23 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
   if (corpo.dados.contratoId) {
     const contratoInvalido = await contratoForaDoCliente(corpo.dados.contratoId, carregado.faturamento.clienteId)
     if (contratoInvalido) return contratoInvalido
+  }
+
+  // Um principal por contrato + competência: confere com o estado FINAL (o que veio + o que já está gravado).
+  const atual = await prisma.faturamento.findUnique({
+    where: { id },
+    select: { contratoId: true, competenciaAno: true, competenciaMes: true, complementar: true, situacao: true },
+  })
+  if (atual) {
+    const repetido = await principalRepetido({
+      contratoId: corpo.dados.contratoId ?? atual.contratoId,
+      competenciaAno: corpo.dados.competenciaAno ?? atual.competenciaAno,
+      competenciaMes: corpo.dados.competenciaMes ?? atual.competenciaMes,
+      complementar: corpo.dados.complementar === undefined ? atual.complementar : corpo.dados.complementar,
+      situacao: corpo.dados.situacao === undefined ? atual.situacao : corpo.dados.situacao,
+      ignorarId: id,
+    })
+    if (repetido) return repetido
   }
 
   try {

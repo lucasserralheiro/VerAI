@@ -5,7 +5,8 @@ import { calcularSaldo, type Saldo } from './saldo'
 /**
  * Saldo de cada contrato, agregado no banco sob demanda (sem campo cacheado — plano, "Saldo"):
  * soma de `ItemContrato.valorTotal` dos itens vinculados − soma do faturado dos
- * faturamentos do contrato (valor lançado ou, sem ele, as notas fiscais). Duas consultas pra qualquer quantidade de contratos.
+ * faturamentos do contrato (valor lançado ou, sem ele, as notas fiscais), fora os cancelados
+ * (`situacao-faturamento.ts`). Duas consultas pra qualquer quantidade de contratos.
  */
 export async function saldosDosContratos(contratoIds: string[]): Promise<Map<string, Saldo>> {
   const saldos = new Map<string, Saldo>()
@@ -28,6 +29,7 @@ export async function saldosDosContratos(contratoIds: string[]): Promise<Map<str
         SELECT "faturamentoId", SUM("valor") AS "soma" FROM "NotaFiscal" GROUP BY "faturamentoId"
       ) n ON n."faturamentoId" = f."id"
       WHERE f."contratoId" IN (${Prisma.join(contratoIds)})
+        AND (f."situacao" IS NULL OR f."situacao" !~* 'cancel')
       GROUP BY f."contratoId"
     `,
   ])

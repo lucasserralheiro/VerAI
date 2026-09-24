@@ -5,6 +5,7 @@ import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
 import { consolidarContrato, consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
 import { calcularSaldo } from '@/lib/relatorios-clientes/saldo'
 import { vincularItensDoContrato } from '@/lib/relatorios-clientes/vincular-itens'
+import { gravarLinkSeiDoCliente, numeroTermoRepetido } from '@/app/api/contratos/carregar'
 import { ROTULOS_CONTRATO, SELECT_CONTRATO, esquemaContrato, serializarContrato } from '@/app/api/contratos/esquema'
 
 type Contexto = { params: Promise<{ clienteId: string }> }
@@ -51,7 +52,11 @@ export async function POST(request: NextRequest, { params }: Contexto) {
   const corpo = await lerCorpo(request, esquemaContrato, ROTULOS_CONTRATO)
   if ('erro' in corpo) return corpo.erro
 
+  const repetido = await numeroTermoRepetido(clienteId, corpo.dados.numeroTermo)
+  if (repetido) return repetido
+
   const contrato = await prisma.contrato.create({ data: { clienteId, ...corpo.dados }, select: SELECT_CONTRATO })
+  await gravarLinkSeiDoCliente(contrato.seiCliente, corpo.dados.linkSei)
   // Itens órfãos do legado que citam este termo passam a valer já na criação.
   await vincularItensDoContrato(prisma, contrato.id)
   // Contrato recém-criado não tem nota fiscal; o saldo é recalculado na próxima leitura.

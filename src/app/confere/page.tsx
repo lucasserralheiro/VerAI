@@ -233,7 +233,7 @@ export default function ConferePage() {
 			{/* `scroll-mt-4`: sem barra `sticky` o link de pulo não precisa mais de
 			    73 px de folga — só do respiro que impede o título de colar no topo
 			    da janela. */}
-			<main id="conteudo" className="mx-auto w-full max-w-4xl flex-1 scroll-mt-4 px-6 py-10">
+			<main id="conteudo" className="mx-auto w-full max-w-[110rem] flex-1 scroll-mt-4 px-6 py-10 lg:px-8">
 				<h1 className="text-2xl font-bold text-confere-brand-navy">ConfereAI</h1>
 				<p className="mt-2 mb-8 text-sm text-confere-navy-600">
 					Envie o contrato e o levantamento da competência. A aplicação compara o

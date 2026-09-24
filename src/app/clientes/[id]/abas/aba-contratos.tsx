@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { fetchComPreCarga } from '@/lib/relatorios-clientes/prefetch'
 import Link from 'next/link'
 import { AlertCircle, FileSignature, FileText, History, Loader2, Plus, Search, Trash2 } from 'lucide-react'
 import { BTN_PRIMARY, INPUT_BASE, LINK_DANGER, LINK_NAVY } from '@/lib/ui'
@@ -83,14 +84,14 @@ export function AbaContratos({ clienteId }: { clienteId: string }) {
   const [numeroSugerido, setNumeroSugerido] = useState<string | null>(null)
 
   async function carregar() {
-    fetch(`/api/clientes/${clienteId}/itens-aguardando`, { cache: 'no-store' })
+    fetchComPreCarga(`/api/clientes/${clienteId}/itens-aguardando`, { cache: 'no-store' })
       .then(async (response) => {
         const lista = response.ok ? await response.json() : []
         setAguardando(Array.isArray(lista) ? lista : [])
       })
       .catch(() => {})
     try {
-      const response = await fetch(`/api/clientes/${clienteId}/contratos`)
+      const response = await fetchComPreCarga(`/api/clientes/${clienteId}/contratos`)
       if (!response.ok) {
         const body = await response.json().catch(() => null)
         setErro(body?.error ?? 'Falha ao carregar contratos.')

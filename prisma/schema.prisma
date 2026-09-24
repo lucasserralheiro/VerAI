@@ -106,6 +106,7 @@ model ContratoOperacionalizacao {
   valor        Decimal?   @db.Decimal(14, 2)
   sei          String?
   createdAt    DateTime   @default(now())
+  termosConfirmacao TermoConfirmacao[]
 
   @@index([fornecedorId])
 }
@@ -125,6 +126,11 @@ model TermoConfirmacao {
   cliente        Cliente    @relation(fields: [clienteId], references: [id])
   contratoId     String?
   contrato       Contrato?  @relation(fields: [contratoId], references: [id])
+  // CO (lado do fornecedor) a que o termo se refere — coluna `ContratoDespesa` do legado. Fecha a
+  // cadeia fornecedor → CO → termo → contrato de receita (antes o import usava o CO só pra achar o
+  // fornecedor e descartava o vínculo). Tem que ser um CO do MESMO fornecedor do termo (a API checa).
+  contratoOperacionalizacaoId String?
+  contratoOperacionalizacao   ContratoOperacionalizacao? @relation(fields: [contratoOperacionalizacaoId], references: [id])
   // Colunas reais de T_TermoConfirmação (Task 4): Nº TC, Valor (texto no Access),
   // Data Início, Data Fim, Processo SEI.
   numero         String?
@@ -138,6 +144,7 @@ model TermoConfirmacao {
   @@index([fornecedorId])
   @@index([clienteId])
   @@index([contratoId])
+  @@index([contratoOperacionalizacaoId])
 }
 
 // Contrato de receita — cabeçalho (T_ContratoReceita). Campos citados em prosa
@@ -160,6 +167,9 @@ model Contrato {
   dataVencimento    DateTime?
   vigente           Boolean?
   linkSei           String?
+  // Chave do contrato na biblioteca ContratosReceita do SharePoint ("ADESAMPA|73 2019") — identidade
+  // estável da importação (scripts/importar-sharepoint-contratos.ts), nunca mostrada na tela.
+  chaveSharepoint   String?             @unique
   createdAt         DateTime            @default(now())
   historico         HistoricoContrato[]
   itens             ItemContrato[]
@@ -206,6 +216,8 @@ model HistoricoContrato {
   propostaPdfNome String?
   termoPdfUrl     String?
   termoPdfNome    String?
+  // Pasta do termo no SharePoint (`${chaveContrato}|${caminho}`) — identidade estável da importação.
+  chaveSharepoint String?              @unique
   createdAt      DateTime              @default(now())
 
   @@index([contratoId])
@@ -599,6 +611,7 @@ enum OrigemArquivo {
   upload
   gerado
   migrado
+  sharepoint
 }
 
 model ArquivoCliente {
@@ -620,9 +633,31 @@ model ArquivoCliente {
   removidoEm     DateTime?
   documentos     Documento[]
   acessos        AcessoArquivo[]
+  sharepoint     ArquivoSharepoint[]
 
   @@index([clienteId, createdAt])
   @@index([clienteId, categoria])
+}
+
+// Estado da sincronização da biblioteca "ContratosReceita" do SharePoint (pasta sincronizada pelo
+// OneDrive) — uma linha por caminho. Ver
+// docs/superpowers/specs/2026-09-24-sincronizacao-sharepoint-contratos-design.md §5. Sem clienteId
+// próprio: o cliente é o do ArquivoCliente (excluir/mesclar cliente não precisam saber deste model).
+model ArquivoSharepoint {
+  id                 String          @id @default(cuid())
+  // Relativo à raiz da biblioteca, separado por "/".
+  caminho            String          @unique
+  // Primeiro segmento "TC ..." do caminho — só informativo (arquivo não guarda contrato, §7).
+  pastaContrato      String?
+  tamanhoBytes       Int
+  modificadoEm       DateTime
+  sha256             String
+  arquivoId          String?
+  arquivo            ArquivoCliente? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  vistoEm            DateTime
+  removidoNaOrigemEm DateTime?
+
+  @@index([arquivoId])
 }
 
 model AcessoArquivo {

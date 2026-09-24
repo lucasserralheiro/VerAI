@@ -3,12 +3,13 @@
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ChevronRight, Loader2, AlertCircle, Pencil } from 'lucide-react'
+import { ChevronRight, AlertCircle, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BTN_OUTLINE } from '@/lib/ui'
 import { ABAS, abaPorId } from './abas/abas'
 import { IndicadoresCliente } from './indicadores-cliente'
 import { ModalCliente } from '../modal-cliente'
+import { preCarregar } from '@/lib/relatorios-clientes/prefetch'
 
 interface Cliente {
   id: string
@@ -36,7 +37,25 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
   const [editando, setEditando] = useState(false)
 
   const abaAtiva = abaPorId(searchParams.get('aba'))
-  const ConteudoAba = abaAtiva.Componente
+
+  // Abas já visitadas ficam montadas (só escondidas): trocar de aba e voltar não desmonta o
+  // componente, então não refaz a busca nem mostra "Carregando..." de novo. A aba só busca
+  // dados na primeira vez que é aberta.
+  const [visitadas, setVisitadas] = useState<ReadonlySet<string>>(() => new Set([abaAtiva.id]))
+  useEffect(() => {
+    setVisitadas((atual) => (atual.has(abaAtiva.id) ? atual : new Set(atual).add(abaAtiva.id)))
+  }, [abaAtiva.id])
+
+  // O que cada aba pede na primeira abertura (mesmas URLs/opções que ela usa — ver a carga inicial
+  // de cada `aba-*.tsx`). Fica aqui, ao lado da lista de abas, pra não divergir sem ninguém ver.
+  const preCargaDaAba: Record<string, Array<[string, RequestInit?]>> = {
+    documentos: [[`/api/documentos?clienteId=${id}`]],
+    contratos: [[`/api/clientes/${id}/itens-aguardando`, { cache: 'no-store' }], [`/api/clientes/${id}/contratos`]],
+    faturamento: [[`/api/clientes/${id}/faturamentos`]],
+    fornecedores: [[`/api/termos-confirmacao?clienteId=${id}`]],
+    demandas: [[`/api/demandas?clienteId=${id}`]],
+    responsaveis: [[`/api/clientes/${id}/responsaveis`]],
+  }
 
   useEffect(() => {
     fetch(`/api/clientes/${id}`)
@@ -46,18 +65,27 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
       .finally(() => setCarregando(false))
   }, [id])
 
-  if (carregando) {
-    return (
-      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
-        <p className="flex items-center gap-2 text-sm text-mid-grey">
-          <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
-          Carregando...
-        </p>
-      </main>
-    )
-  }
+  // Depois que a ficha carregou, aquece as outras abas em segundo plano, uma requisição por vez
+  // (não disputa conexão com a aba aberta): a primeira abertura de cada aba deixa de mostrar spinner.
+  useEffect(() => {
+    if (carregando || !cliente) return
+    let cancelado = false
+    ;(async () => {
+      for (const aba of ABAS) {
+        if (aba.id === abaAtiva.id) continue
+        for (const [url, init] of preCargaDaAba[aba.id] ?? []) {
+          if (cancelado) return
+          await preCarregar(url, init)
+        }
+      }
+    })()
+    return () => {
+      cancelado = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carregando, cliente?.id, id])
 
-  if (!cliente) {
+  if (!carregando && !cliente) {
     return (
       <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 rounded-xl bg-red-crit-light p-4 text-sm text-red-crit">
@@ -68,7 +96,7 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
     )
   }
 
-  const endereco = linhaEndereco(cliente)
+  const endereco = cliente ? linhaEndereco(cliente) : ''
 
   return (
     <main className="mx-auto max-w-[110rem] space-y-6 px-6 py-8 lg:px-8">
@@ -80,39 +108,54 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
             Clientes
           </Link>
           <ChevronRight className="size-3" strokeWidth={2.5} />
-          <span className="font-semibold text-navy">{cliente.nome}</span>
+          {cliente ? (
+            <span className="font-semibold text-navy">{cliente.nome}</span>
+          ) : (
+            <span className="h-3 w-40 animate-pulse rounded bg-border-grey" aria-hidden />
+          )}
         </nav>
 
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            {cliente.siglaLegado && (
-              <span className="shrink-0 rounded-lg bg-navy px-3 py-2 font-mono text-[0.95rem] font-semibold tracking-wide text-white">
-                {cliente.siglaLegado}
-              </span>
-            )}
-            <div className="min-w-0">
-              <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">{cliente.nome}</h1>
-              {endereco && <p className="text-sm text-mid-grey">{endereco}</p>}
+        {cliente ? (
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              {cliente.siglaLegado && (
+                <span className="shrink-0 rounded-lg bg-navy px-3 py-2 font-mono text-[0.95rem] font-semibold tracking-wide text-white">
+                  {cliente.siglaLegado}
+                </span>
+              )}
+              <div className="min-w-0">
+                <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">{cliente.nome}</h1>
+                {endereco && <p className="text-sm text-mid-grey">{endereco}</p>}
+              </div>
             </div>
-          </div>
 
-          <button onClick={() => setEditando(true)} className={BTN_OUTLINE}>
-            <Pencil className="size-3.5" strokeWidth={2.25} />
-            Editar cliente
-          </button>
-        </div>
+            <button onClick={() => setEditando(true)} className={BTN_OUTLINE}>
+              <Pencil className="size-3.5" strokeWidth={2.25} />
+              Editar cliente
+            </button>
+          </div>
+        ) : (
+          // Cabeçalho ainda carregando: esqueleto (sem spinner) — o único spinner da tela é o da aba,
+          // e a aba já busca os dados em paralelo com a ficha.
+          <div className="space-y-2" aria-hidden>
+            <div className="h-8 w-96 max-w-full animate-pulse rounded bg-border-grey" />
+            <div className="h-4 w-56 animate-pulse rounded bg-border-grey" />
+          </div>
+        )}
       </div>
 
-      <ModalCliente
-        aberto={editando}
-        cliente={cliente}
-        aoFechar={() => setEditando(false)}
-        aoSalvar={(atualizado) => {
-          if (atualizado) setCliente(atualizado)
-          setEditando(false)
-        }}
-        aoExcluir={() => router.push('/clientes')}
-      />
+      {cliente && (
+        <ModalCliente
+          aberto={editando}
+          cliente={cliente}
+          aoFechar={() => setEditando(false)}
+          aoSalvar={(atualizado) => {
+            if (atualizado) setCliente(atualizado)
+            setEditando(false)
+          }}
+          aoExcluir={() => router.push('/clientes')}
+        />
+      )}
 
       <IndicadoresCliente clienteId={id} />
 
@@ -147,9 +190,14 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
         })}
       </div>
 
-      <section role="tabpanel" aria-label={abaAtiva.label}>
-        <ConteudoAba clienteId={id} />
-      </section>
+      {ABAS.filter((aba) => aba.id === abaAtiva.id || visitadas.has(aba.id)).map((aba) => {
+        const ConteudoAba = aba.Componente
+        return (
+          <section key={aba.id} role="tabpanel" aria-label={aba.label} hidden={aba.id !== abaAtiva.id}>
+            <ConteudoAba clienteId={id} />
+          </section>
+        )
+      })}
     </main>
   )
 }

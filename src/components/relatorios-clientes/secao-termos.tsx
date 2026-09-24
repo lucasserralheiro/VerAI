@@ -7,6 +7,7 @@
 // outro cliente).
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { fetchComPreCarga } from '@/lib/relatorios-clientes/prefetch'
 import { AlertCircle, FileSignature, Loader2, Plus, Search, Trash2 } from 'lucide-react'
 import { BTN_OUTLINE, BTN_PRIMARY, INPUT_BASE, LINK_DANGER } from '@/lib/ui'
 import { formatarData, formatarMoeda } from '@/lib/relatorios-clientes/formatacao'
@@ -99,7 +100,7 @@ export function SecaoTermos({ por, id }: { por: 'cliente' | 'fornecedor'; id: st
 
   async function carregar() {
     try {
-      const response = await fetch(`/api/termos-confirmacao?${por === 'cliente' ? 'clienteId' : 'fornecedorId'}=${id}`)
+      const response = await fetchComPreCarga(`/api/termos-confirmacao?${por === 'cliente' ? 'clienteId' : 'fornecedorId'}=${id}`)
       if (!response.ok) {
         setErroLista(await mensagemDeErro(response, 'Falha ao carregar os termos de confirmação.'))
         return

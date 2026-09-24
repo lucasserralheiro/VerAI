@@ -6,7 +6,7 @@ jest.mock('@/lib/auth', () => ({ ...jest.requireActual('@/lib/auth'), getAuthUse
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     contrato: { findUnique: jest.fn() },
-    itemContrato: { count: jest.fn(), createMany: jest.fn() },
+    itemContrato: { findMany: jest.fn(), createMany: jest.fn() },
     usuario: { findUnique: jest.fn() },
   },
 }))
@@ -37,7 +37,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   ;(getAuthUser as jest.Mock).mockResolvedValue(admin)
   ;(prisma.contrato.findUnique as jest.Mock).mockResolvedValue({ id: 'k1', clienteId: 'c1' })
-  ;(prisma.itemContrato.count as jest.Mock).mockResolvedValue(0)
+  ;(prisma.itemContrato.findMany as jest.Mock).mockResolvedValue([])
 })
 
 describe('POST /api/contratos/[id]/itens/importar', () => {
@@ -57,7 +57,11 @@ describe('POST /api/contratos/[id]/itens/importar', () => {
   })
 
   it('sem confirmar: devolve a prévia e não grava', async () => {
-    ;(prisma.itemContrato.count as jest.Mock).mockResolvedValue(3)
+    ;(prisma.itemContrato.findMany as jest.Mock).mockResolvedValue([
+      { descricao: 'X', quantidade: null, valorUnitario: null, valorTotal: '1' },
+      { descricao: 'Y', quantidade: null, valorUnitario: null, valorTotal: '2' },
+      { descricao: 'Z', quantidade: null, valorUnitario: null, valorTotal: '3' },
+    ])
     const resposta = await enviar(await planilha([['Descrição', 'Valor total'], ['A', 100], ['B', 50.5]]))
     const corpo = await resposta.json()
     expect(corpo).toMatchObject({ confirmado: false, itensExistentes: 3, erros: [] })
@@ -83,5 +87,20 @@ describe('POST /api/contratos/[id]/itens/importar', () => {
     expect(corpo.confirmado).toBe(false)
     expect(corpo.erros).toHaveLength(1)
     expect(prisma.itemContrato.createMany).not.toHaveBeenCalled()
+  })
+
+  it('importar a mesma planilha de novo não duplica: linha igual a item existente é ignorada', async () => {
+    ;(prisma.itemContrato.findMany as jest.Mock).mockResolvedValue([
+      { descricao: 'A', quantidade: null, valorUnitario: null, valorTotal: '100.00' },
+    ])
+    const arquivo = await planilha([['Descrição', 'Valor total'], ['a ', 100], ['B', 50.5]])
+    const previa = await (await enviar(arquivo)).json()
+    expect(previa.repetidas).toEqual([2])
+
+    const resposta = await enviar(await planilha([['Descrição', 'Valor total'], ['a ', 100], ['B', 50.5]]), true)
+    expect(await resposta.json()).toMatchObject({ confirmado: true, criados: 1, ignoradas: 1 })
+    expect(prisma.itemContrato.createMany).toHaveBeenCalledWith({
+      data: [{ contratoId: 'k1', descricao: 'B', quantidade: null, valorUnitario: null, valorTotal: '50.5' }],
+    })
   })
 })

@@ -5,7 +5,7 @@ import { exigirAcessoCliente, exigirUsuario, verificarAcessoCliente } from '@/li
 import { respostaErroPrisma } from '@/lib/relatorios-clientes/erros-prisma'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
 import { ROTULOS_TERMO, SELECT_TERMO, esquemaNovoTermo, serializarTermo } from './esquema'
-import { contratoForaDoCliente, erroVigencia } from './regras'
+import { coForaDoFornecedor, contratoForaDoCliente, erroVigencia } from './regras'
 
 const ORDEM = [{ vigenciaInicio: 'desc' as const }, { createdAt: 'desc' as const }]
 
@@ -45,7 +45,11 @@ export async function POST(request: NextRequest) {
   const negado = await verificarAcessoCliente(autenticado.usuario, clienteId)
   if (negado) return negado
 
-  const invalido = (contratoId && (await contratoForaDoCliente(contratoId, clienteId))) || erroVigencia(vigenciaInicio, vigenciaFim)
+  const coId = corpo.dados.contratoOperacionalizacaoId
+  const invalido =
+    (contratoId && (await contratoForaDoCliente(contratoId, clienteId))) ||
+    (coId && (await coForaDoFornecedor(coId, corpo.dados.fornecedorId))) ||
+    erroVigencia(vigenciaInicio, vigenciaFim)
   if (invalido) return invalido
 
   try {

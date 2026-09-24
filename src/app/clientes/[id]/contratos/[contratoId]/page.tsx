@@ -46,10 +46,10 @@ function FichaContrato({ contrato }: { contrato: ContratoDetalhe }) {
         </span>
       </Dado>
       <Dado rotulo="SEI cliente">
-        <SeiLink numero={contrato.seiCliente} link={contrato.linkSei} className="text-[0.8rem]" />
+        <SeiLink numero={contrato.seiCliente} className="text-[0.8rem]" />
       </Dado>
       <Dado rotulo="SEI PRODAM">
-        <SeiLink numero={contrato.seiProdam} link={contrato.linkSei} className="text-[0.8rem]" />
+        <SeiLink numero={contrato.seiProdam} className="text-[0.8rem]" />
       </Dado>
       <Dado rotulo="Histórico">
         {resumo.length > 0 ? resumo.join(' · ') : <span className="text-mid-grey">Só o contrato original</span>}
@@ -167,6 +167,40 @@ export default function ContratoDetalhePage({ params }: { params: Promise<{ id: 
               <h1 className="font-mono text-[1.6rem] leading-tight font-semibold tracking-tight text-navy">{titulo}</h1>
               <PillVencimento vencimento={contrato.vencimento} />
               {contrato.situacao && <span className="text-sm text-mid-grey">{contrato.situacao}</span>}
+              {/* Os mesmos selos da aba Contratos — a regra é a mesma (contratos-consolidados.ts). */}
+              {contrato.rescindido && <span className="text-sm font-semibold text-red-crit">Rescindido</span>}
+              {contrato.ativo === false &&
+                !contrato.vazio &&
+                !contrato.rescindido &&
+                ['ok', 'atencao', 'critico'].includes(contrato.vencimento.nivel) && (
+                  <span
+                    className="text-sm font-semibold text-orange-dark"
+                    title="A situação cadastrada diz que o contrato acabou, mas a vigência ainda está em curso. Confira o cadastro."
+                  >
+                    Situação × vigência: conferir
+                  </span>
+                )}
+              {contrato.situacaoDesatualizada && (
+                <span
+                  className="text-sm font-semibold text-orange-dark"
+                  title="A situação diz Ativo, mas o prazo venceu e não há prorrogação no histórico. O contrato continua contando como ativo — confira o cadastro: registre a prorrogação ou mude a situação."
+                >
+                  Situação desatualizada: prazo vencido
+                </span>
+              )}
+              {contrato.prorrogacaoEmAndamento && (
+                <span
+                  className="text-sm font-semibold text-orange-dark"
+                  title="Há aditivo ou prorrogação no histórico sem data de assinatura. O prazo e o valor só mudam depois de assinado — preencha 'Assinada em' na linha quando assinar."
+                >
+                  Prorrogação em andamento (não assinada)
+                </span>
+              )}
+              {contrato.vazio && (
+                <span className="text-sm font-semibold text-orange-dark" title="Linha vazia vinda do legado: não conta nos indicadores.">
+                  Cadastro vazio
+                </span>
+              )}
             </div>
             {contrato.descricao && <p className="text-sm text-foreground">{contrato.descricao}</p>}
           </div>
@@ -185,9 +219,10 @@ export default function ContratoDetalhePage({ params }: { params: Promise<{ id: 
         <FormularioContrato
           clienteId={clienteId}
           contrato={contrato}
-          aoSalvar={(salvo) => {
-            setContrato((atual) => (atual ? { ...atual, ...salvo } : atual))
+          aoSalvar={async () => {
             setEditando(false)
+            // Recarrega tudo: mudar o nº do termo pode religar itens do legado e mudar o saldo.
+            await carregar()
           }}
           aoCancelar={() => setEditando(false)}
         />

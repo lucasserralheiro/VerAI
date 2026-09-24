@@ -32,6 +32,8 @@ const itemVinculado = {
   contrato: { clienteId: 'c1' },
   quantidade: new Prisma.Decimal('2'),
   valorUnitario: new Prisma.Decimal('10'),
+  valorTotal: new Prisma.Decimal('20'),
+  clienteSiglaLegado: null as string | null,
 }
 const itemSolto = { ...itemVinculado, contrato: null }
 
@@ -107,6 +109,28 @@ describe('PATCH /api/itens-contrato/[id]', () => {
 
   it('400 ao apagar o valor total', async () => {
     expect((await PATCH(patch({ valorTotal: '' }), contexto)).status).toBe(400)
+  })
+
+  it('recalcula quando a tela reenvia o total antigo junto com a quantidade nova', async () => {
+    await PATCH(patch({ quantidade: '5', valorUnitario: '10', valorTotal: '20' }), contexto)
+    expect(prisma.itemContrato.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { quantidade: '5', valorUnitario: '10', valorTotal: '50' } })
+    )
+  })
+
+  it('total diferente do gravado é informado de propósito e vence', async () => {
+    await PATCH(patch({ quantidade: '5', valorTotal: '49,90' }), contexto)
+    expect(prisma.itemContrato.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { quantidade: '5', valorTotal: '49.90' } })
+    )
+  })
+
+  it('400 ao vincular item do legado de um cliente a contrato de outro cliente', async () => {
+    ;(prisma.itemContrato.findUnique as jest.Mock).mockResolvedValue({ ...itemSolto, clienteSiglaLegado: 'SMS' })
+    ;(prisma.contrato.findUnique as jest.Mock).mockResolvedValue({ clienteId: 'c1', cliente: { siglaLegado: 'SME' } })
+    const resposta = await PATCH(patch({ contratoId: 'k1' }), contexto)
+    expect(resposta.status).toBe(400)
+    expect(prisma.itemContrato.update).not.toHaveBeenCalled()
   })
 
   it('recalcula o valor total quando muda quantidade ou valor unitário sem mandar o total', async () => {

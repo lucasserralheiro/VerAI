@@ -17,6 +17,8 @@ interface Previa {
   linhas: LinhaPrevia[]
   erros: Array<{ linha: number; mensagem: string }>
   itensExistentes: number
+  /** Linhas da planilha iguais a itens que o contrato já tem — não são gravadas de novo. */
+  repetidas?: number[]
 }
 
 /** Importação em lote de itens por planilha: escolhe o arquivo → confere a prévia → confirma.
@@ -61,7 +63,8 @@ export function ImportarPlanilhaItens({ contratoId, aoImportar }: { contratoId: 
   }
 
   const total = previa?.linhas.reduce((soma, linha) => soma + Math.round(Number(linha.valorTotal) * 100), 0) ?? 0
-  const podeConfirmar = previa !== null && previa.erros.length === 0 && previa.linhas.length > 0
+  const novos = (previa?.linhas.length ?? 0) - (previa?.repetidas?.length ?? 0)
+  const podeConfirmar = previa !== null && previa.erros.length === 0 && novos > 0
 
   return (
     <div className="card space-y-3">
@@ -141,10 +144,10 @@ export function ImportarPlanilhaItens({ contratoId, aoImportar }: { contratoId: 
             <CheckCircle2 className="size-4 shrink-0" strokeWidth={2.25} />
             {previa.linhas.length} {previa.linhas.length === 1 ? 'item' : 'itens'} — total {formatarMoeda(total / 100)}
           </p>
-          {previa.itensExistentes > 0 && (
+          {(previa.repetidas?.length ?? 0) > 0 && (
             <p className="rounded-lg bg-orange-light px-3 py-2 text-sm text-orange-dark">
-              Este contrato já tem {previa.itensExistentes} {previa.itensExistentes === 1 ? 'item' : 'itens'}. A importação
-              acrescenta os da planilha — se você importar o mesmo arquivo duas vezes, os valores dobram.
+              {previa.repetidas!.length} {previa.repetidas!.length === 1 ? 'linha é igual a um item' : 'linhas são iguais a itens'} que
+              este contrato já tem (linha {previa.repetidas!.join(', ')}) e não {previa.repetidas!.length === 1 ? 'será gravada' : 'serão gravadas'} de novo.
             </p>
           )}
         </>
@@ -153,7 +156,7 @@ export function ImportarPlanilhaItens({ contratoId, aoImportar }: { contratoId: 
       {podeConfirmar && (
         <div>
           <button type="button" disabled={enviando} onClick={() => void enviar(true)} className={BTN_PRIMARY}>
-            Importar {previa.linhas.length} {previa.linhas.length === 1 ? 'item' : 'itens'}
+            Importar {novos} {novos === 1 ? 'item' : 'itens'}
           </button>
         </div>
       )}

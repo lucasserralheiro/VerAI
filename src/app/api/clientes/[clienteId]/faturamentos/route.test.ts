@@ -10,7 +10,7 @@ jest.mock('@/lib/prisma', () => ({
   prisma: {
     cliente: { findUnique: jest.fn() },
     contrato: { findUnique: jest.fn() },
-    faturamento: { findMany: jest.fn(), create: jest.fn() },
+    faturamento: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
     notaFiscal: { groupBy: jest.fn() },
     usuario: { findUnique: jest.fn() },
   },
@@ -126,5 +126,31 @@ describe('POST /api/clientes/[clienteId]/faturamentos', () => {
       })
     )
     await expect(resposta.json()).resolves.toEqual(expect.objectContaining({ id: 'f9', valorExibido: '0' }))
+  })
+})
+
+describe('POST — um lançamento principal por contrato + competência', () => {
+  it('409 quando já existe o principal do mês (e não grava)', async () => {
+    ;(prisma.faturamento.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'f-existente' })
+    const resposta = await POST(post(valido), contexto)
+    expect(resposta.status).toBe(409)
+    expect(prisma.faturamento.create).not.toHaveBeenCalled()
+  })
+
+  it('complementar passa mesmo com o principal existente', async () => {
+    ;(prisma.faturamento.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'f-existente' })
+    ;(prisma.faturamento.create as jest.Mock).mockResolvedValueOnce({ id: 'f2', contrato: { id: 'k1', numeroTermo: 'X' }, valor: null })
+    const resposta = await POST(post({ ...valido, complementar: true }), contexto)
+    expect(resposta.status).toBe(201)
+    expect(prisma.faturamento.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('situação fora da lista é recusada; em qualquer caixa vira a forma canônica', async () => {
+    expect((await POST(post({ ...valido, situacao: 'quase pago' }), contexto)).status).toBe(400)
+    ;(prisma.faturamento.create as jest.Mock).mockResolvedValueOnce({ id: 'f3', contrato: { id: 'k1', numeroTermo: 'X' }, valor: null })
+    await POST(post({ ...valido, situacao: 'cancelado' }), contexto)
+    expect(prisma.faturamento.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ situacao: 'Cancelado' }) })
+    )
   })
 })

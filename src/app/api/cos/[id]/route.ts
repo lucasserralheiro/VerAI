@@ -58,6 +58,15 @@ export async function DELETE(request: NextRequest, { params }: Contexto) {
   const carregado = await carregar(request, id)
   if ('erro' in carregado) return carregado.erro
 
+  // A FK do termo é SET NULL: excluir o CO soltaria os termos em silêncio. Bloqueia.
+  const termos = await prisma.termoConfirmacao.count({ where: { contratoOperacionalizacaoId: id } })
+  if (termos > 0) {
+    return NextResponse.json(
+      { error: `Não é possível excluir: há ${termos} termo(s) de confirmação ligado(s) a este CO.` },
+      { status: 409 }
+    )
+  }
+
   try {
     await prisma.contratoOperacionalizacao.delete({ where: { id } })
     return NextResponse.json({ ok: true })

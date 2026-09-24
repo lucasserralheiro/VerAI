@@ -9,6 +9,7 @@ jest.mock('@/lib/auth', () => ({
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     contratoOperacionalizacao: { findUnique: jest.fn(), update: jest.fn(), delete: jest.fn() },
+    termoConfirmacao: { count: jest.fn().mockResolvedValue(0) },
   },
 }))
 
@@ -96,5 +97,17 @@ describe('DELETE /api/cos/[id]', () => {
     expect(resposta.status).toBe(200)
     await expect(resposta.json()).resolves.toEqual({ ok: true })
     expect(prisma.contratoOperacionalizacao.delete).toHaveBeenCalledWith({ where: { id: 'co1' } })
+  })
+})
+
+describe('DELETE /api/cos/[id] — termos ligados', () => {
+  it('409 quando há termo de confirmação ligado ao CO', async () => {
+    ;(prisma.contratoOperacionalizacao.findUnique as jest.Mock).mockResolvedValue({ id: 'co1', dataInicio: null, dataFim: null })
+    ;(prisma.termoConfirmacao.count as jest.Mock).mockResolvedValueOnce(2)
+    const resposta = await DELETE(new NextRequest('http://localhost/api/cos/co1', { method: 'DELETE' }), {
+      params: Promise.resolve({ id: 'co1' }),
+    })
+    expect(resposta.status).toBe(409)
+    expect(prisma.contratoOperacionalizacao.delete).not.toHaveBeenCalled()
   })
 })

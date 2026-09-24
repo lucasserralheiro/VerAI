@@ -9,6 +9,7 @@ jest.mock('@/lib/auth', () => ({
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     itemContrato: { findMany: jest.fn() },
+    contrato: { findUnique: jest.fn() },
     cliente: { count: jest.fn() },
     usuario: { findUnique: jest.fn() },
   },
@@ -62,13 +63,32 @@ describe('GET /api/itens-contrato', () => {
     expect(prisma.itemContrato.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          contratoId: null,
-          OR: [
-            { contratoTextoLegado: { contains: 'seme', mode: 'insensitive' } },
-            { descricao: { contains: 'seme', mode: 'insensitive' } },
+          AND: [
+            { contratoId: null },
+            {
+              OR: [
+                { contratoTextoLegado: { contains: 'seme', mode: 'insensitive' } },
+                { descricao: { contains: 'seme', mode: 'insensitive' } },
+              ],
+            },
           ],
         },
         take: 100,
+      })
+    )
+  })
+
+  it('com ?contratoId= só lista itens do cliente do contrato (pela sigla) ou sem cliente', async () => {
+    ;(prisma.contrato.findUnique as jest.Mock).mockResolvedValue({ clienteId: 'c1', cliente: { siglaLegado: 'SMS' } })
+    expect((await GET(get('?semContrato=1&contratoId=k1'))).status).toBe(200)
+    expect(prisma.itemContrato.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: [
+            { contratoId: null },
+            { OR: [{ clienteSiglaLegado: { equals: 'SMS', mode: 'insensitive' } }, { clienteSiglaLegado: null }] },
+          ],
+        },
       })
     )
   })

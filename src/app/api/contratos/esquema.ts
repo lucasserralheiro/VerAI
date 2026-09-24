@@ -57,7 +57,7 @@ export function serializarContrato(
   contrato: ContratoSelecionado,
   saldo: Saldo,
   hoje = new Date(),
-  consolidado?: Pick<ContratoConsolidado, 'vigenciaFim' | 'vencimento' | 'ativo' | 'rescindido' | 'vazio'>
+  consolidado?: Pick<ContratoConsolidado, 'vigenciaFim' | 'vencimento' | 'ativo' | 'rescindido' | 'vazio' | 'situacaoDesatualizada' | 'prorrogacaoEmAndamento'>
 ) {
   if (!consolidado) return { ...contrato, saldo, vencimento: situacaoVencimento(contrato.dataVencimento, hoje) }
   return {
@@ -68,6 +68,8 @@ export function serializarContrato(
     ativo: consolidado.ativo,
     rescindido: consolidado.rescindido,
     vazio: consolidado.vazio,
+    situacaoDesatualizada: consolidado.situacaoDesatualizada,
+    prorrogacaoEmAndamento: consolidado.prorrogacaoEmAndamento,
   }
 }
 

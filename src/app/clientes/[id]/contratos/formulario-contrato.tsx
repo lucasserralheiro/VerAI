@@ -27,11 +27,15 @@ export interface Contrato {
   rescindido?: boolean
   /** Linha vazia do legado (sem número, datas, histórico...): não conta como contrato. */
   vazio?: boolean
+  /** Aviso: situação "Ativo" com prazo vencido e sem prorrogação — continua ativo, a tela avisa. */
+  situacaoDesatualizada?: boolean
+  /** Aviso: há aditivo/prorrogação sem assinatura que estenderia o prazo — só vale depois de assinado. */
+  prorrogacaoEmAndamento?: boolean
   /** Só vem da listagem (GET /api/clientes/[clienteId]/contratos); POST/PATCH não devolvem. */
   resumoHistorico?: ResumoHistorico
 }
 
-type CampoTexto = 'numeroTermo' | 'descricao' | 'seiCliente' | 'seiProdam' | 'situacao' | 'dataInicio' | 'dataVencimento' | 'linkSei'
+type CampoTexto = 'numeroTermo' | 'descricao' | 'seiCliente' | 'seiProdam' | 'situacao' | 'dataInicio' | 'dataVencimento'
 
 // Mesmas duas opções do combo "Situação" do Access legado (FT_ContratosReceita).
 const SITUACOES = ['Ativo', 'Finalizado'] as const
@@ -44,7 +48,6 @@ const CAMPOS: Array<{ campo: CampoTexto; rotulo: string; tipo?: string; largo?: 
   { campo: 'seiProdam', rotulo: 'SEI PRODAM' },
   { campo: 'dataInicio', rotulo: 'Início', tipo: 'date' },
   { campo: 'dataVencimento', rotulo: 'Vencimento', tipo: 'date' },
-  { campo: 'linkSei', rotulo: 'Link do SEI', tipo: 'url', largo: true },
 ]
 
 /** Criar (`contrato` ausente → POST no cliente) ou editar (PATCH /api/contratos/[id]). */
@@ -74,9 +77,7 @@ export function FormularioContrato({
     situacao: contrato?.situacao ?? '',
     dataInicio: contrato?.dataInicio?.slice(0, 10) ?? '',
     dataVencimento: contrato?.dataVencimento?.slice(0, 10) ?? '',
-    linkSei: contrato?.linkSei ?? '',
   }))
-  const [vigente, setVigente] = useState(contrato?.vigente ?? false)
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
 
@@ -88,7 +89,9 @@ export function FormularioContrato({
       const response = await fetch(contrato ? `/api/contratos/${contrato.id}` : `/api/clientes/${clienteId}/contratos`, {
         method: contrato ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...campos, vigente }),
+        // `vigente` (legado) não vai: nenhuma regra usa — quem diz se está ativo é a situação + a
+        // vigência efetiva (contratos-consolidados.ts). O checkbox confundia (marcado e "vencido").
+        body: JSON.stringify(campos),
       })
       if (!response.ok) {
         const body = await response.json().catch(() => null)
@@ -136,10 +139,6 @@ export function FormularioContrato({
             )}
           </label>
         ))}
-        <label className="flex items-center gap-2 self-end pb-2 text-sm text-navy">
-          <input type="checkbox" checked={vigente} onChange={(e) => setVigente(e.target.checked)} className="size-4 accent-orange" />
-          Vigente
-        </label>
       </div>
       {erro && (
         <p className="flex items-center gap-1.5 rounded-lg bg-red-crit-light px-3 py-2 text-sm text-red-crit">

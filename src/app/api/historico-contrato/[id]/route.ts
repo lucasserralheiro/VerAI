@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { vincularItensDoContrato } from '@/lib/relatorios-clientes/vincular-itens'
 import { respostaErroPrisma } from '@/lib/relatorios-clientes/erros-prisma'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
 import { HISTORICO_NAO_ENCONTRADO as NAO_ENCONTRADO, carregarHistoricoComAcesso as carregarComAcesso } from '../carregar'
@@ -22,6 +23,8 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
 
   try {
     const linha = await prisma.historicoContrato.update({ where: { id }, data: corpo.dados, select: SELECT_HISTORICO })
+    // Nº da linha pode ter mudado — é referência que os itens do legado citam (igual ao POST).
+    await vincularItensDoContrato(prisma, linha.contratoId)
     return NextResponse.json(serializarHistorico(linha))
   } catch (erro) {
     return respostaErroPrisma(erro, NAO_ENCONTRADO)

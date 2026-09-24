@@ -4,7 +4,7 @@ import { exigirUsuario, verificarAcessoCliente } from '@/lib/relatorios-clientes
 import { respostaErroPrisma } from '@/lib/relatorios-clientes/erros-prisma'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
 import { ROTULOS_TERMO, SELECT_TERMO, esquemaEdicaoTermo, serializarTermo } from '../esquema'
-import { contratoForaDoCliente, erroVigencia } from '../regras'
+import { coForaDoFornecedor, contratoForaDoCliente, erroVigencia } from '../regras'
 
 type Contexto = { params: Promise<{ id: string }> }
 
@@ -17,7 +17,7 @@ async function carregarComAcesso(request: NextRequest, id: string) {
 
   const termo = await prisma.termoConfirmacao.findUnique({
     where: { id },
-    select: { id: true, clienteId: true, vigenciaInicio: true, vigenciaFim: true },
+    select: { id: true, clienteId: true, fornecedorId: true, contratoOperacionalizacaoId: true, vigenciaInicio: true, vigenciaFim: true },
   })
   if (!termo) return { erro: NextResponse.json({ error: NAO_ENCONTRADO }, { status: 404 }) }
 
@@ -35,9 +35,14 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
   if ('erro' in corpo) return corpo.erro
   const { contratoId, vigenciaInicio, vigenciaFim } = corpo.dados
 
-  // PATCH parcial: a data que não veio no corpo é a que já está gravada.
+  // PATCH parcial: o que não veio no corpo é o que já está gravado. O CO tem que ser do fornecedor
+  // final do termo (trocar o fornecedor e manter o CO do antigo é recusado).
+  const fornecedorFinal = corpo.dados.fornecedorId ?? termo.fornecedorId
+  const coFinal =
+    corpo.dados.contratoOperacionalizacaoId === undefined ? termo.contratoOperacionalizacaoId : corpo.dados.contratoOperacionalizacaoId
   const invalido =
     (contratoId && (await contratoForaDoCliente(contratoId, termo.clienteId))) ||
+    (coFinal && (await coForaDoFornecedor(coFinal, fornecedorFinal))) ||
     erroVigencia(
       vigenciaInicio === undefined ? termo.vigenciaInicio : vigenciaInicio,
       vigenciaFim === undefined ? termo.vigenciaFim : vigenciaFim

@@ -4,6 +4,7 @@
 // à lista geral /demandas (cross-cliente, com coluna e filtro de cliente).
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { fetchComPreCarga } from '@/lib/relatorios-clientes/prefetch'
 import Link from 'next/link'
 import { AlertCircle, AlertTriangle, ClipboardList, ListTree, Loader2, Plus, Search, Trash2 } from 'lucide-react'
 import { BTN_OUTLINE, BTN_PRIMARY, INPUT_BASE, LINK_DANGER, LINK_NAVY } from '@/lib/ui'
@@ -42,7 +43,7 @@ export function ListaDemandas({ clienteId }: { clienteId?: string }) {
     if (q) params.set('q', q)
     const query = params.toString()
     try {
-      const response = await fetch(`/api/demandas${query ? `?${query}` : ''}`)
+      const response = await fetchComPreCarga(`/api/demandas${query ? `?${query}` : ''}`)
       if (!response.ok) {
         const body = await response.json().catch(() => null)
         setErro(body?.error ?? 'Falha ao carregar demandas.')

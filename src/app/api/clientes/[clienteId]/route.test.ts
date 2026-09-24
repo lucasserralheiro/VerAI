@@ -37,7 +37,10 @@ jest.mock('@/lib/prisma', () => {
   }
 })
 
+jest.mock('@/lib/relatorios-clientes/excluir-cliente', () => ({ excluirCliente: jest.fn() }))
+
 import { getAuthUser } from '@/lib/auth'
+import { excluirCliente } from '@/lib/relatorios-clientes/excluir-cliente'
 import { prisma } from '@/lib/prisma'
 import { DELETE, GET, PATCH } from './route'
 
@@ -159,26 +162,24 @@ describe('PATCH /api/clientes/[clienteId]', () => {
 describe('DELETE /api/clientes/[clienteId]', () => {
   const requisicao = () => new NextRequest('http://localhost/api/clientes/c1', { method: 'DELETE' })
 
-  it('apaga os dados vinculados e o cliente numa transação, filhos antes do cliente', async () => {
-    ;(prisma.$transaction as jest.Mock).mockResolvedValue([])
+  it('admin: usa a exclusão única (excluir-cliente.ts)', async () => {
+    ;(excluirCliente as jest.Mock).mockResolvedValue(undefined)
     const resposta = await DELETE(requisicao(), contexto)
-
     expect(resposta.status).toBe(200)
     await expect(resposta.json()).resolves.toEqual({ ok: true })
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1)
-    const operacoes = (prisma.$transaction as jest.Mock).mock.calls[0][0]
-    const mockado = prisma as unknown as Record<string, { deleteMany: jest.Mock }> & { __modelosFilhos: string[] }
-    const MODELOS_FILHOS = mockado.__modelosFilhos
-    // Um deleteMany por filho + o delete do próprio cliente, que vem por último.
-    expect(operacoes).toHaveLength(MODELOS_FILHOS.length + 1)
-    for (const modelo of MODELOS_FILHOS) {
-      expect(mockado[modelo].deleteMany).toHaveBeenCalledTimes(1)
-    }
-    expect(prisma.cliente.delete).toHaveBeenCalledWith({ where: { id: 'c1' } })
+    expect(excluirCliente).toHaveBeenCalledWith('c1')
+  })
+
+  it('403 para quem vê o cliente mas não é admin', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [{ id: 'c1' }] })
+    const resposta = await DELETE(requisicao(), contexto)
+    expect(resposta.status).toBe(403)
+    expect(excluirCliente).not.toHaveBeenCalled()
   })
 
   it('404 quando o cliente sumiu antes da exclusão', async () => {
-    ;(prisma.$transaction as jest.Mock).mockRejectedValue(erroPrisma('P2025'))
+    ;(excluirCliente as jest.Mock).mockRejectedValue(erroPrisma('P2025'))
     const resposta = await DELETE(requisicao(), contexto)
     expect(resposta.status).toBe(404)
   })
@@ -188,6 +189,6 @@ describe('DELETE /api/clientes/[clienteId]', () => {
     ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [] })
     const resposta = await DELETE(requisicao(), contexto)
     expect(resposta.status).toBe(403)
-    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(excluirCliente).not.toHaveBeenCalled()
   })
 })

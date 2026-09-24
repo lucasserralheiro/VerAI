@@ -14,7 +14,11 @@ jest.mock('@/lib/prisma', () => ({
   },
 }))
 
+jest.mock('@/lib/relatorios-clientes/contratos-consolidados', () => ({ consolidarContratos: jest.fn() }))
+
 import { getAuthUser } from '@/lib/auth'
+import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
+import { calcularSaldo } from '@/lib/relatorios-clientes/saldo'
 import { prisma } from '@/lib/prisma'
 import { GET } from './route'
 
@@ -29,7 +33,13 @@ beforeEach(() => {
   ;(prisma.cliente.findMany as jest.Mock).mockResolvedValue([])
   ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([])
   ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([])
+  ;(consolidarContratos as jest.Mock).mockResolvedValue(new Map())
 })
+
+/** Consolidado mínimo: só o que a rota lê. */
+function consolidado(ativo: boolean, valorBase: string | null, faturado: string) {
+  return { ativo, valorBase, saldo: calcularSaldo({ valorItens: valorBase, faturado }) }
+}
 
 describe('GET /api/relatorios/valor-total', () => {
   it('401 sem usuário', async () => {
@@ -43,7 +53,7 @@ describe('GET /api/relatorios/valor-total', () => {
     expect(prisma.cliente.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['c1'] } } }))
   })
 
-  it('soma itens e faturado dos contratos do cliente, em centavos exatos', async () => {
+  it('soma valor e faturado dos MESMOS contratos: ativo sem valor fica fora das duas somas', async () => {
     ;(prisma.cliente.findMany as jest.Mock).mockResolvedValue([
       {
         id: 'c1',
@@ -51,16 +61,19 @@ describe('GET /api/relatorios/valor-total', () => {
         siglaLegado: 'SMS',
         contratos: [
           { id: 'k1', situacao: 'Ativo', dataVencimento: null },
-          { id: 'k2', situacao: 'Finalizado', dataVencimento: null },
+          { id: 'k2', situacao: 'Ativo', dataVencimento: null },
+          { id: 'k3', situacao: 'Finalizado', dataVencimento: null },
         ],
       },
       { id: 'c2', nome: 'Educação', siglaLegado: 'SME', contratos: [] },
     ])
-    ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([
-      { contratoId: 'k1', _sum: { valorTotal: '1000.10' } },
-      { contratoId: 'k2', _sum: { valorTotal: '0.20' } },
-    ])
-    ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([{ contratoId: 'k1', faturado: '250.05' }])
+    ;(consolidarContratos as jest.Mock).mockResolvedValue(
+      new Map([
+        ['k1', consolidado(true, '1000.3', '250.05')],
+        ['k2', consolidado(true, null, '999')], // ativo sem valor: o faturado dele NÃO entra
+        ['k3', consolidado(false, '500', '500')], // inativo: fora
+      ])
+    )
 
     const corpo = await (await GET(get())).json()
 
@@ -68,8 +81,9 @@ describe('GET /api/relatorios/valor-total', () => {
       id: 'c1',
       nome: 'Saúde',
       siglaLegado: 'SMS',
-      contratos: 2,
-      contratosAtivos: 1,
+      contratos: 3,
+      contratosAtivos: 2,
+      contratosSemValor: 1,
       saldo: { valorItens: '1000.3', faturado: '250.05', saldo: '750.25', percentualFaturado: '25.00' },
     })
     expect(corpo[1]).toMatchObject({ contratos: 0, contratosAtivos: 0, saldo: { saldo: null } })

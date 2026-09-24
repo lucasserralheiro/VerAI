@@ -5,6 +5,7 @@ import { exigirAcessoCliente } from '@/lib/relatorios-clientes/acesso'
 import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
 import { competenciaValida, demandaAberta } from '@/lib/relatorios-clientes/regras'
 import { resumoDasNotas } from '@/app/api/faturamentos/esquema'
+import { faturamentoCancelado } from '@/lib/relatorios-clientes/situacao-faturamento'
 
 type Contexto = { params: Promise<{ clienteId: string }> }
 
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest, { params }: Contexto) {
     where: { id: clienteId },
     select: {
       contratos: { select: { id: true, situacao: true, dataVencimento: true } },
-      faturamentos: { select: { id: true, competenciaAno: true, competenciaMes: true, valor: true } },
+      faturamentos: { select: { id: true, competenciaAno: true, competenciaMes: true, valor: true, situacao: true } },
       demandas: { select: { situacao: true, dataAbertura: true, createdAt: true } },
     },
   })
@@ -37,7 +38,8 @@ export async function GET(request: NextRequest, { params }: Contexto) {
     const { dias } = consolidados.get(contrato.id)!.vencimento
     return dias !== null && dias <= 30
   }).length
-  const vencidos = ativos.filter((contrato) => consolidados.get(contrato.id)!.vencimento.nivel === 'vencido').length
+  // Ativos com prazo vencido = situação "Ativo" desatualizada (aviso, o contrato segue ativo).
+  const vencidos = ativos.filter((contrato) => consolidados.get(contrato.id)!.situacaoDesatualizada).length
   // Valor contratado = base de cada contrato ativo. Contrato sem valor nenhum fica fora da soma e é
   // contado, pro cartão avisar em vez de mostrar R$ 0,00 como se fosse resultado.
   let semValor = 0
@@ -51,7 +53,10 @@ export async function GET(request: NextRequest, { params }: Contexto) {
   // Último mês faturado = a última competência COM valor (lançado ou em nota fiscal). Se nenhum mês
   // tem valor, cai na última competência lançada e avisa `semValor` — em vez de exibir R$ 0,00 como
   // se fosse resultado.
-  const validos = cliente.faturamentos.filter((f) => competenciaValida(f.competenciaAno, f.competenciaMes))
+  // Cancelado não é execução cobrada (situacao-faturamento.ts): fora do "faturado no último mês".
+  const validos = cliente.faturamentos.filter(
+    (f) => competenciaValida(f.competenciaAno, f.competenciaMes) && !faturamentoCancelado(f.situacao)
+  )
   const chave = (f: (typeof validos)[number]) => f.competenciaAno! * 100 + f.competenciaMes!
   let faturadoUltimoMes: { ano: number; mes: number; valor: string; semValor: boolean } | null = null
   if (validos.length > 0) {

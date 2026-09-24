@@ -79,12 +79,27 @@ import { randomUUID } from 'node:crypto'
 import { config } from 'dotenv'
 import { vincularItensOrfaos } from '../src/lib/relatorios-clientes/vincular-itens'
 import { contratoVazio } from '../src/lib/relatorios-clientes/regras'
+import { normalizarDecimal } from '../src/lib/relatorios-clientes/numero'
+import { chaveDoSei } from '../src/lib/relatorios-clientes/sei'
 
 if (!process.env.DATABASE_URL) {
   config({ path: '.env.local' })
 }
 
 const prisma = new PrismaClient()
+
+/**
+ * Rodar o import de novo NÃO sobrescreve o que já existe no VerAI (padrão): registro com o mesmo
+ * `legacyId` fica como está — valor de faturamento digitado, item vinculado à mão, termo ligado a
+ * contrato, demanda trocada de cliente, observação do histórico. Só entra o que é novo no GRC-1.
+ * `--sobrescrever` volta ao comportamento antigo (a origem manda em tudo) — só pra recarga de
+ * propósito, sabendo que desfaz as correções feitas nas telas.
+ */
+const SOBRESCREVER = process.argv.includes('--sobrescrever')
+
+function aoAtualizar<T>(dados: T): T | Record<string, never> {
+  return SOBRESCREVER ? dados : {}
+}
 
 // ---------------------------------------------------------------------------
 // Leitura do .accdb via OLEDB/PowerShell (ver Step 1 no cabeçalho do arquivo)
@@ -174,14 +189,13 @@ function toNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/** Valor monetário guardado como TEXTO no Access ("R$ 1.234,56", "1234,56", "1234.56") → string
- *  pronta pro Decimal do Prisma, ou null quando não parece número. Com vírgula, a vírgula é o
- *  decimal e os pontos são milhar; sem vírgula, o ponto é decimal. */
+/** Valor monetário guardado como TEXTO no Access ("R$ 1.234,56", "1234,56") → string pronta pro
+ *  Decimal do Prisma, pela MESMA regra da tela e da planilha (`src/lib/relatorios-clientes/numero.ts`).
+ *  Ambíguo ("1.500") ou inválido → null, e o texto original vai pra `observacao` de quem chamou. */
 function parseValorTexto(v: string | null): string | null {
   if (!v) return null
-  let t = v.replace(/R\$/gi, '').replace(/\s/g, '')
-  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.')
-  return /^\d+(\.\d+)?$/.test(t) ? t : null
+  const lido = normalizarDecimal(v)
+  return 'valor' in lido ? lido.valor : null
 }
 
 /** Campo Hiperlink do Access vem como "texto#endereço#subendereço" (ex. "#https://sei...#"):
@@ -284,10 +298,12 @@ async function importarClientes() {
 
     let cliente
     if (existente) {
-      cliente = await prisma.cliente.update({
-        where: { id: existente.id },
-        data: { siglaLegado: sigla, endereco, numero, bairro },
-      })
+      cliente = SOBRESCREVER
+        ? await prisma.cliente.update({
+            where: { id: existente.id },
+            data: { siglaLegado: sigla, endereco, numero, bairro },
+          })
+        : existente
     } else {
       if (nome) {
         const colisao = await prisma.cliente.findUnique({ where: { nome } })
@@ -343,7 +359,7 @@ async function importarResponsaveis() {
     await prisma.responsavelCliente.upsert({
       where: { legacyId },
       create: { legacyId, ...data },
-      update: data,
+      update: aoAtualizar(data),
     })
     s.importadas++
   }
@@ -376,7 +392,7 @@ async function importarFornecedores() {
     const fornecedor = await prisma.fornecedor.upsert({
       where: { legacyId },
       create: { legacyId, ...data },
-      update: data,
+      update: aoAtualizar(data),
     })
     fornecedorByLegacyId.set(legacyId, fornecedor.id)
     s.importadas++
@@ -424,7 +440,7 @@ async function importarContratoOperacionalizacao() {
     const co = await prisma.contratoOperacionalizacao.upsert({
       where: { legacyId },
       create: { legacyId, ...data },
-      update: data,
+      update: aoAtualizar(data),
     })
     coByLegacyId.set(legacyId, co.id)
     s.importadas++
@@ -470,9 +486,17 @@ async function importarContratos() {
     const contrato = await prisma.contrato.upsert({
       where: { legacyId },
       create: { legacyId, ...data },
-      update: data,
+      update: aoAtualizar(data),
     })
     contratoByLegacyId.set(legacyId, contrato.id)
+    // O "Link SEI" do legado é o do processo do CLIENTE: vai pra tabela de links por número (decisão
+    // do usuário, 23/09/2026). Nunca sobrescreve link já cadastrado na tela.
+    if (data.linkSei && /^https?:\/\//i.test(data.linkSei) && data.seiCliente) {
+      const digitos = chaveDoSei(data.seiCliente)
+      if (digitos) {
+        await prisma.linkSei.upsert({ where: { digitos }, create: { digitos, url: data.linkSei }, update: {} })
+      }
+    }
     s.importadas++
   }
 }
@@ -521,7 +545,7 @@ async function importarHistoricoContrato() {
     await prisma.historicoContrato.upsert({
       where: { legacyId },
       create: { legacyId, ...data },
-      update: data,
+      update: aoAtualizar(data),
     })
     s.importadas++
   }
@@ -603,7 +627,7 @@ async function importarItensContrato() {
     await prisma.itemContrato.upsert({
       where: { legacyId },
       create: { legacyId, ...data },
-      update: data,
+      update: aoAtualizar(data),
     })
     s.importadas++
   }
@@ -667,6 +691,7 @@ async function importarTermosConfirmacao() {
       fornecedorId,
       clienteId,
       contratoId,
+      contratoOperacionalizacaoId: co ?? null,
       numero: toStr(row['Nº TC']),
       valor,
       vigenciaInicio: parseAccessDate(row['Data Início']),
@@ -677,8 +702,15 @@ async function importarTermosConfirmacao() {
     await prisma.termoConfirmacao.upsert({
       where: { legacyId },
       create: { legacyId, ...data },
-      update: data,
+      update: aoAtualizar(data),
     })
+    // Termos importados antes de existir a coluna do CO: preenche só ela (não mexe no resto).
+    if (!SOBRESCREVER && co) {
+      await prisma.termoConfirmacao.updateMany({
+        where: { legacyId, contratoOperacionalizacaoId: null },
+        data: { contratoOperacionalizacaoId: co },
+      })
+    }
     s.importadas++
   }
 }
@@ -728,7 +760,7 @@ async function importarFaturamentos() {
     const fat = await prisma.faturamento.upsert({
       where: { legacyId },
       create: { legacyId, ...data },
-      update: data,
+      update: aoAtualizar(data),
     })
     faturamentoByLegacyId.set(legacyId, fat.id)
     s.importadas++
@@ -767,7 +799,7 @@ async function importarNotasFiscais() {
     await prisma.notaFiscal.upsert({
       where: { legacyId },
       create: { legacyId, ...data },
-      update: data,
+      update: aoAtualizar(data),
     })
     s.importadas++
   }
@@ -826,7 +858,7 @@ async function importarDemandas() {
     const demanda = await prisma.demanda.upsert({
       where: { legacyId },
       create: { legacyId, ...data },
-      update: data,
+      update: aoAtualizar(data),
     })
     demandaByLegacyId.set(legacyId, demanda.id)
     s.importadas++
@@ -873,7 +905,7 @@ async function importarTramites() {
     await prisma.tramiteDemanda.upsert({
       where: { legacyId },
       create: { legacyId, ...data },
-      update: data,
+      update: aoAtualizar(data),
     })
     s.importadas++
   }
@@ -921,7 +953,7 @@ async function importarSolicitacoes() {
     await prisma.solicitacao.upsert({
       where: { legacyId },
       create: { legacyId, ...data },
-      update: data,
+      update: aoAtualizar(data),
     })
     s.importadas++
   }
@@ -934,10 +966,11 @@ async function importarSolicitacoes() {
 async function main() {
   const arg = process.argv[2]
   if (!arg) {
-    console.error('Uso: npx tsx scripts/importar-grc1.ts <caminho-para-o.accdb>')
+    console.error('Uso: npx tsx scripts/importar-grc1.ts <caminho-para-o.accdb> [--sobrescrever]')
     process.exit(1)
   }
   dbPath = arg
+  console.log(SOBRESCREVER ? 'Modo --sobrescrever: a origem SOBRESCREVE o que já existe no VerAI.' : 'Registros já importados não são alterados (use --sobrescrever pra forçar).')
 
   console.log(`Importando GRC-1 de: ${dbPath}`)
   console.log(`DATABASE_URL aponta pra: ${(process.env.DATABASE_URL || '').replace(/:[^:@]+@/, ':***@')}`)

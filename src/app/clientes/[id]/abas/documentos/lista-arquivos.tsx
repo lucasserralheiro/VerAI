@@ -133,7 +133,7 @@ export function ListaArquivos({
                   <td className="whitespace-nowrap">{rotuloCompetencias(a)}</td>
                   <td className="font-mono text-xs whitespace-nowrap">{formatarTamanho(a.tamanhoBytes)}</td>
                   <td className="text-xs whitespace-nowrap text-mid-grey">
-                    {a.enviadoPor?.nome ?? (a.origem === 'migrado' ? 'migrado' : '—')} · {formatarData(a.createdAt)}
+                    {a.enviadoPor?.nome ?? (a.origem === 'migrado' ? 'migrado' : a.origem === 'sharepoint' ? 'SharePoint' : '—')} · {formatarData(a.createdAt)}
                   </td>
                   <td className="font-mono text-xs">{a.usos.length || <span className="font-sans text-mid-grey">não usado</span>}</td>
                 </tr>

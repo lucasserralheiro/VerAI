@@ -47,10 +47,10 @@ export default function AdminClientesPage() {
 
   async function handleExcluir(cliente: Cliente) {
     const totalDocumentos = cliente._count.documentos
-    const forcar = totalDocumentos > 0
-    const mensagem = forcar
-      ? `Isso vai excluir o cliente "${cliente.nome}" E os ${totalDocumentos} documento(s) vinculados (análises, PDFs, tudo) PERMANENTEMENTE. Não dá pra desfazer. Confirma?`
-      : `Excluir o cliente "${cliente.nome}"? Não dá pra desfazer.`
+    // A confirmação vale pra tudo que é do cliente (contratos, faturamento, demandas, arquivos), não
+    // só documentos — a exclusão é a mesma da ficha do cliente (excluir-cliente.ts).
+    const forcar = true
+    const mensagem = `Isso vai excluir o cliente "${cliente.nome}" E tudo que é dele — contratos, histórico, itens, faturamentos, notas, demandas, arquivos${totalDocumentos > 0 ? ` e ${totalDocumentos} documento(s) com análises` : ''} — PERMANENTEMENTE. Não dá pra desfazer. Confirma?`
     if (!confirm(mensagem)) return
 
     setErro(null)

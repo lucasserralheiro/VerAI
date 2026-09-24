@@ -3,9 +3,9 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { respostaErroPrisma } from '@/lib/relatorios-clientes/erros-prisma'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
-import { vincularItensDoContrato } from '@/lib/relatorios-clientes/vincular-itens'
+import { chaveExata, vincularItensDoContrato } from '@/lib/relatorios-clientes/vincular-itens'
 import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
-import { CONTRATO_NAO_ENCONTRADO, carregarContratoComAcesso } from '../carregar'
+import { CONTRATO_NAO_ENCONTRADO, carregarContratoComAcesso, gravarLinkSeiDoCliente, numeroTermoRepetido } from '../carregar'
 import {
   ROTULOS_CONTRATO,
   SELECT_CONTRATO,
@@ -52,8 +52,16 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
   const corpo = await lerCorpo(request, esquemaContrato, ROTULOS_CONTRATO)
   if ('erro' in corpo) return corpo.erro
 
+  // Só confere quando o número MUDA: contrato que já nasceu repetido no legado continua editável.
+  const atual = await prisma.contrato.findUnique({ where: { id }, select: { numeroTermo: true } })
+  if (chaveExata(atual?.numeroTermo) !== chaveExata(corpo.dados.numeroTermo)) {
+    const repetido = await numeroTermoRepetido(carregado.contrato.clienteId, corpo.dados.numeroTermo, id)
+    if (repetido) return repetido
+  }
+
   try {
     const contrato = await prisma.contrato.update({ where: { id }, data: corpo.dados, select: SELECT_CONTRATO })
+    await gravarLinkSeiDoCliente(contrato.seiCliente, corpo.dados.linkSei)
     // Nº do termo pode ter mudado: religa os itens órfãos que passam a casar.
     await vincularItensDoContrato(prisma, id)
     const hoje = new Date()
@@ -68,6 +76,24 @@ export async function DELETE(request: NextRequest, { params }: Contexto) {
   const { id } = await params
   const carregado = await carregarContratoComAcesso(request, id)
   if ('erro' in carregado) return carregado.erro
+
+  // Item e termo de confirmação têm FK opcional (ON DELETE SET NULL): excluir o contrato os soltaria
+  // em silêncio — o valor dos itens sumiria e o termo perderia o contrato. Bloqueia como histórico e
+  // faturamento.
+  const [itens, termos] = await Promise.all([
+    prisma.itemContrato.count({ where: { contratoId: id } }),
+    prisma.termoConfirmacao.count({ where: { contratoId: id } }),
+  ])
+  if (itens > 0 || termos > 0) {
+    const partes = [
+      itens > 0 && `${itens} ${itens === 1 ? 'item' : 'itens'}`,
+      termos > 0 && `${termos} ${termos === 1 ? 'termo de confirmação' : 'termos de confirmação'}`,
+    ].filter(Boolean)
+    return NextResponse.json(
+      { error: `Não é possível excluir: há ${partes.join(' e ')} vinculado(s) a este contrato.` },
+      { status: 409 }
+    )
+  }
 
   try {
     await prisma.contrato.delete({ where: { id } })

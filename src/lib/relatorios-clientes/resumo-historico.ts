@@ -1,11 +1,13 @@
+import { linhaAssinada } from './regras'
+
 /**
  * Resumo do histórico de um contrato pra listagem (aba Contratos): quantos aditivos/prorrogações,
  * o valor atual do contrato e o PDF de proposta (PC/PA) e de termo (TC/TA) mais recente.
  *
  * Valor atual: cada linha do histórico guarda o valor TOTAL do contrato naquele momento (no Access,
  * contrato 69.687.389,32 → aditivo 69.699.911,05 → ... → última prorrogação 68.071.931,88), não o
- * acréscimo. Então o valor atual é o da linha mais recente que tem valor — prospecção fica de fora,
- * porque é proposta ainda não assinada. "Mais recente" = maior data de
+ * acréscimo. Então o valor atual é o da linha mais recente que tem valor — prospecção (proposta),
+ * rescisão (acerto) e aditivo/prorrogação ainda não assinado ficam de fora. "Mais recente" = maior data de
  * assinatura; linha sem data perde pra qualquer linha datada e, entre sem data, vale a criada
  * por último (a ordem em que chegaram).
  */
@@ -18,6 +20,8 @@ export interface LinhaResumoHistorico {
   proposta: string | null
   /** `Decimal` do Prisma (ou string); só o `toString()` interessa. */
   valor: { toString(): string } | null
+  /** Situação da linha — com `data`, diz se aditivo/prorrogação já foi assinado (`linhaAssinada`). */
+  situacao?: string | null
   propostaPdfUrl: string | null
   propostaPdfNome: string | null
   termoPdfUrl: string | null
@@ -57,7 +61,11 @@ export function resumirHistorico(linhas: LinhaResumoHistorico[]): ResumoHistoric
   for (const linha of linhas) {
     if (linha.tipo === 'ADITIVO') aditivos++
     if (linha.tipo === 'PRORROGACAO') prorrogacoes++
-    if (linha.valor !== null && linha.tipo !== 'PROSPECCAO' && (!valorAtual || maisRecenteQue(linha, valorAtual.linha))) {
+    // Valor atual = o do último termo ASSINADO (contrato, aditivo, prorrogação). Prospecção é proposta;
+    // rescisão guarda acerto (saldo, multa), não o valor do contrato; aditivo sem assinatura não vale
+    // ainda (decisões do usuário, 23/09/2026).
+    const contaParaValor = linha.tipo !== 'PROSPECCAO' && linha.tipo !== 'RESCISAO' && linhaAssinada(linha)
+    if (linha.valor !== null && contaParaValor && (!valorAtual || maisRecenteQue(linha, valorAtual.linha))) {
       valorAtual = { linha }
     }
     if (linha.propostaPdfUrl && (!proposta || maisRecenteQue(linha, proposta.linha))) proposta = { linha }

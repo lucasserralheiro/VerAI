@@ -42,7 +42,7 @@ function VincularItens({ contratoId, aoVincular }: { contratoId: string; aoVincu
     event.preventDefault()
     setErro(null)
     try {
-      const response = await fetch(`/api/itens-contrato?semContrato=1&q=${encodeURIComponent(busca.trim())}`)
+      const response = await fetch(`/api/itens-contrato?semContrato=1&contratoId=${contratoId}&q=${encodeURIComponent(busca.trim())}`)
       if (!response.ok) {
         setErro(await mensagemDeErro(response, 'Falha ao buscar itens importados.'))
         return
@@ -208,7 +208,7 @@ export function SecaoItens({ contratoId, itens, aoMudar }: { contratoId: string;
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-[0.95rem] font-semibold text-navy">Itens</h2>
-          <p className="text-xs text-mid-grey">Base do saldo: a soma do valor total dos itens</p>
+          <p className="text-xs text-mid-grey">Sem valor no histórico, a soma dos itens vira o valor contratado</p>
         </div>
         {editando === null && (
           <div className="flex gap-2">

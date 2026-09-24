@@ -160,3 +160,12 @@ describe('POST /api/clientes/[clienteId]/contratos', () => {
     )
   })
 })
+
+describe('POST — nº do termo repetido no cliente', () => {
+  it('409 quando o cliente já tem contrato com o mesmo número (tolerante a zero à esquerda e caixa)', async () => {
+    ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([{ id: 'k9', numeroTermo: 'TC 10/2026' }])
+    const resposta = await POST(post({ numeroTermo: 'tc 010/2026' }), contexto)
+    expect(resposta.status).toBe(409)
+    expect(prisma.contrato.create).not.toHaveBeenCalled()
+  })
+})

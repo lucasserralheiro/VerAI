@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { fetchComPreCarga } from '@/lib/relatorios-clientes/prefetch'
 import { AlertCircle, Loader2, Mail, Phone, Plus, Search, Smartphone, Trash2, Users } from 'lucide-react'
 import { BTN_OUTLINE, BTN_PRIMARY, INPUT_BASE, LINK_DANGER } from '@/lib/ui'
 
@@ -33,7 +34,7 @@ export function AbaResponsaveis({ clienteId }: { clienteId: string }) {
   const [modalResponsavel, setModalResponsavel] = useState<'novo' | Responsavel | null>(null)
 
   async function carregar() {
-    const response = await fetch(`/api/clientes/${clienteId}/responsaveis`)
+    const response = await fetchComPreCarga(`/api/clientes/${clienteId}/responsaveis`)
     if (response.ok) setResponsaveis(await response.json())
   }
 

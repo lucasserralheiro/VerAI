@@ -27,21 +27,29 @@ function linha(parte: Partial<LinhaHistoricoConsolidacao>): LinhaHistoricoConsol
 describe('vigenciaEfetiva', () => {
   it('prorrogação estende o prazo do cabeçalho', () => {
     const fim = vigenciaEfetiva(new Date('2025-09-22T03:00:00Z'), [
-      { tipo: 'PRORROGACAO', dataVencimento: new Date('2027-09-22T03:00:00Z') },
+      { tipo: 'PRORROGACAO', data: new Date('2025-09-01T00:00:00Z'), dataVencimento: new Date('2027-09-22T03:00:00Z') },
     ])
     expect(fim?.toISOString()).toBe('2027-09-22T03:00:00.000Z')
+  })
+  it('prorrogação/aditivo SEM assinatura não estende (vale "Assinada em" ou situação assinada)', () => {
+    const cadastro = new Date('2025-09-22T03:00:00Z')
+    const vence = new Date('2027-09-22T03:00:00Z')
+    expect(vigenciaEfetiva(cadastro, [{ tipo: 'PRORROGACAO', data: null, dataVencimento: vence }])).toBe(cadastro)
+    expect(vigenciaEfetiva(cadastro, [{ tipo: 'ADITIVO', data: null, situacao: 'Em elaboração', dataVencimento: vence }])).toBe(cadastro)
+    expect(vigenciaEfetiva(cadastro, [{ tipo: 'ADITIVO', data: null, situacao: 'Não assinado', dataVencimento: vence }])).toBe(cadastro)
+    expect(vigenciaEfetiva(cadastro, [{ tipo: 'ADITIVO', data: null, situacao: 'Assinado', dataVencimento: vence }])).toBe(vence)
   })
   it('prospecção e rescisão não estendem', () => {
     const cadastro = new Date('2025-09-22T03:00:00Z')
     expect(
       vigenciaEfetiva(cadastro, [
-        { tipo: 'PROSPECCAO', dataVencimento: new Date('2030-01-01T00:00:00Z') },
-        { tipo: 'RESCISAO', dataVencimento: new Date('2031-01-01T00:00:00Z') },
+        { tipo: 'PROSPECCAO', data: new Date('2025-01-01T00:00:00Z'), dataVencimento: new Date('2030-01-01T00:00:00Z') },
+        { tipo: 'RESCISAO', data: new Date('2025-01-01T00:00:00Z'), dataVencimento: new Date('2031-01-01T00:00:00Z') },
       ])
     ).toBe(cadastro)
   })
   it('sem cabeçalho usa o histórico', () => {
-    expect(vigenciaEfetiva(null, [{ tipo: 'ADITIVO', dataVencimento: new Date('2027-01-01T00:00:00Z') }])?.getUTCFullYear()).toBe(2027)
+    expect(vigenciaEfetiva(null, [{ tipo: 'ADITIVO', data: new Date('2026-01-01T00:00:00Z'), dataVencimento: new Date('2027-01-01T00:00:00Z') }])?.getUTCFullYear()).toBe(2027)
   })
 })
 
@@ -65,6 +73,45 @@ describe('consolidarContrato', () => {
     const c = consolidarContrato(contrato, [], semSaldo, HOJE)
     expect(c.ativo).toBe(true)
     expect(c.vencimento.nivel).toBe('vencido')
+  })
+  it('"Ativo" com prazo vencido: continua ativo, mas avisa que a situação está desatualizada', () => {
+    const c = consolidarContrato(contrato, [], semSaldo, HOJE)
+    expect(c.ativo).toBe(true)
+    expect(c.situacaoDesatualizada).toBe(true)
+  })
+  it('sem aviso quando o prazo está em dia, quando a prorrogação estende, ou quando não é "Ativo"', () => {
+    const prorrogado = consolidarContrato(
+      contrato,
+      [linha({ tipo: 'PRORROGACAO', data: new Date('2025-09-01T00:00:00Z'), dataVencimento: new Date('2027-09-22T03:00:00Z') })],
+      semSaldo,
+      HOJE
+    )
+    expect(prorrogado.situacaoDesatualizada).toBe(false)
+    expect(consolidarContrato({ ...contrato, situacao: 'Finalizado' }, [], semSaldo, HOJE).situacaoDesatualizada).toBe(false)
+    expect(consolidarContrato({ ...contrato, situacao: null }, [], semSaldo, HOJE).situacaoDesatualizada).toBe(false)
+  })
+  it('prorrogação sem assinatura: prazo não muda, contrato avisa "prorrogação em andamento"', () => {
+    const c = consolidarContrato(
+      contrato,
+      [linha({ tipo: 'PRORROGACAO', data: null, valor: '999', dataVencimento: new Date('2027-09-22T03:00:00Z') })],
+      semSaldo,
+      HOJE
+    )
+    expect(c.vencimento.nivel).toBe('vencido')
+    expect(c.prorrogacaoEmAndamento).toBe(true)
+    expect(c.valorBase).toBeNull() // o valor dela também não vale ainda
+  })
+  it('rescisão com valor não vira o valor do contrato', () => {
+    const c = consolidarContrato(
+      { ...contrato, situacao: null },
+      [
+        linha({ tipo: 'CONTRATO', data: new Date('2024-01-01T00:00:00Z'), valor: '1000' }),
+        linha({ tipo: 'RESCISAO', data: new Date('2025-06-01T00:00:00Z'), valor: '120' }),
+      ],
+      semSaldo,
+      HOJE
+    )
+    expect(c.valorBase).toBe('1000')
   })
   it('linha vazia do legado nunca é ativa', () => {
     expect(consolidarContrato({ ...contrato, dataVencimento: null }, [], semSaldo, HOJE, true).ativo).toBe(false)

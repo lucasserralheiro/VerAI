@@ -6,6 +6,7 @@ jest.mock('@/lib/auth', () => ({
   ...jest.requireActual('@/lib/auth'),
   getAuthUser: jest.fn(),
 }))
+jest.mock('@/lib/relatorios-clientes/vincular-itens', () => ({ vincularItensDoContrato: jest.fn() }))
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     historicoContrato: { findUnique: jest.fn(), update: jest.fn(), delete: jest.fn() },

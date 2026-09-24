@@ -7,7 +7,7 @@ import { calcularSaldo } from '@/lib/relatorios-clientes/saldo'
 import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
 
 /** Por cliente visível: nº de contratos (e quantos ativos), valor contratado dos ativos (histórico,
- *  senão itens), faturado (notas fiscais) e saldo — a mesma regra do contrato e da ficha, somada. */
+ *  senão itens), faturado desses mesmos contratos e saldo — a mesma regra do contrato e da ficha, somada. */
 export async function GET(request: NextRequest) {
   const autenticado = await exigirUsuario(request)
   if ('erro' in autenticado) return autenticado.erro
@@ -40,9 +40,14 @@ export async function GET(request: NextRequest) {
         const consolidado = consolidados.get(contrato.id)!
         if (!consolidado.ativo) continue
         ativos++
+        // Valor e faturado dos MESMOS contratos: contrato sem valor fica fora das duas somas (e é
+        // contado). Antes o faturado dele entrava e o valor não — saldo menor e % maior que o real.
+        if (consolidado.valorBase === null) {
+          semValor++
+          continue
+        }
+        valorContratado = valorContratado.plus(consolidado.valorBase)
         faturado = faturado.plus(consolidado.saldo.faturado)
-        if (consolidado.valorBase === null) semValor++
-        else valorContratado = valorContratado.plus(consolidado.valorBase)
       }
       return {
         ...cliente,

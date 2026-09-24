@@ -209,3 +209,20 @@ it('sem --aplicar não grava nada', async () => {
   expect(prisma.arquivoCliente.create).not.toHaveBeenCalled()
   expect(prisma.arquivoSharepoint.upsert).not.toHaveBeenCalled()
 })
+
+it('com --aplicar roda a auditoria dos contratos dos clientes da execução e devolve os achados', async () => {
+  const prisma = prismaFake()
+  const achado = { tipo: 'ativo-sem-valor' as const, cliente: 'SMS', contrato: 'TC 1/2023', detalhe: 'x' }
+  const auditar = jest.fn(async () => [achado])
+  const r = await sincronizarSharepoint(prisma as unknown as PrismaClient, { aplicar: true, fonte: fonte({ 'SMS/TC 1/a.pdf': pdfA }), ...base, auditar })
+  expect(auditar).toHaveBeenCalledWith(['c-sms'])
+  expect(r.auditoria).toEqual([achado])
+})
+
+it('sem --aplicar não audita (nada foi gravado)', async () => {
+  const prisma = prismaFake()
+  const auditar = jest.fn(async () => [])
+  const r = await sincronizarSharepoint(prisma as unknown as PrismaClient, { aplicar: false, fonte: fonte({ 'SMS/TC 1/a.pdf': pdfA }), ...base, auditar })
+  expect(auditar).not.toHaveBeenCalled()
+  expect(r.auditoria).toBeNull()
+})

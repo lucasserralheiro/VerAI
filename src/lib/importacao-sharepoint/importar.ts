@@ -2,7 +2,7 @@ import type { Prisma, PrismaClient, TipoHistoricoContrato } from '@prisma/client
 import type { ClientePorSigla } from '@/lib/arquivos/sharepoint/regras'
 import { COLUNAS_ANEXO, dadosDaColuna } from '@/lib/relatorios-clientes/anexos-historico'
 import { chaveNumerica, vincularItensOrfaos } from '@/lib/relatorios-clientes/vincular-itens'
-import type { ContratoPasta, TermoPasta } from './estrutura'
+import { chaveDoNome, type ContratoPasta, type TermoPasta } from './estrutura'
 import { agruparTermos, resolverLinhas, type LinhaConhecida } from './identidade'
 import { somarMeses, type CamposTermo } from './texto'
 
@@ -171,15 +171,17 @@ async function importarContrato(prisma: Db, contrato: ContratoLido, clienteId: s
     situacao: contrato.finalizado ? 'Finalizado' : rescindido ? 'Rescindido' : null,
   }
 
-  // Contrato: pela identidade (sigla|nº ano); na primeira vez, pelo número tolerante — só se único.
+  // Contrato: pela identidade (sigla|nº ano); na primeira vez, pelo número e ano do legado — só se único.
+  // Número e ano pela MESMA leitura das pastas (`chaveDoNome`): "TC 105/2025/SMS-1/CONTRATOS" é 105/2025
+  // (o "1" da sigla não entra — `chaveNumerica` juntava todos os números e criava contrato duplicado).
   let existente = await prisma.contrato.findUnique({ where: { chaveSharepoint: contrato.chave } })
   if (!existente) {
     const [numero, ano] = contrato.chave.split('|')[1].split(' ')
-    const alvo = numero === 'sn' ? null : `${numero} ${ano}`
-    if (alvo) {
-      const candidatos = (await prisma.contrato.findMany({ where: { clienteId, chaveSharepoint: null } })).filter(
-        (c) => chaveNumerica(c.numeroTermo) === alvo
-      )
+    if (numero !== 'sn') {
+      const candidatos = (await prisma.contrato.findMany({ where: { clienteId, chaveSharepoint: null } })).filter((c) => {
+        const chave = chaveDoNome(c.numeroTermo ?? '')
+        return chave !== null ? chave.numero === numero && chave.ano === ano : chaveNumerica(c.numeroTermo) === `${numero} ${ano}`
+      })
       if (candidatos.length === 1) existente = candidatos[0]
       else if (candidatos.length > 1) r.avisos.push(`${contrato.chave}: ${candidatos.length} contratos com o mesmo número no cliente — criado à parte, revise`)
     }

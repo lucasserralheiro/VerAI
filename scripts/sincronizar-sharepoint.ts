@@ -19,6 +19,8 @@ import path from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import { config } from 'dotenv'
 import { sincronizarSharepoint, type ArquivoFonte, type FonteArquivos } from '../src/lib/arquivos/sharepoint/sincronizar'
+import { ROTULO_ACHADO } from '../src/lib/importacao-sharepoint/auditoria'
+import { auditarNoBanco } from '../src/lib/importacao-sharepoint/auditoria-banco'
 import { textoDoPdf } from '../src/lib/importacao-sharepoint/pdf-texto'
 import { extrairCampos } from '../src/lib/importacao-sharepoint/texto'
 
@@ -94,6 +96,7 @@ async function main() {
       nomes: configuracao.nomes ?? {},
       rotearPeloNome: configuracao.rotearPeloNome ?? [],
       lerCampos: async (conteudo, tipo) => extrairCampos(await textoDoPdf(conteudo), tipo),
+      auditar: (clienteIds) => auditarNoBanco(prisma, clienteIds),
     })
     const segundos = Math.round((Date.now() - inicio) / 1000)
 
@@ -133,6 +136,17 @@ async function main() {
         for (const f of l.faltando.slice(0, 20)) console.log(`    falta ${f}`)
       }
       if (divergentes.length > 0) process.exitCode = 2
+    }
+
+    if (r.auditoria) {
+      console.log(`\nAuditoria das contas: ${r.auditoria.length === 0 ? 'nada a revisar' : `${r.auditoria.length} ponto(s) a revisar`}`)
+      for (const [tipo, rotulo] of Object.entries(ROTULO_ACHADO)) {
+        const doTipo = r.auditoria.filter((a) => a.tipo === tipo)
+        if (doTipo.length === 0) continue
+        console.log(`  ${rotulo}: ${doTipo.length}`)
+        for (const a of doTipo.slice(0, 15)) console.log(`    ${a.cliente} ${a.contrato} — ${a.detalhe}`)
+        if (doTipo.length > 15) console.log(`    … e mais ${doTipo.length - 15} (lista completa em logs/sharepoint-sincronizacao.json)`)
+      }
     }
 
     mkdirSync('logs', { recursive: true })

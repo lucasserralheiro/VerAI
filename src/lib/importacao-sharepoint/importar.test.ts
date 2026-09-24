@@ -127,3 +127,12 @@ it('contrato que aparece em ativos e em finalizados gera aviso pra arrumar a pas
   const r = await importarContratos(banco as unknown as PrismaClient, { aplicar: true, contratos: [contrato([termoInicial], { tambemEmFinalizados: true })], clientes, arquivoIdPorCaminho: arquivos })
   expect(r.avisos.join('\n')).toMatch(/também aparece em "Contratos Finalizados"/)
 })
+
+it('casa com o contrato do legado pelo número e ano, mesmo com dígito na sigla ("TC 105/2025/SMS-1/CONTRATOS")', async () => {
+  const banco = db()
+  banco.contrato.findMany.mockResolvedValue([{ id: 'k-legado', numeroTermo: 'TC 105/2025/SMS-1/CONTRATOS', chaveSharepoint: null, situacao: null, legacyId: 9 }] as never)
+  const k = contrato([termoInicial], { chave: 'SMSUB|105 2025', numeroTermo: 'TC 105/2025/SMS/1/CONTRATOS' })
+  const r = await importarContratos(banco as unknown as PrismaClient, { aplicar: true, contratos: [k], clientes, arquivoIdPorCaminho: arquivos })
+  expect(r.contratosCriados).toBe(0)
+  expect((banco.contrato.update as jest.Mock).mock.calls[0][0]).toMatchObject({ where: { id: 'k-legado' }, data: { chaveSharepoint: 'SMSUB|105 2025' } })
+})

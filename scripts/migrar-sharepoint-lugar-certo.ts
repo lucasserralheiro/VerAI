@@ -9,12 +9,13 @@
  *
  * Ordem: 1) cópias de PDF anexadas à mão → referência ao repositório (as vindas do SharePoint a própria
  * sincronização religa ao original); 2) chave dos contratos pela sigla (funde o que a chave antiga
- * duplicou); 3) linhas duplicadas com o mesmo PDF.
+ * duplicou); 2b) cópia de contrato criada ao lado do contrato do legado ("TC 105/2025/SMS-1") → fundida
+ * nele; 3) linhas duplicadas (contrato inicial é um só; aditivo, com o mesmo PDF).
  */
 import { PrismaClient } from '@prisma/client'
 import { config } from 'dotenv'
 import { apagarCopiasMigradas, migrarAnexosParaReferencia } from '../src/lib/importacao-sharepoint/migracao-anexos'
-import { fundirLinhasDuplicadas, migrarChavesDeContrato } from '../src/lib/importacao-sharepoint/migracao-chaves'
+import { fundirComLegado, fundirLinhasDuplicadas, migrarChavesDeContrato } from '../src/lib/importacao-sharepoint/migracao-chaves'
 
 // .env.local completa o que faltar (ex.: BLOB_READ_WRITE_TOKEN) sem sobrescrever o que o dotenv -e já trouxe.
 config({ path: '.env.local' })
@@ -43,6 +44,11 @@ async function main() {
   console.log(`2) contratos: chave renomeada ${chaves.renomeados}, fundidos ${chaves.fundidos.length}, para revisar ${chaves.revisar.length}`)
   for (const f of chaves.fundidos) console.log(`   fundido ${f}`)
   for (const f of chaves.revisar) console.log(`   REVISAR ${f}`)
+
+  const legado = await fundirComLegado(prisma, { aplicar })
+  console.log(`2b) cópias do SharePoint fundidas no contrato do legado: ${legado.fundidos.length}, para revisar ${legado.revisar.length}`)
+  for (const f of legado.fundidos) console.log(`   fundido ${f}`)
+  for (const f of legado.revisar) console.log(`   REVISAR ${f}`)
 
   const linhas = await fundirLinhasDuplicadas(prisma, { aplicar })
   console.log(`3) linhas duplicadas fundidas: ${linhas.fundidas.length}, para revisar ${linhas.revisar.length}`)

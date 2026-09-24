@@ -3,6 +3,7 @@ import { garantirClientes } from '@/lib/importacao-sharepoint/clientes'
 import { montarEstrutura, type ContratoPasta, type TermoPasta, type TipoTermo } from '@/lib/importacao-sharepoint/estrutura'
 import { importarContratos, type ContratoLido, type TermoLido } from '@/lib/importacao-sharepoint/importar'
 import type { CamposTermo } from '@/lib/importacao-sharepoint/texto'
+import type { Achado } from '@/lib/importacao-sharepoint/auditoria'
 import { configR2, putR2 } from '@/lib/r2'
 import { registrarConteudo } from '../registrar-conteudo'
 import { sha256Hex, usosDosArquivos, type UsoArquivo } from '../servico'
@@ -55,6 +56,9 @@ export interface OpcoesSincronizacao {
   gravarBlob?: (caminho: string, conteudo: Buffer, contentType: string) => Promise<string>
   buscarUsos?: (ids: string[]) => Promise<Map<string, UsoArquivo[]>>
   importar?: typeof importarContratos
+  /** Auditoria das contas dos contratos dos clientes da execução (só com `aplicar`). O script passa
+   *  `auditarNoBanco`; sem ela, não audita. */
+  auditar?: (clienteIds: string[]) => Promise<Achado[]>
   agora?: Date
 }
 
@@ -84,6 +88,8 @@ export interface ResultadoSincronizacao {
   }
   /** `null` sem `--aplicar` (não há o que conferir no banco). */
   conferencia: LinhaConferencia[] | null
+  /** Distorções nas contas dos contratos (auditoria.ts); `null` sem `--aplicar` ou sem `auditar`. */
+  auditoria: Achado[] | null
 }
 
 interface ItemListado extends ArquivoFonte {
@@ -151,6 +157,7 @@ export async function sincronizarSharepoint(prisma: PrismaClient, opcoes: Opcoes
     clientes: { criados: [], renomeados: [], semNomeOficial: [] },
     contratos: { processados: 0, contratosCriados: 0, contratosCompletados: 0, linhasCriadas: 0, linhasCompletadas: 0, anexosLigados: 0, avisos: [] },
     conferencia: null,
+    auditoria: null,
   }
   const contar = (grupo: Record<string, number>, chave: string) => (grupo[chave] = (grupo[chave] ?? 0) + 1)
 
@@ -375,6 +382,12 @@ export async function sincronizarSharepoint(prisma: PrismaClient, opcoes: Opcoes
       select: { caminho: true },
     })
     r.conferencia = conferir(new Map(itens.map((i) => [i.caminho, i.rotuloCliente])), new Set(gravados.map((g) => g.caminho)))
+  }
+
+  // 10) Auditoria das contas dos contratos dos clientes da execução (mesma regra das telas).
+  if (aplicar && opcoes.auditar) {
+    const ids = idsFiltro ? [...idsFiltro] : [...rc.clientes.values()].map((c) => c.id)
+    r.auditoria = await opcoes.auditar(ids.filter((id) => !id.startsWith('simulado:')))
   }
   return r
 }

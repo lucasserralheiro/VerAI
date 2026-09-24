@@ -115,6 +115,10 @@ export async function fundirLinhasDuplicadas(db: PrismaClient, opcoes: { aplicar
       termoArquivoId: true,
       propostaDoSharepoint: true,
       termoDoSharepoint: true,
+      // Antes da sincronização as linhas do SharePoint ainda não têm referência: a cópia antiga diz
+      // qual PDF é pelo nome do arquivo de origem (sai na limpeza, Task 15 do plano).
+      propostaPdfNome: true,
+      termoPdfNome: true,
     },
     orderBy: { createdAt: 'asc' },
   })
@@ -134,8 +138,21 @@ export async function fundirLinhasDuplicadas(db: PrismaClient, opcoes: { aplicar
     for (const sai of resto) {
       const mesmoPdf =
         (sai.termoArquivoId !== null && sai.termoArquivoId === fica.termoArquivoId) ||
-        (sai.propostaArquivoId !== null && sai.propostaArquivoId === fica.propostaArquivoId)
-      if (!mesmoPdf) continue // mesmo número e conteúdo diferente: são termos diferentes
+        (sai.propostaArquivoId !== null && sai.propostaArquivoId === fica.propostaArquivoId) ||
+        (!!sai.termoPdfNome && sai.termoPdfNome === fica.termoPdfNome) ||
+        (!!sai.propostaPdfNome && sai.propostaPdfNome === fica.propostaPdfNome)
+      const pdfDiferente =
+        (!!sai.termoArquivoId && !!fica.termoArquivoId && sai.termoArquivoId !== fica.termoArquivoId) ||
+        (!!sai.propostaArquivoId && !!fica.propostaArquivoId && sai.propostaArquivoId !== fica.propostaArquivoId) ||
+        (!!sai.termoPdfNome && !!fica.termoPdfNome && sai.termoPdfNome !== fica.termoPdfNome) ||
+        (!!sai.propostaPdfNome && !!fica.propostaPdfNome && sai.propostaPdfNome !== fica.propostaPdfNome)
+      // Contrato inicial é um só por contrato: duas linhas dele vindas do SharePoint são a mesma, a menos
+      // que tragam PDFs diferentes. Aditivo com o mesmo número só é o mesmo termo com o mesmo PDF.
+      if (sai.tipo === 'CONTRATO' && pdfDiferente) {
+        r.revisar.push(`${sai.chaveSharepoint} e ${fica.chaveSharepoint}: dois contratos iniciais com PDFs diferentes — revise`)
+        continue
+      }
+      if (sai.tipo !== 'CONTRATO' && !mesmoPdf) continue // mesmo número e conteúdo diferente: são termos diferentes
       r.fundidas.push(`${sai.chaveSharepoint} → ${fica.chaveSharepoint}`)
       if (!opcoes.aplicar) continue
       try {

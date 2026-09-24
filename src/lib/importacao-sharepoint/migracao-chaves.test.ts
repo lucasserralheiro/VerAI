@@ -62,6 +62,26 @@ it('linhas do mesmo termo com o mesmo PDF: funde na mais completa (SMIT TC 52)',
   expect(banco.historicoContrato.delete).toHaveBeenCalledWith({ where: { id: 'h1' } })
 })
 
+it('antes da sincronização (sem referência ainda) reconhece o mesmo PDF pelo nome da cópia', async () => {
+  const banco = db([], [
+    linha({ id: 'h1', termoArquivoId: null, termoPdfNome: 'TC 52-SMIT-2024.pdf' }),
+    linha({ id: 'h2', termoArquivoId: null, termoPdfNome: 'TC 52-SMIT-2024.pdf', valor: '100.00' }),
+  ])
+  expect((await fundirLinhasDuplicadas(banco as unknown as PrismaClient, { aplicar: true })).fundidas).toHaveLength(1)
+})
+
+it('contrato inicial é um só: duas linhas CONTRATO do SharePoint sem PDF se fundem (SUB-ITP em duas pastas)', async () => {
+  const banco = db([], [linha({ id: 'h1', termoArquivoId: null }), linha({ id: 'h2', termoArquivoId: null })])
+  expect((await fundirLinhasDuplicadas(banco as unknown as PrismaClient, { aplicar: true })).fundidas).toHaveLength(1)
+})
+
+it('contrato inicial com PDFs diferentes não funde — vai pra revisão', async () => {
+  const banco = db([], [linha({ id: 'h1', termoArquivoId: 'a' }), linha({ id: 'h2', termoArquivoId: 'b' })])
+  const r = await fundirLinhasDuplicadas(banco as unknown as PrismaClient, { aplicar: true })
+  expect(r.fundidas).toEqual([])
+  expect(r.revisar).toHaveLength(1)
+})
+
 it('mesmo número com PDF diferente não funde (SMDHC "TA 001" ×2)', async () => {
   const banco = db([], [linha({ id: 'h1', tipo: 'ADITIVO', numero: 'TA 001', termoArquivoId: 'a' }), linha({ id: 'h2', tipo: 'ADITIVO', numero: 'TA 001', termoArquivoId: 'b' })])
   expect((await fundirLinhasDuplicadas(banco as unknown as PrismaClient, { aplicar: true })).fundidas).toEqual([])

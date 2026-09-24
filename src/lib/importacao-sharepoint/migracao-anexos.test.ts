@@ -27,15 +27,22 @@ function db(linhas: object[], pendentes = 0) {
 
 beforeEach(() => jest.clearAllMocks())
 
+it('por padrão só migra anexo feito à mão; cópia vinda do SharePoint fica pra sincronização religar ao original', async () => {
+  const banco = db([], 7)
+  const r = await migrarAnexosParaReferencia(banco as unknown as PrismaClient, { aplicar: true, baixar: jest.fn() })
+  expect((banco.historicoContrato.findMany.mock.calls[0] as unknown[])[0]).toMatchObject({ where: { chaveSharepoint: null } })
+  expect(r.deixadosParaSincronizacao).toBe(7)
+})
+
 it('baixa a cópia, registra no repositório do cliente e grava a referência (linha do SharePoint → acompanha o SharePoint)', async () => {
   const banco = db([linha({})])
   ;(registrarConteudo as jest.Mock).mockResolvedValue({ id: 'a1', novo: true })
   const baixar = jest.fn(async () => Buffer.from('%PDF'))
-  const r = await migrarAnexosParaReferencia(banco as unknown as PrismaClient, { aplicar: true, baixar })
+  const r = await migrarAnexosParaReferencia(banco as unknown as PrismaClient, { aplicar: true, incluirSharepoint: true, baixar })
   expect(baixar).toHaveBeenCalledWith('https://blob/historico-contrato/h1/termo.pdf')
   expect((registrarConteudo as jest.Mock).mock.calls[0][1]).toMatchObject({ clienteId: 'c1', nome: 'TC 1-2023.pdf', categoria: 'TERMO_CONTRATO', origem: 'migrado', enviadoPorId: null })
   expect(banco.historicoContrato.update).toHaveBeenCalledWith({ where: { id: 'h1' }, data: { termoArquivoId: 'a1', termoDoSharepoint: true } })
-  expect(r).toEqual({ referenciados: 1, novosNoRepositorio: 1, reaproveitados: 0, falhas: [] })
+  expect(r).toEqual({ referenciados: 1, novosNoRepositorio: 1, reaproveitados: 0, deixadosParaSincronizacao: 0, falhas: [] })
 })
 
 it('linha sem chave do SharePoint é anexo à mão', async () => {
@@ -48,7 +55,7 @@ it('linha sem chave do SharePoint é anexo à mão', async () => {
 it('sem --aplicar só conta; falha de download vai pro relatório', async () => {
   const banco = db([linha({}), linha({ id: 'h2' })])
   const baixar = jest.fn().mockResolvedValueOnce(Buffer.from('x')).mockRejectedValueOnce(new Error('404'))
-  const r = await migrarAnexosParaReferencia(banco as unknown as PrismaClient, { aplicar: false, baixar })
+  const r = await migrarAnexosParaReferencia(banco as unknown as PrismaClient, { aplicar: false, incluirSharepoint: true, baixar })
   expect(r.referenciados).toBe(1)
   expect(r.falhas).toEqual([{ linhaId: 'h2', coluna: 'termo', motivo: '404' }])
   expect(registrarConteudo).not.toHaveBeenCalled()

@@ -8,6 +8,10 @@ import { COLUNAS_ANEXO, categoriaDaColuna, dadosDaColuna, type ColunaAnexo } fro
 // porque o código antigo lê as URLs até o deploy do novo:
 //   1. `migrarAnexosParaReferencia`: preenche `*ArquivoId` (não apaga nada) — roda ANTES do deploy;
 //   2. `apagarCopiasMigradas`: apaga os blobs das cópias e limpa as URLs — roda DEPOIS do deploy.
+// Cópia de linha que veio do SharePoint (`chaveSharepoint`) NÃO é baixada por padrão: o original está
+// na biblioteca e a sincronização religa a coluna a ele (a coluna sem referência conta como vazia).
+// Evita baixar e subir de novo centenas de MB — e não depende do Blob estar legível. `incluirSharepoint`
+// migra também essas, para o que sobrar depois da sincronização (PDF que não existe mais no SharePoint).
 
 const COLUNAS_URL = {
   proposta: { url: 'propostaPdfUrl', nome: 'propostaPdfNome' },
@@ -25,17 +29,27 @@ export interface ResultadoMigracaoAnexos {
   referenciados: number
   novosNoRepositorio: number
   reaproveitados: number
+  /** Linhas do SharePoint com cópia ainda sem referência — a sincronização religa ao original. */
+  deixadosParaSincronizacao: number
   falhas: Array<{ linhaId: string; coluna: ColunaAnexo; motivo: string }>
 }
 
 export async function migrarAnexosParaReferencia(
   db: PrismaClient,
-  opcoes: { aplicar: boolean; baixar?: (url: string) => Promise<Buffer>; gravarBlob?: (c: string, b: Buffer, t: string) => Promise<string> }
+  opcoes: {
+    aplicar: boolean
+    incluirSharepoint?: boolean
+    baixar?: (url: string) => Promise<Buffer>
+    gravarBlob?: (c: string, b: Buffer, t: string) => Promise<string>
+  }
 ): Promise<ResultadoMigracaoAnexos> {
   const baixar = opcoes.baixar ?? getUpload
-  const r: ResultadoMigracaoAnexos = { referenciados: 0, novosNoRepositorio: 0, reaproveitados: 0, falhas: [] }
+  const r: ResultadoMigracaoAnexos = { referenciados: 0, novosNoRepositorio: 0, reaproveitados: 0, deixadosParaSincronizacao: 0, falhas: [] }
+  if (!opcoes.incluirSharepoint) {
+    r.deixadosParaSincronizacao = await db.historicoContrato.count({ where: { AND: [SEM_REFERENCIA, { chaveSharepoint: { not: null } }] } })
+  }
   const linhas = await db.historicoContrato.findMany({
-    where: SEM_REFERENCIA,
+    where: opcoes.incluirSharepoint ? SEM_REFERENCIA : { AND: [SEM_REFERENCIA], chaveSharepoint: null },
     select: {
       id: true,
       tipo: true,
@@ -91,7 +105,12 @@ export async function apagarCopiasMigradas(
 ): Promise<{ apagadas: number }> {
   const apagarBlob = opcoes.apagarBlob ?? deleteUpload
   const pendentes = await db.historicoContrato.count({ where: SEM_REFERENCIA })
-  if (pendentes > 0) throw new Error(`${pendentes} linha(s) ainda com cópia e sem referência — rode a migração sem --apagar-copias primeiro`)
+  if (pendentes > 0) {
+    throw new Error(
+      `${pendentes} linha(s) ainda com cópia e sem referência — rode a sincronização (religa as do SharePoint) ` +
+        `e, para o que sobrar, a migração com --incluir-sharepoint, antes de --apagar-copias`
+    )
+  }
 
   const linhas = await db.historicoContrato.findMany({
     where: { OR: [{ propostaPdfUrl: { not: null } }, { termoPdfUrl: { not: null } }] },

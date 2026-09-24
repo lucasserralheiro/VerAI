@@ -4,10 +4,12 @@
  *
  *   npx dotenv -e .env.development -- npx tsx scripts/migrar-sharepoint-lugar-certo.ts            # só lista
  *   npx dotenv -e .env.development -- npx tsx scripts/migrar-sharepoint-lugar-certo.ts --aplicar  # grava
- *   ... --apagar-copias [--aplicar]   # DEPOIS do deploy do código novo: apaga os blobs das cópias antigas
+ *   ... --apagar-copias [--aplicar]   # DEPOIS do deploy e da sincronização: apaga os blobs das cópias antigas
+ *   ... --incluir-sharepoint          # migra também cópia vinda do SharePoint (só o que a sincronização não religou)
  *
- * Ordem: 1) cópias de PDF do histórico → referência ao repositório; 2) chave dos contratos pela sigla
- * (funde o que a chave antiga duplicou); 3) linhas duplicadas com o mesmo PDF.
+ * Ordem: 1) cópias de PDF anexadas à mão → referência ao repositório (as vindas do SharePoint a própria
+ * sincronização religa ao original); 2) chave dos contratos pela sigla (funde o que a chave antiga
+ * duplicou); 3) linhas duplicadas com o mesmo PDF.
  */
 import { PrismaClient } from '@prisma/client'
 import { config } from 'dotenv'
@@ -29,9 +31,12 @@ async function main() {
     return
   }
 
-  const anexos = await migrarAnexosParaReferencia(prisma, { aplicar })
+  const anexos = await migrarAnexosParaReferencia(prisma, { aplicar, incluirSharepoint: process.argv.includes('--incluir-sharepoint') })
   console.log(modo)
-  console.log(`1) anexos → referência: ${anexos.referenciados} (novos no repositório ${anexos.novosNoRepositorio}, já existiam ${anexos.reaproveitados}), falhas ${anexos.falhas.length}`)
+  console.log(`1) anexos à mão → referência: ${anexos.referenciados} (novos no repositório ${anexos.novosNoRepositorio}, já existiam ${anexos.reaproveitados}), falhas ${anexos.falhas.length}`)
+  if (anexos.deixadosParaSincronizacao > 0) {
+    console.log(`   ${anexos.deixadosParaSincronizacao} linha(s) com cópia vinda do SharePoint: a sincronização religa ao arquivo original (sem baixar a cópia)`)
+  }
   for (const f of anexos.falhas) console.log(`   falha linha ${f.linhaId} (${f.coluna}): ${f.motivo}`)
 
   const chaves = await migrarChavesDeContrato(prisma, { aplicar })

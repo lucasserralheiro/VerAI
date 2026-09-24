@@ -97,13 +97,17 @@ const FRACAO_MINIMA_LISTADA = 0.5
 
 const pastaDe = (caminho: string) => caminho.slice(0, caminho.lastIndexOf('/'))
 
-/** A sincronização nova só roda depois de scripts/migrar-sharepoint-lugar-certo.ts (spec §6). */
+/** A sincronização nova só roda depois de scripts/migrar-sharepoint-lugar-certo.ts (spec §6). Cópia de
+ *  linha vinda do SharePoint não conta: a própria sincronização religa a coluna ao arquivo original. */
 export async function pendenciasDeMigracao(prisma: PrismaClient): Promise<string[]> {
   const pendencias: string[] = []
   const anexos = await prisma.historicoContrato.count({
-    where: { OR: [{ propostaPdfUrl: { not: null }, propostaArquivoId: null }, { termoPdfUrl: { not: null }, termoArquivoId: null }] },
+    where: {
+      chaveSharepoint: null,
+      OR: [{ propostaPdfUrl: { not: null }, propostaArquivoId: null }, { termoPdfUrl: { not: null }, termoArquivoId: null }],
+    },
   })
-  if (anexos > 0) pendencias.push(`${anexos} linha(s) do histórico com PDF copiado ainda sem referência ao repositório`)
+  if (anexos > 0) pendencias.push(`${anexos} linha(s) do histórico com PDF anexado à mão ainda sem referência ao repositório`)
   const contratos = await prisma.contrato.findMany({
     where: { chaveSharepoint: { not: null } },
     select: { chaveSharepoint: true, cliente: { select: { siglaLegado: true } } },

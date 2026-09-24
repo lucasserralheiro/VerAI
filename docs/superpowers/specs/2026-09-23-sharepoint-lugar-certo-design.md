@@ -302,3 +302,35 @@ administrador, grátis até 10 GB (a biblioteca tem 1,15 GB). Onde conflitar com
   sincronização ainda não há referência), e contrato inicial é um só por contrato — duas linhas dele vindas
   do SharePoint se fundem, salvo PDFs diferentes (vai pra revisão). Aplicado em dev: SUB-ITP (contrato e
   linha) e SMIT TC 52.
+
+### 10.1 Com o R2 (24/09/2026, tarde)
+
+- Conexão com o R2 validada (gravar, ler, apagar). A assinatura SigV4 bate com o exemplo oficial da AWS.
+- **Amostra** (`--clientes=SMSUB,SMIT,SUB-ITP,SPURBANISMO,SMDHC`, `--aplicar`, 276 s): 279 arquivos
+  (266 novos, 13 conteúdo repetido), 0 falhas; 53 contratos processados, 1 novo (SPURBANISMO TC 010/2026),
+  17 linhas novas (aditivos perdidos pelo importador antigo), 218 PDFs ligados; conferência **TUDO NO
+  VERAI**. Segunda execução: 5 s, 279 inalterados, 0 contratos processados (idempotente).
+- **Cenário de mudança** numa cópia da pasta da SMSUB: contrato TC 211/2022 movido para "Contratos
+  finalizados" (23 arquivos), aditivo do TC 36/2022 renomeado (11 arquivos), 1 arquivo de `WORK/`
+  apagado → 0 arquivos novos, 34 reconhecidos pelo conteúdo, 0 linhas novas (TC 211 seguiu com 4 linhas,
+  TC 36 com 5, todas com PDF), TC 211 marcado "Finalizado", arquivo apagado removido, conferência TUDO NO
+  VERAI. As 2 publicações do DOC da SMSUB também saíram (não estavam na cópia — comportamento certo).
+  Volta à pasta real: tudo restaurado, conferência OK. Observação: contrato que volta de "Contratos
+  Finalizados" continua "Finalizado" no VerAI (só preenche vazio) — corrigir à mão se acontecer.
+
+### 10.2 Biblioteca inteira em dev (24/09/2026)
+
+- Carga completa (830 s): 878 arquivos novos no R2; 1 falha transitória do R2 (502 "try again"), que a
+  conferência acusou e a execução seguinte recuperou. 178 contratos processados, **91 aditivos recuperados**
+  (perdidos pelo importador antigo quando o Blob lotou), 855 PDFs ligados por referência.
+- Achados e correções: (1) contrato com pasta ativa e cópia em "Contratos Finalizados" era marcado
+  "Finalizado" — SMIT TC 52/2024 (R$ 9,26 mi, vigente até 30/06/2027) e SMSUB TC 01/2026; agora só é
+  finalizado se TODAS as pastas estão lá (aviso pra arrumar a pasta), e "Finalizado" gravado pela importação
+  sai; (2) byte 0 no texto de PDF (SEME TC 25/2024, SME TC 378/2024) derrubava a gravação; (3) pasta
+  "Apostila…/Apostilamento" virava segunda linha de contrato inicial (SMTUR TC 001/2023, SMUL TC 07/2023).
+- Reprocessamento (`--reler-tudo`, 103 s): 231 contratos, conferência **1.171/1.171 — TUDO NO VERAI**.
+- Auditoria das contas (todos os clientes): 125 contratos ativos, R$ 1,16 bi; SMIT 3 ativos / R$ 9,44 mi.
+  35 ativos sem valor (termo escaneado — valor a digitar). Para revisar à mão: contratos do legado GRC-1
+  "Finalizado" com pasta ativa no SharePoint (SGM 17/2025, SMS 138/2021, 142/2021, 203/2023 — este com
+  vigência até 2032, a conferir) e SVMA TC 074/2022 (todas as pastas em finalizados, mas vigência lida até
+  2028-01-08).

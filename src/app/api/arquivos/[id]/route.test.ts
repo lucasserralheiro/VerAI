@@ -7,6 +7,8 @@ jest.mock('@/lib/prisma', () => ({
     arquivoCliente: { findFirst: jest.fn(), update: jest.fn() },
     acessoArquivo: { create: jest.fn() },
     documento: { findMany: jest.fn() },
+    historicoContrato: { findMany: jest.fn(async () => []) },
+    arquivoSharepoint: { findMany: jest.fn(async () => []) },
     usuario: { findUnique: jest.fn() },
   },
 }))

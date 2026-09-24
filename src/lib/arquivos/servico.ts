@@ -99,16 +99,46 @@ export async function registrarArquivo(dados: DadosRegistro): Promise<{ arquivo:
   }
 }
 
-/** Onde cada arquivo é usado. Fase 1 só conhece `Documento` (análise por IA antiga); as fases 2–4
- *  acrescentam aqui histórico do contrato, faturamento, ConfereAI e proposta comercial. */
+function rotuloDaLinha(linha: { tipo: string; numero: string | null }): string {
+  return linha.tipo === 'CONTRATO' ? 'contrato inicial' : (linha.numero ?? linha.tipo.toLowerCase())
+}
+
+/** Onde cada arquivo é usado: análise por IA (`Documento`), coluna PC/PA–TC/TA de linha do histórico
+ *  e lugar na biblioteca do SharePoint. Faturamento, ConfereAI e proposta comercial entram nas
+ *  próximas fases do repositório. */
 export async function usosDosArquivos(ids: string[]): Promise<Map<string, UsoArquivo[]>> {
   const usos = new Map<string, UsoArquivo[]>(ids.map((id) => [id, []]))
   if (ids.length === 0) return usos
 
-  const documentos = await prisma.documento.findMany({
-    where: { arquivoId: { in: ids } },
-    select: { arquivoId: true, clienteId: true, competenciaAno: true, competenciaMes: true },
-  })
+  const [documentos, linhas, locais] = await Promise.all([
+    prisma.documento.findMany({
+      where: { arquivoId: { in: ids } },
+      select: { arquivoId: true, clienteId: true, competenciaAno: true, competenciaMes: true },
+    }),
+    prisma.historicoContrato.findMany({
+      where: { OR: [{ propostaArquivoId: { in: ids } }, { termoArquivoId: { in: ids } }] },
+      select: {
+        id: true,
+        tipo: true,
+        numero: true,
+        propostaArquivoId: true,
+        termoArquivoId: true,
+        propostaDoSharepoint: true,
+        termoDoSharepoint: true,
+        contrato: { select: { id: true, numeroTermo: true, clienteId: true } },
+      },
+    }),
+    prisma.arquivoSharepoint.findMany({
+      where: { arquivoId: { in: ids }, removidoNaOrigemEm: null },
+      select: {
+        arquivoId: true,
+        caminho: true,
+        contrato: { select: { id: true, numeroTermo: true, clienteId: true } },
+        arquivo: { select: { clienteId: true } },
+      },
+    }),
+  ])
+
   for (const doc of documentos) {
     usos.get(doc.arquivoId!)?.push({
       tipo: 'analise-documento',
@@ -116,6 +146,35 @@ export async function usosDosArquivos(ids: string[]): Promise<Map<string, UsoArq
       href: `/clientes/${doc.clienteId}/${formatarCompetencia(doc.competenciaAno, doc.competenciaMes)}`,
       contrato: null,
       competencia: { ano: doc.competenciaAno, mes: doc.competenciaMes },
+    })
+  }
+  for (const linha of linhas) {
+    const colunas = [
+      ['PC/PA', linha.propostaArquivoId, linha.propostaDoSharepoint],
+      ['TC/TA', linha.termoArquivoId, linha.termoDoSharepoint],
+    ] as const
+    for (const [rotulo, arquivoId, daSincronizacao] of colunas) {
+      if (!arquivoId) continue
+      usos.get(arquivoId)?.push({
+        tipo: 'historico-contrato',
+        rotulo: `Contrato ${linha.contrato.numeroTermo ?? 'sem nº'} · ${rotulo} de ${rotuloDaLinha(linha)}`,
+        href: `/clientes/${linha.contrato.clienteId}/contratos/${linha.contrato.id}`,
+        contrato: { id: linha.contrato.id, numeroTermo: linha.contrato.numeroTermo },
+        competencia: null,
+        daSincronizacao,
+      })
+    }
+  }
+  for (const local of locais) {
+    usos.get(local.arquivoId!)?.push({
+      tipo: 'sharepoint',
+      rotulo: `SharePoint · ${local.caminho}`,
+      href: local.contrato
+        ? `/clientes/${local.contrato.clienteId}/contratos/${local.contrato.id}`
+        : `/clientes/${local.arquivo!.clienteId}`,
+      contrato: local.contrato ? { id: local.contrato.id, numeroTermo: local.contrato.numeroTermo } : null,
+      competencia: null,
+      daSincronizacao: true,
     })
   }
   return usos

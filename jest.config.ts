@@ -8,6 +8,8 @@ const config: Config = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^react-markdown$': '<rootDir>/src/__mocks__/react-markdown.tsx',
+    '^remark-gfm$': '<rootDir>/src/__mocks__/remark-gfm.ts',
   },
   // services/confere/ é o serviço Python copiado (Task 1 da integração —
   // docs/superpowers/specs/2026-09-21-integracao-confere-design.md). Tem

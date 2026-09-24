@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { NavBar } from "@/components/nav-bar";
+import { AssistenteFlutuante } from "@/components/assistente/assistente-flutuante";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body className="flex min-h-screen antialiased">
         <NavBar />
         <div className="min-w-0 flex-1">{children}</div>
+        <AssistenteFlutuante />
       </body>
     </html>
   );

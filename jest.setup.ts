@@ -23,3 +23,20 @@ if (!global.TransformStream) global.TransformStream = TransformStream
 const { TextEncoder, TextDecoder } = require('node:util')
 if (!global.TextEncoder) global.TextEncoder = TextEncoder
 if (!global.TextDecoder) global.TextDecoder = TextDecoder
+
+// jsdom não implementa a Fetch API (fetch/Request/Response/Headers) — testes de componente que
+// mockam `global.fetch` devolvendo `new Response(...)` (painel do assistente, Task 12) quebram
+// com "Response is not defined". `undici` é a implementação que o próprio Node usa por baixo do
+// pano pro fetch nativo; já está em node_modules como dependência transitiva de vários pacotes
+// (ex.: `ai`), então não precisa virar dependência direta só pra isso.
+// `undici` também espera MessagePort/MessageChannel (globais do Node, ausentes no jsdom) só
+// pra carregar o módulo — sem uso real nos testes daqui.
+const { MessageChannel, MessagePort } = require('node:worker_threads')
+if (!global.MessageChannel) global.MessageChannel = MessageChannel
+if (!global.MessagePort) global.MessagePort = MessagePort
+
+const { fetch, Headers, Request, Response } = require('undici')
+if (!global.fetch) global.fetch = fetch
+if (!global.Headers) global.Headers = Headers
+if (!global.Request) global.Request = Request
+if (!global.Response) global.Response = Response

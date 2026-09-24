@@ -13,7 +13,7 @@ export interface ArquivoRepositorio {
   contentType: string
   tamanhoBytes: number
   sha256: string
-  origem: 'upload' | 'gerado' | 'migrado'
+  origem: 'upload' | 'gerado' | 'migrado' | 'sharepoint'
   createdAt: string
   enviadoPor: { nome: string } | null
   usos: UsoArquivo[]

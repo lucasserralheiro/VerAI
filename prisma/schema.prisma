@@ -167,14 +167,15 @@ model Contrato {
   dataVencimento    DateTime?
   vigente           Boolean?
   linkSei           String?
-  // Chave do contrato na biblioteca ContratosReceita do SharePoint ("ADESAMPA|73 2019") — identidade
-  // estável da importação (scripts/importar-sharepoint-contratos.ts), nunca mostrada na tela.
+  // Chave do contrato na biblioteca ContratosReceita do SharePoint: `<sigla do cliente>|<nº> <ano>`
+  // ("ADESAMPA|73 2019") — identidade estável da sincronização, nunca mostrada na tela.
   chaveSharepoint   String?             @unique
   createdAt         DateTime            @default(now())
   historico         HistoricoContrato[]
   itens             ItemContrato[]
   faturamentos      Faturamento[]
   termosConfirmacao TermoConfirmacao[]
+  arquivosSharepoint ArquivoSharepoint[]
 
   @@index([clienteId])
 }
@@ -216,11 +217,25 @@ model HistoricoContrato {
   propostaPdfNome String?
   termoPdfUrl     String?
   termoPdfNome    String?
-  // Pasta do termo no SharePoint (`${chaveContrato}|${caminho}`) — identidade estável da importação.
+  // Pasta do termo no SharePoint (`${chaveContrato}|${caminho}`) gravada quando a linha nasceu da
+  // importação. NÃO é identidade (mover/renomear pasta mudaria a chave): é pista e marca de origem —
+  // a linha certa sai de src/lib/importacao-sharepoint/identidade.ts.
   chaveSharepoint String?              @unique
+  // Colunas PC/PA e TC/TA por REFERÊNCIA ao repositório do cliente (spec
+  // docs/superpowers/specs/2026-09-23-sharepoint-lugar-certo-design.md §3.4). `*DoSharepoint`: a coluna
+  // foi preenchida pela sincronização e acompanha o SharePoint; `false` = anexada à mão, nunca trocada.
+  propostaArquivoId    String?
+  propostaArquivo      ArquivoCliente?       @relation("PropostaDaLinha", fields: [propostaArquivoId], references: [id], onDelete: SetNull)
+  propostaDoSharepoint Boolean               @default(false)
+  termoArquivoId       String?
+  termoArquivo         ArquivoCliente?       @relation("TermoDaLinha", fields: [termoArquivoId], references: [id], onDelete: SetNull)
+  termoDoSharepoint    Boolean               @default(false)
+  arquivosSharepoint   ArquivoSharepoint[]
   createdAt      DateTime              @default(now())
 
   @@index([contratoId])
+  @@index([propostaArquivoId])
+  @@index([termoArquivoId])
 }
 
 // Item de contrato (T_ItensContrato) — base pretendida do cálculo de saldo (§3.6 do design doc).
@@ -603,6 +618,7 @@ enum CategoriaArquivo {
   FATURA_NF
   PLANILHA
   OFICIO_SEI
+  PUBLICACAO_DOC
   RELATORIO_GERADO
   OUTRO
 }
@@ -634,6 +650,8 @@ model ArquivoCliente {
   documentos     Documento[]
   acessos        AcessoArquivo[]
   sharepoint     ArquivoSharepoint[]
+  linhasComoProposta HistoricoContrato[] @relation("PropostaDaLinha")
+  linhasComoTermo    HistoricoContrato[] @relation("TermoDaLinha")
 
   @@index([clienteId, createdAt])
   @@index([clienteId, categoria])
@@ -656,8 +674,17 @@ model ArquivoSharepoint {
   arquivo            ArquivoCliente? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
   vistoEm            DateTime
   removidoNaOrigemEm DateTime?
+  // Onde o arquivo cai no fluxo de cliente (spec docs/superpowers/specs/2026-09-23-sharepoint-lugar-certo-design.md
+  // §3.3). `null` = sem contrato (publicação do DOC, arquivo solto na pasta do cliente). `pastaContrato`
+  // fica só até a limpeza (Task 15 do plano).
+  contratoId         String?
+  contrato           Contrato?          @relation(fields: [contratoId], references: [id], onDelete: SetNull)
+  historicoId        String?
+  historico          HistoricoContrato? @relation(fields: [historicoId], references: [id], onDelete: SetNull)
 
   @@index([arquivoId])
+  @@index([contratoId])
+  @@index([historicoId])
 }
 
 model AcessoArquivo {

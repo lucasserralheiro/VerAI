@@ -54,3 +54,9 @@ describe('rotuloCategoria / formatarTamanho', () => {
     expect(formatarTamanho(5 * 1024 * 1024)).toBe('5.0 MB')
   })
 })
+
+describe('categoria de publicação do DOC', () => {
+  it('tem rótulo próprio', () => {
+    expect(rotuloCategoria('PUBLICACAO_DOC')).toBe('Publicação no DOC')
+  })
+})

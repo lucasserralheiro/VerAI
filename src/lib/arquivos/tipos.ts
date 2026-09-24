@@ -12,6 +12,7 @@ export const CATEGORIAS: ReadonlyArray<{ valor: CategoriaArquivo; rotulo: string
   { valor: 'FATURA_NF', rotulo: 'Fatura / nota fiscal' },
   { valor: 'PLANILHA', rotulo: 'Planilha' },
   { valor: 'OFICIO_SEI', rotulo: 'Ofício / SEI' },
+  { valor: 'PUBLICACAO_DOC', rotulo: 'Publicação no DOC' },
   { valor: 'RELATORIO_GERADO', rotulo: 'Relatório gerado' },
   { valor: 'OUTRO', rotulo: 'Outro' },
 ]

@@ -196,10 +196,10 @@ que revisa `2026-09-24-sincronizacao-sharepoint-contratos-design.md`):
 - Nada grava sem `--aplicar`; `--clientes=` restringe listagem **e** remoção (use em dev: dev e
   produção dividem o mesmo bucket do Cloudflare R2). Antes da primeira execução num banco:
   `scripts/migrar-sharepoint-lugar-certo.ts` (a sincronização recusa rodar com migração pendente).
-- **Automação** (roda sempre do PC do Lucas, a cada 30 min; o VerAI mostra se está em dia e avisa
-  quando para): spec `docs/superpowers/specs/2026-09-24-sharepoint-automacao-design.md`, plano
-  `docs/superpowers/plans/2026-09-24-sharepoint-automacao.md` — leia antes de mexer no agendador ou
-  no registro de execuções.
+- **Automação**: roda sempre do PC do Lucas, a cada 30 min, pelo Agendador do Windows — sem e-mail,
+  painel ou selo na tela (decisão do usuário). Spec
+  `docs/superpowers/specs/2026-09-24-sharepoint-automacao-design.md`, plano
+  `docs/superpowers/plans/2026-09-24-sharepoint-automacao.md` — leia antes de mexer no agendador.
 - **Régua da leitura**: antes de mexer em regra de estrutura ou identidade (`estrutura.ts`,
   `identidade.ts`, `regras.ts`, `scripts/sharepoint-clientes.json`), rode
   `npx tsx scripts/regua-sharepoint.ts --salvar`; depois da mudança, rode sem `--salvar`. Ela relê a

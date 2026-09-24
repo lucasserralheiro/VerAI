@@ -1,24 +1,27 @@
 import type { Prisma, PrismaClient, TipoHistoricoContrato } from '@prisma/client'
-import { buildHistoricoContratoPdfPath, putUpload } from '@/lib/storage'
-import { normalizarChave, resolverCliente, type ClientePorSigla, type MapaPastas } from '@/lib/arquivos/sharepoint/regras'
-import { chaveExata, chaveNumerica, vincularItensOrfaos } from '@/lib/relatorios-clientes/vincular-itens'
-import { TAMANHO_MAXIMO_PDF_BYTES } from '@/lib/relatorios-clientes/pdfs-existentes'
+import type { ClientePorSigla } from '@/lib/arquivos/sharepoint/regras'
+import { COLUNAS_ANEXO, dadosDaColuna } from '@/lib/relatorios-clientes/anexos-historico'
+import { chaveNumerica, vincularItensOrfaos } from '@/lib/relatorios-clientes/vincular-itens'
 import type { ContratoPasta, TermoPasta } from './estrutura'
+import { agruparTermos, resolverLinhas, type LinhaConhecida } from './identidade'
 import { somarMeses, type CamposTermo } from './texto'
 
-// Aplica a árvore lida do SharePoint no fluxo de cliente: Cliente → Contrato → linhas do histórico
-// (contrato inicial, aditivos, prorrogações, rescisão) com os PDFs de termo e de proposta anexados.
-// Spec docs/superpowers/specs/2026-09-24-sincronizacao-sharepoint-contratos-design.md §8.
+// Aplica a árvore lida do SharePoint no fluxo de cliente: Contrato → linhas do histórico (contrato
+// inicial, aditivos, prorrogações, rescisão), com PC/PA e TC/TA POR REFERÊNCIA ao repositório do
+// cliente. Specs: 2026-09-24-sincronizacao-sharepoint-contratos-design.md §8 e
+// 2026-09-23-sharepoint-lugar-certo-design.md §3.2–3.4. Chamado pela sincronização
+// (src/lib/arquivos/sharepoint/sincronizar.ts), só para os contratos que mudaram.
 //
-// Regras que não se negociam (mesmas do importador do GRC-1 — CLAUDE.md, "Consistência"):
-//   - NÃO sobrescreve: campo já preenchido (digitado na tela ou vindo do legado) fica como está;
-//     a importação só preenche o que está vazio. PDF já anexado na linha não é trocado.
-//   - Casamento com o que já existe é por identidade (`chaveSharepoint`) e, na primeira vez, pelo
-//     número tolerante (`chaveNumerica`/`chaveExata`) — e só quando o casamento é ÚNICO.
-//   - Cliente novo só pela sigla da pasta (ou do mapa); nunca por nome.
+// Regras que não se negociam:
+//   - NÃO sobrescreve campo preenchido (digitado ou do legado) — só os marcadores que a própria
+//     importação grava ("TA XX", "Em elaboração") contam como vazios;
+//   - linha certa pela identidade estável (identidade.ts) — mover/renomear pasta nunca duplica;
+//   - coluna PC/PA–TC/TA preenchida pelo SharePoint acompanha o SharePoint; anexada à mão, nunca.
 
 export interface TermoLido extends TermoPasta {
   campos: CamposTermo | null
+  /** SHA-256 dos arquivos da pasta (os que foram lidos com sucesso). */
+  hashes: string[]
 }
 
 export interface ContratoLido extends Omit<ContratoPasta, 'termos'> {
@@ -28,27 +31,49 @@ export interface ContratoLido extends Omit<ContratoPasta, 'termos'> {
 export interface OpcoesImportacao {
   aplicar: boolean
   contratos: ContratoLido[]
-  mapa: MapaPastas
-  /** Sigla → nome oficial, pra criar cliente novo e corrigir cliente cujo nome é só a sigla. */
-  nomes: Record<string, string>
-  lerArquivo: (caminho: string) => Promise<Buffer>
-  gravarBlob?: (caminho: string, conteudo: Buffer, contentType: string) => Promise<string>
+  clientes: ClientePorSigla
+  /** Caminho de cada arquivo presente → `ArquivoCliente` (depois da etapa de arquivos). */
+  arquivoIdPorCaminho: Map<string, string>
 }
 
 export interface ResultadoImportacao {
-  clientesCriados: string[]
-  clientesRenomeados: string[]
   contratosCriados: number
   contratosCompletados: number
   linhasCriadas: number
   linhasCompletadas: number
-  pdfsAnexados: number
-  pastasIgnoradas: string[]
-  semNomeOficial: string[]
+  anexosLigados: number
   avisos: string[]
+  /** Onde cada arquivo caiu — a sincronização grava em `ArquivoSharepoint.contratoId/historicoId`. */
+  contratoPorCaminho: Map<string, string>
+  linhaPorCaminho: Map<string, string>
 }
 
 type Db = PrismaClient
+
+const SELECAO_LINHA = {
+  id: true,
+  tipo: true,
+  numero: true,
+  data: true,
+  valor: true,
+  objeto: true,
+  proposta: true,
+  situacao: true,
+  dataInicio: true,
+  dataVencimento: true,
+  chaveSharepoint: true,
+  propostaArquivoId: true,
+  propostaDoSharepoint: true,
+  termoArquivoId: true,
+  termoDoSharepoint: true,
+  propostaArquivo: { select: { sha256: true } },
+  termoArquivo: { select: { sha256: true } },
+  arquivosSharepoint: { select: { caminho: true, sha256: true } },
+} satisfies Prisma.HistoricoContratoSelect
+
+type LinhaAtual = Prisma.HistoricoContratoGetPayload<{ select: typeof SELECAO_LINHA }>
+
+const EM_ELABORACAO = 'Em elaboração'
 
 function nomeSemExtensao(caminho: string | null): string | null {
   if (!caminho) return null
@@ -59,20 +84,28 @@ function umDiaDepois(d: Date): Date {
   return new Date(d.getTime() + 24 * 60 * 60 * 1000)
 }
 
-/** Só os campos vazios do registro recebem o valor novo (e só valor novo não-nulo). */
+/** Valor que a própria importação grava enquanto o termo não está pronto — conta como vazio. */
+function ehMarcador(campo: string, valor: unknown): boolean {
+  if (campo === 'numero') return typeof valor === 'string' && /\bXX\b/i.test(valor)
+  if (campo === 'situacao') return valor === EM_ELABORACAO
+  return false
+}
+
+function mesmoValor(a: unknown, b: unknown): boolean {
+  if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime()
+  return a !== null && a !== undefined && String(a) === String(b)
+}
+
+/** Só os campos vazios (ou com marcador) recebem o valor novo, e só valor novo não-nulo. */
 function soOsVazios<T extends Record<string, unknown>>(atual: Record<string, unknown>, novo: T): Partial<T> {
   const saida: Partial<T> = {}
   for (const [campo, valor] of Object.entries(novo)) {
     if (valor === null || valor === undefined) continue
     const antes = atual[campo]
-    if (antes === null || antes === undefined || antes === '') (saida as Record<string, unknown>)[campo] = valor
+    const vazio = antes === null || antes === undefined || antes === '' || ehMarcador(campo, antes)
+    if (vazio && !mesmoValor(antes, valor)) (saida as Record<string, unknown>)[campo] = valor
   }
   return saida
-}
-
-/** Número de termo aditivo pra comparar: "TA 01" e "TA 001" → "ta 1"; "TAP 003-2023" → "tap 3 2023". */
-function chaveTermo(numero: string | null): string | null {
-  return chaveExata(numero)
 }
 
 /** Tipo final da linha: aditivo "sem rótulo" cujo texto prorroga a vigência vira prorrogação. */
@@ -83,63 +116,34 @@ function tipoDaLinha(termo: TermoLido): TipoHistoricoContrato {
   return termo.tipo
 }
 
+function linhaConhecida(l: LinhaAtual): LinhaConhecida {
+  return {
+    id: l.id,
+    tipo: l.tipo,
+    numero: l.numero,
+    caminhos: l.arquivosSharepoint.map((a) => a.caminho),
+    // `chaveSharepoint` = `<sigla ou pasta>|<nº ano>|<pasta do termo>` (a pasta não tem "|": o Windows não deixa).
+    pastaAntiga: l.chaveSharepoint ? l.chaveSharepoint.split('|').slice(2).join('|') || null : null,
+    hashes: [...l.arquivosSharepoint.map((a) => a.sha256), l.propostaArquivo?.sha256, l.termoArquivo?.sha256].filter((h): h is string => !!h),
+  }
+}
+
 export async function importarContratos(prisma: Db, opcoes: OpcoesImportacao): Promise<ResultadoImportacao> {
-  const { aplicar, contratos, mapa, nomes, lerArquivo } = opcoes
-  const gravarBlob = opcoes.gravarBlob ?? putUpload
   const r: ResultadoImportacao = {
-    clientesCriados: [],
-    clientesRenomeados: [],
     contratosCriados: 0,
     contratosCompletados: 0,
     linhasCriadas: 0,
     linhasCompletadas: 0,
-    pdfsAnexados: 0,
-    pastasIgnoradas: [],
-    semNomeOficial: [],
+    anexosLigados: 0,
     avisos: [],
+    contratoPorCaminho: new Map(),
+    linhaPorCaminho: new Map(),
   }
-
-  // 1) Clientes: um por pasta (ou pelo mapa). Cria o que falta; corrige nome que é só a sigla.
-  const existentes = await prisma.cliente.findMany({ where: { siglaLegado: { not: null } }, select: { id: true, nome: true, siglaLegado: true } })
-  const clientes: ClientePorSigla = new Map(existentes.map((c) => [normalizarChave(c.siglaLegado!), { id: c.id, nome: c.nome }]))
-  const nomesPorSigla = new Map(Object.entries(nomes).map(([s, n]) => [normalizarChave(s), n]))
-  const idPorPasta = new Map<string, string>()
-
-  for (const pasta of [...new Set(contratos.map((c) => c.pastaCliente))].sort()) {
-    let resolvido = resolverCliente(pasta, clientes, mapa)
-    if (resolvido.tipo === 'ignorar') {
-      r.pastasIgnoradas.push(pasta)
-      continue
-    }
-    if (resolvido.tipo === 'sem-cliente') {
-      const doMapa = Object.entries(mapa).find(([k]) => normalizarChave(k) === normalizarChave(pasta))?.[1]
-      const sigla = normalizarChave(doMapa ?? pasta)
-      const nome = nomesPorSigla.get(sigla)
-      if (!nome) r.semNomeOficial.push(sigla)
-      r.clientesCriados.push(`${sigla} — ${nome ?? sigla}`)
-      const id = aplicar
-        ? (await prisma.cliente.create({ data: { nome: nome ?? sigla, siglaLegado: sigla }, select: { id: true } })).id
-        : `simulado:${sigla}`
-      clientes.set(sigla, { id, nome: nome ?? sigla })
-      resolvido = { tipo: 'cliente', clienteId: id, nome: nome ?? sigla }
-    }
-    idPorPasta.set(pasta, resolvido.clienteId)
-  }
-  for (const c of existentes) {
-    const sigla = normalizarChave(c.siglaLegado!)
-    const oficial = nomesPorSigla.get(sigla)
-    if (oficial && normalizarChave(c.nome) === sigla) {
-      r.clientesRenomeados.push(`${c.nome} → ${oficial}`)
-      if (aplicar) await prisma.cliente.update({ where: { id: c.id }, data: { nome: oficial } })
-    }
-  }
-
-  // 2) Contratos e histórico.
-  for (const contrato of contratos) {
-    const clienteId = idPorPasta.get(contrato.pastaCliente)
-    if (!clienteId) continue
+  for (const contrato of opcoes.contratos) {
+    const cliente = opcoes.clientes.get(contrato.chave.split('|')[0])
+    if (!cliente) continue
     try {
-      await importarContrato(prisma, contrato, clienteId, { aplicar, lerArquivo, gravarBlob }, r)
+      await importarContrato(prisma, contrato, cliente.id, opcoes, r)
     } catch (erro) {
       r.avisos.push(`${contrato.chave}: ${erro instanceof Error ? erro.message : String(erro)}`)
     }
@@ -147,13 +151,7 @@ export async function importarContratos(prisma: Db, opcoes: OpcoesImportacao): P
   return r
 }
 
-async function importarContrato(
-  prisma: Db,
-  contrato: ContratoLido,
-  clienteId: string,
-  ctx: { aplicar: boolean; lerArquivo: (c: string) => Promise<Buffer>; gravarBlob: (c: string, b: Buffer, t: string) => Promise<string> },
-  r: ResultadoImportacao
-) {
+async function importarContrato(prisma: Db, contrato: ContratoLido, clienteId: string, ctx: OpcoesImportacao, r: ResultadoImportacao) {
   const inicial = contrato.termos.find((t) => t.tipo === 'CONTRATO' && t.campos && !t.campos.semTexto) ?? contrato.termos.find((t) => t.tipo === 'CONTRATO')
   const k = inicial?.campos ?? null
   const qualquer = (campo: 'seiCliente' | 'seiProdam') => k?.[campo] ?? contrato.termos.find((t) => t.campos?.[campo])?.campos?.[campo] ?? null
@@ -173,7 +171,7 @@ async function importarContrato(
     situacao: contrato.finalizado ? 'Finalizado' : rescindido ? 'Rescindido' : null,
   }
 
-  // Contrato existente: pela identidade da importação; senão pelo número tolerante, se for único.
+  // Contrato: pela identidade (sigla|nº ano); na primeira vez, pelo número tolerante — só se único.
   let existente = await prisma.contrato.findUnique({ where: { chaveSharepoint: contrato.chave } })
   if (!existente) {
     const [numero, ano] = contrato.chave.split('|')[1].split(' ')
@@ -189,6 +187,9 @@ async function importarContrato(
 
   let contratoId: string
   if (existente) {
+    if (contrato.finalizado && existente.situacao && !/finaliz|encerr|rescind/i.test(existente.situacao)) {
+      r.avisos.push(`${contrato.chave}: está em "Contratos Finalizados" no SharePoint, mas a situação no VerAI é "${existente.situacao}" — mantida`)
+    }
     const completar = soOsVazios(existente, dadosContrato)
     if (Object.keys(completar).length > 0 || !existente.chaveSharepoint) {
       r.contratosCompletados++
@@ -202,10 +203,18 @@ async function importarContrato(
       : `simulado:${contrato.chave}`
   }
 
-  const linhas = ctx.aplicar || existente ? await prisma.historicoContrato.findMany({ where: { contratoId } }) : []
+  const linhas: LinhaAtual[] = existente ? await prisma.historicoContrato.findMany({ where: { contratoId }, select: SELECAO_LINHA }) : []
+  const { grupos, avisos } = agruparTermos(
+    contrato.termos.map((t) => ({ pasta: t.pasta, tipo: t.tipo, numero: t.numero, arquivos: t.arquivos, hashes: t.hashes }))
+  )
+  r.avisos.push(...avisos.map((a) => `${contrato.chave}: ${a}`))
+  const alvos = resolverLinhas(grupos, linhas.map(linhaConhecida))
+
   let vencimentoAnterior: Date | null = fimContrato
 
-  for (const termo of contrato.termos) {
+  for (const [i, grupo] of grupos.entries()) {
+    const termos = grupo.pastas.map((p) => contrato.termos.find((t) => t.pasta === p.pasta)!)
+    const termo = termos.find((t) => t.termoPdf) ?? termos[0]
     const c = termo.campos
     const tipo = tipoDaLinha(termo)
     const naoValeu = termo.aviso === 'nao-efetivado'
@@ -231,30 +240,22 @@ async function importarContrato(
       valor: tipo === 'RESCISAO' ? null : (c?.valor ?? null),
       objeto: tipo === 'CONTRATO' ? (c?.objeto ?? contrato.descricao) : termo.rotulo || null,
       proposta: nomeSemExtensao(termo.propostaPdf),
-      situacao: naoValeu ? 'Cancelado (não efetivado)' : termo.aviso === 'sem-numero' && !assinatura ? 'Em elaboração' : null,
+      situacao: naoValeu ? 'Cancelado (não efetivado)' : termo.aviso === 'sem-numero' && !assinatura ? EM_ELABORACAO : null,
       dataInicio: inicio,
       dataVencimento: fim,
     }
 
-    // Linha existente: identidade; senão, a mesma linha vinda do legado (única).
-    let linha = linhas.find((l) => l.chaveSharepoint === termo.chave)
-    if (!linha) {
-      const livres = linhas.filter((l) => !l.chaveSharepoint)
-      const iguais =
-        tipo === 'CONTRATO'
-          ? livres.filter((l) => l.tipo === 'CONTRATO')
-          : termo.numero
-            ? livres.filter((l) => l.tipo !== 'CONTRATO' && chaveTermo(l.numero) === chaveTermo(termo.numero))
-            : []
-      if (iguais.length === 1) linha = iguais[0]
-    }
-
+    const linha = alvos[i] ? linhas.find((l) => l.id === alvos[i]) : undefined
     let linhaId: string
     if (linha) {
-      const completar = soOsVazios(linha, { ...dados, tipo: undefined })
+      const completar: Record<string, unknown> = soOsVazios(linha, { ...dados, tipo: undefined })
+      // "Em elaboração" era marcador: o termo ficou pronto (tem número e/ou assinatura) → sai.
+      if (linha.situacao === EM_ELABORACAO && dados.situacao === null) completar.situacao = null
       if (Object.keys(completar).length > 0 || !linha.chaveSharepoint) {
         r.linhasCompletadas++
-        if (ctx.aplicar) await prisma.historicoContrato.update({ where: { id: linha.id }, data: { ...completar, chaveSharepoint: termo.chave } })
+        if (ctx.aplicar) {
+          await prisma.historicoContrato.update({ where: { id: linha.id }, data: { ...completar, chaveSharepoint: linha.chaveSharepoint ?? termo.chave } })
+        }
       }
       linhaId = linha.id
     } else {
@@ -269,27 +270,29 @@ async function importarContrato(
         : `simulado:${termo.chave}`
     }
 
-    // PDFs: só em coluna vazia; cópia própria no caminho da linha (mesmo padrão da tela).
-    for (const [coluna, caminho] of [
-      ['termo', termo.termoPdf],
-      ['proposta', termo.propostaPdf],
-    ] as const) {
+    // Colunas PC/PA e TC/TA: referência ao arquivo do repositório (spec lugar-certo §3.4).
+    for (const coluna of ['proposta', 'termo'] as const) {
+      const caminho = coluna === 'termo' ? termo.termoPdf : termo.propostaPdf
       if (!caminho) continue
-      const jaTem = coluna === 'termo' ? linha?.termoPdfUrl : linha?.propostaPdfUrl
-      if (jaTem) continue
-      r.pdfsAnexados++
-      if (!ctx.aplicar) continue
-      const conteudo = await ctx.lerArquivo(caminho)
-      if (conteudo.length > TAMANHO_MAXIMO_PDF_BYTES) {
-        r.pdfsAnexados--
-        r.avisos.push(`${caminho}: PDF acima do limite da linha do histórico — fica só no repositório de documentos`)
+      const arquivoId = ctx.arquivoIdPorCaminho.get(caminho)
+      if (!arquivoId) continue // falhou na etapa de arquivos — tenta de novo na próxima execução
+      const col = COLUNAS_ANEXO[coluna]
+      const atual = linha ? linha[col.arquivoId] : null
+      const doSharepoint = linha ? linha[col.doSharepoint] : false
+      if (atual === arquivoId) continue
+      if (atual && !doSharepoint) {
+        r.avisos.push(`${caminho}: a linha já tem ${col.rotulo} anexado à mão — mantido (o do SharePoint está na aba Documentos)`)
         continue
       }
-      const url = await ctx.gravarBlob(buildHistoricoContratoPdfPath(linhaId, coluna), conteudo, 'application/pdf')
-      const nome = caminho.split('/').pop()!
-      const data: Prisma.HistoricoContratoUpdateInput =
-        coluna === 'termo' ? { termoPdfUrl: url, termoPdfNome: nome } : { propostaPdfUrl: url, propostaPdfNome: nome }
-      await prisma.historicoContrato.update({ where: { id: linhaId }, data })
+      r.anexosLigados++
+      if (ctx.aplicar) await prisma.historicoContrato.update({ where: { id: linhaId }, data: dadosDaColuna(coluna, arquivoId, true) })
+    }
+
+    for (const t of termos) {
+      for (const caminho of t.arquivos) {
+        r.linhaPorCaminho.set(caminho, linhaId)
+        r.contratoPorCaminho.set(caminho, contratoId)
+      }
     }
 
     if (fim && (tipo === 'CONTRATO' || assinatura) && (!vencimentoAnterior || fim > vencimentoAnterior)) vencimentoAnterior = fim

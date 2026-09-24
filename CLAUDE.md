@@ -225,3 +225,24 @@ que revisa `2026-09-24-sincronizacao-sharepoint-contratos-design.md`):
   (decisão do usuário, 23/09) — quem diz contrato/competência é quem usa o arquivo. Ver §7 de
   `docs/superpowers/specs/2026-09-23-repositorio-documentos-cliente-design.md`.
 - Achados ainda abertos e a ordem de correção: `docs/superpowers/plans/2026-09-23-consistencia-contratos.md`.
+
+## Assistente de IA (botão flutuante)
+
+Chat em todas as telas (`src/components/assistente/`, montado no `layout.tsx`, Ctrl+K) que responde
+sobre tudo do VerAI usando **ferramentas somente-leitura** (`src/lib/assistente/ferramentas/`) —
+nunca SQL livre, nunca escrita. Toda ferramenta recebe o usuário por closure e filtra por
+permissão; contrato sempre via `consolidarContratos()`. Ferramenta nova: um `definirFerramenta` +
+registro em `ferramentas/index.ts` + rótulo em `ferramentas/rotulos.ts` + teste de permissão.
+
+Texto dos documentos: `TrechoDocumento` (full-text do Postgres, `unaccent`), mantido por
+**sincronização** banco × índice (`sincronizarIndice`) — sob demanda na busca, cron diário
+(`/api/assistente/indexar/cron`), botão em `/admin/assistente` e
+`npx dotenv -e .env.development -- npx tsx scripts/indexar-documentos.ts [--reindexar]`. Origem de
+arquivo nova (ex.: `ArquivoCliente`) = mais um caso em `indexacao/fontes.ts`, sem gancho em rota de
+upload. PDF escaneado fica `sem_texto` (OCR do projeto roda no navegador).
+
+Modelo: `ASSISTENTE_AI_*` (fallback `AI_*`), `deepseek-chat`. Instrução do sistema é fixa
+(`instrucoes.ts`) para o cache do DeepSeek — data e tela aberta vão na mensagem, não nela.
+
+- **Design**: `docs/superpowers/specs/2026-09-23-assistente-ia-design.md`
+- **Plano**: `docs/superpowers/plans/2026-09-23-assistente-ia.md`

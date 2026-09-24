@@ -1,7 +1,6 @@
 # Assistente de IA do VerAI (design)
 
-**Status**: Desenho aprovado com o usuário em 23/09/2026 (cinco seções, uma por vez). Implementação
-não iniciada — próximo passo é o plano em `docs/superpowers/plans/2026-09-23-assistente-ia.md`.
+**Status**: Implementado em 24/09/2026; verificação manual na seção 11.
 **Data**: 23/09/2026
 
 ---
@@ -365,3 +364,123 @@ Onde conflitam com §5–§7 acima, **valem estes**:
 6. `buscarClientes` devolve nº de contratos, não nº de ativos (ativo exige consolidar; fica no
    `resumoDoCliente`).
 7. Resposta vazia (provedor abortou/falhou) não é gravada; a pergunta fica.
+
+## 11. Pontos de atenção vindos da varredura de consistência (23/09/2026, fim da tarde)
+
+1. **Colunas que vão sumir.** A Fase 2 do repositório de documentos (ver §7 da spec do repositório)
+   troca `propostaPdfUrl/termoPdfUrl/pdfUrl` por `*ArquivoId`. `listarFontes()` lê essas colunas — a
+   indexação tem que migrar junto (origem `ARQUIVO_CLIENTE`). Não assumir que as colunas de URL ficam.
+2. **Cliente/contrato do trecho ficam velhos.** `sincronizarIndice()` só reindexa quando a versão do
+   arquivo muda. Se o faturamento troca de contrato (PATCH `contratoId`), os trechos continuam com o
+   contrato antigo. Na sincronização, comparar também `clienteId`/`contratoId` da fonte com o do
+   `IndiceDocumento` e atualizar os trechos (`UPDATE ... SET contratoId`) sem reextrair.
+3. **Arquivo não tem contrato.** Pela decisão do usuário (spec do repositório §7.1), `ArquivoCliente`
+   não guarda contrato nem competência — vêm de quem usa o arquivo. Um arquivo pode servir a vários
+   contratos: o trecho de um `ARQUIVO_CLIENTE` não tem um `contratoId` só; filtrar por contrato via usos.
+4. **Números.** As ferramentas só repetem o que o consolidado diz; `resumoDoCliente` soma valor e
+   faturado **dos mesmos contratos** (os que têm base de valor) — não o faturado de todos os ativos
+   contra o valor só dos que têm valor (erro corrigido em `/api/relatorios/valor-total` em 23/09).
+5. **Campo novo no consolidado**: `ContratoConsolidado.situacaoDesatualizada` (23/09) — situação "Ativo"
+   com prazo vencido e sem prorrogação. O contrato **continua ativo** (decisão do usuário); a resposta
+   deve avisar "situação desatualizada no cadastro". Objetos de teste tipados como `ContratoConsolidado`
+   (`ferramentas/comum.test.ts`, `clientes.test.ts`) precisam do campo.
+6. **Regras novas do consolidado (23/09)**: aditivo/prorrogação só vale assinado (`linhaAssinada`) —
+   campo `prorrogacaoEmAndamento`; rescisão não é valor do contrato; faturamento `Cancelado` fora do
+   faturado (`situacao-faturamento.ts`) — a ferramenta `faturamentos` deve mostrar o cancelado como
+   tal e não somá-lo. `ContratoConsolidado` ganhou `prorrogacaoEmAndamento` (objetos de teste também).
+
+## 11. Verificação manual (24/09/2026)
+
+Feita contra o banco de dev real (33 clientes, `AI_PROVIDER=deepseek`/`AI_MODEL=deepseek-chat` de
+`.env.development`, sem chave nova — o assistente caiu no fallback `AI_*` como desenhado em §3.5).
+Não dá pra clicar em navegador neste ambiente: as 5 perguntas do roteiro (Step 3 do plano) foram
+feitas chamando `executarAgente()` direto, com um usuário `admin` real carregado do banco, e
+conferidas contra consultas diretas (`consolidarContratos()`, a mesma fonte que as telas usam) —
+script descartável em `.superpowers/sdd/2026-09-23-assistente-ia/verificacao.ts` (git-ignorado, não
+fica no repo). A conferência de números usou
+`.superpowers/sdd/2026-09-23-assistente-ia/crosscheck.ts`, também descartável.
+
+### Perguntas e resultado
+
+1. **"Me fale tudo do cliente SMS"** — chamou `buscarClientes` (2x), `resumoDoCliente`,
+   `contratosVencendo`, `demandas`, `faturamentos`, `analisesDeDocumentos` (21.618 tokens de
+   entrada / 1.906 de saída / 10.496 de cache). Resposta: 4 contratos ativos (TC 105/2025-SMS-1,
+   TC 107/2025-SMS-1, TC 207/2023 e "Novo Sustenta", este sem dado cadastrado), com vigência, valor
+   contratado e saldo. **Conferido igual, contrato a contrato**, contra `consolidarContratos()`
+   direto: TC 105 = R$ 212.974.949,70 (68 dias), TC 107 = R$ 81.031.443,62 (1.550 dias), TC 207 =
+   R$ 22.291.200,00 (95 dias), faturado R$ 0,00 e saldo = valor base nos três — bate exatamente.
+   377 faturamentos e 136 demandas citados batem com `count()` direto no banco. A ferramenta
+   truncou a lista de contratos não-ativos (13 no total, 4 ativos, a resposta detalhou só 6 dos 9
+   inativos) — **comportamento esperado** (§3.2 item 1, "resumo compacto... com aviso de
+   truncamento"), e a resposta avisou explicitamente que veio truncada em vez de inventar os que
+   faltavam. Ok.
+2. **"Quais contratos vencem até 31/12/2026?"** — chamou só `contratosVencendo` (9.538/893/6.400
+   tokens). Respondeu "28 contratos", listou os 10 primeiros por data de vencimento e ofereceu
+   refinar o resto. Conferido contra a mesma base (`consolidarContratos()` de todos os contratos +
+   filtro `ativo && !rescindido && vigenciaFim <= 31/12/2026 && vigenciaFim >= hoje`, já que a
+   ferramenta chamou com `incluirVencidos: false`): **28 bate exatamente**, e os 10 primeiros da
+   lista (cliente, contrato, data, valor) batem um a um, na mesma ordem. Ok.
+3. **Conteúdo de PDF indexado** — não havia contrato com histórico indexado no banco de dev
+   (`HISTORICO_PROPOSTA`/`HISTORICO_TERMO` = 0 trechos, como o levantamento do plano já registrava);
+   a pergunta usou uma proposta comercial indexada em vez disso ("PC-CGM-260707-867 v5 1 (1).pdf",
+   1 dos 55 arquivos indexados, 45 páginas / 109 trechos). Chamou `propostasComerciais`,
+   `buscarNosDocumentos` 5x com termos diferentes (27.658/1.331/14.208 tokens) e devolveu um trecho
+   citado da página 1 (objeto da proposta, sistemas cobertos, vigência 15/10/2026), com a citação
+   entre aspas e o texto tratado como dado, nunca como instrução. **Avisou explicitamente** que as
+   demais 44 páginas não vieram nas buscas que fez e que não podia afirmar valor/SLA/condições de
+   pagamento sem essa evidência, em vez de inventar. Comportamento correto e dentro do mandato da
+   instrução do sistema (§6.1: "nunca inventar... se a ferramenta não trouxe, dizer que não
+   encontrou").
+4. **"Onde aparece o SEI 6018.2023/0122629-0?"** — chamou só `buscarPorSei` (6.731/222/6.272
+   tokens). Respondeu "aparece em 1 lugar", o contrato TC 207/2023, com link markdown
+   `[6018.2023/0122629-0](sei:6018202301226290)` (renderizado pelo `SeiLink` no painel). Conferido
+   contra consulta direta (`contrato.findMany` por `seiCliente`/`seiProdam` + `faturamento`/
+   `demanda` por `sei`): só o contrato mesmo, 0 faturamentos, 0 demandas — bate exatamente. Ok.
+5. **Permissão** — usuário `responsavel-teste@verai.dev` (role `responsavel`, `clientesPermitidos`
+   vazio no banco de dev) perguntou pelo mesmo cliente SMS. `buscarClientes` (filtrado por
+   `clienteIdsPermitidos`, que devolve `[]` pra esse usuário) não achou nada, e a resposta foi "não
+   encontrei nenhum cliente" — sem vazar nome, sigla nem sugerir que o cliente existe. Como não há
+   no banco de dev um usuário `responsavel`/`uploader` com `clientesPermitidos` não-vazio, não deu
+   pra testar o caso "cliente fora da lista, mas a lista não é vazia" (pedir por um cliente que
+   existe pra outro dentro do range dele); esse caminho — `clienteIdsPermitidos` não-nulo excluindo
+   um id específico — já é coberto pelos testes unitários de permissão de cada ferramenta (Jest,
+   §8.3.1), não repetido aqui.
+
+Itens 6 e 7 do roteiro do plano (persistência de conversa entre reload, `/admin/assistente` com
+tokens/custo) dependem de UI em navegador — fora do alcance deste ambiente (sem clique); cobertos
+pelos testes de integração das rotas (`conversas.test.ts`, rotas de `/api/assistente/conversas*` e
+`/api/admin/assistente/uso`) e pelos testes de componente (Testing Library) já commitados nas
+Tasks 9–12. Não foi possível confirmar visualmente o reload de conversa nem a tela de custo.
+
+### Checagem de infraestrutura
+
+- `GET /api/assistente/contexto?rota=/clientes/x` sem cookie: **401**, confirmado com
+  `npm run dev` local + `curl`, servidor derrubado logo depois (nenhum processo ficou no ar).
+- `npx jest src/lib/assistente src/app/api/assistente src/app/api/admin/assistente
+  src/components/assistente src/lib/ia`: **32 suítes passando, 1 pulada de propósito**
+  (`busca.integracao.test.ts`, atrás de `ASSISTENTE_TESTE_BANCO`, como já era por design —
+  precisa do Postgres com `tsvector`/`unaccent` real, não é honesto mockar). 152 testes passando,
+  2 pulados.
+- `npx tsc --noEmit`: **2 erros pré-existentes, de outra sessão, fora do assistente**
+  (`src/app/api/clientes/[clienteId]/faturamentos/route.ts` e
+  `src/app/clientes/[id]/contratos/[contratoId]/page.test.tsx` — trabalho de
+  "Relatórios dos clientes"/sincronização SharePoint, não tocado por este plano; confirmado por
+  `git log` no arquivo). **2 erros dentro do assistente**, em
+  `src/lib/assistente/ferramentas/comum.test.ts` (linhas 39 e 63): os objetos de teste passados pra
+  `resumirContrato()` não têm `situacaoDesatualizada`/`prorrogacaoEmAndamento`, os dois campos que
+  `ContratoConsolidado` ganhou em 23/09 (ver §11 item 5 dos "Pontos de atenção" acima, que já
+  previa exatamente essa lacuna nesse arquivo). O Jest passa porque o transform não faz checagem de
+  tipo estrita nos testes; o `tsc --noEmit` do build pega. Não é bug de runtime (os testes
+  continuam válidos e passam), mas é dívida de tipo dentro do assistente — registrado como
+  pendência, não corrigido nesta tarefa (fora do escopo de "verificação e documentação").
+- `npm run build`: falha, mas **só** no mesmo erro pré-existente de
+  `faturamentos/route.ts` acima (o build para no primeiro erro do `tsc`, então não chegou a
+  compilar o resto) — não é regressão deste plano.
+
+### Conclusão
+
+Nenhuma das 5 perguntas reais produziu número, data, SEI ou valor errado, nem vazamento de
+permissão, nem crash — todo cross-check bateu exatamente contra `consolidarContratos()` e contra
+`count()` direto no banco. O único achado é a lacuna de tipo em `comum.test.ts` (dívida já prevista
+no próprio design, não uma regressão de comportamento). Ver `task-14-report.md` do plano de execução
+para o detalhe completo, incluindo os textos das respostas.

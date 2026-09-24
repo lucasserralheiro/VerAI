@@ -3,6 +3,7 @@ import { garantirClientes } from '@/lib/importacao-sharepoint/clientes'
 import { montarEstrutura, type ContratoPasta, type TermoPasta, type TipoTermo } from '@/lib/importacao-sharepoint/estrutura'
 import { importarContratos, type ContratoLido, type TermoLido } from '@/lib/importacao-sharepoint/importar'
 import type { CamposTermo } from '@/lib/importacao-sharepoint/texto'
+import { configR2, putR2 } from '@/lib/r2'
 import { registrarConteudo } from '../registrar-conteudo'
 import { sha256Hex, usosDosArquivos, type UsoArquivo } from '../servico'
 import { conferir, type LinhaConferencia } from './conferencia'
@@ -50,6 +51,7 @@ export interface OpcoesSincronizacao {
   relerTudo?: boolean
   /** Lê os campos do PDF do termo; sem ela os contratos entram só com a estrutura. */
   lerCampos?: (conteudo: Buffer, tipo: TipoTermo) => Promise<CamposTermo>
+  /** Onde o conteúdo é gravado. Padrão: Cloudflare R2 (spec §11) — o Vercel Blob fica para os uploads da tela. */
   gravarBlob?: (caminho: string, conteudo: Buffer, contentType: string) => Promise<string>
   buscarUsos?: (ids: string[]) => Promise<Map<string, UsoArquivo[]>>
   importar?: typeof importarContratos
@@ -122,6 +124,10 @@ export async function sincronizarSharepoint(prisma: PrismaClient, opcoes: Opcoes
   const buscarUsos = opcoes.buscarUsos ?? usosDosArquivos
   const importar = opcoes.importar ?? importarContratos
   const agora = opcoes.agora ?? new Date()
+  if (aplicar && !opcoes.gravarBlob && !configR2()) {
+    throw new Error('Cloudflare R2 não configurado — defina R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID e R2_SECRET_ACCESS_KEY antes de gravar')
+  }
+  const gravarBlob = opcoes.gravarBlob ?? ((caminho: string, conteudo: Buffer, contentType: string) => putR2(caminho, conteudo, contentType))
 
   const pendencias = await pendenciasDeMigracao(prisma)
   if (pendencias.length > 0) {
@@ -241,7 +247,7 @@ export async function sincronizarSharepoint(prisma: PrismaClient, opcoes: Opcoes
         const registrado = await registrarConteudo(
           prisma,
           { clienteId: item.clienteId, nome, conteudo, sha256, categoria, origem: 'sharepoint', enviadoPorId: null },
-          { gravarBlob: opcoes.gravarBlob }
+          { gravarBlob }
         )
         if (registrado.novo) r.novos++
         else r.reaproveitados++

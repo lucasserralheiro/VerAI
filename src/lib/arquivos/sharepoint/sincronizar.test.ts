@@ -47,9 +47,24 @@ const importarVazio = jest.fn(async () => ({
   contratosCriados: 0, contratosCompletados: 0, linhasCriadas: 0, linhasCompletadas: 0, anexosLigados: 0, avisos: [] as string[],
   contratoPorCaminho: new Map<string, string>(), linhaPorCaminho: new Map<string, string>(),
 }))
-const base = { buscarUsos: semUsos, importar: importarVazio }
+const base = { buscarUsos: semUsos, importar: importarVazio, gravarBlob: async (caminho: string) => `r2:${caminho}` }
 
 beforeEach(() => jest.clearAllMocks())
+
+it('com --aplicar e sem o Cloudflare R2 configurado, recusa rodar antes de gravar qualquer coisa', async () => {
+  const salvo = { ...process.env }
+  for (const v of ['R2_ACCOUNT_ID', 'R2_BUCKET', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY']) delete process.env[v]
+  try {
+    const prisma = prismaFake()
+    await expect(
+      // Sem `gravarBlob` injetado: o padrão é o R2, que não está configurado.
+      sincronizarSharepoint(prisma as unknown as PrismaClient, { aplicar: true, fonte: fonte({ 'SMS/TC 1/a.pdf': pdfA }), buscarUsos: semUsos, importar: importarVazio })
+    ).rejects.toThrow(/R2 não configurado/)
+    expect(prisma.cliente.findMany).not.toHaveBeenCalled()
+  } finally {
+    process.env = salvo
+  }
+})
 
 it('recusa rodar com migração pendente', async () => {
   const prisma = prismaFake()
@@ -61,7 +76,6 @@ it('WORK e categoria pelo papel: termo do contrato inicial é TERMO_CONTRATO, me
   const prisma = prismaFake()
   const r = await sincronizarSharepoint(prisma as unknown as PrismaClient, {
     aplicar: true,
-    gravarBlob: async () => 'https://blob/x',
     fonte: fonte({ 'SMS/TC 1-2023 - X/1) Inicial/TC 1-2023.pdf': pdfA, 'SMS/TC 1-2023 - X/1) Inicial/WORK/Mem_Calc v1.xlsx': pdfB }),
     ...base,
   })
@@ -75,7 +89,6 @@ it('publicação do DOC vai pro cliente da sigla no nome; sigla sem cliente vai 
   const prisma = prismaFake()
   const r = await sincronizarSharepoint(prisma as unknown as PrismaClient, {
     aplicar: true,
-    gravarBlob: async () => 'https://blob/x',
     rotearPeloNome: ['1. PUBLICAÇÕES NO DOC'],
     fonte: fonte({
       '1. PUBLICAÇÕES NO DOC/2026.09.17 - SMS - Arbitragem - Despacho.pdf': pdfA,
@@ -165,7 +178,6 @@ it('--clientes restringe listagem E remoção ao cliente escolhido', async () =>
   const r = await sincronizarSharepoint(prisma as unknown as PrismaClient, {
     aplicar: true,
     clientes: ['SMS'],
-    gravarBlob: async () => 'u',
     fonte: fonte({ 'SMS/TC 1/1) Inicial/a.pdf': pdfA, 'SGM/TC 2/b.pdf': pdfB }),
     ...base,
   })

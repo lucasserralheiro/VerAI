@@ -8,8 +8,9 @@
  *
  * Opções: --pasta="C:\...\rede.sp - ContratosReceita" (padrão: ~/rede.sp/rede.sp - ContratosReceita ou
  * SHAREPOINT_PASTA), --clientes=SMS,SGM (só esses — listagem e remoção), --reler-tudo (reprocessa todos
- * os contratos). Configuração: scripts/sharepoint-clientes.json. Antes da primeira vez:
- * scripts/migrar-sharepoint-lugar-certo.ts. Idempotente; o agendador roda scripts/sincronizar-sharepoint.bat.
+ * os contratos). Configuração: scripts/sharepoint-clientes.json. Os arquivos vão para o Cloudflare R2
+ * (variáveis R2_* no .env.local — spec §11). Antes da primeira vez: scripts/migrar-sharepoint-lugar-certo.ts.
+ * Idempotente; o agendador roda scripts/sincronizar-sharepoint.bat.
  */
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'

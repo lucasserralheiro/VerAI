@@ -1,6 +1,6 @@
 # Assistente de IA do VerAI (design)
 
-**Status**: Implementado em 24/09/2026; verificação manual na seção 11.
+**Status**: Implementado em 24/09/2026; verificação manual na seção 12.
 **Data**: 23/09/2026
 
 ---
@@ -389,7 +389,7 @@ Onde conflitam com §5–§7 acima, **valem estes**:
    faturado (`situacao-faturamento.ts`) — a ferramenta `faturamentos` deve mostrar o cancelado como
    tal e não somá-lo. `ContratoConsolidado` ganhou `prorrogacaoEmAndamento` (objetos de teste também).
 
-## 11. Verificação manual (24/09/2026)
+## 12. Verificação manual (24/09/2026)
 
 Feita contra o banco de dev real (33 clientes, `AI_PROVIDER=deepseek`/`AI_MODEL=deepseek-chat` de
 `.env.development`, sem chave nova — o assistente caiu no fallback `AI_*` como desenhado em §3.5).

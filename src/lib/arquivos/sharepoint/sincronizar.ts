@@ -4,7 +4,7 @@ import { deleteUpload, putUpload } from '@/lib/storage'
 import { caminhoFinalArquivo } from '../caminhos'
 import { sha256Hex, usosDosArquivos, type UsoArquivo } from '../servico'
 import { contentTypeDe, extensaoDe, sugerirCategoria } from '../tipos'
-import { motivoIgnorar, mudouPorMetadado, normalizarChave, pastaContratoDe, resolverCliente, type MapaPastas } from './regras'
+import { motivoIgnorar, mudouPorMetadado, normalizarChave, resolverCliente, type MapaPastas } from './regras'
 
 // Sincronização da biblioteca ContratosReceita → repositório do cliente (spec
 // docs/superpowers/specs/2026-09-24-sincronizacao-sharepoint-contratos-design.md §4). A FONTE é
@@ -99,7 +99,7 @@ export async function sincronizarSharepoint(prisma: PrismaClient, opcoes: Opcoes
   // 1) Presentes. Primeiro todos eles, depois os ausentes (§4 item 8): mover de pasta não apaga.
   for (const arquivo of arquivos) {
     const segmentos = arquivo.caminho.split('/')
-    const motivo = motivoIgnorar(segmentos, arquivo.tamanhoBytes, incluirWork)
+    const motivo = motivoIgnorar(segmentos, arquivo.tamanhoBytes)
     if (motivo) {
       r.ignorados[motivo] = (r.ignorados[motivo] ?? 0) + 1
       continue
@@ -157,7 +157,7 @@ export async function sincronizarSharepoint(prisma: PrismaClient, opcoes: Opcoes
 
       if (aplicar) {
         const dados = {
-          pastaContrato: pastaContratoDe(segmentos),
+          pastaContrato: null,
           tamanhoBytes: conteudo.length,
           modificadoEm: arquivo.modificadoEm,
           sha256,

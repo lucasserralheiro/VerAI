@@ -1,4 +1,4 @@
-import { chaveDoNome, classificarTermo, montarEstrutura } from './estrutura'
+import { chaveDoNome, classificarTermo, montarEstrutura, papelDoArquivo } from './estrutura'
 
 describe('chaveDoNome', () => {
   it.each([
@@ -36,13 +36,15 @@ describe('montarEstrutura', () => {
   ])
   const porChave = Object.fromEntries(e.map((c) => [c.chave, c]))
 
-  it('contrato → termos, com PDF de termo e de proposta separados e WORK de fora', () => {
+  it('contrato → termos, com PDF de termo e de proposta separados; WORK entra nos arquivos do termo', () => {
     const c = porChave['ADESAMPA|73 2019']
     expect(c).toMatchObject({ numeroTermo: 'TC 073/2019', descricao: 'Acesso a Rede', finalizado: false })
     expect(c.termos.map((t) => t.tipo)).toEqual(['CONTRATO', 'ADITIVO'])
     expect(c.termos[0].propostaPdf).toMatch(/PC-ADESAMPA/)
     expect(c.termos[0].termoPdf).toMatch(/assinado SEI/)
-    expect(c.termos[1].outros).toEqual([])
+    expect(c.termos[1].termoPdf).toMatch(/assinado\.pdf$/)
+    expect(c.termos[1].outros).toEqual(['ADESAMPA/TC 073-2019 - Acesso a Rede/2) TC 073-2019 - TA 01-2020 - acréscimo/WORK/Mem_Calc.xlsx'])
+    expect(c.termos[1].arquivos).toHaveLength(2)
   })
   it('termo solto na pasta do cliente cai no mesmo contrato', () => {
     expect(porChave['ICI|sn 2024'].termos.map((t) => t.tipo)).toEqual(['CONTRATO', 'PRORROGACAO'])
@@ -52,5 +54,41 @@ describe('montarEstrutura', () => {
   })
   it('pasta de contrato sem subpasta vira o contrato inicial', () => {
     expect(porChave['SF|6 2023'].termos).toEqual([expect.objectContaining({ tipo: 'CONTRATO', termoPdf: 'SF/TC 06-2023 - Centralização Pagamentos/TC 06-2023.pdf' })])
+  })
+})
+
+describe('nomes tortos da pasta real', () => {
+  it('espaço e hífen dobrados (SPURBANISMO)', () => {
+    expect(chaveDoNome('TC  010--SP-URB-2026 - Eleição Grupo Gestão Operação Urbana Água Branca')).toEqual({ numero: '10', ano: '2026' })
+  })
+})
+
+describe('papelDoArquivo', () => {
+  it.each([
+    ['TC 073-2019- ADESAMPA (assinado SEI).pdf', 'termo'],
+    ['SF TA 02 ao TC 37-2019.pdf', 'termo'],
+    ['TA125-2023 ao TC 312_2021.pdf', 'termo'],
+    ['TC004-SMPED-2020 - TA 001-2020.pdf', 'termo'],
+    ['PC-ADESAMPA-191007-139 v1.0.pdf', 'proposta'],
+    ['Proposta PC-SF-220901-112 v1.0.pdf', 'proposta'],
+    ['DOC 21-03-2024 - SMIT - TC 19-SMIT-2021 - Rescisão Amigável.pdf', 'outro'],
+    ['TC 004-2020 - ORDEM DE INICIO DE SERVIÇO.pdf', 'outro'],
+    ['TC 005- TCM - CONFIDENCIALIDADE - Assinado.pdf', 'outro'],
+    ['Mem_Calc.xlsx', 'outro'],
+  ])('%s → %s', (nome, papel) => expect(papelDoArquivo(nome)).toBe(papel))
+})
+
+describe('montarEstrutura — chave pela sigla do cliente', () => {
+  const sigla = (pasta: string) => (pasta === 'SUB-ITAM PAULISTA' ? 'SUB-ITP' : pasta.toUpperCase())
+  const e = montarEstrutura(
+    [
+      'SUB-ITP/TC 001-SUB-IT-2026 - Office 365/1) TC 001-SUB-IT-2026 - Contrato inicial/TC 001-SUB-IT-2026.pdf',
+      'SUB-ITAM PAULISTA/1) TC 001-SUB-IT-2026 - Contrato Inicial/TC 001-SUB-IT-2026.pdf',
+    ],
+    sigla
+  )
+  it('duas pastas do mesmo cliente caem no mesmo contrato', () => {
+    expect(e.map((c) => c.chave)).toEqual(['SUB-ITP|1 2026'])
+    expect(e[0].termos).toHaveLength(2)
   })
 })

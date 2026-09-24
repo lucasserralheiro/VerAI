@@ -1,4 +1,4 @@
-import { motivoIgnorar, normalizarChave } from '@/lib/arquivos/sharepoint/regras'
+import { motivoIgnorar, normalizarChave, type PapelArquivo } from '@/lib/arquivos/sharepoint/regras'
 
 // Lê a ÁRVORE da biblioteca ContratosReceita e monta cliente → contrato → termo, só pelos nomes de
 // pasta e de arquivo (spec docs/superpowers/specs/2026-09-24-sincronizacao-sharepoint-contratos-design.md
@@ -30,10 +30,13 @@ export interface TermoPasta {
   termoPdf: string | null
   propostaPdf: string | null
   outros: string[]
+  /** Todos os arquivos da pasta do termo, inclusive `WORK/` — é o que a aba Documentos liga a este termo. */
+  arquivos: string[]
 }
 
 export interface ContratoPasta {
-  /** `${pastaCliente}|${número normalizado} ${ano}` — ex. "ADESAMPA|73 2019", "ICI|sn 2024". */
+  /** `${sigla do cliente}|${número normalizado} ${ano}` — ex. "ADESAMPA|73 2019", "SUB-ITP|1 2026". Duas
+   *  pastas do mesmo cliente caem no mesmo contrato (spec lugar-certo §3.3). */
   chave: string
   pastaCliente: string
   /** "TC 073/2019" — pela pasta; o importador prefere o número impresso no termo, se houver. */
@@ -47,10 +50,15 @@ export interface ContratoPasta {
 const PREFIXO_ORDEM = /^\s*(\d+)\)\s*/
 const GRUPO = /^contratos?\s+(finalizad|encerrad)/i
 
+/** Nome de pasta feito à mão: espaço e hífen repetidos ("TC  010--SP-URB-2026") viram um só. */
+function limparNome(nome: string): string {
+  return nome.replace(/\s+/g, ' ').replace(/-{2,}/g, '-')
+}
+
 /** Número + ano de um nome de pasta: "TC 073-2019" → {numero:"73", ano:"2019"}; "TC 11-PGM-23" →
  *  2023; "TC SN-2024" → "sn"; "385-2023 - Contrato" (sem TC) também vale. */
 export function chaveDoNome(nome: string): { numero: string; ano: string } | null {
-  const semOrdem = nome.replace(PREFIXO_ORDEM, '')
+  const semOrdem = limparNome(nome).replace(PREFIXO_ORDEM, '')
   const m =
     /^\s*(?:TC\s*)?(SN|\d{1,6})\s*[-/.]\s*(?:[A-Za-z][A-Za-z.]*(?:[-.][A-Za-z]+)*\s*[-/.]\s*)?(\d{4}|\d{2})(?!\d)/i.exec(semOrdem) ??
     /^\s*(?:TC\s*)?(SN|\d{1,6})\s*[-/.]\s*(\d{4}|\d{2})(?!\d)/i.exec(semOrdem)
@@ -61,7 +69,7 @@ export function chaveDoNome(nome: string): { numero: string; ano: string } | nul
 }
 
 function numeroTermoDe(nome: string): string | null {
-  const semOrdem = nome.replace(PREFIXO_ORDEM, '')
+  const semOrdem = limparNome(nome).replace(PREFIXO_ORDEM, '')
   const m = /^\s*(?:TC\s*)?((?:SN|\d{1,6})(?:\s*[-/.]\s*[A-Za-z0-9.]+)*?)(?=\s+-\s|\s*$|-\s)/i.exec(semOrdem)
   if (!m) return null
   return `TC ${m[1].replace(/\s+/g, '').replace(/-/g, '/')}`
@@ -69,7 +77,7 @@ function numeroTermoDe(nome: string): string | null {
 
 /** Descrição do contrato = o que vem depois do número na pasta do contrato. */
 function descricaoDe(nome: string): string | null {
-  const semOrdem = nome.replace(PREFIXO_ORDEM, '')
+  const semOrdem = limparNome(nome).replace(PREFIXO_ORDEM, '')
   const i = semOrdem.search(/\s-\s*|-\s+/)
   const resto = i >= 0 ? semOrdem.slice(i).replace(/^\s*-\s*/, '').trim() : ''
   return resto || null
@@ -78,7 +86,7 @@ function descricaoDe(nome: string): string | null {
 /** Classifica a pasta do termo pelo nome. */
 export function classificarTermo(nomePasta: string): Pick<TermoPasta, 'ordem' | 'tipo' | 'numero' | 'rotulo' | 'meses' | 'aviso'> {
   const ordem = PREFIXO_ORDEM.exec(nomePasta)
-  const semOrdem = nomePasta.replace(PREFIXO_ORDEM, '').trim()
+  const semOrdem = limparNome(nomePasta).replace(PREFIXO_ORDEM, '').trim()
   // Tira o "TC 073-2019 - " do começo, fica "TA 01-2020 - acréscimo".
   const resto = semOrdem.replace(/^\s*(?:TC\s*)?(?:SN|\d{1,6})(?:\s*[-/.]\s*[A-Za-z0-9.]+)*?(?:\s+-\s*|\s*-\s+|$)/i, '').trim()
 
@@ -110,12 +118,16 @@ export function classificarTermo(nomePasta: string): Pick<TermoPasta, 'ordem' | 
   }
 }
 
-/** PDF do termo (TC/TA/TAP/TRA, "termo", "assinado") e PDF da proposta (PC/PA). */
-function papelDoArquivo(nome: string): 'termo' | 'proposta' | 'outro' {
+/** PDF do termo (TC/TA/TAP/TRA, "termo", "assinado") e PDF da proposta (PC/PA). Publicação do DOC,
+ *  ordem de início e termo de confidencialidade citam o TC no nome, mas não são o termo. */
+export function papelDoArquivo(nome: string): PapelArquivo {
   if (!/\.pdf$/i.test(nome)) return 'outro'
   const base = nome.normalize('NFD').replace(/[̀-ͯ]/g, '')
+  if (/^DOC\s|ordem de inicio|confidencialidade/i.test(base)) return 'outro'
   if (/^(PC|PA)[\s_\-.]/i.test(base) || /\bproposta\b/i.test(base)) return 'proposta'
   if (/^(TC|TAP|TRA|TA|\d+\s*[ºo°]?\s*TA)\b/i.test(base) || /\btermo\b|assinad|aditamento|apostil/i.test(base)) return 'termo'
+  // "SF TA 02 ao TC 37-2019.pdf", "TA125-2023 ao TC 312_2021.pdf", "TC004-SMPED-2020 - TA 001-2020.pdf"
+  if (/\bT(?:AP|RA|A|C)\s*\d/i.test(base) || /^T(?:AP|RA|A|C)\d/i.test(base)) return 'termo'
   return 'outro'
 }
 
@@ -125,13 +137,13 @@ function escolherTermo(candidatos: string[]): string | null {
   return assinado ?? [...candidatos].sort((a, b) => a.length - b.length)[0]
 }
 
-export function montarEstrutura(caminhos: string[], incluirWork = false): ContratoPasta[] {
+export function montarEstrutura(caminhos: string[], siglaDaPastaCliente: (pasta: string) => string = normalizarChave): ContratoPasta[] {
   const contratos = new Map<string, ContratoPasta>()
   const arquivosPorTermo = new Map<string, string[]>()
 
   for (const caminho of caminhos) {
     const segmentos = caminho.split('/')
-    if (motivoIgnorar(segmentos, 1, incluirWork)) continue
+    if (motivoIgnorar(segmentos, 1)) continue
     const [pastaCliente, ...resto] = segmentos
     const pastasAll = resto.slice(0, -1).filter((p) => normalizarChave(p) !== 'WORK')
     const finalizado = pastasAll.some((p) => GRUPO.test(p))
@@ -157,7 +169,7 @@ export function montarEstrutura(caminhos: string[], incluirWork = false): Contra
     if (!chave && pastaTermo) chave = chaveDoNome(pastaTermo)
     if (!chave) continue
 
-    const chaveContrato = `${pastaCliente}|${chave.numero} ${chave.ano}`
+    const chaveContrato = `${siglaDaPastaCliente(pastaCliente)}|${chave.numero} ${chave.ano}`
     let contrato = contratos.get(chaveContrato)
     const ehPastaDeContrato = pastaTermo !== pastaContrato && !contratoAninhado
     if (!contrato) {
@@ -184,20 +196,21 @@ export function montarEstrutura(caminhos: string[], incluirWork = false): Contra
     const chaveTermo = `${chaveContrato}|${caminhoTermo}`
     if (!contrato.termos.some((t) => t.chave === chaveTermo)) {
       const classe = pastaTermo ? classificarTermo(pastaTermo) : classificarTermo('')
-      contrato.termos.push({ chave: chaveTermo, pasta: caminhoTermo, ...classe, termoPdf: null, propostaPdf: null, outros: [] })
+      contrato.termos.push({ chave: chaveTermo, pasta: caminhoTermo, ...classe, termoPdf: null, propostaPdf: null, outros: [], arquivos: [] })
     }
-    if (!pastasAll.some((p) => normalizarChave(p) === 'WORK')) {
-      arquivosPorTermo.set(chaveTermo, [...(arquivosPorTermo.get(chaveTermo) ?? []), caminho])
-    }
+    arquivosPorTermo.set(chaveTermo, [...(arquivosPorTermo.get(chaveTermo) ?? []), caminho])
   }
 
   for (const contrato of contratos.values()) {
     for (const termo of contrato.termos) {
       const arquivos = arquivosPorTermo.get(termo.chave) ?? []
       const nome = (c: string) => c.split('/').pop()!
-      termo.termoPdf = escolherTermo(arquivos.filter((a) => papelDoArquivo(nome(a)) === 'termo'))
-      termo.propostaPdf = escolherTermo(arquivos.filter((a) => papelDoArquivo(nome(a)) === 'proposta'))
+      // Rascunho (WORK/) nunca é o termo nem a proposta da linha — mas entra nos arquivos do termo.
+      const candidatos = arquivos.filter((a) => !a.split('/').some((s) => normalizarChave(s) === 'WORK'))
+      termo.termoPdf = escolherTermo(candidatos.filter((a) => papelDoArquivo(nome(a)) === 'termo'))
+      termo.propostaPdf = escolherTermo(candidatos.filter((a) => papelDoArquivo(nome(a)) === 'proposta'))
       termo.outros = arquivos.filter((a) => a !== termo.termoPdf && a !== termo.propostaPdf)
+      termo.arquivos = arquivos
       // Pasta de contrato sem subpasta e sem PDF de termo: pode ser só proposta — continua CONTRATO.
     }
     contrato.termos.sort((a, b) => (a.ordem ?? 999) - (b.ordem ?? 999) || a.pasta.localeCompare(b.pasta))

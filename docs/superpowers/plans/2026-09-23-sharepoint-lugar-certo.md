@@ -4101,38 +4101,33 @@ Só com produção migrada (Task 14 Step 4 concluído). Remove o que ficou por c
 
 ---
 
-## Parte 2 — arquivos do SharePoint ficam no SharePoint (decisão de 24/09/2026, spec §11)
+## Parte 2 — arquivos do SharePoint vão para o Cloudflare R2 (decisão de 24/09/2026, spec §11)
 
-Substitui, para arquivos com `origem = sharepoint`, o "sobe para o Blob" das Tasks 3 e 9. Executar
-antes de retomar a Task 13. Mesmas Global Constraints.
+Substitui, para arquivos com `origem = sharepoint`, o "sobe para o Vercel Blob" das Tasks 3 e 9.
+(Uma primeira versão desta parte previa só link para o SharePoint; o usuário trocou para R2 porque o PDF
+precisa abrir dentro do VerAI.) Mesmas Global Constraints; nenhuma dependência nova (o `package.json`
+tem mudanças de outra sessão).
 
-### Task 16: Arquivo sem blob e com texto extraído (modelo + registro)
-- Migração (carimbo > `20260924170000`): `ArquivoCliente.urlBlob` opcional; `ArquivoCliente.textoExtraido String? @db.Text`.
-- `registrarConteudo`: `dados.semBlob?: boolean` (não chama `gravarBlob`, grava `urlBlob: null`) e
-  `dados.textoExtraido?: string | null`. Teste: sem blob não sobe nada e grava `urlBlob: null`.
-- Compilar com `urlBlob` opcional: `src/app/api/arquivos/[id]/route.ts` (tratado na Task 17),
-  `src/lib/assistente/indexacao/fontes.ts` (Task 18).
+### Task 16: Cliente R2 (SigV4 com node:crypto)
+- `src/lib/r2.ts`: `configR2(env)` (as 4 variáveis `R2_*`; `null` se faltar), `assinarSigV4(...)` puro,
+  `putR2(chave, conteudo, contentType): Promise<string>` (devolve `r2:<chave>`), `getR2(chave): Promise<Response>`,
+  `deleteR2(chave)` (404 conta como apagado).
+- Teste da assinatura com o exemplo oficial da AWS (GET Object, examplebucket, 20130524) e das URLs
+  (segmento com espaço/acento codificado uma vez).
 
-### Task 17: Abrir/baixar pelo SharePoint + telas
-- `src/lib/arquivos/sharepoint/link.ts` (puro): `linkSharepoint(base, caminho, modo: 'abrir' | 'baixar')`.
-  Teste com caminho com espaço, acento e "&".
-- `GET /api/arquivos/[id]`: sem `urlBlob` → caminho ativo em `ArquivoSharepoint` (ordem alfabética) →
-  `AcessoArquivo` + redirect 302; sem caminho → 410; sem `SHAREPOINT_BIBLIOTECA_URL` → 503. Testes.
-- `SELECAO_ANEXOS` seleciona `origem` dos arquivos; `anexosDaLinha` devolve `propostaSoNoSharepoint` /
-  `termoSoNoSharepoint`. `ModalPdf` (histórico) e `PainelArquivo` (Documentos): sem iframe para arquivo
-  só no SharePoint — botão "Abrir no SharePoint" (`/api/arquivos/[id]?modo=inline`, nova aba).
-- `.env.example` documenta `SHAREPOINT_BIBLIOTECA_URL`.
+### Task 17: `storage.ts` entende `r2:`
+- `getUpload`/`deleteUpload` por prefixo; novo `abrirUpload(url): Promise<Response>` (streaming) usado por
+  `GET /api/arquivos/[id]`; `versaoDoBlob` do índice do assistente trata `r2:` como imutável (a chave
+  tem o id do arquivo). Testes.
+- `.env.example` documenta as 4 variáveis.
 
-### Task 18: Sincronização sem upload, com texto; índice do assistente
-- `sincronizarSharepoint`: `registrarConteudo(..., { semBlob: true, textoExtraido })`; opção
-  `extrairTexto?: (conteudo, nome) => Promise<string | null>` (script: `textoDoPdf` só para PDF; falha
-  vira `null`). Sai a opção `gravarBlob`. Testes ajustados (nenhum blob gravado, `urlBlob: null`, texto).
-- `fontes.ts`: arquivo sem blob entra com `textoPronto = textoExtraido` (sem texto → fica fora).
+### Task 18: Sincronização grava no R2
+- `sincronizarSharepoint`: `gravarBlob` padrão = `putR2`; com `--aplicar` e sem `configR2()` → erro claro
+  antes de começar. Testes.
 
 ### Task 19: Execução em dev
-- `SHAREPOINT_BIBLIOTECA_URL` no `.env.local`.
 - Sincronização: amostra (`--clientes=SMSUB,SMIT,SUB-ITP,SPURBANISMO,SMDHC`) listagem → `--aplicar` →
-  conferência "TUDO NO VERAI" → repetir (idempotência); depois a biblioteca inteira (não usa Blob).
-- Cenários numa cópia (Task 13 Step 4) e conferência na tela, incluindo abrir um PDF e um `.xlsx` pelo
-  link do SharePoint (o usuário confirma que abre).
-- Registrar números no spec §10.
+  conferência "TUDO NO VERAI" → repetir (idempotência); depois a biblioteca inteira.
+- Cenários numa cópia (Task 13 Step 4) e conferência na tela: PDF abrindo dentro do VerAI (aba
+  Documentos e histórico do contrato).
+- Registrar números no spec §10. Depois: Task 14 (produção, com o usuário — as 4 variáveis `R2_*` na Vercel).

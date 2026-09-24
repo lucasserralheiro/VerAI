@@ -261,33 +261,28 @@ Script `scripts/migrar-sharepoint-lugar-certo.ts` (lista; `--aplicar` grava), id
 - Em dev, contra a pasta real: listagem, `--aplicar`, conferência com **zero divergência**, segunda
   execução sem nenhuma mudança (idempotência).
 
-## 11. Decisão de 24/09/2026 — os arquivos do SharePoint ficam no SharePoint (sem cópia)
+## 11. Decisão de 24/09/2026 — os arquivos do SharePoint vão para o Cloudflare R2
 
-Com o Vercel Blob no limite (§10) e a biblioteca maior que o plano gratuito, o usuário escolheu, entre
-"copiar para um armazenamento gratuito de terceiro (Cloudflare R2 / Backblaze B2)" e "apontar para o
-SharePoint", **apontar para o SharePoint**. Onde conflitar com §3.1 e §3.4, vale isto:
+Com o Vercel Blob no limite (§10), foram avaliados: link para o SharePoint (abre fora do VerAI e exige
+permissão na biblioteca), Neon (0,5 GB grátis e, estourado, trava TODA gravação do banco), Vercel pago,
+Backblaze B2 e **Cloudflare R2** — escolhido pelo usuário porque o PDF abre **dentro do VerAI**, sem
+administrador, grátis até 10 GB (a biblioteca tem 1,15 GB). Onde conflitar com §3.1/§3.4, vale isto:
 
-- A sincronização **não sobe** arquivo do SharePoint para o Blob: `ArquivoCliente` com `origem =
-  sharepoint` tem `urlBlob = null`. Hash, categoria, contrato/termo, dedup e conferência não mudam.
-- **Abrir/baixar** (`/api/arquivos/[id]`): arquivo sem blob redireciona (302) para o SharePoint —
-  `?modo=inline` → visualizador da biblioteca (`<biblioteca>/Forms/AllItems.aspx?id=<caminho>&parent=<pasta>`),
-  sem `modo` → arquivo direto com `?download=1`. O endereço é montado na hora a partir do caminho
-  **atual** em `ArquivoSharepoint` (arquivo movido/renomeado → link certo) e da variável
-  `SHAREPOINT_BIBLIOTECA_URL` (`https://cloudprodamazhotmail.sharepoint.com/sites/Prodam.DAF.GFP.Services/ContratosReceita`).
-  Sem caminho ativo (saiu do SharePoint): 410. O acesso continua registrado em `AcessoArquivo`.
-- **Quem abre precisa de leitura na biblioteca ContratosReceita** (login do próprio SharePoint). O VerAI
-  continua checando `podeVerCliente` antes de redirecionar.
-- **Telas**: arquivo só no SharePoint não tem pré-visualização dentro do VerAI (o SharePoint não deixa
-  ser embutido) — painel da aba Documentos e visualizador do histórico mostram "Abrir no SharePoint".
-- **Texto para busca/assistente**: a sincronização extrai o texto dos PDFs no PC (mesmo `textoDoPdf` do
-  importador) e grava em `ArquivoCliente.textoExtraido`; o índice do assistente usa esse texto quando o
-  arquivo não tem blob.
-- **Removido do SharePoint mas em uso no VerAI**: o registro fica, marcado "fora do SharePoint", mas o
-  conteúdo não está mais disponível (410) — não há cópia.
-- Uploads feitos na tela (aba Documentos, anexo manual do histórico) continuam no Blob.
-- As 849 MB de cópias antigas (`historico-contrato/` das linhas do SharePoint) viram lixo depois da
-  primeira sincronização: `migrar-sharepoint-lugar-certo.ts --apagar-copias --aplicar` (quem roda é o
-  usuário — exclusão permanente).
+- Arquivo que a sincronização grava (`origem = sharepoint`) vai para o bucket R2 **privado**
+  `verai-documentos` (conta do usuário). `ArquivoCliente.urlBlob` guarda `r2:<caminho>` (mesmo caminho
+  `clientes/<clienteId>/<arquivoId>/<nome>` do Blob). Nunca vai ao navegador.
+- `src/lib/storage.ts` passa a entender o prefixo `r2:`: `getUpload`, `deleteUpload` e o novo
+  `abrirUpload` (streaming) leem/apagam no R2; o resto continua no Vercel Blob. A rota
+  `/api/arquivos/[id]`, o anexo do histórico e o índice do assistente não mudam de forma.
+- Acesso ao R2 pela API S3 com assinatura AWS SigV4 feita com `node:crypto` (`src/lib/r2.ts`), sem
+  dependência nova. Configuração: `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`,
+  `R2_SECRET_ACCESS_KEY` (`.env.local` e variáveis da Vercel). Sem elas a sincronização com
+  `--aplicar` recusa rodar.
+- Uploads feitos na tela continuam no Vercel Blob. As 849 MB de cópias antigas (`historico-contrato/`)
+  viram lixo depois da primeira sincronização (`migrar-sharepoint-lugar-certo.ts --apagar-copias`, quem
+  roda é o usuário).
+- Arquivo excluído junto com o cliente fica órfão no R2 (limpeza fora do escopo). Governança: contratos
+  numa conta Cloudflare do usuário — a chefia deve ficar ciente.
 
 ## 10. Execução em dev (24/09/2026) — o que se descobriu
 

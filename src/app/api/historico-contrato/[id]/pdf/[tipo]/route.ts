@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { buildHistoricoContratoPdfPath, deleteUpload, putUpload } from '@/lib/storage'
-import { COLUNAS_PDF as COLUNAS, SELECAO_PDFS, TAMANHO_MAXIMO_PDF_BYTES, tipoPdfValido as tipoValido } from '@/lib/relatorios-clientes/pdfs-existentes'
+import { registrarConteudo } from '@/lib/arquivos/registrar-conteudo'
+import { SELECAO_ANEXOS, anexosDaLinha, categoriaDaColuna, dadosDaColuna } from '@/lib/relatorios-clientes/anexos-historico'
+import { TAMANHO_MAXIMO_PDF_BYTES, tipoPdfValido as tipoValido } from '@/lib/relatorios-clientes/pdfs-existentes'
 import { carregarHistoricoComAcesso } from '../../../carregar'
 
 type Contexto = { params: Promise<{ id: string; tipo: string }> }
 
-/** Sobe (ou substitui) o PDF de proposta/termo de uma linha do histórico do contrato. */
+/** Anexa (ou substitui) o PDF de proposta/termo de uma linha do histórico: o arquivo entra no
+ *  repositório do cliente (dedup por conteúdo) e a linha guarda a referência. Anexo feito aqui é
+ *  "à mão" — a sincronização com o SharePoint nunca o troca (spec lugar-certo §3.4). */
 export async function POST(request: NextRequest, { params }: Contexto) {
   const { id, tipo } = await params
   if (!tipoValido(tipo)) return NextResponse.json({ error: 'tipo de anexo inválido' }, { status: 404 })
@@ -26,19 +29,24 @@ export async function POST(request: NextRequest, { params }: Contexto) {
     return NextResponse.json({ error: 'o PDF não pode passar de 15 MB' }, { status: 400 })
   }
 
-  const buffer = Buffer.from(await arquivo.arrayBuffer())
-  const url = await putUpload(buildHistoricoContratoPdfPath(id, tipo), buffer, 'application/pdf')
+  const { id: arquivoId } = await registrarConteudo(prisma, {
+    clienteId: carregado.linha.contrato.clienteId,
+    nome: arquivo.name,
+    conteudo: Buffer.from(await arquivo.arrayBuffer()),
+    categoria: categoriaDaColuna(tipo, carregado.linha.tipo),
+    origem: 'upload',
+    enviadoPorId: carregado.usuario.id,
+  })
 
-  const colunas = COLUNAS[tipo]
   const linha = await prisma.historicoContrato.update({
     where: { id },
-    data: { [colunas.url]: url, [colunas.nome]: arquivo.name },
-    select: SELECAO_PDFS,
+    data: dadosDaColuna(tipo, arquivoId, false),
+    select: SELECAO_ANEXOS,
   })
-  return NextResponse.json(linha)
+  return NextResponse.json(anexosDaLinha(linha))
 }
 
-/** Remove o PDF anexado (storage + banco). */
+/** Solta o PDF da linha. O arquivo continua no repositório do cliente (pode estar em outros lugares). */
 export async function DELETE(request: NextRequest, { params }: Contexto) {
   const { id, tipo } = await params
   if (!tipoValido(tipo)) return NextResponse.json({ error: 'tipo de anexo inválido' }, { status: 404 })
@@ -46,19 +54,15 @@ export async function DELETE(request: NextRequest, { params }: Contexto) {
   const carregado = await carregarHistoricoComAcesso(request, id)
   if ('erro' in carregado) return carregado.erro
 
-  const colunas = COLUNAS[tipo]
-  const atual = await prisma.historicoContrato.findUnique({ where: { id }, select: SELECAO_PDFS })
-  const urlAtual = atual?.[colunas.url]
-  if (!urlAtual) {
+  const atual = await prisma.historicoContrato.findUnique({ where: { id }, select: { propostaArquivoId: true, termoArquivoId: true } })
+  if (!(tipo === 'proposta' ? atual?.propostaArquivoId : atual?.termoArquivoId)) {
     return NextResponse.json({ error: 'esta linha não tem PDF anexado' }, { status: 404 })
   }
 
-  await deleteUpload(urlAtual).catch(() => {})
-
   const linha = await prisma.historicoContrato.update({
     where: { id },
-    data: { [colunas.url]: null, [colunas.nome]: null },
-    select: SELECAO_PDFS,
+    data: dadosDaColuna(tipo, null, false),
+    select: SELECAO_ANEXOS,
   })
-  return NextResponse.json(linha)
+  return NextResponse.json(anexosDaLinha(linha))
 }

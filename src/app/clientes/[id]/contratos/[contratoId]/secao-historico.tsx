@@ -27,6 +27,9 @@ export interface LinhaHistorico {
   propostaPdfNome?: string | null
   termoPdfUrl?: string | null
   termoPdfNome?: string | null
+  /** Coluna preenchida pela sincronização com o SharePoint (volta se removida aqui). */
+  propostaDoSharepoint?: boolean
+  termoDoSharepoint?: boolean
 }
 
 const TIPOS: Record<TipoHistorico, { rotulo: string; estilo: string }> = {
@@ -39,7 +42,7 @@ const TIPOS: Record<TipoHistorico, { rotulo: string; estilo: string }> = {
 
 type CampoTexto = Exclude<
   keyof LinhaHistorico,
-  'id' | 'tipo' | 'propostaPdfUrl' | 'propostaPdfNome' | 'termoPdfUrl' | 'termoPdfNome'
+  'id' | 'tipo' | 'propostaPdfUrl' | 'propostaPdfNome' | 'termoPdfUrl' | 'termoPdfNome' | 'propostaDoSharepoint' | 'termoDoSharepoint'
 >
 
 const CAMPOS: Array<{ campo: CampoTexto; rotulo: string; tipo?: string; largo?: boolean }> = [
@@ -265,8 +268,9 @@ function ModalPdf({
   }, [alvo, url, aoFechar])
 
   const referencia = linha ? (tipo === 'proposta' ? linha.proposta : linha.numero) : null
-  // O Vercel Blob serve `?download=1` como anexo — o atributo `download` não vale entre origens.
-  const urlDownload = url ? `${url}${url.includes('?') ? '&' : '?'}download=1` : '#'
+  // /api/arquivos/[id] sem `?modo=inline` responde como anexo (download).
+  const urlDownload = url ? url.replace(/\?modo=inline$/, '') : '#'
+  const doSharepoint = linha ? (tipo === 'proposta' ? linha.propostaDoSharepoint : linha.termoDoSharepoint) : false
 
   return (
     <dialog
@@ -305,6 +309,12 @@ function ModalPdf({
             </p>
           )}
           <iframe src={url} title={`Visualização do PDF ${rotulo}`} className="h-[70vh] w-full bg-light-grey" />
+          {doSharepoint && (
+            <p className="bg-light-grey px-5 py-2 text-xs text-mid-grey">
+              Este PDF vem do SharePoint e é atualizado sozinho. Removido aqui, ele volta na próxima sincronização —
+              para trocar de vez, anexe outro PDF (anexo feito à mão não é substituído).
+            </p>
+          )}
 
           <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-grey bg-light-grey/50 px-5 py-3">
             <div>

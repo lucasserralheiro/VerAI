@@ -1,32 +1,21 @@
 import type { TipoPdfHistorico } from '@/lib/storage'
 
 /**
- * PDFs que JÁ estão no sistema e podem ser aproveitados nas colunas PC/PA e TC/TA do histórico do
- * contrato (em vez de subir de novo do computador). Duas fontes:
- *  - `proposta-comercial`: PDFs enviados na tela "Propostas comerciais";
- *  - `historico`: PDFs já anexados em OUTRA linha de contrato do MESMO cliente (o mesmo termo/aditivo
- *    costuma aparecer em mais de uma linha).
- * Escolher um deles COPIA o arquivo para a linha (não compartilha o blob), então apagar o PDF de
- * um lado nunca quebra o outro.
+ * PDFs que JÁ estão no sistema e podem ser usados nas colunas PC/PA e TC/TA do histórico do contrato
+ * (em vez de subir de novo do computador). Duas fontes:
+ *  - `repositorio`: PDFs do repositório do cliente (aba Documentos) — a linha passa a apontar pro mesmo
+ *    arquivo, sem cópia;
+ *  - `proposta-comercial`: PDFs da tela "Propostas comerciais" — ao ser escolhido, entra no repositório
+ *    do cliente e a linha aponta pra ele.
  */
 
 export const TAMANHO_MAXIMO_PDF_BYTES = 15 * 1024 * 1024 // 15 MB
-
-/** Coluna da linha do histórico ↔ campos do banco. `proposta` = PC/PA; `termo` = TC/TA. */
-export const COLUNAS_PDF = {
-  proposta: { url: 'propostaPdfUrl', nome: 'propostaPdfNome', rotulo: 'PC/PA' },
-  termo: { url: 'termoPdfUrl', nome: 'termoPdfNome', rotulo: 'TC/TA' },
-} as const
-
-export const SELECAO_PDFS = { propostaPdfUrl: true, propostaPdfNome: true, termoPdfUrl: true, termoPdfNome: true } as const
 
 export function tipoPdfValido(tipo: unknown): tipo is TipoPdfHistorico {
   return tipo === 'proposta' || tipo === 'termo'
 }
 
-export type OrigemPdf =
-  | { origem: 'proposta-comercial'; arquivoId: string }
-  | { origem: 'historico'; linhaId: string; coluna: TipoPdfHistorico }
+export type OrigemPdf = { origem: 'proposta-comercial'; arquivoId: string } | { origem: 'repositorio'; arquivoId: string }
 
 export interface PdfExistente {
   /** Chave estável pra lista da tela. */

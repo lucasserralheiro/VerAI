@@ -11,10 +11,10 @@ export async function carregarHistoricoComAcesso(request: NextRequest, id: strin
 
   const linha = await prisma.historicoContrato.findUnique({
     where: { id },
-    select: { id: true, numero: true, proposta: true, contrato: { select: { clienteId: true } } },
+    select: { id: true, tipo: true, numero: true, proposta: true, contrato: { select: { clienteId: true } } },
   })
   if (!linha) return { erro: NextResponse.json({ error: HISTORICO_NAO_ENCONTRADO }, { status: 404 }) }
 
   const negado = await verificarAcessoCliente(autenticado.usuario, linha.contrato.clienteId)
-  return negado ? { erro: negado } : { linha }
+  return negado ? { erro: negado } : { linha, usuario: autenticado.usuario }
 }

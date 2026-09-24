@@ -164,19 +164,35 @@ em `20260924100000_repositorio_arquivos_cliente`).
 
 ## Sincronização com o SharePoint (ContratosReceita)
 
-Os termos de contrato do financeiro entram no `ArquivoCliente` (origem `sharepoint`) por
-`scripts/sincronizar-sharepoint.ts`, lendo a biblioteca sincronizada pelo OneDrive no PC do Lucas e
-rodando pelo Agendador de Tarefas (`scripts/sincronizar-sharepoint.bat`). Estado por caminho em
-`ArquivoSharepoint`; regras em `src/lib/arquivos/sharepoint/`. Pasta de cliente casa só por
-`siglaLegado` ou pelo mapa `scripts/sharepoint-clientes.json` — nunca cria cliente. Remoção só lógica,
-só de arquivo `sharepoint`, e só sem uso. Spec:
-`docs/superpowers/specs/2026-09-24-sincronizacao-sharepoint-contratos-design.md`.
+A biblioteca ContratosReceita (lida pela pasta do OneDrive no PC do Lucas) é a **fonte** de duas
+coisas, numa passada só de `scripts/sincronizar-sharepoint.ts` (Agendador de Tarefas,
+`scripts/sincronizar-sharepoint.bat`): (1) a aba **Documentos** de cada cliente tem **todos** os
+arquivos da pasta dele — `WORK/` incluída, qualquer extensão; publicação da pasta
+`1. PUBLICAÇÕES NO DOC` vai pro cliente da sigla no nome (`rotearPeloNome`); (2) a aba **Contratos**
+recebe cada pasta de termo na linha certa do histórico, com SEI, datas, vigência e valor lidos do PDF
+do termo. Cliente só nasce de pasta de cliente (`garantirClientes`, pela sigla ou
+`scripts/sharepoint-clientes.json`), nunca por nome. Estado por caminho em `ArquivoSharepoint` (com
+`contratoId`/`historicoId` de onde o arquivo caiu); código em `src/lib/arquivos/sharepoint/` e
+`src/lib/importacao-sharepoint/`.
 
-A mesma biblioteca alimenta o **fluxo de cliente** por `scripts/importar-sharepoint-contratos.ts`
-(`src/lib/importacao-sharepoint/`): cria cliente que falta (nome oficial em
-`scripts/sharepoint-clientes.json` → `nomes`), contrato e linhas do histórico com SEI, datas, vigência e
-valor lidos do PDF do termo, e anexa PDF de termo/proposta. Identidade por `chaveSharepoint` (Contrato e
-HistoricoContrato); **só preenche campo vazio**, nunca sobrescreve. Spec §8.
+Regras que não se negociam (spec `docs/superpowers/specs/2026-09-23-sharepoint-lugar-certo-design.md`,
+que revisa `2026-09-24-sincronizacao-sharepoint-contratos-design.md`):
+- **Identidade estável** (`src/lib/importacao-sharepoint/identidade.ts`): contrato = `sigla|nº ano`;
+  termo → linha por mesmo caminho → tipo+número → conteúdo. Mover pra "Contratos Finalizados",
+  renomear `TA XX`→`TA 03` ou pasta repetida **nunca** duplica. Não volte a usar caminho como chave
+  (`HistoricoContrato.chaveSharepoint` é só pista e marca de origem).
+- **PC/PA e TC/TA por referência** (`propostaArquivoId`/`termoArquivoId`): a coluna preenchida pelo
+  SharePoint (`*DoSharepoint`) acompanha o SharePoint; a anexada à mão nunca é trocada. A API devolve
+  `*PdfUrl` calculado (`anexosDaLinha`, `src/lib/relatorios-clientes/anexos-historico.ts`), apontando
+  pra `/api/arquivos/[id]`. Gravar coluna sempre por `dadosDaColuna`.
+- Campo do termo só preenche o que está vazio (marcadores `TA XX`/`Em elaboração` contam como vazios).
+- Sumiu do SharePoint: coluna do SharePoint esvazia e o arquivo sai (remoção lógica), a não ser que
+  algo do VerAI o use (análise, anexo à mão) — aí fica marcado "fora do SharePoint".
+- Cada execução com `--aplicar` termina com **conferência** por cliente (caminhos no SharePoint × no
+  VerAI); divergência sai no log e o script termina com código 2.
+- Nada grava sem `--aplicar`; `--clientes=` restringe listagem **e** remoção (use em dev: dev e
+  produção dividem o mesmo Vercel Blob). Antes da primeira execução num banco:
+  `scripts/migrar-sharepoint-lugar-certo.ts` (a sincronização recusa rodar com migração pendente).
 
 ## Consistência de números e vínculos (varredura de 23/09/2026)
 

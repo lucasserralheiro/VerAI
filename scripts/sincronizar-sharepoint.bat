@@ -7,7 +7,6 @@ set ENV_FILE=.env.production.local
 cd /d "%~dp0.."
 if not exist logs mkdir logs
 echo. >> logs\sincronizar-sharepoint.log
-REM 1) contratos/termos novos no fluxo de cliente (cria cliente que faltar); 2) arquivos no repositório.
-call npx dotenv -e %ENV_FILE% -- npx tsx scripts\importar-sharepoint-contratos.ts --aplicar --somente-novos >> logs\sincronizar-sharepoint.log 2>&1
+REM Uma passada só: clientes, arquivos (aba Documentos), contratos/histórico que mudaram, conferência.
 call npx dotenv -e %ENV_FILE% -- npx tsx scripts\sincronizar-sharepoint.ts --aplicar >> logs\sincronizar-sharepoint.log 2>&1
 endlocal

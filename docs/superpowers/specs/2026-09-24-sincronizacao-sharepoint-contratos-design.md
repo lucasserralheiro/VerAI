@@ -1,5 +1,9 @@
 # Sincronização da biblioteca "ContratosReceita" (SharePoint) com o repositório de documentos
 
+> **Revisto em 23/09/2026** por `docs/superpowers/specs/2026-09-23-sharepoint-lugar-certo-design.md`
+> (aba Documentos completa, identidade estável, PC/PA–TC/TA por referência, uma execução só). Onde
+> conflitarem, vale o novo.
+
 **Data**: 24/09/2026 · **Status**: aprovado pelo usuário (caminho sem TI) · **Plano**:
 `docs/superpowers/plans/2026-09-24-sincronizacao-sharepoint-contratos.md`
 

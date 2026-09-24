@@ -1,6 +1,6 @@
 # SharePoint → VerAI: tudo no lugar certo, sempre
 
-**Data**: 23/09/2026 · **Status**: desenho aprovado pelo usuário ("vamos resolver isso como senior") ·
+**Data**: 23/09/2026 · **Status**: implementado em dev (Tasks 1–12, 24/09/2026); produção pendente (Task 14) ·
 **Plano**: `docs/superpowers/plans/2026-09-23-sharepoint-lugar-certo.md`
 
 **Revisa** `docs/superpowers/specs/2026-09-24-sincronizacao-sharepoint-contratos-design.md`: onde

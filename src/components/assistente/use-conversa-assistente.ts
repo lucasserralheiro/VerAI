@@ -22,6 +22,10 @@ export function useConversaAssistente() {
   const [ferramentaAtual, setFerramentaAtual] = useState<string | null>(null)
   const controle = useRef<AbortController | null>(null)
   const ultimaPergunta = useRef<string | null>(null)
+  /** Guarda de envio em voo: `estado` só muda de verdade no próximo render, então checá-lo pra
+   *  barrar um segundo Enter/clique disparado na mesma volta síncrona (antes do React repintar)
+   *  deixa passar os dois. Ref lê e escreve na hora — não depende de re-render. */
+  const emAndamento = useRef(false)
 
   const responder = useCallback(async (id: string, pergunta: string, rota: string) => {
     const idResposta = `r-${Date.now()}`
@@ -62,33 +66,57 @@ export function useConversaAssistente() {
     }
   }, [])
 
+  /** Cria a conversa (primeira pergunta) e encadeia a resposta. Fica de fora de `enviar` porque
+   *  `tentarDeNovo` também precisa disso — sem `conversaId` (POST anterior falhou), tentar de novo
+   *  tem que refazer a criação, não só reenviar pra uma conversa que nunca existiu. */
+  const criarConversaEResponder = useCallback(
+    async (pergunta: string, rota: string) => {
+      const resposta = await fetch('/api/assistente/conversas', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ pergunta, rota }) })
+      if (!resposta.ok) {
+        setErro(mensagemDeErro(new Error(await resposta.text())))
+        setEstado('erro')
+        return
+      }
+      const id = ((await resposta.json()) as { id: string }).id
+      setConversaId(id)
+      await responder(id, pergunta, rota)
+    },
+    [responder]
+  )
+
   const enviar = useCallback(
     async (pergunta: string, rota: string) => {
       const texto = pergunta.trim()
-      if (!texto || estado === 'respondendo') return
+      if (!texto || emAndamento.current) return
+      emAndamento.current = true
+      setEstado('respondendo')
+      setErro(null)
       ultimaPergunta.current = texto
       setMensagens((atual) => [...atual, { id: `p-${Date.now()}`, papel: 'usuario', conteudo: texto }])
-      let id = conversaId
-      if (!id) {
-        const resposta = await fetch('/api/assistente/conversas', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ pergunta: texto, rota }) })
-        if (!resposta.ok) {
-          setErro(mensagemDeErro(new Error(await resposta.text())))
-          setEstado('erro')
-          return
-        }
-        id = ((await resposta.json()) as { id: string }).id
-        setConversaId(id)
+      try {
+        if (conversaId) await responder(conversaId, texto, rota)
+        else await criarConversaEResponder(texto, rota)
+      } finally {
+        emAndamento.current = false
       }
-      await responder(id, texto, rota)
     },
-    [conversaId, estado, responder]
+    [conversaId, responder, criarConversaEResponder]
   )
 
   const tentarDeNovo = useCallback(
     async (rota: string) => {
-      if (conversaId && ultimaPergunta.current) await responder(conversaId, ultimaPergunta.current, rota)
+      if (!ultimaPergunta.current || emAndamento.current) return
+      emAndamento.current = true
+      setEstado('respondendo')
+      setErro(null)
+      try {
+        if (conversaId) await responder(conversaId, ultimaPergunta.current, rota)
+        else await criarConversaEResponder(ultimaPergunta.current, rota)
+      } finally {
+        emAndamento.current = false
+      }
     },
-    [conversaId, responder]
+    [conversaId, responder, criarConversaEResponder]
   )
 
   const parar = useCallback(() => controle.current?.abort(), [])

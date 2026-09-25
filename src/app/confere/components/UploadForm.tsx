@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 
-import type { DocumentoDoCadastro } from "@/lib/confere/tipos-cadastro";
-import { textoDaOrigem } from "../lib/cadastro";
+import { textoDoDocumento } from "../lib/cadastro";
 import { pareceLevantamento } from "../lib/documento";
 import {
 	type Achado,
@@ -13,7 +12,7 @@ import {
 	nomeDaPeca,
 	type Peca,
 } from "../lib/types";
-import { MenuDeDocumentos } from "./MenuDeDocumentos";
+import { useSoltarArquivos } from "./useSoltarArquivos";
 
 interface Props {
 	/** O levantamento escolhido — o campo que só aceita arquivo do computador e
@@ -22,10 +21,6 @@ interface Props {
 	/** O campo Contrato: arquivo do computador ou proposta do cadastro. */
 	contrato?: Peca;
 	onSelecionar: (campo: NomeDoCampo, arquivo: File | undefined) => void;
-	/** Todas as propostas do contrato em uso — para "Trocar" e "+ Adicionar do
-	 *  cadastro" (desenho de 25/09/2026 §4.2). */
-	alternativas: readonly DocumentoDoCadastro[];
-	onTrocarContrato: (documento: DocumentoDoCadastro) => void;
 	/** ESPEC 019 `R-ADT-10` — os aditivos da proposta, opcionais e em qualquer
 	 *  número, em ordem de aplicação. Fora do Contrato porque não entram na regra
 	 *  que habilita o botão (`D-10`). Misturam cadastro e computador. */
@@ -34,12 +29,20 @@ interface Props {
 	 *  tela, não do `<input>`. */
 	onSelecionarAditivos: (escolhidos: readonly File[]) => void;
 	onRemoverAditivo: (posicao: number) => void;
-	onAdicionarAditivo: (documento: DocumentoDoCadastro) => void;
 	/** O texto do campo de aditivos vazio. */
 	semAditivos: string;
 	/** A faixa de identificação do contrato — entre os dois cartões e o de
 	 *  aditivos. */
 	faixa?: React.ReactNode;
+	/** A planilha está sendo lida e o contrato buscado no cadastro. */
+	buscandoContrato: boolean;
+	/** Abre a janela "Pastas do cliente" para o campo Contrato (desenho de
+	 *  25/09/2026, tarde, §3.5). */
+	onProcurarContrato: () => void;
+	/** Abre a janela "Pastas do cliente" para os aditivos. */
+	onProcurarAditivos: () => void;
+	/** O que falta para gerar, embaixo do botão; `null` quando nada falta. */
+	dica: string | null;
 	onEnviar: () => void;
 	processando: boolean;
 	/** ESPEC 015 `R-LMP-04` — muda a cada limpeza e remonta os dois campos, que é
@@ -107,14 +110,15 @@ export function UploadForm({
 	levantamento,
 	contrato,
 	onSelecionar,
-	alternativas,
-	onTrocarContrato,
 	aditivos,
 	onSelecionarAditivos,
 	onRemoverAditivo,
-	onAdicionarAditivo,
 	semAditivos,
 	faixa,
+	buscandoContrato,
+	onProcurarContrato,
+	onProcurarAditivos,
+	dica,
 	onEnviar,
 	processando,
 	chave,
@@ -133,15 +137,33 @@ export function UploadForm({
 	const bloqueado = !completo || processando;
 	const contratoDoComputador = contrato?.tipo === "arquivo" ? contrato.arquivo : undefined;
 	const contratoDoCadastro = contrato?.tipo === "cadastro" ? contrato.documento : undefined;
-	// "+ Adicionar do cadastro" oferece o que ainda não está nem no Contrato nem
-	// na lista.
-	const naLista = new Set(
-		aditivos.flatMap((peca) => (peca.tipo === "cadastro" ? [peca.documento.arquivoId] : [])),
-	);
-	const paraAdicionar = alternativas.filter(
-		(documento) =>
-			documento.arquivoId !== contratoDoCadastro?.arquivoId && !naLista.has(documento.arquivoId),
-	);
+	// Arrastar e soltar por cartão (desenho de 25/09/2026, tarde, §3.4): cada um
+	// aceita o seu tipo, e soltar faz o mesmo que escolher pelo seletor.
+	const soltarContrato = useSoltarArquivos({
+		extensao: ".pdf",
+		multiplos: false,
+		desabilitado: processando,
+		onSoltar: ([arquivo]) => onSelecionar("contrato", arquivo),
+		mensagemDeTipoErrado: (arquivo) =>
+			`O contrato é a proposta em PDF — ${arquivo.name} não é PDF.`,
+	});
+	const soltarLevantamento = useSoltarArquivos({
+		extensao: ".xlsx",
+		multiplos: false,
+		desabilitado: processando,
+		onSoltar: ([arquivo]) => onSelecionar("levantamento", arquivo),
+		mensagemDeTipoErrado: (arquivo) =>
+			`O levantamento é a planilha .xlsx — ${arquivo.name} não é.`,
+	});
+	const soltarAditivos = useSoltarArquivos({
+		extensao: ".pdf",
+		multiplos: true,
+		desabilitado: processando,
+		onSoltar: onSelecionarAditivos,
+		mensagemDeTipoErrado: (arquivo) => `Aditivos são PDFs — ${arquivo.name} ficou de fora.`,
+	});
+	const soltarNoCampo = { contrato: soltarContrato, levantamento: soltarLevantamento };
+	const convite = { contrato: "Solte o PDF aqui", levantamento: "Solte a planilha aqui" };
 
 	// ESPEC 025 `R-DOC-08` — o arquivo dispensado, pelo nome. Guardar o **nome**
 	// e não um booleano é o que faz o aviso voltar quando a pessoa troca por
@@ -170,19 +192,30 @@ export function UploadForm({
 				{CAMPOS.map((campo, indice) => {
 					const escolhido =
 						campo.nome === "contrato" ? (contrato ? nomeDaPeca(contrato) : undefined) : levantamento?.name;
+					const soltar = soltarNoCampo[campo.nome];
+					const buscando = campo.nome === "contrato" && !contrato && buscandoContrato;
+					// O que o campo vazio diz (desenho de 25/09/2026, tarde, §3.1): o
+					// Contrato vem do levantamento; o Levantamento é por onde começa.
+					const vazio =
+						campo.nome === "contrato"
+							? buscando
+								? "buscando no cadastro…"
+								: "vem do levantamento — ou escolha um arquivo"
+							: "escolher arquivo… ou arraste para cá";
 					return (
-						// Borda sólida e não tracejada: tracejado é a convenção de área
-						// de arraste, e arrastar aqui não faz nada — quem tenta não
-						// recebe erro, recebe inércia (`R-ACE-17`).
+						// Borda sólida no repouso: tracejado é a convenção de área de
+						// arraste, e só aparece quando arrastar faz alguma coisa — com um
+						// arquivo por cima do cartão (`R-ACE-17`, revista em 25/09/2026:
+						// soltar passou a funcionar).
 						//
 						// `has-[:focus-visible]` e não `focus-within`: clicar o rótulo
 						// foca o input, e o `focus-within` faria o anel aparecer para
 						// quem usa mouse e não precisa dele.
 						//
 						// O cartão é o `<div>`, e o `<label>` fica dentro dele: o que
-						// é do cadastro (Ver PDF, Trocar) tem botões e mora **fora** do
-						// rótulo — dentro, clicar num deles abriria o seletor junto,
-						// pela mesma razão do aviso da `R-DOC-08`.
+						// é do cadastro (Ver PDF, Procurar nas pastas) tem botões e mora
+						// **fora** do rótulo — dentro, clicar num deles abriria o seletor
+						// junto, pela mesma razão do aviso da `R-DOC-08`.
 						<div
 							// A chave composta é o que remonta o campo na limpeza
 							// (`R-LMP-04`). Só o nome não bastaria: o React reaproveitaria
@@ -191,11 +224,19 @@ export function UploadForm({
 							// Contrato tem também a sua chave: o cadastro volta a ocupá-lo
 							// sem remontar o levantamento.
 							key={`${chave}-${campo.nome}-${campo.nome === "contrato" ? chaveContrato : 0}`}
-							className="flex flex-col gap-2 rounded-md border border-confere-teal-100 bg-confere-teal-50/40 p-4 transition hover:border-confere-teal-400 has-[:focus-visible]:border-confere-teal-400 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-confere-teal-500 has-[:focus-visible]:ring-offset-2"
+							{...soltar.alvo}
+							className="relative flex flex-col gap-2 rounded-md border border-confere-teal-100 bg-confere-teal-50/40 p-4 transition hover:border-confere-teal-400 has-[:focus-visible]:border-confere-teal-400 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-confere-teal-500 has-[:focus-visible]:ring-offset-2"
 						>
 						<label className="flex cursor-pointer flex-col gap-2">
-							<span className="text-sm font-semibold text-confere-navy-600">
+							<span className="flex items-center gap-2 text-sm font-semibold text-confere-navy-600">
 								{campo.rotulo}
+								{/* Por onde começar. Fica fora do nome acessível do campo,
+								    que é o `aria-label` do input. */}
+								{campo.nome === "levantamento" && !levantamento && (
+									<span className="rounded bg-confere-teal-500 px-2 py-0.5 text-[11px] font-semibold text-white">
+										comece aqui
+									</span>
+								)}
 							</span>
 							<span id={`${campo.nome}-descricao`} className="text-xs text-confere-navy-300">
 								{campo.descricao}
@@ -218,42 +259,61 @@ export function UploadForm({
 								// concatenados e mudando a cada seleção (`R-ACE-11`).
 								aria-label={campo.rotulo}
 								aria-describedby={`${campo.nome}-descricao ${campo.nome}-estado`}
-								onChange={(evento) =>
-									onSelecionar(campo.nome, evento.target.files?.[0])
-								}
+								onChange={(evento) => {
+									soltar.limparErro();
+									onSelecionar(campo.nome, evento.target.files?.[0]);
+								}}
 							/>
 							<span
 								id={`${campo.nome}-estado`}
-								className={`mt-1 truncate rounded border px-2 py-1 text-xs ${
+								className={`mt-1 flex items-center gap-2 rounded border px-2 py-1 text-xs ${
 									escolhido
 										? "border-confere-teal-400 bg-white text-confere-teal-600"
 										: "border-confere-line bg-white text-confere-navy-300"
 								}`}
 							>
-								{escolhido ?? "escolher arquivo…"}
+								{buscando && <Giro />}
+								<span className="truncate">{escolhido ?? vazio}</span>
 							</span>
 						</label>
-						{campo.nome === "contrato" && contratoDoCadastro && (
+						{campo.nome === "contrato" && (
 							<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-								<span className="text-confere-teal-600">
-									Do cadastro · {textoDaOrigem(contratoDoCadastro.origem)}
-								</span>
-								<a
-									href={`/api/arquivos/${contratoDoCadastro.arquivoId}?modo=inline`}
-									target="_blank"
-									rel="noreferrer"
+								{contratoDoCadastro && (
+									<>
+										<span className="text-confere-teal-600">
+											Do cadastro · {textoDoDocumento(contratoDoCadastro)}
+										</span>
+										<a
+											href={`/api/arquivos/${contratoDoCadastro.arquivoId}?modo=inline`}
+											target="_blank"
+											rel="noreferrer"
+											className="font-semibold text-confere-teal-600 underline"
+										>
+											Ver PDF
+										</a>
+									</>
+								)}
+								<button
+									type="button"
+									onClick={onProcurarContrato}
+									disabled={processando}
 									className="font-semibold text-confere-teal-600 underline"
 								>
-									Ver PDF
-								</a>
-								<MenuDeDocumentos
-									rotulo="Trocar"
-									documentos={alternativas.filter(
-										(documento) => documento.arquivoId !== contratoDoCadastro.arquivoId,
-									)}
-									onEscolher={onTrocarContrato}
-									onEnviarDoComputador={() => refPrimeiroCampo.current?.click()}
-								/>
+									Procurar nas pastas do cliente
+								</button>
+							</div>
+						)}
+						{soltar.erro && (
+							<p className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+								{soltar.erro}
+							</p>
+						)}
+						{soltar.arrastando && (
+							<div
+								aria-hidden="true"
+								className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md border-2 border-dashed border-confere-teal-500 bg-confere-teal-50/95 text-sm font-semibold text-confere-teal-600"
+							>
+								{convite[campo.nome]}
 							</div>
 						)}
 						</div>
@@ -393,7 +453,8 @@ export function UploadForm({
 			    campo vazio, pela mesma razão dos dois cartões de cima. */}
 			<div
 				key={`${chave}-${CAMPO_ADITIVOS.nome}-${chaveAditivos}`}
-				className="mt-4 flex flex-col gap-2 rounded-md border border-confere-line bg-white p-4 transition hover:border-confere-teal-400 has-[:focus-visible]:border-confere-teal-400 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-confere-teal-500 has-[:focus-visible]:ring-offset-2"
+				{...soltarAditivos.alvo}
+				className="relative mt-4 flex flex-col gap-2 rounded-md border border-confere-line bg-white p-4 transition hover:border-confere-teal-400 has-[:focus-visible]:border-confere-teal-400 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-confere-teal-500 has-[:focus-visible]:ring-offset-2"
 			>
 				<label className="flex cursor-pointer flex-col gap-2">
 					<span className="text-sm font-semibold text-confere-navy-600">
@@ -411,18 +472,11 @@ export function UploadForm({
 						className="sr-only"
 						aria-label={CAMPO_ADITIVOS.rotulo}
 						aria-describedby={`${CAMPO_ADITIVOS.nome}-descricao ${CAMPO_ADITIVOS.nome}-estado`}
-						onChange={(evento) =>
-							onSelecionarAditivos(Array.from(evento.target.files ?? []))
-						}
+						onChange={(evento) => {
+							soltarAditivos.limparErro();
+							onSelecionarAditivos(Array.from(evento.target.files ?? []));
+						}}
 					/>
-					{aditivos.length === 0 && (
-						<span
-							id={`${CAMPO_ADITIVOS.nome}-estado`}
-							className="mt-1 rounded border border-confere-line bg-white px-2 py-1 text-xs text-confere-navy-300"
-						>
-							{semAditivos}
-						</span>
-					)}
 				</label>
 				{/* Os nomes, e não a contagem: a ordem de envio é a ordem de
 				    aplicação (`R-ADT-07`), e quem confere precisa vê-la — e de onde
@@ -439,7 +493,7 @@ export function UploadForm({
 									<span className="text-confere-navy-300">
 										{" · "}
 										{peca.tipo === "cadastro"
-											? `do cadastro · ${textoDaOrigem(peca.documento.origem)}`
+											? `do cadastro · ${textoDoDocumento(peca.documento)}`
 											: "do computador"}
 									</span>
 								</span>
@@ -456,14 +510,22 @@ export function UploadForm({
 						))}
 					</ol>
 				)}
-				<div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-					{paraAdicionar.length > 0 && (
-						<MenuDeDocumentos
-							rotulo="+ Adicionar do cadastro"
-							documentos={paraAdicionar}
-							onEscolher={onAdicionarAditivo}
-						/>
+				{/* Vazio, uma linha só: o estado e as duas maneiras de acrescentar
+				    (desenho de 25/09/2026, tarde, §3.3). */}
+				<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+					{aditivos.length === 0 && (
+						<span id={`${CAMPO_ADITIVOS.nome}-estado`} className="text-confere-navy-300">
+							{semAditivos}
+						</span>
 					)}
+					<button
+						type="button"
+						onClick={onProcurarAditivos}
+						disabled={processando}
+						className="font-semibold text-confere-teal-600 underline"
+					>
+						+ Procurar nas pastas
+					</button>
 					<button
 						type="button"
 						onClick={() => refAditivos.current?.click()}
@@ -473,6 +535,19 @@ export function UploadForm({
 						+ Enviar do computador
 					</button>
 				</div>
+				{soltarAditivos.erro && (
+					<p className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+						{soltarAditivos.erro}
+					</p>
+				)}
+				{soltarAditivos.arrastando && (
+					<div
+						aria-hidden="true"
+						className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md border-2 border-dashed border-confere-teal-500 bg-confere-teal-50/95 text-sm font-semibold text-confere-teal-600"
+					>
+						Solte os PDFs aqui
+					</div>
+				)}
 			</div>
 
 			{/* As classes de estado são expressão condicional, não variante
@@ -483,7 +558,7 @@ export function UploadForm({
 				type="submit"
 				aria-disabled={bloqueado}
 				aria-busy={processando}
-				aria-describedby={!completo ? "upload-pendente" : undefined}
+				aria-describedby={dica ? "upload-pendente" : undefined}
 				className={`mt-6 inline-flex items-center gap-2 rounded-md px-5 py-2.5 text-sm font-semibold transition ${
 					bloqueado
 						? "cursor-not-allowed bg-confere-navy-100 text-confere-navy-600"
@@ -526,9 +601,12 @@ export function UploadForm({
 			    estava idêntica, e é isso que faz espera longa parecer
 			    travamento. */}
 
-			{!completo && (
+			{/* O que falta, dito pelo nome (desenho de 25/09/2026, tarde, §3.2) — a
+			    frase fixa "Os dois arquivos são necessários" deixou de valer quando o
+			    contrato passou a vir sozinho do cadastro. */}
+			{dica && (
 				<p id="upload-pendente" className="mt-3 text-xs text-confere-navy-300">
-					Os dois arquivos são necessários para gerar o relatório.
+					{dica}
 				</p>
 			)}
 		</form>

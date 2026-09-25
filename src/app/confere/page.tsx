@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { DocumentoDoCadastro, DocumentosDoContrato } from "@/lib/confere/tipos-cadastro";
 import { ConfirmarLimpeza } from "./components/ConfirmarLimpeza";
 import { FaixaDoContrato } from "./components/FaixaDoContrato";
+import { JanelaDePastas } from "./components/JanelaDePastas";
 import { ProgressoDaGeracao } from "./components/ProgressoDaGeracao";
 import { ResultadoPanel } from "./components/ResultadoPanel";
 import { UploadForm } from "./components/UploadForm";
@@ -81,6 +82,27 @@ export default function ConferePage() {
 	// Numera os pedidos de identificação: a resposta de uma planilha já trocada
 	// não pode preencher os campos da nova.
 	const pedidoDeIdentificacao = useRef(0);
+	// A janela "Pastas do cliente" e para qual campo ela escolhe (desenho de
+	// 25/09/2026, tarde, §3.5).
+	const [janela, setJanela] = useState<{ aberto: boolean; finalidade: "contrato" | "aditivos" }>({
+		aberto: false,
+		finalidade: "contrato",
+	});
+
+	// Arquivo solto fora dos cartões não pode abrir no navegador — a pessoa
+	// perderia tudo o que já preencheu. Os cartões tratam o que cai neles; aqui
+	// só o resto (desenho de 25/09/2026, tarde, §3.4).
+	useEffect(() => {
+		function segurar(evento: DragEvent) {
+			if (Array.from(evento.dataTransfer?.types ?? []).includes("Files")) evento.preventDefault();
+		}
+		window.addEventListener("dragover", segurar);
+		window.addEventListener("drop", segurar);
+		return () => {
+			window.removeEventListener("dragover", segurar);
+			window.removeEventListener("drop", segurar);
+		};
+	}, []);
 
 	const contrato: Peca | undefined = arquivos.contrato
 		? { tipo: "arquivo", arquivo: arquivos.contrato }
@@ -287,9 +309,25 @@ export default function ConferePage() {
 		setAditivos((atual) => atual.filter((_, indice) => indice !== posicao));
 	}
 
-	function adicionarAditivo(documento: DocumentoDoCadastro) {
+	/** O que a pessoa escolheu na janela "Pastas do cliente". Quando o arquivo é
+	 *  uma das propostas do histórico do contrato, leva a origem de sempre ("TA
+	 *  02, renovação desde…"); senão, a pasta de onde veio. */
+	function aoEscolherDasPastas(escolhidos: DocumentoDoCadastro[]) {
+		const comOrigem = escolhidos.map(
+			(documento) =>
+				documentos?.alternativas.find(
+					(alternativa) => alternativa.arquivoId === documento.arquivoId,
+				) ?? documento,
+		);
+		if (janela.finalidade === "contrato") {
+			if (comOrigem[0]) trocarContrato(comOrigem[0]);
+			return;
+		}
 		entradaMudou();
-		setAditivos((atual) => [...atual, { tipo: "cadastro", documento }]);
+		setAditivos((atual) => [
+			...atual,
+			...comOrigem.map((documento): Peca => ({ tipo: "cadastro", documento })),
+		]);
 	}
 
 	async function enviar(identidadeConfirmada = false) {
@@ -364,6 +402,18 @@ export default function ConferePage() {
 			identificacao.situacao !== "ociosa" ||
 			estado.situacao !== "inicial");
 
+	// O que falta para gerar (desenho de 25/09/2026, tarde, §3.2) — some quando
+	// nada falta.
+	const dica = !arquivos.levantamento
+		? contrato
+			? "Falta o levantamento."
+			: "Escolha o levantamento para começar."
+		: !contrato
+			? identificacao.situacao === "lendo"
+				? "Buscando o contrato no cadastro…"
+				: "Falta o contrato: procure nas pastas do cliente ou envie do computador."
+			: null;
+
 	// A barra de aplicação da ESPEC 007 (logo + assinatura de marca + slot de
 	// contexto) foi removida: dentro do VerAI a marca já está na barra lateral,
 	// e uma segunda faixa de marca no topo da página era ruído — além de o
@@ -382,26 +432,22 @@ export default function ConferePage() {
 				    planilha passou a buscar o contrato no cadastro (desenho de
 				    25/09/2026 §4.1). */}
 				<p className="mt-2 mb-8 text-sm text-confere-navy-600">
-					Envie o levantamento da competência: o contrato e os aditivos são buscados no
-					cadastro do cliente — ou envie os arquivos do computador. A aplicação compara o
-					contratado com o medido e devolve o relatório de comprovação.
+					Escolha o levantamento — o contrato e os aditivos vêm do cadastro do cliente — e
+					gere o relatório de comprovação.
 				</p>
 
 				<UploadForm
 					levantamento={arquivos.levantamento}
 					contrato={contrato}
 					onSelecionar={selecionar}
-					alternativas={documentos?.alternativas ?? []}
-					onTrocarContrato={trocarContrato}
 					aditivos={aditivos}
 					onSelecionarAditivos={selecionarAditivos}
 					onRemoverAditivo={removerAditivo}
-					onAdicionarAditivo={adicionarAditivo}
-					semAditivos={
-						documentos
-							? "nenhum aditivo depois da proposta-base — opcional"
-							: "nenhum aditivo — opcional"
-					}
+					semAditivos={documentos ? "Nenhum aditivo depois da proposta-base" : "Nenhum aditivo"}
+					buscandoContrato={identificacao.situacao === "lendo"}
+					onProcurarContrato={() => setJanela({ aberto: true, finalidade: "contrato" })}
+					onProcurarAditivos={() => setJanela({ aberto: true, finalidade: "aditivos" })}
+					dica={dica}
 					faixa={
 						<FaixaDoContrato
 							identificacao={identificacao}
@@ -471,6 +517,17 @@ export default function ConferePage() {
 				haRelatorio={estado.situacao === "pronto"}
 				onConfirmar={confirmarLimpeza}
 				onCancelar={cancelarLimpeza}
+			/>
+
+			{/* Fora do `<form>` do `UploadForm`, como os outros diálogos. Abre na
+			    pasta do contrato da proposta que está no campo Contrato. */}
+			<JanelaDePastas
+				aberto={janela.aberto}
+				clienteId={documentos?.contrato.clienteId}
+				finalidade={janela.finalidade}
+				arquivoInicial={contratoDoCadastro?.arquivoId ?? documentos?.base?.arquivoId}
+				onEscolher={aoEscolherDasPastas}
+				onFechar={() => setJanela((atual) => ({ ...atual, aberto: false }))}
 			/>
 		</>
 	);

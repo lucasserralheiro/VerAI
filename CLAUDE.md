@@ -262,11 +262,28 @@ Texto dos documentos: `TrechoDocumento` (full-text do Postgres, `unaccent`), man
 **sincronização** banco × índice (`sincronizarIndice`) — sob demanda na busca, cron diário
 (`/api/assistente/indexar/cron`), botão em `/admin/assistente` e
 `npx dotenv -e .env.development -- npx tsx scripts/indexar-documentos.ts [--reindexar]`. Origem de
-arquivo nova (ex.: `ArquivoCliente`) = mais um caso em `indexacao/fontes.ts`, sem gancho em rota de
-upload. PDF escaneado fica `sem_texto` (OCR do projeto roda no navegador).
+arquivo nova = mais um caso em `indexacao/fontes.ts` (e em `hrefDoTrecho`/`linkDoTrecho`), sem gancho
+em rota de upload. Além das origens antigas há `ARQUIVO_CLIENTE` (arquivo do repositório que não é
+PC/PA/TC/TA do histórico nem `Documento`). A sincronização do SharePoint com `--aplicar` termina
+indexando até 200 arquivos (não muda o código de saída); erro é tentado de novo depois de 24 h; acima
+de 80 MB em `TrechoDocumento` a indexação para e a decisão é do usuário. PDF escaneado fica
+`sem_texto` (OCR do projeto roda no navegador).
+
+**O modelo recebe texto compacto, a tela recebe o objeto** (`ferramentas/compacto.ts`, via
+`toModelOutput`): tabela com cabeçalho uma vez, sem vazios nem `href`, corte por linha a 8.000
+caracteres. Ferramenta nova devolve o objeto de sempre e, se o genérico não servir, um `compactar`.
+Links que a IA escreve são `tipo:id` e passam por `/ir/[tipo]/[id]` (confere permissão; o
+`urlTransform` do markdown deixa esses esquemas e `sei:` passarem). Cliente e contrato citados na
+pergunta — e os ids usados nas últimas 3 respostas — entram no contexto antes da IA
+(`entidades.ts`, `preparar.ts`), nunca no `system`. Antes e depois de mexer em ferramenta, formato
+ou instrução, rode a **régua**: `npx dotenv -e <env> -- npx tsx scripts/regua-assistente.ts
+[--com-ia] [--salvar] --comparar=<rodada salva em .superpowers/regua-assistente/>`.
 
 Modelo: `ASSISTENTE_AI_*` (fallback `AI_*`), `deepseek-chat`. Instrução do sistema é fixa
-(`instrucoes.ts`) para o cache do DeepSeek — data e tela aberta vão na mensagem, não nela.
+(`instrucoes.ts`) para o cache do DeepSeek — data, tela aberta e "Já identificados" vão na mensagem,
+não nela.
 
-- **Design**: `docs/superpowers/specs/2026-09-23-assistente-ia-design.md`
-- **Plano**: `docs/superpowers/plans/2026-09-23-assistente-ia.md`
+- **Design**: `docs/superpowers/specs/2026-09-23-assistente-ia-design.md`; fase 1 da melhoria (texto
+  compacto, identificação, links curtos, índice): `docs/superpowers/specs/2026-09-25-assistente-base-economica-design.md`
+- **Plano**: `docs/superpowers/plans/2026-09-23-assistente-ia.md`; fase 1:
+  `docs/superpowers/plans/2026-09-25-assistente-base-economica.md`

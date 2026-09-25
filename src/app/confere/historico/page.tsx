@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Eye, FileSpreadsheet, FileText, Inbox, Search, Trash2 } from 'lucide-react'
+import { nomeDaCompetencia } from '@/lib/confere/tipos-cadastro'
 import { BTN_OUTLINE, LINK_DANGER, LINK_NAVY } from '@/lib/ui'
 
 // Histórico do ConfereAI. A geração em si continua sem estado — o que esta
@@ -18,6 +19,13 @@ interface ConfereExecucao {
    *  detalhamento guardado — só os dois relatórios. */
   temResultado: boolean
   createdAt: string
+  /** O contrato achado pela planilha (ou escolhido) e a competência lida dela — só nas execuções
+   *  feitas depois de 25/09/2026 (docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md). */
+  contratoId: string | null
+  clienteId: string | null
+  numeroTermo: string | null
+  competenciaAno: number | null
+  competenciaMes: number | null
 }
 
 export default function ConfereHistoricoPage() {
@@ -78,6 +86,7 @@ export default function ConfereHistoricoPage() {
               <thead>
                 <tr>
                   <th>Contrato</th>
+                  <th>Proposta</th>
                   <th>Levantamento</th>
                   <th>Aditivos</th>
                   <th>Data</th>
@@ -88,6 +97,23 @@ export default function ConfereHistoricoPage() {
               <tbody>
                 {execucoes.map((execucao) => (
                   <tr key={execucao.id}>
+                    <td>
+                      {execucao.contratoId && execucao.clienteId ? (
+                        <Link
+                          href={`/clientes/${execucao.clienteId}/contratos/${execucao.contratoId}`}
+                          className="font-medium text-navy transition-colors hover:text-orange hover:underline"
+                        >
+                          {execucao.numeroTermo ?? 'Contrato'}
+                        </Link>
+                      ) : (
+                        <span className="text-mid-grey">—</span>
+                      )}
+                      {execucao.competenciaAno && execucao.competenciaMes ? (
+                        <span className="block text-xs text-mid-grey">
+                          {nomeDaCompetencia({ ano: execucao.competenciaAno, mes: execucao.competenciaMes })}
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="font-medium text-navy">
                       {execucao.temResultado ? (
                         <Link

@@ -20,6 +20,9 @@ export async function GET(request: NextRequest) {
   // centenas de KB por linha, e o histórico cresce. `IS NOT NULL` resolve isso
   // no banco; um `select: { resultado: true }` traria tudo só para depois
   // reduzir a um booleano.
+  //
+  // O contrato vem por `LEFT JOIN`: execução sem contrato (antiga, ou com o
+  // contrato excluído depois — o vínculo é `SetNull`) continua na lista.
   const execucoes = await prisma.$queryRaw<
     Array<{
       id: string
@@ -28,17 +31,28 @@ export async function GET(request: NextRequest) {
       nomesAditivos: unknown
       temResultado: boolean
       createdAt: Date
+      contratoId: string | null
+      clienteId: string | null
+      numeroTermo: string | null
+      competenciaAno: number | null
+      competenciaMes: number | null
     }>
   >`
     SELECT
-      "id",
-      "nomeContrato",
-      "nomeLevantamento",
-      "nomesAditivos",
-      "resultado" IS NOT NULL AS "temResultado",
-      "createdAt"
-    FROM "ConfereExecucao"
-    ORDER BY "createdAt" DESC
+      e."id",
+      e."nomeContrato",
+      e."nomeLevantamento",
+      e."nomesAditivos",
+      e."resultado" IS NOT NULL AS "temResultado",
+      e."createdAt",
+      e."contratoId",
+      e."competenciaAno",
+      e."competenciaMes",
+      c."clienteId",
+      c."numeroTermo"
+    FROM "ConfereExecucao" e
+    LEFT JOIN "Contrato" c ON c."id" = e."contratoId"
+    ORDER BY e."createdAt" DESC
   `
 
   return NextResponse.json(execucoes)

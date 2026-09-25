@@ -176,6 +176,7 @@ model Contrato {
   faturamentos      Faturamento[]
   termosConfirmacao TermoConfirmacao[]
   arquivosSharepoint ArquivoSharepoint[]
+  confereExecucoes  ConfereExecucao[]
 
   @@index([clienteId])
 }
@@ -558,9 +559,11 @@ model AcessoDocumento {
 // os dois documentos gerados, pra poder rebaixar sem repetir os ~25s de
 // processamento.
 //
-// Sem vínculo com Cliente nem competência, pelo mesmo motivo que a tela não
-// tem: `/confere` é uma ferramenta solta, não um passo do fluxo de cliente
-// (ver docs/superpowers/specs/2026-09-21-integracao-confere-design.md §3.7).
+// Sem vínculo com Cliente: o contrato (quando a planilha achou um, ou a pessoa
+// escolheu) e a competência lida do levantamento dizem de que foi o relatório
+// (docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md
+// §7.4). Os dois são opcionais — execuções antigas e envios sem contrato ficam
+// sem. Excluir o contrato solta a execução (SetNull), que continua com os nomes.
 model ConfereExecucao {
   id               String   @id
   // Só o nome com que o arquivo foi submetido — o PDF e a planilha em si não
@@ -579,9 +582,14 @@ model ConfereExecucao {
   // sempre, em vez de só rebaixar os arquivos. Opcional porque as execuções
   // gravadas antes deste campo não o têm.
   resultado        Json?
+  contratoId       String?
+  contrato         Contrato? @relation(fields: [contratoId], references: [id], onDelete: SetNull)
+  competenciaAno   Int?
+  competenciaMes   Int?
   createdAt        DateTime @default(now())
 
   @@index([createdAt])
+  @@index([contratoId])
 }
 
 // Endereço de abertura de um processo SEI, guardado POR NÚMERO (`digitos`, ver `chaveDoSei` em

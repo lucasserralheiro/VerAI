@@ -10,6 +10,12 @@
 
 **Desenho:** `docs/superpowers/specs/2026-09-25-confere-ux-pastas-design.md`.
 
+## Andamento
+
+- **25/09/2026 — Tasks 1–4 concluídas** (`141f576`, `5533938`, `6bc6df2`, `c91a1bf`); tela do ConfereAI 41 testes; `tsc` limpo; lint só com os 2 avisos antigos.
+- Achado no caminho: Jest com **um arquivo só** de teste jsdom não encerra — o `MessageChannel` do Node que o `jest.setup.ts` instala segura o processo (porta do agendador do React). Rodar com mais de um arquivo ou `--forceExit`; a correção ficou como tarefa separada.
+- **Pendente — Task 5, Step 3 (na tela)**, com o usuário.
+
 ## Global Constraints
 
 - A janela só lê: nada cria, renomeia ou move pasta; nenhum caminho novo é guardado (decisão de 23/09/2026).
@@ -31,7 +37,7 @@
 **Interfaces:**
 - Produces: `PASTA_ENVIADOS = 'Enviados pelo VerAI'`, `PASTA_FORA = 'Fora do SharePoint'`, `ArquivoNaPasta` (`{ arquivoId, nome, extensao, categoria: string, pasta: string[] }`), `PastasDoCliente` (`{ cliente: { id, nome, sigla }, arquivos }`), `DocumentoDoCadastro.pasta?: string | null`; `pastasDoCliente(clienteId): Promise<PastasDoCliente | null>`; `GET /api/confere/clientes/[clienteId]/pastas`.
 
-- [ ] **Step 1: Testes que falham**
+- [x] **Step 1: Testes que falham**
 
 `src/lib/confere/pastas.test.ts`:
 
@@ -179,12 +185,12 @@ it('devolve as pastas do cliente', async () => {
 })
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npx jest src/lib/confere/pastas.test.ts "src/app/api/confere/clientes"`
 Expected: FAIL — módulos não existem.
 
-- [ ] **Step 3: Tipos** — em `src/lib/confere/tipos-cadastro.ts`, dentro de `DocumentoDoCadastro`, depois de `origem`:
+- [x] **Step 3: Tipos** — em `src/lib/confere/tipos-cadastro.ts`, dentro de `DocumentoDoCadastro`, depois de `origem`:
 
 ```ts
   /** A pasta de onde a pessoa escolheu o arquivo na janela "Pastas do cliente" — o que a tela mostra
@@ -215,7 +221,7 @@ export interface PastasDoCliente {
 }
 ```
 
-- [ ] **Step 4: `src/lib/confere/pastas.ts`**
+- [x] **Step 4: `src/lib/confere/pastas.ts`**
 
 ```ts
 import { prisma } from '@/lib/prisma'
@@ -278,7 +284,7 @@ export async function pastasDoCliente(clienteId: string): Promise<PastasDoClient
 }
 ```
 
-- [ ] **Step 5: `src/app/api/confere/clientes/[clienteId]/pastas/route.ts`**
+- [x] **Step 5: `src/app/api/confere/clientes/[clienteId]/pastas/route.ts`**
 
 ```ts
 import { NextRequest, NextResponse } from 'next/server'
@@ -298,12 +304,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 ```
 
-- [ ] **Step 6: Rodar e ver passar**
+- [x] **Step 6: Rodar e ver passar**
 
 Run: `npx jest src/lib/confere/pastas.test.ts "src/app/api/confere/clientes"`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/lib/confere/tipos-cadastro.ts src/lib/confere/pastas.ts src/lib/confere/pastas.test.ts "src/app/api/confere/clientes"
@@ -323,7 +329,7 @@ git commit -m "feat(confere): pastas do SharePoint do cliente para a janela de e
 - Consumes: `ArquivoNaPasta`, `PastasDoCliente`, `DocumentoDoCadastro` (Task 1).
 - Produces: `pastasDoCliente(clienteId)` e `listarClientes()` + `ClienteDaLista` em `api.ts`; `textoDoDocumento(documento)` em `cadastro.ts`; `JanelaDePastas({ aberto, clienteId?, finalidade: "contrato" | "aditivos", arquivoInicial?, onEscolher(documentos: DocumentoDoCadastro[]), onFechar })`.
 
-- [ ] **Step 1: Testes que falham**
+- [x] **Step 1: Testes que falham**
 
 Em `src/app/confere/lib/cadastro.test.ts`, trocar o import por `import { textoDaOrigem, textoDoContrato, textoDoDocumento } from "./cadastro";` e acrescentar:
 
@@ -447,12 +453,12 @@ it("sem cliente: pede o cliente primeiro", async () => {
 });
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npx jest src/app/confere/components/JanelaDePastas.test.tsx src/app/confere/lib/cadastro.test.ts`
 Expected: FAIL — `./JanelaDePastas` não existe; `textoDoDocumento` não exportada.
 
-- [ ] **Step 3: `api.ts` e `cadastro.ts`**
+- [x] **Step 3: `api.ts` e `cadastro.ts`**
 
 Em `src/app/confere/lib/api.ts`, acrescentar `type PastasDoCliente` ao import de `@/lib/confere/tipos-cadastro` e, depois de `buscarContratos`:
 
@@ -496,7 +502,7 @@ export function textoDoDocumento(documento: DocumentoDoCadastro): string {
 }
 ```
 
-- [ ] **Step 4: `src/app/confere/components/JanelaDePastas.tsx`**
+- [x] **Step 4: `src/app/confere/components/JanelaDePastas.tsx`**
 
 ```tsx
 "use client";
@@ -858,12 +864,12 @@ export function JanelaDePastas({ aberto, clienteId, finalidade, arquivoInicial, 
 }
 ```
 
-- [ ] **Step 5: Rodar e ver passar**
+- [x] **Step 5: Rodar e ver passar**
 
 Run: `npx jest src/app/confere/components/JanelaDePastas.test.tsx src/app/confere/lib/cadastro.test.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/app/confere/lib/api.ts src/app/confere/lib/cadastro.ts src/app/confere/lib/cadastro.test.ts src/app/confere/components/JanelaDePastas.tsx src/app/confere/components/JanelaDePastas.test.tsx
@@ -881,7 +887,7 @@ git commit -m "feat(confere): janela Pastas do cliente — navegar e escolher pr
 **Interfaces:**
 - Produces: `useSoltarArquivos({ extensao, multiplos, desabilitado, onSoltar(arquivos: File[]), mensagemDeTipoErrado(arquivo: File): string })` → `{ arrastando: boolean; erro: string | null; limparErro(): void; alvo: { onDragEnter, onDragOver, onDragLeave, onDrop } }`.
 
-- [ ] **Step 1: Teste que falha** — `src/app/confere/components/useSoltarArquivos.test.tsx`
+- [x] **Step 1: Teste que falha** — `src/app/confere/components/useSoltarArquivos.test.tsx`
 
 ```tsx
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -970,12 +976,12 @@ it("arrastar texto (não arquivo) não destaca", () => {
 });
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npx jest src/app/confere/components/useSoltarArquivos.test.tsx`
 Expected: FAIL — `./useSoltarArquivos` não existe.
 
-- [ ] **Step 3: `src/app/confere/components/useSoltarArquivos.ts`**
+- [x] **Step 3: `src/app/confere/components/useSoltarArquivos.ts`**
 
 ```ts
 "use client";
@@ -1047,12 +1053,12 @@ export function useSoltarArquivos({ extensao, multiplos, desabilitado, onSoltar,
 }
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `npx jest src/app/confere/components/useSoltarArquivos.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/app/confere/components/useSoltarArquivos.ts src/app/confere/components/useSoltarArquivos.test.tsx
@@ -1071,7 +1077,7 @@ git commit -m "feat(confere): arrastar e soltar por cartão, conferindo o tipo"
 - Consumes: `JanelaDePastas` (Task 2), `useSoltarArquivos` (Task 3), `textoDoDocumento` (Task 2).
 - Produces: `UploadForm` sem `alternativas`/`onTrocarContrato`/`onAdicionarAditivo`, com `buscandoContrato`, `onProcurarContrato`, `onProcurarAditivos`, `dica`.
 
-- [ ] **Step 1: Testes que falham** — em `src/app/confere/page.test.tsx`:
+- [x] **Step 1: Testes que falham** — em `src/app/confere/page.test.tsx`:
 
 Acrescentar, junto das constantes:
 
@@ -1168,12 +1174,12 @@ it("PDFs soltos nos aditivos entram na lista, na ordem", () => {
 });
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npx jest src/app/confere/page.test.tsx`
 Expected: FAIL nos testes novos (selo, dica, aditivos, soltar, janela).
 
-- [ ] **Step 3: `UploadForm.tsx`**
+- [x] **Step 3: `UploadForm.tsx`**
 
 1. Imports — trocar o bloco de imports por:
 
@@ -1426,7 +1432,7 @@ import { useSoltarArquivos } from "./useSoltarArquivos";
 			)}
 ```
 
-- [ ] **Step 4: `page.tsx`**
+- [x] **Step 4: `page.tsx`**
 
 1. Import: `import { JanelaDePastas } from "./components/JanelaDePastas";`
 2. Estado, junto dos outros:
@@ -1531,17 +1537,17 @@ import { useSoltarArquivos } from "./useSoltarArquivos";
 
 9. Apagar `src/app/confere/components/MenuDeDocumentos.tsx` (sem uso).
 
-- [ ] **Step 5: Rodar e ver passar**
+- [x] **Step 5: Rodar e ver passar**
 
 Run: `npx jest src/app/confere`
 Expected: PASS (página, janela, soltar, faixa, lib).
 
-- [ ] **Step 6: Tipos e lint**
+- [x] **Step 6: Tipos e lint**
 
 Run: `npx tsc --noEmit` e `npx eslint src/app/confere src/lib/confere src/app/api/confere`
 Expected: sem erros (os 2 avisos antigos de `_docx`/`_xlsx` continuam).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/app/confere/components/UploadForm.tsx src/app/confere/page.tsx src/app/confere/page.test.tsx
@@ -1556,19 +1562,19 @@ git commit -m "feat(confere): começo guiado, textos do que falta, aditivos em u
 **Files:**
 - Modify: `CLAUDE.md`, `docs/superpowers/specs/2026-09-25-confere-ux-pastas-design.md`, este plano
 
-- [ ] **Step 1: Suíte inteira**
+- [x] **Step 1: Suíte inteira**
 
 Run: `npx jest`
 Expected: tudo passando (209+ suítes; as puladas continuam puladas).
 
-- [ ] **Step 2: Documentação**
+- [x] **Step 2: Documentação**
   - `CLAUDE.md`, seção "Integração do Confere", no item "Área solta no menu…": acrescentar que a janela "Pastas do cliente" (`GET /api/confere/clientes/[clienteId]/pastas`, `src/lib/confere/pastas.ts`) navega nas pastas do SharePoint para escolher proposta e aditivos, só lendo `ArquivoSharepoint.caminho`, e que os cartões aceitam arrastar e soltar; apontar o design `2026-09-25-confere-ux-pastas-design.md`.
   - Design: status "implementado".
   - Este plano: marcar os passos.
 
 - [ ] **Step 3: No navegador** — `localhost:3000/confere` (o servidor de desenvolvimento recarrega sozinho; não há migração): selo "comece aqui"; soltar o levantamento do CGM no cartão; "Procurar nas pastas do cliente" abre em "TC 16-CGM-2024 - …" e escolher a PC do "1) … Contrato Inicial" troca o Contrato.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add CLAUDE.md docs/superpowers/specs/2026-09-25-confere-ux-pastas-design.md docs/superpowers/plans/2026-09-25-confere-ux-pastas.md

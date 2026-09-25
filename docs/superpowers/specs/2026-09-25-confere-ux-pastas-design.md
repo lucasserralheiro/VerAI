@@ -1,6 +1,7 @@
 # ConfereAI — ajustes de UX e a janela "Pastas do cliente" (design)
 
-**Status**: Aprovado com o usuário em 25/09/2026 (tarde).
+**Status**: Aprovado com o usuário em 25/09/2026 (tarde) e **implementado no mesmo dia** — plano
+`docs/superpowers/plans/2026-09-25-confere-ux-pastas.md`, commits `141f576`…`c91a1bf`. Sem migração.
 **Data**: 25/09/2026
 **Continua**: `docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md` (a busca do
 contrato pela planilha, implementada no mesmo dia).

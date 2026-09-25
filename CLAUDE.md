@@ -88,7 +88,12 @@ nada do tipo" + "ele precisa ficar a cópia do Confere, do mesmo jeito". A vers�
   `src/lib/confere/` (`levantamento.ts` lê o XLSX pelo zip — o exceljs não abre esses arquivos;
   `identidade.ts`, `localizar-contrato.ts`, `documentos-do-contrato.ts`, `cadastro.ts`). Design
   `docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md`, plano
-  `docs/superpowers/plans/2026-09-25-confere-contrato-do-cadastro.md`.
+  `docs/superpowers/plans/2026-09-25-confere-contrato-do-cadastro.md`. A janela **"Pastas do
+  cliente"** (`JanelaDePastas`, `GET /api/confere/clientes/[clienteId]/pastas`,
+  `src/lib/confere/pastas.ts`) navega nas pastas do SharePoint para escolher proposta e aditivos —
+  só lê `ArquivoSharepoint.caminho`, nenhuma pasta nova no VerAI —, e os cartões aceitam arrastar e
+  soltar do seu tipo (`useSoltarArquivos`). Design
+  `docs/superpowers/specs/2026-09-25-confere-ux-pastas-design.md`.
 - **Geração sem estado, com histórico ao lado** — a aplicação portada continua sem estado: sobe os
   arquivos, gera, baixa DOCX/XLSX. As duas tabelas da primeira versão foram revertidas por migração
   (`prisma/migrations/20260921160000_remove_analise_medicao_contratual/`). O que existe hoje é um

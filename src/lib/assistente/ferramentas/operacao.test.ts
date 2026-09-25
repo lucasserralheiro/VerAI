@@ -36,6 +36,15 @@ describe('faturamentos', () => {
     expect(await rodar(faturamentos, { clienteId: 'c9' })).toEqual({ erro: 'não encontrado' })
   })
 
+  it('compacto: uma linha por faturamento, NFs resumidas', () => {
+    const texto = faturamentos.compactar!({
+      total: 1,
+      valorTotalPeriodo: 'R$ 300,00',
+      faturamentos: [{ competencia: '08/2026', contrato: '031/2023', valor: 'R$ 300,00', notasFiscais: [{ numero: '1' }, { numero: '2' }], totalNotas: 'R$ 300,00', href: '/x' }],
+    })
+    expect(texto).toBe('valor do período: R$ 300,00\nfaturamentos (total 1, mostrando 1):\ncompetencia|contrato|valor|notas\n08/2026|031/2023|R$ 300,00|2 NFs, R$ 300,00')
+  })
+
   it('lista por competência com NFs e soma do período', async () => {
     ;(prisma.faturamento.aggregate as jest.Mock).mockResolvedValue({ _count: { _all: 1 }, _sum: { valor: '300' } })
     ;(prisma.faturamento.findMany as jest.Mock).mockResolvedValue([
@@ -53,6 +62,7 @@ describe('faturamentos', () => {
           competencia: '08/2026', contrato: '031/2023', valor: 'R$ 300,00', situacao: 'Faturado', sei: null, enviadoCliente: true, enviadoGfp: false,
           observacao: null, pdf: 'NF.pdf',
           notasFiscais: [{ numero: '123', servico: 'Rede', valor: 'R$ 300,00', emissao: '01/09/2026' }],
+          totalNotas: 'R$ 300,00',
           href: '/clientes/c1/faturamentos/f1',
         },
       ],

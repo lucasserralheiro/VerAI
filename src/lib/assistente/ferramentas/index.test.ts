@@ -29,13 +29,23 @@ it('erro da ferramenta vira { erro } para a IA, sem lançar', async () => {
   expect(await executarComSeguranca('quebrada', quebrada, {}, ctx)).toEqual({ erro: 'falha ao consultar quebrada' })
 })
 
-it('resultado grande é truncado', async () => {
+it('executarComSeguranca não corta mais o objeto (a tela recebe tudo)', async () => {
   const grande = definirFerramenta({ descricao: 'x', entrada: z.object({}), executar: async () => ({ s: 'x'.repeat(9000) }) })
-  expect(await executarComSeguranca('grande', grande, {}, ctx)).toMatchObject({ truncado: true })
+  expect(await executarComSeguranca('grande', grande, {}, ctx)).toEqual({ s: 'x'.repeat(9000) })
 })
 
-it('textoParaModelo: hoje o modelo recebe o JSON do resultado', () => {
-  expect(textoParaModelo('buscarClientes', { total: 0, clientes: [] })).toBe('{"total":0,"clientes":[]}')
+it('textoParaModelo: compacto, cortado por linha, erro como linha', () => {
+  expect(textoParaModelo('buscarClientes', { total: 1, clientes: [{ id: 'c1', nome: 'SMIT', href: '/clientes/c1' }] })).toBe(
+    'clientes (total 1, mostrando 1):\nid|nome\nc1|SMIT'
+  )
+  expect(textoParaModelo('buscarClientes', { erro: 'não encontrado' })).toBe('erro: não encontrado')
+  const muitas = { total: 2000, clientes: Array.from({ length: 2000 }, (_, i) => ({ id: `c${i}`, nome: 'Secretaria '.repeat(3) })) }
+  expect(textoParaModelo('buscarClientes', muitas)).toMatch(/… mostrando \d+ de 2002 linhas/)
+})
+
+it('criarFerramentas liga o toModelOutput ao texto compacto', async () => {
+  const ferramentas = criarFerramentas(ctx) as unknown as Record<string, { toModelOutput: (o: { output: unknown }) => unknown }>
+  expect(await ferramentas.buscarClientes.toModelOutput({ output: { total: 0, clientes: [] } })).toEqual({ type: 'text', value: 'total: 0' })
 })
 
 describe('criarFerramentas', () => {

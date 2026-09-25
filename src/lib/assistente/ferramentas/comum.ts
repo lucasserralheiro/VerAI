@@ -16,6 +16,8 @@ export interface Ferramenta<E extends z.ZodType = z.ZodType> {
   descricao: string
   entrada: E
   executar(entrada: z.output<E>, contexto: ContextoFerramenta): Promise<unknown>
+  /** Texto compacto ao modelo, quando o genérico (`compactar`) não basta. */
+  compactar?(saida: unknown): string
 }
 
 export function definirFerramenta<E extends z.ZodType>(ferramenta: Ferramenta<E>): Ferramenta<E> {
@@ -23,7 +25,6 @@ export function definirFerramenta<E extends z.ZodType>(ferramenta: Ferramenta<E>
 }
 
 export const LIMITE_PADRAO = 20
-export const MAX_CARACTERES_RESULTADO = 6000
 /** Igual para inexistente e sem permissão — não revela que o registro existe. */
 export const NAO_ENCONTRADO = { erro: 'não encontrado' } as const
 
@@ -57,16 +58,6 @@ export function competenciaTexto(ano: number | null, mes: number | null): string
   return ano && mes ? `${String(mes).padStart(2, '0')}/${ano}` : '—'
 }
 
-export function limitarResultado(valor: unknown): unknown {
-  const json = JSON.stringify(valor)
-  if (json === undefined || json.length <= MAX_CARACTERES_RESULTADO) return valor
-  return {
-    truncado: true,
-    aviso: 'Resultado grande demais — refine a busca (filtro, período ou limite menor).',
-    parcial: json.slice(0, MAX_CARACTERES_RESULTADO),
-  }
-}
-
 export type ContratoComSelect = Prisma.ContratoGetPayload<{ select: typeof SELECT_CONTRATO }>
 
 /** Resumo de UM contrato para a IA. Ativo, vigência, valor e saldo vêm SÓ do consolidado. */
@@ -94,4 +85,18 @@ export function resumirContrato(contrato: ContratoComSelect, consolidado: Contra
     prorrogacoes: consolidado.resumoHistorico.prorrogacoes,
     href: `/clientes/${contrato.clienteId}/contratos/${contrato.id}`,
   }
+}
+
+export type ContratoResumido = ReturnType<typeof resumirContrato>
+
+/** Avisos do consolidado em palavras curtas (a regra 3 da instrução cita estes textos). */
+export function avisosDoContrato(c: Pick<ContratoResumido, 'vencimento' | 'situacaoDesatualizada' | 'prorrogacaoEmAndamento'>): string {
+  return [
+    c.vencimento === 'vencido' && 'vencido',
+    c.vencimento === 'critico' && 'vence em até 30 dias',
+    c.situacaoDesatualizada && 'situação desatualizada',
+    c.prorrogacaoEmAndamento && 'prorrogação sem assinatura',
+  ]
+    .filter(Boolean)
+    .join(', ')
 }

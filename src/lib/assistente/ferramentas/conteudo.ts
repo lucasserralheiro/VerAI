@@ -4,6 +4,7 @@ import { documentosVisiveisWhere, podeVerCliente } from '@/lib/visibilidade'
 import { buscarTrechos, type TrechoEncontrado } from '@/lib/assistente/busca'
 import { sincronizarIndice } from '@/lib/assistente/indexacao/sincronizar'
 import { competenciaTexto, data, definirFerramenta, esquemaCompetencia, esquemaLimite, NAO_ENCONTRADO } from './comum'
+import { compactar } from './compacto'
 
 const contem = (valor: string) => ({ contains: valor, mode: 'insensitive' as const })
 
@@ -47,6 +48,12 @@ export const buscarNosDocumentos = definirFerramenta({
       trechos: trechos.map((t) => ({ arquivo: t.nomeArquivo, pagina: t.pagina, origem: t.origem, citacao: t.texto, href: hrefDoTrecho(t) })),
       ...(aviso ? { aviso } : {}),
     }
+  },
+  compactar(saida) {
+    const r = saida as { total?: number; aviso?: string; trechos?: { arquivo: string; pagina: number | null; citacao: string }[] }
+    if (!r.trechos) return compactar(saida)
+    const blocos = r.trechos.map((t) => `[${t.arquivo}${t.pagina ? `, p. ${t.pagina}` : ''}]\n"${t.citacao.replace(/\s+/g, ' ').trim()}"`)
+    return [`trechos (total ${r.total}):`, ...blocos, r.aviso ? `aviso: ${r.aviso}` : null].filter(Boolean).join('\n')
   },
 })
 

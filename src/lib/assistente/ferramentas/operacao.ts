@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { podeVerCliente } from '@/lib/visibilidade'
@@ -13,6 +13,7 @@ import {
   NAO_ENCONTRADO,
   sei,
 } from './comum'
+import { compactar, tabela } from './compacto'
 
 function partes(competencia: string): [number, number] {
   const [ano, mes] = competencia.split('-').map(Number)
@@ -75,9 +76,25 @@ export const faturamentos = definirFerramenta({
         observacao: f.observacao,
         pdf: f.pdfNomeArquivo,
         notasFiscais: f.notasFiscais.map((n) => ({ numero: n.numero, servico: n.servico, valor: moeda(n.valor), emissao: data(n.dataEmissao) })),
+        totalNotas: moeda(f.notasFiscais.reduce((soma, n) => soma.plus(n.valor ?? 0), new Prisma.Decimal(0))),
         href: `/clientes/${clienteId}/faturamentos/${f.id}`,
       })),
     }
+  },
+  compactar(saida) {
+    const r = saida as { total?: number; valorTotalPeriodo?: string; faturamentos?: (Record<string, unknown> & { notasFiscais: unknown[]; totalNotas: string })[] }
+    if (!r.faturamentos) return compactar(saida)
+    return [
+      `valor do período: ${r.valorTotalPeriodo}`,
+      tabela(
+        'faturamentos',
+        r.faturamentos.map(({ notasFiscais, totalNotas, ...f }) => ({
+          ...f,
+          notas: notasFiscais.length ? `${notasFiscais.length} NF${notasFiscais.length > 1 ? 's' : ''}, ${totalNotas}` : null,
+        })),
+        { total: r.total }
+      ),
+    ].join('\n')
   },
 })
 

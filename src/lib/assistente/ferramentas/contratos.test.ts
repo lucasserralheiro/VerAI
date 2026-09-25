@@ -97,6 +97,20 @@ describe('itensDoContrato', () => {
 })
 
 describe('contratosVencendo', () => {
+  it('aceita limite e o compacto traz avisos em palavras', async () => {
+    ;(clienteIdsPermitidos as jest.Mock).mockResolvedValue(null)
+    const lista = Array.from({ length: 30 }, (_, i) => contrato(`k${i}`))
+    ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue(lista)
+    ;(consolidarContratos as jest.Mock).mockResolvedValue(
+      new Map(lista.map((c) => [c.id, consolidado({ situacaoDesatualizada: true, prorrogacaoEmAndamento: true, vencimento: { nivel: 'critico', dias: 10 } })]))
+    )
+    const saida = (await rodar(contratosVencendo, { ate: '2026-12-31', limite: 25 })) as { contratos: unknown[] }
+    expect(saida.contratos).toHaveLength(25)
+    const texto = contratosVencendo.compactar!(saida)
+    expect(texto.split('\n')[1]).toBe('cliente|numero|id|fim|dias|valor|saldo|avisos')
+    expect(texto).toContain('vence em até 30 dias, situação desatualizada, prorrogação sem assinatura')
+  })
+
   it('só vigência até a data, não vencidos, ordenados; rescindido e vazio fora', async () => {
     ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([contrato('a'), contrato('b'), contrato('c'), contrato('d')])
     ;(consolidarContratos as jest.Mock).mockResolvedValue(

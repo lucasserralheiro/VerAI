@@ -8,6 +8,7 @@ import { digitosDoSei } from '@/lib/relatorios-clientes/sei'
 import { situacaoVencimento } from '@/lib/relatorios-clientes/vencimento'
 import { SELECT_CONTRATO } from '@/app/api/contratos/esquema'
 import {
+  avisosDoContrato,
   data,
   definirFerramenta,
   esquemaLimite,
@@ -17,7 +18,9 @@ import {
   NAO_ENCONTRADO,
   resumirContrato,
   sei,
+  type ContratoResumido,
 } from './comum'
+import { compactar, tabela } from './compacto'
 
 export const detalheDoContrato = definirFerramenta({
   descricao:
@@ -89,6 +92,17 @@ export const detalheDoContrato = definirFerramenta({
       itens: contrato._count.itens,
     }
   },
+  compactar(saida) {
+    type Pdf = { nome: string; leitura: string } | null
+    const r = saida as ContratoResumido & { historico?: (Record<string, unknown> & { pdfProposta: Pdf; pdfTermo: Pdf })[] }
+    if (!r.historico) return compactar(saida)
+    const { historico, situacaoDesatualizada, prorrogacaoEmAndamento, vencimento, ...cabecalho } = r
+    const pdf = (p: Pdf) => (p ? `${p.nome} (${p.leitura})` : null)
+    return [
+      compactar({ ...cabecalho, avisos: avisosDoContrato({ situacaoDesatualizada, prorrogacaoEmAndamento, vencimento }) }),
+      tabela('historico', historico.map((h) => ({ ...h, pdfProposta: pdf(h.pdfProposta), pdfTermo: pdf(h.pdfTermo) }))),
+    ].join('\n')
+  },
 })
 
 export const itensDoContrato = definirFerramenta({
@@ -126,8 +140,9 @@ export const contratosVencendo = definirFerramenta({
     ate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('data limite AAAA-MM-DD'),
     clienteId: z.string().optional(),
     incluirVencidos: z.boolean().default(false).describe('incluir os que já venceram'),
+    limite: esquemaLimite.default(50),
   }),
-  async executar({ ate, clienteId, incluirVencidos }, { usuario, hoje }) {
+  async executar({ ate, clienteId, incluirVencidos, limite }, { usuario, hoje }) {
     const filtro = await filtroDeClientes(usuario)
     const contratos = await prisma.contrato.findMany({
       where: { AND: [filtro ? { clienteId: filtro } : {}, clienteId ? { clienteId } : {}] },
@@ -149,11 +164,23 @@ export const contratosVencendo = definirFerramenta({
       .sort((a, b) => a.consolidado.vencimento.dias! - b.consolidado.vencimento.dias!)
     return {
       total: lista.length,
-      contratos: lista.slice(0, LIMITE_PADRAO).map(({ contrato, consolidado }) => ({
+      contratos: lista.slice(0, limite).map(({ contrato, consolidado }) => ({
         cliente: contrato.cliente.nome,
         ...resumirContrato(contrato, consolidado),
       })),
     }
+  },
+  compactar(saida) {
+    const r = saida as { total?: number; contratos?: (ContratoResumido & { cliente: string })[] }
+    if (!r.contratos) return compactar(saida)
+    return tabela(
+      'contratos',
+      r.contratos.map((c) => ({
+        cliente: c.cliente, numero: c.numero, id: c.id, fim: c.fimVigencia, dias: c.diasParaVencer, valor: c.valorContratado, saldo: c.saldo,
+        avisos: avisosDoContrato(c),
+      })),
+      { total: r.total }
+    )
   },
 })
 

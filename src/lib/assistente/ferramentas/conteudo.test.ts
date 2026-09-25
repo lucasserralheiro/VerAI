@@ -38,6 +38,7 @@ describe('buscarNosDocumentos', () => {
       total: 1,
       trechos: [{ arquivo: 'TA_02.pdf', pagina: 3, origem: 'HISTORICO_TERMO', citacao: 'reajuste pelo IPCA', href: '/clientes/c1/contratos/k1' }],
     })
+    expect(buscarNosDocumentos.compactar!(r)).toBe('trechos (total 1):\n[TA_02.pdf, p. 3]\n"reajuste pelo IPCA"')
   })
 
   it('cliente sem permissão: não encontrado, sem buscar', async () => {

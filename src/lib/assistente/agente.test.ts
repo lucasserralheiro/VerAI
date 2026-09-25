@@ -64,6 +64,6 @@ describe('executarAgente', () => {
       tokensCache: 120,
     })
     // A 2ª chamada recebeu o resultado da ferramenta.
-    expect(JSON.stringify(modelo.doStreamCalls[1].prompt)).toContain('"nome":"SMIT"')
+    expect(JSON.stringify(modelo.doStreamCalls[1].prompt)).toContain('c1|SMIT|SMIT|1')
   })
 })

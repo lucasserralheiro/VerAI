@@ -1,4 +1,4 @@
-import { limitarResultado, moeda, data, sei, semAcento, resumirContrato, competenciaTexto } from './comum'
+import { avisosDoContrato, moeda, data, sei, semAcento, resumirContrato, competenciaTexto } from './comum'
 
 const consolidado = {
   vigenciaFim: new Date('2026-12-31T00:00:00Z'),
@@ -76,10 +76,9 @@ it('contrato sem valor não inventa saldo', () => {
   expect(r.percentualFaturado).toBeNull()
 })
 
-it('limitarResultado corta resultado grande e avisa', () => {
-  expect(limitarResultado({ a: 1 })).toEqual({ a: 1 })
-  const grande = limitarResultado({ lista: 'x'.repeat(7000) }) as { truncado: boolean; parcial: string; aviso: string }
-  expect(grande.truncado).toBe(true)
-  expect(grande.parcial).toHaveLength(6000)
-  expect(grande.aviso).toMatch(/refine/)
+it('avisosDoContrato em palavras curtas', () => {
+  expect(avisosDoContrato({ vencimento: 'ok', situacaoDesatualizada: false, prorrogacaoEmAndamento: false })).toBe('')
+  expect(avisosDoContrato({ vencimento: 'vencido', situacaoDesatualizada: true, prorrogacaoEmAndamento: true })).toBe(
+    'vencido, situação desatualizada, prorrogação sem assinatura'
+  )
 })

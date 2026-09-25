@@ -61,4 +61,30 @@ describe('resumoDoCliente', () => {
     expect(r.totais).toEqual({ contratos: 1, ativos: 1, faturadoTotal: 'R$ 1.234,50', demandas: 4, solicitacoes: 2, faturamentos: 10 })
     expect(r.endereco).toBe('Rua X, 10, Centro')
   })
+
+  it('compacto do resumo com 30 contratos cabe inteiro: ativos, encerrados e totais', async () => {
+    const contratoBase = { clienteId: 'c1', descricao: 'Serviços de rede e telefonia', seiCliente: '6018202301226290', seiProdam: null, situacao: 'Ativo', dataInicio: new Date('2023-01-01T00:00:00Z'), dataVencimento: null, vigente: null, linkSei: null }
+    const contratos = Array.from({ length: 30 }, (_, i) => ({ ...contratoBase, id: `cmt8z62mo00${String(i).padStart(2, '0')}l1047207eqxc`, numeroTermo: `TC ${i}/SMIT/2023` }))
+    ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue({
+      id: 'c1', nome: 'Secretaria Municipal de Inovação e Tecnologia', siglaLegado: 'SMIT', endereco: 'Rua X', numero: '10', bairro: 'Centro',
+      responsaveis: [{ nome: 'Ana', area: 'TI', email: 'ana@x', telefone: null, celular: null }],
+      contratos,
+      _count: { demandas: 4, solicitacoes: 2, faturamentos: 10 },
+    })
+    const consolidado = (ativo: boolean) => ({
+      vigenciaFim: new Date('2026-12-31T00:00:00Z'), vencimento: { nivel: ativo ? 'ok' : 'vencido', dias: ativo ? 97 : -30 }, rescindido: false, ativo, vazio: false,
+      situacaoDesatualizada: false, prorrogacaoEmAndamento: false,
+      resumoHistorico: { aditivos: 2, prorrogacoes: 1, valorAtual: null, proposta: null, termo: null },
+      valorBase: '1234567.89', saldo: { valorItens: '1234567.89', faturado: '500000', saldo: '734567.89', percentualFaturado: '40' },
+    })
+    ;(consolidarContratos as jest.Mock).mockResolvedValue(new Map(contratos.map((c, i) => [c.id, consolidado(i < 12)])))
+    ;(prisma.faturamento.aggregate as jest.Mock).mockResolvedValue({ _sum: { valor: '1234.5' } })
+
+    const texto = resumoDoCliente.compactar!(await rodar(resumoDoCliente, { clienteId: 'c1' }))
+    expect(texto).toContain('contratos ativos (total 12, mostrando 12):')
+    expect(texto).toContain('contratos encerrados (total 18, mostrando 18):')
+    expect(texto).toMatch(/totais: contratos 30 · ativos 12/)
+    expect(texto).not.toContain('href')
+    expect(texto.length).toBeLessThanOrEqual(8000)
+  })
 })

@@ -10,7 +10,8 @@
  * SHAREPOINT_PASTA), --clientes=SMS,SGM (só esses — listagem e remoção), --reler-tudo (reprocessa todos
  * os contratos). Configuração: scripts/sharepoint-clientes.json. Os arquivos vão para o Cloudflare R2
  * (variáveis R2_* no .env.local — spec §11). Antes da primeira vez: scripts/migrar-sharepoint-lugar-certo.ts.
- * Idempotente; o agendador roda scripts/sincronizar-sharepoint.bat.
+ * Idempotente; o agendador roda scripts/sincronizar-sharepoint.bat. Com --aplicar, termina indexando para
+ * o assistente de IA até 200 arquivos novos/trocados (sem mudar o código de saída).
  */
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -19,6 +20,7 @@ import { PrismaClient } from '@prisma/client'
 import { config } from 'dotenv'
 import { fonteDaPasta, pastaPadraoDaBiblioteca } from '../src/lib/arquivos/sharepoint/fonte-pasta'
 import { sincronizarSharepoint } from '../src/lib/arquivos/sharepoint/sincronizar'
+import { atualizarIndiceDoAssistente } from '../src/lib/assistente/indexacao/apos-sincronizacao'
 import { ROTULO_ACHADO } from '../src/lib/importacao-sharepoint/auditoria'
 import { auditarNoBanco } from '../src/lib/importacao-sharepoint/auditoria-banco'
 import { textoDoPdf } from '../src/lib/importacao-sharepoint/pdf-texto'
@@ -121,6 +123,14 @@ async function main() {
         for (const a of doTipo.slice(0, 15)) console.log(`    ${a.cliente} ${a.contrato} — ${a.detalhe}`)
         if (doTipo.length > 15) console.log(`    … e mais ${doTipo.length - 15} (lista completa em logs/sharepoint-sincronizacao.json)`)
       }
+    }
+
+    if (aplicar) {
+      // Índice do assistente (spec 2026-09-25-assistente-base-economica §7). Não muda o código de saída.
+      const clienteIds = clientes
+        ? (await prisma.cliente.findMany({ where: { siglaLegado: { in: clientes.map((s) => s.toUpperCase()) } }, select: { id: true } })).map((c) => c.id)
+        : undefined
+      console.log(`\n${await atualizarIndiceDoAssistente({ clienteIds })}`)
     }
 
     mkdirSync('logs', { recursive: true })

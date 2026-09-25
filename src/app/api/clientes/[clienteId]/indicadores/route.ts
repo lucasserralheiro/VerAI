@@ -34,9 +34,10 @@ export async function GET(request: NextRequest, { params }: Contexto) {
   // Regra única de contrato (contratos-consolidados.ts): a mesma da aba Contratos e dos relatórios.
   const consolidados = await consolidarContratos(cliente.contratos, hoje)
   const ativos = cliente.contratos.filter((contrato) => consolidados.get(contrato.id)!.ativo)
+  // Só quem ainda vai vencer: o ativo de prazo já vencido conta em `vencidos` (aviso), não aqui.
   const vencendoEm30Dias = ativos.filter((contrato) => {
     const { dias } = consolidados.get(contrato.id)!.vencimento
-    return dias !== null && dias <= 30
+    return dias !== null && dias >= 0 && dias <= 30
   }).length
   // Ativos com prazo vencido = situação "Ativo" desatualizada (aviso, o contrato segue ativo).
   const vencidos = ativos.filter((contrato) => consolidados.get(contrato.id)!.situacaoDesatualizada).length

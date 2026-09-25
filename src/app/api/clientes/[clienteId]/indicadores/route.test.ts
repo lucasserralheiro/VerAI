@@ -8,6 +8,7 @@ jest.mock('@/lib/auth', () => ({
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     cliente: { findUnique: jest.fn() },
+    contrato: { findMany: jest.fn() },
     itemContrato: { groupBy: jest.fn() },
     historicoContrato: { findMany: jest.fn() },
     notaFiscal: { groupBy: jest.fn() },
@@ -34,6 +35,19 @@ beforeEach(() => {
   ;(getAuthUser as jest.Mock).mockResolvedValue(admin)
   ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [{ id: 'c1' }] })
   ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue({ contratos: [], faturamentos: [], demandas: [] })
+  // `consolidarContratos` volta ao banco pelas contagens (_count) para saber se o contrato é linha vazia.
+  ;(prisma.contrato.findMany as jest.Mock).mockImplementation(async ({ where }: { where: { id: { in: string[] } } }) =>
+    where.id.in.map((id) => ({
+      id,
+      numeroTermo: `TC ${id}`,
+      descricao: null,
+      seiCliente: null,
+      seiProdam: null,
+      dataInicio: null,
+      dataVencimento: null,
+      _count: { historico: 0, itens: 0, faturamentos: 0 },
+    }))
+  )
   ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([])
   ;(prisma.historicoContrato.findMany as jest.Mock).mockResolvedValue([])
   ;(prisma.notaFiscal.groupBy as jest.Mock).mockResolvedValue([])
@@ -60,6 +74,7 @@ describe('GET /api/clientes/[clienteId]/indicadores', () => {
     expect(await (await get()).json()).toEqual({
       contratosAtivos: 0,
       vencendoEm30Dias: 0,
+      vencidos: 0,
       valorContratado: '0',
       contratosSemValor: 0,
       faturadoUltimoMes: null,
@@ -97,17 +112,20 @@ describe('GET /api/clientes/[clienteId]/indicadores', () => {
       { faturamentoId: 'f2', servico: null, _sum: { valor: '100.50' } },
     ])
 
+    // k4 ("Ativo" com prazo vencido) segue ativo, com o aviso de situação desatualizada — e não entra em
+    // "vencendo em 30 dias", que é quem ainda vai vencer (decisão do usuário, 23/09/2026).
     expect(await (await get()).json()).toEqual({
-      contratosAtivos: 2,
+      contratosAtivos: 3,
       vencendoEm30Dias: 1,
+      vencidos: 1,
       valorContratado: '1200.1',
-      contratosSemValor: 0,
-      faturadoUltimoMes: { ano: 2026, mes: 8, valor: '150.75' },
+      contratosSemValor: 1,
+      faturadoUltimoMes: { ano: 2026, mes: 8, valor: '150.75', semValor: false },
       demandasAbertas: 2,
       abertasHaMaisDe30Dias: 1,
     })
     expect(prisma.itemContrato.groupBy).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { contratoId: { in: ['k1', 'k2'] } } })
+      expect.objectContaining({ where: { contratoId: { in: ['k1', 'k2', 'k3', 'k4'] } } })
     )
   })
 
@@ -129,10 +147,12 @@ describe('GET /api/clientes/[clienteId]/indicadores', () => {
       numero: null,
       proposta: null,
       valor,
-      propostaPdfUrl: null,
-      propostaPdfNome: null,
-      termoPdfUrl: null,
-      termoPdfNome: null,
+      situacao: null,
+      dataVencimento: null,
+      propostaArquivo: null,
+      termoArquivo: null,
+      propostaDoSharepoint: false,
+      termoDoSharepoint: false,
     })
     // k1: o aditivo (mais recente) vence o contrato original — cada linha guarda o total do momento.
     ;(prisma.historicoContrato.findMany as jest.Mock).mockResolvedValue([

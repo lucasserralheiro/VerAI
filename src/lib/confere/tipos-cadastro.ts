@@ -29,6 +29,9 @@ export interface DocumentoDoCadastro {
   nome: string
   /** `null` quando é uma proposta do cliente que não está em nenhuma linha do histórico. */
   origem: OrigemNoCadastro | null
+  /** A pasta de onde a pessoa escolheu o arquivo na janela "Pastas do cliente" — o que a tela mostra
+   *  quando não há `origem` no histórico. */
+  pasta?: string | null
 }
 
 export interface ResumoDoContrato {
@@ -110,4 +113,23 @@ export function nomeDaCompetencia({ ano, mes }: Competencia): string {
 export function dataIsoParaTexto(iso: string): string {
   const [ano, mes, dia] = iso.slice(0, 10).split('-')
   return `${dia}/${mes}/${ano}`
+}
+
+/** Pasta, na janela "Pastas do cliente", dos arquivos que nunca estiveram no SharePoint. */
+export const PASTA_ENVIADOS = 'Enviados pelo VerAI'
+/** Pasta dos arquivos que saíram do SharePoint mas continuam no VerAI porque algo os usa. */
+export const PASTA_FORA = 'Fora do SharePoint'
+
+export interface ArquivoNaPasta {
+  arquivoId: string
+  nome: string
+  extensao: string
+  categoria: string
+  /** As pastas do topo até o arquivo, sem a pasta do próprio cliente. */
+  pasta: string[]
+}
+
+export interface PastasDoCliente {
+  cliente: { id: string; nome: string; sigla: string | null }
+  arquivos: ArquivoNaPasta[]
 }

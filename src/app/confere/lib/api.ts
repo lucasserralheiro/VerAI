@@ -2,6 +2,7 @@ import {
 	PREFIXO_DO_CADASTRO,
 	type Competencia,
 	type DocumentosDoContrato,
+	type PastasDoCliente,
 	type RespostaDaIdentificacao,
 	type ResumoDoContrato,
 } from "@/lib/confere/tipos-cadastro";
@@ -176,6 +177,35 @@ export async function buscarContratos(texto: string): Promise<ResumoDoContrato[]
 			`${API_BASE_URL}/contratos?busca=${encodeURIComponent(texto)}`,
 		);
 		return resposta.ok ? ((await resposta.json()) as ResumoDoContrato[]) : [];
+	} catch {
+		return [];
+	}
+}
+
+/** Os arquivos do cliente com as pastas do SharePoint — a janela "Pastas do cliente". */
+export async function pastasDoCliente(clienteId: string): Promise<PastasDoCliente | null> {
+	try {
+		const resposta = await fetch(
+			`${API_BASE_URL}/clientes/${encodeURIComponent(clienteId)}/pastas`,
+		);
+		return resposta.ok ? ((await resposta.json()) as PastasDoCliente) : null;
+	} catch {
+		return null;
+	}
+}
+
+export interface ClienteDaLista {
+	id: string;
+	nome: string;
+	siglaLegado: string | null;
+}
+
+/** Os clientes que a pessoa pode ver — a janela pede o cliente quando nenhum
+ *  contrato foi achado. */
+export async function listarClientes(): Promise<ClienteDaLista[]> {
+	try {
+		const resposta = await fetch("/api/clientes");
+		return resposta.ok ? ((await resposta.json()) as ClienteDaLista[]) : [];
 	} catch {
 		return [];
 	}

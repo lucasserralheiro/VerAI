@@ -1,5 +1,6 @@
 import {
 	dataIsoParaTexto,
+	type DocumentoDoCadastro,
 	type OrigemNoCadastro,
 	type ResumoDoContrato,
 } from "@/lib/confere/tipos-cadastro";
@@ -30,4 +31,12 @@ export function textoDoContrato(contrato: ResumoDoContrato): string {
 	]
 		.filter(Boolean)
 		.join(" · ");
+}
+
+/** De onde veio o documento: a origem no histórico do contrato ou — escolhido
+ *  na janela das pastas, sem linha no histórico — a pasta. */
+export function textoDoDocumento(documento: DocumentoDoCadastro): string {
+	if (documento.origem) return textoDaOrigem(documento.origem);
+	if (documento.pasta) return `pasta ${documento.pasta}`;
+	return textoDaOrigem(null);
 }

@@ -1,9 +1,10 @@
 # Assistente de IA — base econômica e completa (fase 1 de 3) (design)
 
-**Status**: Implementada em 25/09/2026 (commits `80f0e37`…`2ffc588`; plano
-`docs/superpowers/plans/2026-09-25-assistente-base-economica.md`, seção Andamento). Régua medida em
-**produção** (o banco de dev foi zerado nesse dia por outra sessão): mediana de entrada −27%, nenhum
-resultado cortado. Pendente: carga do índice e migração `ARQUIVO_CLIENTE` em produção (ok do usuário).
+**Status**: Implementada e validada no dev em 25/09/2026 (commits `80f0e37`…`58a5271`; plano
+`docs/superpowers/plans/2026-09-25-assistente-base-economica.md`, seção Andamento). Régua no dev,
+antes × depois nos mesmos dados: nenhum resultado cortado, entrada −28% na mediana e −35% no total,
+saída +6%; índice com todos os PDFs do histórico. Produção depende do deploy (migração + carga do
+índice).
 **Data**: 25/09/2026
 **Fases**: esta spec (1) → `2026-09-25-assistente-senior-design.md` (2) →
 `2026-09-25-assistente-interface-design.md` (3). A 2 e a 3 dependem desta.

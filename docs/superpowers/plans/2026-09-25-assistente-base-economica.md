@@ -29,8 +29,22 @@
 - **Produção roda um deploy antigo** (hotfix sobre `824f1a2`): o agendador do SharePoint executa o código
   da pasta contra produção, então a etapa do índice ganhou uma guarda (`9421850`) — só roda em banco com
   a migração `20260925190000_assistente_arquivo_cliente`. Sem deploy, nada desta fase vai a produção.
-- **Pendente**: Task 7 (carga do índice e migração em produção — só com ok do usuário; o dev está vazio)
-  e nova régua com IA depois da carga (pergunta 7 depende do índice).
+- **Task 7 no dev (25/09, noite)** — o dev foi restaurado por outra sessão (backup + SharePoint). Migração
+  aplicada no dev; carga do índice: 742 lidos, 168 escaneados, 4 erros (documentos antigos do Vercel
+  Blob que não existem mais); `HISTORICO_*` 829 ok + 251 `sem_texto`, nenhum pendente;
+  `TrechoDocumento` 55,7 MB. A carga achou três defeitos, corrigidos: `indexar-documentos.ts` não lia o
+  `.env.local` (R2) — `160e8c3`; texto com 0x00 que o Postgres recusa — `b1900bb`; prazo de 2 s para
+  abrir a transação estourava com PDF pesado — `ff10b7d`. E a IA trocava o tipo do link pronto do
+  trecho — regra 7, `58a5271`.
+- **Régua no dev, mesmos dados e mesmo índice**, código antigo (`80f0e37`, numa worktree) × novo:
+  sem IA, cortados 9 → 0 e caracteres 208.161 → 65.925 (−68%). Com IA (`…T23-33-23-213Z` ×
+  `…T23-36-28-957Z`): mediana de entrada 11.419 → 8.233 (**−28%**; −29% na rodada anterior), total de
+  entrada 101 mil → 65 mil (**−35%**), chamadas de ferramenta 23 → 9, pergunta 7 de 7 chamadas/21 mil
+  tokens para 2/8 mil citando arquivo e página; saída total 6.184 → 6.546 (**+6%**: as perguntas 2 e 3
+  agora respondem inteiras). Critérios 1, 3, 4, 5, 6 atendidos; o 2 fica em −28% e +6% de saída.
+- **Pendente**: produção — só com deploy (o site roda código antigo; ver acima). Na hora do deploy:
+  `migrate deploy` (leva junto `20260925190000_assistente_arquivo_cliente`), `indexar-documentos.ts` com
+  `.env.production.local`, régua com IA em produção.
 - **A seguir**: quando `ArquivoCliente.conversoesMarkdown` (outra sessão) entrar no schema, excluir do
   `ARQUIVO_CLIENTE` os arquivos convertidos — hoje o texto deles entraria duas vezes (também como
   `PROPOSTA_COMERCIAL_ARQUIVO`).

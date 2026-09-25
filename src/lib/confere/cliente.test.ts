@@ -139,6 +139,47 @@ describe('chamarConfere', () => {
     expect(resultado.tipo).toBe('erro')
   })
 
+  const PARAMETROS = {
+    contrato: { nome: 'c.pdf', bytes: Buffer.from('c') },
+    levantamento: { nome: 'l.xlsx', bytes: Buffer.from('l') },
+    aditivos: [],
+    identidadeConfirmada: false,
+  }
+
+  // Quebra que pega: `fetch` sem limite de espera. Foi o 504 de 24/09/2026 — a
+  // chamada ficava pendurada até a Vercel matar a função, e a tela recebia o
+  // erro cru da plataforma em vez de uma resposta do VerAI.
+  it('desiste e devolve "tempo-esgotado" quando o Confere não responde dentro do tempo limite', async () => {
+    const { chamarConfere } = await import('./cliente')
+    // Dublê fiel ao fetch de verdade: só termina quando o sinal aborta, e
+    // rejeita com o motivo dele (o `TimeoutError` de `AbortSignal.timeout`).
+    jest.spyOn(global, 'fetch').mockImplementation(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const sinal = init?.signal
+          if (!sinal) return reject(new Error('chamada sem signal: nada limita a espera'))
+          sinal.addEventListener('abort', () => reject(sinal.reason))
+        })
+    )
+
+    const resultado = await chamarConfere(PARAMETROS, { tempoLimiteMs: 20 })
+
+    expect(resultado).toEqual({ tipo: 'tempo-esgotado' })
+  })
+
+  // Quebra que pega: 200 com corpo ilegível (conexão cortada no meio dos ~5 MB)
+  // passando como "concluido" com `resposta: null`. A tela leria
+  // `relatorio.docx_base64` de null, a promessa rejeitaria sem ninguém tratar e
+  // o modal de progresso ficaria aberto para sempre.
+  it('200 com o corpo cortado no meio vira "erro", não "concluido"', async () => {
+    const { chamarConfere } = await import('./cliente')
+    jest.spyOn(global, 'fetch').mockResolvedValue(new Response('{"titulo":"LEVANTAMENTO - COMPRO', { status: 200 }))
+
+    const resultado = await chamarConfere(PARAMETROS)
+
+    expect(resultado.tipo).toBe('erro')
+  })
+
   it('lança erro claro quando CONFERE_SERVICE_URL não está configurado', async () => {
     process.env.CONFERE_SERVICE_URL = ''
     const { chamarConfere } = await import('./cliente')

@@ -68,9 +68,21 @@ async function registrarNoHistorico(
   }
 }
 
-// Mesma folga que a integração já usava: cold start do Render (~1min, plano
-// free) + geração (~30s) — ver docs/superpowers/specs/2026-09-21-integracao-confere-design.md.
-export const maxDuration = 120
+// Teto do plano Hobby com Fluid compute, e também o padrão de quem não declara
+// nada. O valor anterior (120) *reduzia* o prazo: medido em 24/09/2026 no
+// Render free, o Confere leva 134 s num contrato com aditivo (serviço acordado)
+// e mais ~23 s quando hiberna — a Vercel matava a função no meio e a tela
+// recebia o 504 cru dela. Ver docs/superpowers/specs/2026-09-21-integracao-confere-design.md.
+export const maxDuration = 300
+
+/** O que ainda precisa caber no mesmo `maxDuration` depois de o Confere
+ *  responder: gravar o histórico (dois uploads e um insert) e mandar os ~5 MB
+ *  da resposta de volta. */
+const FOLGA_DEPOIS_DO_CONFERE_MS = 30_000
+
+const MENSAGEM_TEMPO_ESGOTADO =
+  'O Confere não terminou dentro do tempo máximo de processamento e a geração foi interrompida. ' +
+  'Ele continua trabalhando neste envio por mais alguns minutos — espere um pouco antes de tentar de novo.'
 
 async function paraArquivo(arquivo: File): Promise<{ nome: string; bytes: Buffer }> {
   return { nome: arquivo.name, bytes: Buffer.from(await arquivo.arrayBuffer()) }
@@ -86,13 +98,15 @@ async function paraArquivo(arquivo: File): Promise<{ nome: string; bytes: Buffer
  * `bloqueantes`, qualquer outra coisa vira erro), pra `src/app/confere/lib/api.ts`
  * não precisar saber que está falando com um proxy.
  *
- * Sem persistência nenhuma — a rota não grava nada no banco nem em storage:
- * a aplicação portada é sem estado, igual ao Confere original (ver §3.7 do
- * design doc). Isso é diferente da rota anterior desta integração
- * (`/api/clientes/[clienteId]/competencias/[competencia]/analise-medicao`,
- * removida — ver "Nota de processo" no design doc).
+ * A geração é sem estado, igual ao Confere original (ver §3.7 do design doc):
+ * os arquivos de entrada não são guardados. O que fica é o registro no
+ * histórico, no caminho de sucesso e só nele (ver `registrarNoHistorico` e o
+ * adendo "histórico do ConfereAI" do design doc).
  */
 export async function POST(request: NextRequest) {
+  // O relógio do `maxDuration` corre desde a invocação, e o upload dos arquivos
+  // acontece dentro dele: o orçamento do Confere é o que sobrar.
+  const inicio = Date.now()
   const formData = await request.formData()
 
   const contrato = formData.get('contrato')
@@ -104,12 +118,16 @@ export async function POST(request: NextRequest) {
   const aditivos = formData.getAll('aditivos').filter((valor): valor is File => valor instanceof File)
   const identidadeConfirmada = formData.get('identidade_confirmada') === 'true'
 
-  const resultado = await chamarConfere({
+  const parametros = {
     contrato: await paraArquivo(contrato),
     levantamento: await paraArquivo(levantamento),
     aditivos: await Promise.all(aditivos.map(paraArquivo)),
     identidadeConfirmada,
-  })
+  }
+  // Desistir do Confere **antes** de a Vercel desistir da função é o que
+  // garante que a tela receba uma resposta nossa, com `detail`.
+  const tempoLimiteMs = maxDuration * 1000 - FOLGA_DEPOIS_DO_CONFERE_MS - (Date.now() - inicio)
+  const resultado = await chamarConfere(parametros, { tempoLimiteMs })
 
   if (resultado.tipo === 'concluido') {
     // `await` e não fire-and-forget: numa função serverless a resposta
@@ -125,6 +143,9 @@ export async function POST(request: NextRequest) {
   }
   if (resultado.tipo === 'bloqueado') {
     return NextResponse.json(resultado.resposta, { status: 422 })
+  }
+  if (resultado.tipo === 'tempo-esgotado') {
+    return NextResponse.json({ detail: MENSAGEM_TEMPO_ESGOTADO }, { status: 504 })
   }
   return NextResponse.json({ detail: resultado.mensagem }, { status: 502 })
 }

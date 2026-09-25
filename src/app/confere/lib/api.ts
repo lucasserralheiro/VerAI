@@ -35,21 +35,26 @@ export const API_BASE_URL = "/api/confere";
 
 /** Teto de espera da geração, em milissegundos — ESPEC 012 `D-05`.
  *
- *  Medido em produção: 22,8 s com os arquivos do piloto. Os 180 s dão folga de
- *  8× para um contrato maior, e ficam **abaixo** do limite de requisição do
- *  ingress do Container Apps — o que garante que o estouro chegue à tela como
- *  timeout nosso, com mensagem nossa, e não como conexão cortada pela
- *  plataforma, que o navegador reporta como falha de rede genérica.
+ *  No Confere original eram 180 s: 8× os 22,8 s medidos no piloto, e **abaixo**
+ *  do limite do ingress do Container Apps, para o estouro chegar à tela como
+ *  timeout nosso, e não como conexão cortada pela plataforma.
+ *
+ *  No VerAI a relação se inverte. Quem espera o Confere é o proxy
+ *  (`src/app/api/confere/reports/route.ts`), que tem o próprio teto
+ *  (`maxDuration` de 300 s) e desiste do Confere antes dele, respondendo 504
+ *  **com mensagem**. O navegador precisa esperar **mais** que o proxy para essa
+ *  resposta chegar: com 180 s ele abandonava gerações ainda dentro do prazo —
+ *  medido em 24/09/2026 no Render free, 134 s num contrato com aditivo, mais
+ *  ~23 s quando o serviço hiberna. Este teto sobra só para a conexão pendurada.
  *
  *  Sem isto, uma conexão pendurada deixa a tela esperando **para sempre**: o
  *  indicador de atividade continua girando e promete algo que não vem.
- *
  */
-const TIMEOUT_MS = 180_000;
+const TIMEOUT_MS = 310_000;
 
 /** O teto efetivo, com a costura que torna o estouro testável.
  *
- *  Com 180 s fixos, o caminho do estouro seria **intestável**: o limite por teste
+ *  Com o teto fixo, o caminho do estouro seria **intestável**: o limite por teste
  *  do Playwright é 120 s. A primeira tentativa foi encurtar o teto por variável
  *  de ambiente no `playwright.config.ts` — e ela **abortava toda geração real da
  *  suíte aos 3 s**, porque valia para todos os casos, não só para o do estouro.
@@ -164,7 +169,7 @@ export async function gerarRelatorio(
 			return {
 				situacao: "erro",
 				mensagem:
-					"A geração passou de três minutos e foi interrompida. O servidor pode estar sobrecarregado — tente novamente em instantes.",
+					"A geração passou de cinco minutos e foi interrompida. O servidor pode estar sobrecarregado — tente novamente em instantes.",
 			};
 		}
 		return {
@@ -207,8 +212,21 @@ export async function gerarRelatorio(
 
 	return {
 		situacao: "erro",
-		mensagem: dados?.detail ?? `Falha no processamento (HTTP ${resposta.status}).`,
+		mensagem: dados?.detail ?? mensagemDaPlataforma(resposta.status),
 	};
+}
+
+/** Erro **sem** `detail` não veio do proxy nem do Confere — os dois sempre
+ *  respondem com um. Veio da plataforma que hospeda o VerAI, com corpo em
+ *  texto, e o status é tudo o que há para explicar o que houve. */
+function mensagemDaPlataforma(status: number): string {
+	if (status === 504) {
+		return "O servidor interrompeu a geração por tempo (HTTP 504). O Confere pode continuar processando este envio por alguns minutos — espere um pouco antes de tentar de novo.";
+	}
+	if (status === 413) {
+		return "Os arquivos, somados, passam de 4,5 MB, o limite por envio da hospedagem do VerAI (HTTP 413). Reduza o tamanho dos PDFs e tente de novo.";
+	}
+	return `Falha no processamento (HTTP ${status}).`;
 }
 
 /** ESPEC — pré-aquecimento do serviço.

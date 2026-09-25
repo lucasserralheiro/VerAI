@@ -15,7 +15,7 @@ jest.mock('@/lib/prisma', () => ({
 }))
 
 import { chamarConfere } from '@/lib/confere/cliente'
-import { POST } from './route'
+import { POST, maxDuration } from './route'
 
 function requisicao(campos: Record<string, string | File | File[]>) {
   const formData = new FormData()
@@ -68,7 +68,9 @@ describe('POST /api/confere/reports', () => {
           expect.objectContaining({ nome: 'aditivo2.pdf' }),
         ],
         identidadeConfirmada: true,
-      })
+      }),
+      // O orçamento de tempo tem teste próprio, abaixo.
+      expect.anything()
     )
   })
 
@@ -105,5 +107,37 @@ describe('POST /api/confere/reports', () => {
 
     expect(resposta.status).toBe(502)
     expect(await resposta.json()).toEqual({ detail: 'Confere fora do ar' })
+  })
+
+  // Quebra que pega: o próprio bug de 24/09/2026. Com `maxDuration = 120` a
+  // Vercel matava a função antes de o Confere terminar — medido no Render free:
+  // 134 s com o contrato CGM + 1 aditivo, serviço já acordado, mais ~23 s quando
+  // ele hiberna — e a tela recebia o 504 cru da plataforma.
+  it('dá ao Confere tempo para o pior caso medido, e desiste dele antes de a Vercel matar a função', async () => {
+    ;(chamarConfere as jest.Mock).mockResolvedValue({ tipo: 'erro', mensagem: 'irrelevante aqui' })
+
+    await POST(requisicao({ contrato: arquivo('c.pdf'), levantamento: arquivo('l.xlsx') }))
+
+    const [, opcoes] = (chamarConfere as jest.Mock).mock.calls[0]
+    // 134 s + ~23 s de despertar, arredondado pra cima.
+    expect(opcoes?.tempoLimiteMs).toBeGreaterThanOrEqual(160_000)
+    // Depois do Confere ainda vêm o histórico (2 uploads + 1 insert) e ~5 MB de
+    // resposta, tudo dentro do mesmo `maxDuration`.
+    expect(maxDuration * 1000 - opcoes.tempoLimiteMs).toBeGreaterThanOrEqual(20_000)
+    // Teto do plano Hobby com Fluid compute: acima disso o deploy é recusado.
+    expect(maxDuration).toBeLessThanOrEqual(300)
+  })
+
+  it('devolve 504 com "detail" quando o Confere não responde a tempo', async () => {
+    ;(chamarConfere as jest.Mock).mockResolvedValue({ tipo: 'tempo-esgotado' })
+
+    const resposta = await POST(
+      requisicao({ contrato: arquivo('c.pdf'), levantamento: arquivo('l.xlsx') })
+    )
+
+    expect(resposta.status).toBe(504)
+    const corpo = await resposta.json()
+    expect(corpo.detail).toEqual(expect.any(String))
+    expect(corpo.detail).not.toBe('')
   })
 })

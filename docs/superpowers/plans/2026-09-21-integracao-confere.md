@@ -220,8 +220,8 @@ ficar "a cópia do Confere, do mesmo jeito" (com print do frontend de verdade do
 
 ### Task 10: Orçamento de tempo do proxy — o 504 de produção (24/09/2026)
 
-**Status:** ✅ Código e testes concluídos (24/09/2026); deploy pendente. Causa, números e decisões no
-adendo "o 504 de 24/09/2026" do design doc.
+**Status:** ✅ Concluída — em produção via hotfix desde 25/09/2026 06:56, validada pelo usuário às
+12:12 do mesmo dia. Causa, números e decisões no adendo "o 504 de 24/09/2026" do design doc.
 
 - [x] Causa raiz medida: Confere no Render free leva 134 s (acordado) + ~23 s (despertar); a rota
       declarava `maxDuration = 120`, abaixo do padrão de 300 s do Fluid → Vercel matava a função →
@@ -238,12 +238,14 @@ adendo "o 504 de 24/09/2026" do design doc.
 - [ ] Destravar o storage: decisão do usuário (25/09) é mover os uploads para o R2 — a desenhar e
       planejar à parte. Enquanto isso o histórico do ConfereAI não grava e os downloads antigos dão
       403 (o Blob do Hobby fica suspenso por 30 dias)
-- [ ] Deploy como **hotfix** (decisão do usuário, 25/09): branch a partir de `824f1a2` — o que está
-      em produção desde 21/09 — com só esta correção, sem os 106 commits das outras frentes nem
-      migração de banco. (O `tsc` do main já passa desde `13bcdfb`; o Jest do main segue com 19
-      suítes quebradas em relatórios-clientes, fora do Confere.)
-- [ ] Primeiro teste real em produção depois do deploy: confirmar que a resposta de ~5,1 MB passa
-      (limite de 4,5 MB da Vercel para resposta que não é streaming — ver adendo)
+- [x] Deploy como **hotfix** (decisão do usuário, 25/09): branch `hotfix/confere-504` (`a9665a5` =
+      `824f1a2`, o que estava em produção desde 21/09, + esta correção), sem os commits das outras
+      frentes nem migração de banco. Na branch: 69/69 suítes, `tsc` limpo. Deploy
+      `dpl_9U35jUUF1KZwJb7qSVdF7zVQgCaM`, 25/09 06:56, worktree `C:\projeto\VerAI-hotfix-confere-504`
+      — remover (junction do `node_modules` primeiro) quando o deploy do main substituir o hotfix
+- [x] Teste real em produção pelo usuário, 25/09 12:12: `POST /api/confere/reports` → 200, relatório
+      entregue. A resposta de ~5 MB **passou** — o limite de 4,5 MB não vale para resposta em
+      streaming. O histórico não gravou (Blob suspenso), como esperado
 - [ ] Decidir o plano do Render (Task 3)
 
 ### Task 8: Atualizar os docs deste plano

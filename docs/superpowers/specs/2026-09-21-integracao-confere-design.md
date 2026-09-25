@@ -297,7 +297,9 @@ arquivos, pela documentação da Vercel e pelo código — o proxy nunca devolve
   aditivos, ou duas gerações ao mesmo tempo (0,1 CPU dividido — e uma geração abandonada continua
   ocupando o serviço até o fim), passam. O `Starter` do Render (0,5 CPU, sem hibernação) é o que
   resolve de verdade. Decisão de custo, do usuário.
-- **Resposta de ~5 MB × limite de 4,5 MB da Vercel.** As duas respostas medidas têm ~5,1 MB por
+- ~~**Resposta de ~5 MB × limite de 4,5 MB da Vercel.**~~ **Resolvido em 25/09/2026:** o primeiro
+  teste real em produção (12:12, hotfix) devolveu 200 com o relatório inteiro — a resposta em
+  streaming não tem o limite. Registro do que se sabia antes do teste: as duas respostas medidas têm ~5,1 MB por
   causa dos dois base64. A Vercel limita o corpo de resposta de função a 4,5 MB
   (`FUNCTION_RESPONSE_PAYLOAD_TOO_LARGE`), mas resposta em streaming não tem esse limite, e
   streaming é o padrão de toda função Node.js em conta Hobby desde 08/07/2024 (changelog da

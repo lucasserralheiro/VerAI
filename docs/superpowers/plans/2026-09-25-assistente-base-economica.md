@@ -24,7 +24,11 @@
   saída total 4.561 → 6.042 (**maior**; a linha de base não respondia a 2 — parava em "qual SMS?" — e
   respondia a 3 com lista cortada). Pergunta 5 usou o id da conversa, sem `buscarClientes` nem busca por
   número (critério 3 ok). Na 2, a IA abriu os 6 contratos ativos do SMS um a um porque em produção
-  estão sem valor e sem vigência (sincronização do SharePoint ainda não rodou lá).
+  estão sem valor e sem vigência no cadastro (o SharePoint sincroniza produção a cada 30 min pelo
+  agendador, mas vários termos não têm valor lido — "nenhum termo assinado com valor lido" no log).
+- **Produção roda um deploy antigo** (hotfix sobre `824f1a2`): o agendador do SharePoint executa o código
+  da pasta contra produção, então a etapa do índice ganhou uma guarda (`9421850`) — só roda em banco com
+  a migração `20260925190000_assistente_arquivo_cliente`. Sem deploy, nada desta fase vai a produção.
 - **Pendente**: Task 7 (carga do índice e migração em produção — só com ok do usuário; o dev está vazio)
   e nova régua com IA depois da carga (pergunta 7 depende do índice).
 - **A seguir**: quando `ArquivoCliente.conversoesMarkdown` (outra sessão) entrar no schema, excluir do

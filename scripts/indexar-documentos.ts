@@ -6,6 +6,12 @@
  *
  * Ver docs/superpowers/specs/2026-09-23-assistente-ia-design.md §5.
  */
+import { config } from 'dotenv'
+
+// .env.local completa o que faltar (R2_*: os PDFs do SharePoint moram no R2) sem sobrescrever o que o
+// dotenv -e já trouxe — mesmo arranjo de scripts/sincronizar-sharepoint.ts.
+config({ path: '.env.local' })
+
 import { prisma } from '../src/lib/prisma'
 import { sincronizarIndice } from '../src/lib/assistente/indexacao/sincronizar'
 import { emMb, LIMITE_BYTES_INDICE, tamanhoDoIndice } from '../src/lib/assistente/indexacao/tamanho'

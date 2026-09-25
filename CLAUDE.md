@@ -79,8 +79,16 @@ Prisma vinculado a `Cliente` + competência, upload dedicado e upsert por compet
 versão foi removida no mesmo dia**, a pedido explícito do usuário: "não vamos vincular a cliente e
 nada do tipo" + "ele precisa ficar a cópia do Confere, do mesmo jeito". A versão atual:
 
-- **Sem vínculo com Cliente nem competência** — `/confere` é uma área solta no menu (como
-  "Proposta Comercial"), não um passo dentro do fluxo de cliente.
+- **Área solta no menu, mas o levantamento busca o contrato no cadastro** (25/09/2026) — `/confere`
+  continua fora do fluxo de cliente (como "Proposta Comercial"), só que escolher a planilha lê o
+  cabeçalho ("conforme contrato : TC 52/SMIT/2024", "Data do Levantamento") e preenche Contrato e
+  Aditivos com as PC/PA que o SharePoint guardou: base = PA da **última renovação** em vigor na
+  competência (senão a PC), aditivos = PAs depois dela. Sem contrato achado, sugere e busca; envio pelo
+  computador continua em todos os campos e a escolha manual nunca é trocada sozinha. Regras em
+  `src/lib/confere/` (`levantamento.ts` lê o XLSX pelo zip — o exceljs não abre esses arquivos;
+  `identidade.ts`, `localizar-contrato.ts`, `documentos-do-contrato.ts`, `cadastro.ts`). Design
+  `docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md`, plano
+  `docs/superpowers/plans/2026-09-25-confere-contrato-do-cadastro.md`.
 - **Geração sem estado, com histórico ao lado** — a aplicação portada continua sem estado: sobe os
   arquivos, gera, baixa DOCX/XLSX. As duas tabelas da primeira versão foram revertidas por migração
   (`prisma/migrations/20260921160000_remove_analise_medicao_contratual/`). O que existe hoje é um
@@ -88,7 +96,8 @@ nada do tipo" + "ele precisa ficar a cópia do Confere, do mesmo jeito". A vers�
   (`model ConfereExecucao`, migração `20260921180000_add_confere_execucao`): o **nome** dos
   arquivos submetidos (contrato, levantamento e aditivos — os arquivos de entrada **não** são
   guardados em lugar nenhum) e os dois documentos gerados, no Vercel Blob, pra rebaixar sem repetir
-  a geração. Continua sem vínculo com `Cliente` nem competência. A gravação é **best-effort** dentro
+  a geração. Desde 25/09/2026 guarda também o **contrato** (`contratoId`, `SetNull`) e a
+  **competência** lida da planilha, e a listagem mostra os dois. A gravação é **best-effort** dentro
   do proxy: o relatório já está no corpo da resposta, e falha de storage ou de banco não derruba a
   entrega. A listagem vive em `/confere/historico` (sub-item do grupo "ConfereAI" no menu), servida
   por `/api/confere/execucoes`.
@@ -99,7 +108,9 @@ nada do tipo" + "ele precisa ficar a cópia do Confere, do mesmo jeito". A vers�
   Confere nem conhece `CONFERE_SHARED_SECRET`; a rota recebe o mesmo multipart que o Confere
   espera, chama `chamarConfere()` (`src/lib/confere/cliente.ts`, construído em Task 5 e reaproveitado
   sem mudanças) e devolve a resposta dele quase sem tocar. É também onde a execução é registrada no
-  histórico, no caminho de sucesso e só nele.
+  histórico, no caminho de sucesso e só nele. Contrato e aditivos podem vir **por id do cadastro**
+  (`contrato_arquivo_id`, `aditivos=cadastro:<id>`): a rota confere o acesso e baixa o PDF do R2 —
+  `urlBlob` nunca vai ao navegador, e o corpo da requisição fica só com a planilha.
 - **Orçamento de tempo em cadeia** — `maxDuration = 300` (teto do Hobby com Fluid, e já o padrão);
   o Confere recebe o que sobra menos 30 s e o estouro vira 504 **com `detail`**; o navegador espera
   310 s, mais que o proxy. **Não baixe esses números sem medir o Confere antes**: com 120 a Vercel

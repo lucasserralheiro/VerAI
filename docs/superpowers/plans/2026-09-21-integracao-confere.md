@@ -248,6 +248,14 @@ ficar "a cópia do Confere, do mesmo jeito" (com print do frontend de verdade do
       streaming. O histórico não gravou (Blob suspenso), como esperado
 - [ ] Decidir o plano do Render (Task 3)
 
+### Task 11: O levantamento busca o contrato no cadastro (25/09/2026)
+
+**Status:** ✅ Implementada — plano próprio `docs/superpowers/plans/2026-09-25-confere-contrato-do-cadastro.md`
+(10 tasks, TDD), design `docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md`.
+Escolher o levantamento preenche Contrato e Aditivos com as PC/PA do cadastro (regra da última
+renovação); envio pelo computador continua; histórico com contrato e competência (migração
+`20260925120000_confere_execucao_contrato`). Falta o teste na tela pelo usuário e a produção.
+
 ### Task 8: Atualizar os docs deste plano
 
 **Status:** Contínua — fazer ao final de cada task acima.

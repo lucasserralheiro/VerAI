@@ -10,6 +10,13 @@
 
 **Desenho:** `docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md` (fonte de verdade — ler antes).
 
+## Andamento
+
+- **25/09/2026 — Tasks 1–9 e a documentação da Task 10 concluídas** (commits `d4b526a`…`b5776af` + docs). Suíte inteira: 209 suítes, 1.518 testes passando; `tsc --noEmit` limpo. Migração `20260925120000` aplicada no banco de desenvolvimento; Prisma Client regerado (o `EPERM` do Windows só impediu trocar o binário do motor, que é o mesmo).
+- Verificado contra o banco de desenvolvimento com os seis levantamentos reais (PGM, CGM, FTM, HSPM, SMDET, SMIT): todos achados, base e aditivos como no protótipo, 20–50 ms cada.
+- **Pendente — Task 10, Step 3 (na tela):** reiniciar o `next dev` (carrega o Prisma Client novo; sem isso o histórico não grava o contrato) e testar em `/confere` com o levantamento do CGM. Não feito aqui: o Claude in Chrome não estava conectado, e o navegador interno exige digitar o token de login.
+- Produção: depende do deploy do main (migrações; push bloqueado pelo hook) e da sincronização do SharePoint em produção.
+
 ## Global Constraints
 
 - Contrato mostrado em tela (número, vigência, ativo) sai **sempre** do `consolidarContratos()` (`src/lib/relatorios-clientes/contratos-consolidados.ts`) — CLAUDE.md, "regra única de contrato".
@@ -54,12 +61,12 @@
 **Interfaces:**
 - Produces: `lerCabecalhoDoLevantamento(conteudo: ArrayBuffer | Uint8Array): Promise<CabecalhoDoLevantamento>` (`{ titulo, dataLevantamento: 'AAAA-MM-DD' | null, contratoReferencia }`), `LevantamentoIlegivel`, `MENSAGEM_SEM_ABA`, `MENSAGEM_NAO_ABRE`, `competenciaDaData(iso: string | null): Competencia | null`, `identidadeDoContrato(referencia: string | null, titulo?: string | null): IdentidadeDoContrato | null` (`{ base: number; orgao: string | null; ano: string }`); em `tipos-cadastro.ts`: todos os tipos de resposta, `nomeDaCompetencia`, `dataIsoParaTexto`, `PREFIXO_DO_CADASTRO`.
 
-- [ ] **Step 1: jszip como dependência direta**
+- [x] **Step 1: jszip como dependência direta**
 
 Run: `npm install jszip@3.10.1 --save --no-audit --no-fund`
 Expected: `package.json` ganha `"jszip": "^3.10.1"` em `dependencies` (já estava em `node_modules` pelo exceljs).
 
-- [ ] **Step 2: Criar `src/lib/confere/tipos-cadastro.ts`**
+- [x] **Step 2: Criar `src/lib/confere/tipos-cadastro.ts`**
 
 ```ts
 /**
@@ -167,7 +174,7 @@ export function dataIsoParaTexto(iso: string): string {
 }
 ```
 
-- [ ] **Step 3: Escrever os testes que falham**
+- [x] **Step 3: Escrever os testes que falham**
 
 `src/lib/confere/identidade.test.ts`:
 
@@ -351,12 +358,12 @@ describe('competenciaDaData', () => {
 })
 ```
 
-- [ ] **Step 4: Rodar e ver falhar**
+- [x] **Step 4: Rodar e ver falhar**
 
 Run: `npx jest src/lib/confere/levantamento.test.ts src/lib/confere/identidade.test.ts`
 Expected: FAIL — `Cannot find module './levantamento'` / `'./identidade'`.
 
-- [ ] **Step 5: Implementar `src/lib/confere/identidade.ts`**
+- [x] **Step 5: Implementar `src/lib/confere/identidade.ts`**
 
 ```ts
 // De que contrato é o levantamento — número, órgão e ano, a partir do que a planilha escreveu em
@@ -395,7 +402,7 @@ export function identidadeDoContrato(referencia: string | null, titulo: string |
 }
 ```
 
-- [ ] **Step 6: Implementar `src/lib/confere/levantamento.ts`**
+- [x] **Step 6: Implementar `src/lib/confere/levantamento.ts`**
 
 ```ts
 import JSZip from 'jszip'
@@ -550,12 +557,12 @@ export function competenciaDaData(dataIso: string | null): Competencia | null {
 }
 ```
 
-- [ ] **Step 7: Rodar e ver passar**
+- [x] **Step 7: Rodar e ver passar**
 
 Run: `npx jest src/lib/confere/levantamento.test.ts src/lib/confere/identidade.test.ts`
 Expected: PASS (todos).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add package.json package-lock.json src/lib/confere/tipos-cadastro.ts src/lib/confere/levantamento.ts src/lib/confere/levantamento.test.ts src/lib/confere/identidade.ts src/lib/confere/identidade.test.ts
@@ -574,7 +581,7 @@ git commit -m "feat(confere): lê contrato e competência do cabeçalho do levan
 - Consumes: tipos e formatação de `tipos-cadastro.ts` (Task 1).
 - Produces: `LinhaDoHistorico`, `EscolhaDeDocumentos`, `escolherDocumentos(linhas, competencia)`, `avisoDeVigencia(competencia, { vigenciaFim, inicio }, linhas): AvisoDoCadastro | null`, `dataDaProposta(codigo)`, `rotuloDaLinha(linha)`.
 
-- [ ] **Step 1: Escrever os testes que falham** — `src/lib/confere/documentos-do-contrato.test.ts`
+- [x] **Step 1: Escrever os testes que falham** — `src/lib/confere/documentos-do-contrato.test.ts`
 
 ```ts
 /** @jest-environment node */
@@ -804,12 +811,12 @@ describe('avisoDeVigencia', () => {
 })
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npx jest src/lib/confere/documentos-do-contrato.test.ts`
 Expected: FAIL — `Cannot find module './documentos-do-contrato'`.
 
-- [ ] **Step 3: Implementar `src/lib/confere/documentos-do-contrato.ts`**
+- [x] **Step 3: Implementar `src/lib/confere/documentos-do-contrato.ts`**
 
 ```ts
 import {
@@ -1056,12 +1063,12 @@ export function avisoDeVigencia(
 }
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `npx jest src/lib/confere/documentos-do-contrato.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/confere/documentos-do-contrato.ts src/lib/confere/documentos-do-contrato.test.ts
@@ -1080,7 +1087,7 @@ git commit -m "feat(confere): regra da última renovação para escolher propost
 - Consumes: `IdentidadeDoContrato` (Task 1); `chaveExata` (`src/lib/relatorios-clientes/vincular-itens.ts`); `chaveDoNome` (`src/lib/importacao-sharepoint/estrutura.ts`).
 - Produces: `ContratoParaBusca` (`{ id, clienteId, clienteNome, clienteSigla, numeroTermo, chaveSharepoint }`), `ResultadoDaLocalizacao` (`encontrado | ambiguo | nenhum{ mesmoNumero, doOrgao }`), `localizarContrato(identidade, contratos)`, `siglaParecida(orgao, contrato)`.
 
-- [ ] **Step 1: Escrever os testes que falham** — `src/lib/confere/localizar-contrato.test.ts`
+- [x] **Step 1: Escrever os testes que falham** — `src/lib/confere/localizar-contrato.test.ts`
 
 ```ts
 /** @jest-environment node */
@@ -1154,12 +1161,12 @@ describe('localizarContrato', () => {
 })
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npx jest src/lib/confere/localizar-contrato.test.ts`
 Expected: FAIL — `Cannot find module './localizar-contrato'`.
 
-- [ ] **Step 3: Implementar `src/lib/confere/localizar-contrato.ts`**
+- [x] **Step 3: Implementar `src/lib/confere/localizar-contrato.ts`**
 
 ```ts
 import { chaveDoNome } from '@/lib/importacao-sharepoint/estrutura'
@@ -1231,12 +1238,12 @@ export function localizarContrato(identidade: IdentidadeDoContrato, contratos: C
 }
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `npx jest src/lib/confere/localizar-contrato.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/confere/localizar-contrato.ts src/lib/confere/localizar-contrato.test.ts
@@ -1255,7 +1262,7 @@ git commit -m "feat(confere): acha o contrato da planilha no cadastro — só es
 - Consumes: Tasks 1–3; `consolidarContratos` (`src/lib/relatorios-clientes/contratos-consolidados.ts`); `clienteIdsPermitidos` (`src/lib/visibilidade.ts`); `getUpload` (`src/lib/storage.ts`); `AuthUser` (`src/lib/auth.ts`).
 - Produces: `identificarLevantamento(usuario, conteudo, hoje?)`, `documentosDoContrato(usuario, contratoId, competencia, lidaDaPlanilha)`, `buscarContratos(usuario, texto)`, `competenciaAtual(hoje?)`, `contratoDoUsuario(usuario, contratoId): Promise<{ id: string; clienteId: string } | null>`, `carregarArquivosDoCadastro(usuario, ids, clienteId): Promise<Map<string, ArquivoBaixado>>`, `ArquivoBaixado` (`{ nome: string; bytes: Buffer }`), `ArquivoDoCadastroRecusado` (`.status`).
 
-- [ ] **Step 1: Escrever os testes que falham** — `src/lib/confere/cadastro.test.ts`
+- [x] **Step 1: Escrever os testes que falham** — `src/lib/confere/cadastro.test.ts`
 
 ```ts
 /** @jest-environment node */
@@ -1424,12 +1431,12 @@ describe('carregarArquivosDoCadastro', () => {
 })
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npx jest src/lib/confere/cadastro.test.ts`
 Expected: FAIL — `Cannot find module './cadastro'`.
 
-- [ ] **Step 3: Implementar `src/lib/confere/cadastro.ts`**
+- [x] **Step 3: Implementar `src/lib/confere/cadastro.ts`**
 
 ```ts
 import type { Prisma } from '@prisma/client'
@@ -1734,12 +1741,12 @@ export async function carregarArquivosDoCadastro(
 }
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `npx jest src/lib/confere/cadastro.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/confere/cadastro.ts src/lib/confere/cadastro.test.ts
@@ -1758,7 +1765,7 @@ git commit -m "feat(confere): serviço do cadastro — identifica a planilha, ca
 - Consumes: `identificarLevantamento`, `buscarContratos`, `documentosDoContrato`, `competenciaAtual` (Task 4); `exigirUsuario` (`src/lib/relatorios-clientes/acesso.ts`).
 - Produces: `POST /api/confere/levantamento` (multipart `levantamento`) → `RespostaDaIdentificacao`; `GET /api/confere/contratos?busca=` → `ResumoDoContrato[]`; `GET /api/confere/contratos/[id]/documentos?competencia=AAAA-MM` → `DocumentosDoContrato` | 404.
 
-- [ ] **Step 1: Testes que falham**
+- [x] **Step 1: Testes que falham**
 
 `src/app/api/confere/levantamento/route.test.ts`:
 
@@ -1890,12 +1897,12 @@ it('404 quando o contrato não existe ou não é visível', async () => {
 })
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npx jest src/app/api/confere/levantamento src/app/api/confere/contratos`
 Expected: FAIL — rotas não existem.
 
-- [ ] **Step 3: Implementar as três rotas**
+- [x] **Step 3: Implementar as três rotas**
 
 `src/app/api/confere/levantamento/route.ts`:
 
@@ -1962,12 +1969,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `npx jest src/app/api/confere/levantamento src/app/api/confere/contratos`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/app/api/confere/levantamento src/app/api/confere/contratos
@@ -1987,7 +1994,7 @@ git commit -m "feat(confere): rotas de identificação da planilha, busca e docu
 **Interfaces:**
 - Produces: colunas `ConfereExecucao.contratoId` (FK `Contrato`, `SetNull`), `competenciaAno`, `competenciaMes`; a listagem devolve também `contratoId`, `clienteId`, `numeroTermo`, `competenciaAno`, `competenciaMes`.
 
-- [ ] **Step 1: Teste que falha** — `src/app/api/confere/execucoes/route.test.ts`
+- [x] **Step 1: Teste que falha** — `src/app/api/confere/execucoes/route.test.ts`
 
 ```ts
 /** @jest-environment node */
@@ -2021,12 +2028,12 @@ it('lista com contrato e competência junto com a execução', async () => {
 })
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npx jest src/app/api/confere/execucoes/route.test.ts`
 Expected: FAIL — o SQL ainda não tem `LEFT JOIN "Contrato"`.
 
-- [ ] **Step 3: Schema** — em `prisma/schema.prisma`, no model `ConfereExecucao`, trocar o comentário "Sem vínculo com Cliente nem competência…" e acrescentar os campos e o índice:
+- [x] **Step 3: Schema** — em `prisma/schema.prisma`, no model `ConfereExecucao`, trocar o comentário "Sem vínculo com Cliente nem competência…" e acrescentar os campos e o índice:
 
 ```prisma
 // Sem vínculo com Cliente: o contrato (quando a planilha achou um, ou a pessoa escolheu) e a
@@ -2050,7 +2057,7 @@ model ConfereExecucao {
 
 E no model `Contrato`, junto das outras relações: `confereExecucoes ConfereExecucao[]`.
 
-- [ ] **Step 4: Migração** — `prisma/migrations/20260925120000_confere_execucao_contrato/migration.sql`
+- [x] **Step 4: Migração** — `prisma/migrations/20260925120000_confere_execucao_contrato/migration.sql`
 
 ```sql
 -- ConfereExecucao passa a dizer de qual contrato e competência foi o relatório
@@ -2073,7 +2080,7 @@ Expected: a migração `20260925120000_confere_execucao_contrato` aplicada; "Dat
 Run: `npm run dev:generate`
 Expected: Prisma Client regerado. **No Windows, com `next dev` rodando, falha com EPERM na DLL do engine — parar o servidor, gerar e subir de novo.**
 
-- [ ] **Step 5: Listagem** — `src/app/api/confere/execucoes/route.ts`, trocar o `$queryRaw`:
+- [x] **Step 5: Listagem** — `src/app/api/confere/execucoes/route.ts`, trocar o `$queryRaw`:
 
 ```ts
   const execucoes = await prisma.$queryRaw<
@@ -2109,7 +2116,7 @@ Expected: Prisma Client regerado. **No Windows, com `next dev` rodando, falha co
   `
 ```
 
-- [ ] **Step 6: Página do histórico** — `src/app/confere/historico/page.tsx`:
+- [x] **Step 6: Página do histórico** — `src/app/confere/historico/page.tsx`:
   - `interface ConfereExecucao` ganha `contratoId: string | null; clienteId: string | null; numeroTermo: string | null; competenciaAno: number | null; competenciaMes: number | null`.
   - `import { nomeDaCompetencia } from '@/lib/confere/tipos-cadastro'`.
   - Cabeçalho: nova primeira coluna `<th>Contrato</th>`; a coluna que mostra `nomeContrato` passa a se chamar `<th>Proposta</th>`.
@@ -2135,12 +2142,12 @@ Expected: Prisma Client regerado. **No Windows, com `next dev` rodando, falha co
                     </td>
 ```
 
-- [ ] **Step 7: Rodar e ver passar**
+- [x] **Step 7: Rodar e ver passar**
 
 Run: `npx jest src/app/api/confere/execucoes`
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add prisma/schema.prisma prisma/migrations/20260925120000_confere_execucao_contrato src/app/api/confere/execucoes/route.ts src/app/api/confere/execucoes/route.test.ts src/app/confere/historico/page.tsx
@@ -2159,7 +2166,7 @@ git commit -m "feat(confere): histórico mostra contrato e competência de cada 
 - Consumes: `carregarArquivosDoCadastro`, `contratoDoUsuario`, `ArquivoDoCadastroRecusado`, `ArquivoBaixado` (Task 4); `lerCabecalhoDoLevantamento`, `competenciaDaData` (Task 1); `PREFIXO_DO_CADASTRO` (Task 1); `exigirUsuario`.
 - Produces: multipart aceito — `levantamento` (arquivo), `contrato` (arquivo) **ou** `contrato_arquivo_id`, `aditivos` repetido (arquivo ou `cadastro:<id>`, em ordem), `contrato_id` opcional, `identidade_confirmada`. Histórico com `contratoId` e competência.
 
-- [ ] **Step 1: Ajustar os mocks do teste existente e escrever os testes novos** — em `src/app/api/confere/reports/route.test.ts`:
+- [x] **Step 1: Ajustar os mocks do teste existente e escrever os testes novos** — em `src/app/api/confere/reports/route.test.ts`:
 
 Acrescentar, junto dos `jest.mock` do topo:
 
@@ -2261,12 +2268,12 @@ Testes novos, dentro do `describe`:
   })
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npx jest src/app/api/confere/reports/route.test.ts`
 Expected: FAIL nos testes novos (401, referência, recusa, 403, histórico).
 
-- [ ] **Step 3: Implementar** — em `src/app/api/confere/reports/route.ts`:
+- [x] **Step 3: Implementar** — em `src/app/api/confere/reports/route.ts`:
 
 Imports novos:
 
@@ -2406,12 +2413,12 @@ export async function POST(request: NextRequest) {
 
 Atualizar o comentário do `POST` ("recebe o mesmo multipart que o Confere espera") para dizer que Contrato e aditivos também podem vir por id do cadastro, baixados aqui do R2.
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `npx jest src/app/api/confere/reports/route.test.ts`
 Expected: PASS (os 13 testes: 8 existentes + 5 novos).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/app/api/confere/reports/route.ts src/app/api/confere/reports/route.test.ts
@@ -2430,7 +2437,7 @@ git commit -m "feat(confere): geração aceita proposta e aditivos do cadastro p
 - Consumes: tipos de `@/lib/confere/tipos-cadastro` (Task 1).
 - Produces: `Peca` (`{ tipo: "arquivo"; arquivo: File } | { tipo: "cadastro"; documento: DocumentoDoCadastro }`), `nomeDaPeca(peca)`, `Identificacao`; `identificarLevantamento(levantamento): Promise<RespostaDaIdentificacao | null>`, `documentosDoContrato(contratoId, competencia): Promise<DocumentosDoContrato | null>`, `buscarContratos(texto): Promise<ResumoDoContrato[]>`, `EntradaDaGeracao`, `gerarRelatorio(entrada, identidadeConfirmada?)`; `textoDaOrigem(origem)`, `textoDoContrato(contrato)`.
 
-- [ ] **Step 1: Testes que falham**
+- [x] **Step 1: Testes que falham**
 
 `src/app/confere/lib/cadastro.test.ts`:
 
@@ -2512,12 +2519,12 @@ describe("identificarLevantamento", () => {
 });
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npx jest src/app/confere/lib`
 Expected: FAIL — `./cadastro` não existe; `EntradaDaGeracao`/`identificarLevantamento` não exportados.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 `src/app/confere/lib/cadastro.ts`:
 
@@ -2675,12 +2682,12 @@ export async function gerarRelatorio(
 	// ... (resto igual: AbortController, fetch, tratamento das respostas) ...
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `npx jest src/app/confere/lib`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/app/confere/lib/types.ts src/app/confere/lib/api.ts src/app/confere/lib/api.test.ts src/app/confere/lib/cadastro.ts src/app/confere/lib/cadastro.test.ts
@@ -2700,7 +2707,7 @@ git commit -m "feat(confere): tela fala com o cadastro — identificação, busc
 - Consumes: Task 8 (`Peca`, `nomeDaPeca`, `Identificacao`, `identificarLevantamento`, `documentosDoContrato`, `buscarContratos`, `gerarRelatorio(entrada)`, `textoDaOrigem`, `textoDoContrato`).
 - Produces: `MenuDeDocumentos({ rotulo, documentos, onEscolher, onEnviarDoComputador? })`, `BuscaDeContrato({ onEscolher })`, `ListaDeContratos({ contratos, onEscolher })`, `FaixaDoContrato({ identificacao, documentos?, contratoDoComputador, onEscolherContrato, onUsarDoCadastro })`.
 
-- [ ] **Step 1: Testes que falham**
+- [x] **Step 1: Testes que falham**
 
 `src/app/confere/components/FaixaDoContrato.test.tsx`:
 
@@ -2876,12 +2883,12 @@ it("Trocar põe outra proposta do contrato no campo Contrato", async () => {
 });
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `npx jest src/app/confere/page.test.tsx src/app/confere/components/FaixaDoContrato.test.tsx`
 Expected: FAIL — componentes não existem; a página não busca o contrato.
 
-- [ ] **Step 3: `src/app/confere/components/MenuDeDocumentos.tsx`**
+- [x] **Step 3: `src/app/confere/components/MenuDeDocumentos.tsx`**
 
 ```tsx
 "use client";
@@ -2948,7 +2955,7 @@ export function MenuDeDocumentos({ rotulo, documentos, onEscolher, onEnviarDoCom
 }
 ```
 
-- [ ] **Step 4: `src/app/confere/components/BuscaDeContrato.tsx`**
+- [x] **Step 4: `src/app/confere/components/BuscaDeContrato.tsx`**
 
 ```tsx
 "use client";
@@ -3035,7 +3042,7 @@ export function BuscaDeContrato({ onEscolher }: { onEscolher: (contratoId: strin
 }
 ```
 
-- [ ] **Step 5: `src/app/confere/components/FaixaDoContrato.tsx`**
+- [x] **Step 5: `src/app/confere/components/FaixaDoContrato.tsx`**
 
 ```tsx
 "use client";
@@ -3216,7 +3223,7 @@ export function FaixaDoContrato({
 }
 ```
 
-- [ ] **Step 6: `src/app/confere/components/UploadForm.tsx`**
+- [x] **Step 6: `src/app/confere/components/UploadForm.tsx`**
 
 Imports:
 
@@ -3409,7 +3416,7 @@ O cartão de aditivos (substitui o `<label>` inteiro de hoje):
 			</div>
 ```
 
-- [ ] **Step 7: `src/app/confere/page.tsx`**
+- [x] **Step 7: `src/app/confere/page.tsx`**
 
 Imports:
 
@@ -3663,17 +3670,17 @@ Subtítulo (texto do VerAI — desenho §4.1):
 				/>
 ```
 
-- [ ] **Step 8: Rodar e ver passar**
+- [x] **Step 8: Rodar e ver passar**
 
 Run: `npx jest src/app/confere`
 Expected: PASS (página, faixa, lib).
 
-- [ ] **Step 9: Tipos**
+- [x] **Step 9: Tipos**
 
 Run: `npx tsc --noEmit`
 Expected: sem erros (depende do `npm run dev:generate` da Task 6).
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/app/confere/components/MenuDeDocumentos.tsx src/app/confere/components/BuscaDeContrato.tsx src/app/confere/components/FaixaDoContrato.tsx src/app/confere/components/FaixaDoContrato.test.tsx src/app/confere/components/UploadForm.tsx src/app/confere/page.tsx src/app/confere/page.test.tsx
@@ -3687,26 +3694,26 @@ git commit -m "feat(confere): escolher o levantamento preenche contrato e aditiv
 **Files:**
 - Modify: `CLAUDE.md`, `docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md`, `docs/superpowers/specs/2026-09-21-integracao-confere-design.md`, `docs/superpowers/specs/2026-09-23-repositorio-documentos-cliente-design.md`, `docs/superpowers/plans/2026-09-21-integracao-confere.md`, este plano (marcar tasks)
 
-- [ ] **Step 1: Suíte do ConfereAI e tipos**
+- [x] **Step 1: Suíte do ConfereAI e tipos**
 
 Run: `npx jest src/lib/confere src/app/confere src/app/api/confere`
 Expected: PASS.
 Run: `npx tsc --noEmit`
 Expected: sem erros.
 
-- [ ] **Step 2: Os seis levantamentos reais contra o banco de desenvolvimento** — script de leitura (não fica no repositório), rodado com `npx dotenv -e .env.development -- npx tsx <script>`: para cada planilha de `C:\Users\p017886\Downloads\*Levantamento*.xlsx`, `identificarLevantamento(admin, bytes)` e imprimir situação, contrato, base e aditivos.
+- [x] **Step 2: Os seis levantamentos reais contra o banco de desenvolvimento** — script de leitura (não fica no repositório), rodado com `npx dotenv -e .env.development -- npx tsx <script>`: para cada planilha de `C:\Users\p017886\Downloads\*Levantamento*.xlsx`, `identificarLevantamento(admin, bytes)` e imprimir situação, contrato, base e aditivos.
 Expected (medido no protótipo de 25/09/2026): PGM → TA 04 + [TA 05]; CGM → TA 02; FTM → TA 529-FMTSP-2025; HSPM → PC + [TA 590-2025]; SMDET → TA 01 + [TA 02]; SMIT → TA 02.
 
 - [ ] **Step 3: No navegador** — `localhost:3000/confere`, logado: escolher o levantamento do CGM → Contrato mostra `PA-CGM- 250912-127 v4.0.pdf` "Do cadastro · TA 02, renovação desde 15/10/2025"; faixa com "Contrato TC 16/CGM/2024 · … · competência agosto/2026"; gerar e conferir que o relatório sai e o histórico mostra "TC 16/CGM/2024 · agosto/2026".
 
-- [ ] **Step 4: Documentação**
+- [x] **Step 4: Documentação**
   - `CLAUDE.md`, seção "Integração do Confere": trocar "Sem vínculo com Cliente nem competência" por um parágrafo dizendo que o levantamento busca o contrato no cadastro (regra da última renovação; envio pelo computador continua; histórico com contrato e competência), apontando o design `2026-09-25-confere-contrato-do-cadastro-design.md` e este plano.
   - Design desta mudança: §2.1 ganha os seis levantamentos reais e as três formas da referência; §6.1 descreve as três formas + órgão do título; §7.4 corrige "um teste que prova isso" (o `SetNull` é do banco); status "implementado".
   - `2026-09-21-integracao-confere-design.md`: adendo curto apontando para o design novo.
   - `2026-09-23-repositorio-documentos-cliente-design.md`: §3.6 e o item "Fase 3" da §7.4 marcados como substituídos pelo design novo.
   - `docs/superpowers/plans/2026-09-21-integracao-confere.md`: "Task 11" apontando para este plano.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add CLAUDE.md docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md docs/superpowers/specs/2026-09-21-integracao-confere-design.md docs/superpowers/specs/2026-09-23-repositorio-documentos-cliente-design.md docs/superpowers/plans/2026-09-21-integracao-confere.md docs/superpowers/plans/2026-09-25-confere-contrato-do-cadastro.md

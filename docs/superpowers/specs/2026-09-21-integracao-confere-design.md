@@ -323,3 +323,14 @@ arquivos, pela documentação da Vercel e pelo código — o proxy nunca devolve
   `scripts/migrar-sharepoint-lugar-certo.ts --apagar-copias` já prevê apagar depois do deploy do
   main e da sincronização. **Decisão do usuário (25/09/2026): os uploads vão para o R2** (o
   projeto já o usa para o SharePoint, com 10 GB) — a desenhar e planejar à parte.
+
+## Adendo — o levantamento busca o contrato no cadastro (25/09/2026)
+
+A pedido do usuário (*"quando o usuario colocar a planilha ele precisa ja buscar o contrato que esta
+no banco de dados dos clientes"*), escolher o levantamento em `/confere` passa a ler o cabeçalho da
+planilha, achar o contrato no cadastro do cliente e preencher Contrato e Aditivos com as PC/PA que o
+SharePoint guardou (regra da última renovação). O envio pelo computador continua em todos os campos,
+a ordem dos cartões não mudou e o histórico passou a gravar contrato e competência. A §3.7 ("sem
+vínculo com Cliente nem competência") vale agora só para a **geração**, que continua sem estado.
+Desenho, decisões e números medidos: `docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md`;
+plano: `docs/superpowers/plans/2026-09-25-confere-contrato-do-cadastro.md`.

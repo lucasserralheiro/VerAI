@@ -137,6 +137,11 @@ módulo precisa conhecer os outros.
 
 ### 3.6 ConfereAI com cliente (revisa a decisão de 21/09)
 
+> **Substituída em 25/09/2026** por `docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md`
+> (implementado): o fluxo começa pela **planilha**, que diz de qual contrato e competência é — não por
+> escolher Cliente → Contrato → Competência —, a base é a proposta da **última renovação** (não
+> sempre a PC), e as entradas continuam não guardadas no repositório. O texto abaixo fica como registro.
+
 O ConfereAI pede três arquivos, e cada um tem lugar natural no domínio de contratos:
 
 | Campo do Confere | O que é (texto da própria tela) | Preenchimento automático | Sem candidato ou mais de um |
@@ -276,7 +281,8 @@ antes de aplicar.
   (`src/lib/assistente/indexacao/fontes.ts`, origens `HISTORICO_PROPOSTA`, `HISTORICO_TERMO`,
   `FATURAMENTO_PDF`) lê essas colunas: migrar junto, trocando para a origem `ARQUIVO_CLIENTE` ou
   lendo pelo `*ArquivoId`.
-- **Fase 3 (ConfereAI)**: candidatos de "Contrato" = PC das linhas `CONTRATO` do histórico do contrato;
+- **Fase 3 (ConfereAI)** — *substituída em 25/09/2026 pelo design
+  `2026-09-25-confere-contrato-do-cadastro-design.md` (ver a nota da §3.6)*: candidatos de "Contrato" = PC das linhas `CONTRATO` do histórico do contrato;
   sem candidato, lista das `PROPOSTA_COMERCIAL` **do cliente**. "Levantamento" = `MEDICAO` já usada numa
   execução daquele contrato + competência; senão, lista das `MEDICAO` do cliente para escolher. A
   execução gravada é que passa a dizer contrato + competência do arquivo.

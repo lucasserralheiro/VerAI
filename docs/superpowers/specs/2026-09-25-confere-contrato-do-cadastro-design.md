@@ -1,7 +1,11 @@
 # ConfereAI — o levantamento busca o contrato no cadastro (design)
 
 **Status**: Desenho aprovado com o usuário em 25/09/2026 (fluxo de tela, regra de busca e escolha,
-parte técnica). Plano de execução ainda não escrito.
+parte técnica). **Implementado no mesmo dia** — plano
+`docs/superpowers/plans/2026-09-25-confere-contrato-do-cadastro.md`, commits `d4b526a`…`b5776af`,
+migração `20260925120000_confere_execucao_contrato` aplicada no banco de desenvolvimento. Falta: o
+teste na tela pelo usuário (o servidor de desenvolvimento precisa reiniciar para carregar o Prisma
+Client novo) e a produção (§11).
 **Data**: 25/09/2026
 **Substitui**: a §3.6 e o item "Fase 3" da §7.4 de
 `docs/superpowers/specs/2026-09-23-repositorio-documentos-cliente-design.md` (lá o fluxo começava
@@ -42,6 +46,19 @@ SMIT, e `levantamento_pgm.xlsx`) trazem, nas primeiras linhas da aba `Levantamen
 São os mesmos dois campos que o Confere lê em `levantamento_reader._ler_cabecalho` (`_DATA`,
 `_CONTRATO`) e compara em `identidade_contratual.py` (ESPEC 029). A competência do Confere é o mês
 da "Data do Levantamento" (`competencia_por_extenso`).
+
+Nos seis levantamentos reais da pasta Downloads do usuário (medido já na implementação), a referência
+vem em **três formas** — só a primeira é a que o Confere reconhece:
+
+| Levantamento | "conforme contrato :" | Forma | Contrato no cadastro |
+|---|---|---|---|
+| PGM, CGM, SMIT | `TC 015/PGM/2024`, `TC 16/CGM/2024`, `TC 52/SMIT/2024` | número/órgão/ano | chave exata |
+| FTM | `TC 094/FTMSP/2024` | número/órgão/ano | `FTM\|94 2024` — sigla parecida |
+| SMDET | `TC 07/2024/SMDET` | número/ano/órgão | `SMDET\|7 2024` |
+| HSPM | `TC 387/2024` | número/ano, sem órgão | `HSPM\|387 2024` — órgão tirado do título ("COMPROVAÇÃO HSPM") |
+
+Os seis foram achados, com a base e os aditivos esperados, em 20–50 ms cada contra o banco de
+desenvolvimento (§6.1).
 
 **O exceljs não abre essas planilhas**: `workbook.xlsx.load` estoura em `reconcile` (`Cannot read
 properties of undefined (reading 'anchors')` — desenhos na planilha), e no teste o leitor em
@@ -212,12 +229,15 @@ renovação TA 02").
 
 ### 5.4 Avisos
 
-| Código | Quando | Texto (modelo) |
+| Código | Quando | Texto (o que a implementação escreve) |
 |---|---|---|
-| `aditivo-sem-pa` | aditivo que vale sem PA | "O TA 03 (aditivo de 30/10/2025) não tem a proposta (PA) no cadastro — o relatório sai sem ele. Anexe a PA na linha do histórico do contrato ou envie o arquivo aqui." |
-| `termo-sem-data` | linha posicionada pela data da proposta, ou deixada fora por não ter data nenhuma | "O TA 02 não tem data de início nem de assinatura no cadastro — posicionado pela data da proposta (06/08/2025). Confira." |
-| `fora-da-vigencia` | competência começa depois do fim de vigência, ou termina antes do início do contrato | "Julho/2026 está depois do fim de vigência cadastrado (30/11/2025)." + quando houver renovação que vale e não tem `dataVencimento`: "A TA 04 (renovação desde 01/12/2025) não tem data de fim no cadastro." + "Confira." |
-| `sem-proposta` | sem base | "Este contrato não tem proposta no cadastro — escolha uma das propostas do cliente ou envie do computador." |
+| `aditivo-sem-pa` | aditivo que vale sem PA | "TA 03 (aditivo de 30/10/2025): sem a proposta (PA) no cadastro — o relatório sai sem ele. Anexe a PA na linha do histórico do contrato ou envie o arquivo aqui." |
+| `termo-sem-data` | linha posicionada pela data da proposta, ou deixada fora por não ter data nenhuma | "TA 02: sem data de início nem de assinatura no cadastro — posicionado pela data da proposta (06/08/2025). Confira." |
+| `fora-da-vigencia` | competência começa depois do fim de vigência, ou termina antes do início do contrato | "Julho/2026 está depois do fim de vigência cadastrado (30/11/2025)." + quando houver renovação que vale e não tem `dataVencimento`: "TA 04 (renovação desde 01/12/2025) está sem data de fim no cadastro." + "Confira." |
+| `sem-proposta` | sem base | "Este contrato não tem proposta (PC) nem renovação com proposta (PA) no cadastro — escolha uma das propostas do cliente ou envie do computador." |
+
+O rótulo vem primeiro, sem artigo ("TA 03: …"), porque o número do termo pode ser qualquer coisa
+("TA 590-2025", "TAP 01", "Aditivo sem número").
 
 Fim de vigência = `vigenciaFim` do `consolidarContratos()` (regra única do CLAUDE.md); início =
 `dataInicio` do cabeçalho ou da linha `CONTRATO`. É por isso que o aviso explica a TA sem data de
@@ -231,9 +251,19 @@ que existe).
 
 ### 6.1 Leitura da referência
 
-Mesma regra do Confere (`IdentidadeContratual.de_referencia_da_aba`): a primeira ocorrência de
-`número[-sufixo]/ÓRGÃO/ano` na célula — `TC 52/SMIT/2024` → 52, `SMIT`, 2024. O sufixo (`52-A`) é
-o mesmo contrato e não entra na busca. Referência de peça (`PA-SMIT-260319-739`) não casa, como lá.
+`src/lib/confere/identidade.ts`, três formas, nesta ordem (medidas nos levantamentos reais, §2.1):
+
+1. **A do Confere** (`IdentidadeContratual.de_referencia_da_aba`): `número[-sufixo]/ÓRGÃO/ano` —
+   `TC 52/SMIT/2024` → 52, `SMIT`, 2024. O sufixo (`52-A`) é o mesmo contrato e não entra na busca.
+2. **Órgão no fim**: `número/ano/ÓRGÃO` — `TC 07/2024/SMDET`, `TC 107/2025/SMS-1` (o órgão são as
+   letras; o `-1` fica de fora).
+3. **Sem órgão**: `número/ano` — `TC 387/2024`; o órgão sai do título da aba ("LEVANTAMENTO -
+   COMPROVAÇÃO HSPM - …"). Sem título que diga, busca só por número e ano — e só escolhe sozinho se
+   houver um contrato só com eles.
+
+Referência de peça (`PA-SMIT-260319-739`) não casa em nenhuma, como no Confere. As formas 2 e 3 o
+Confere não reconhece: para esses levantamentos o portão de identidade dele fica em silêncio
+(`R-IDT-06`), e quem casa o par é a busca do VerAI.
 
 ### 6.2 Ordem da busca
 
@@ -310,9 +340,9 @@ exceljs; passa a ser dependência direta, mesma versão), acha a folha `Levantam
 `ConfereExecucao` ganha `contratoId String?` (FK para `Contrato`, `onDelete: SetNull`, índice),
 `competenciaAno Int?` e `competenciaMes Int?` (convenção do schema). A competência é a que o servidor
 lê do levantamento na geração (não a que o navegador manda). Excluir cliente apaga os contratos
-(`deleteMany`) e o `SetNull` solta a execução, que continua com os nomes — sem mudança em
-`excluir-cliente.ts` além de um teste que prova isso; mesclar cliente move os contratos e o vínculo
-continua válido.
+(`deleteMany`) e o `SetNull` — que é do banco, na FK da migração `20260925120000` — solta a
+execução, que continua com os nomes; `excluir-cliente.ts` não muda. Mesclar cliente move os
+contratos e o vínculo continua válido.
 
 `/api/confere/execucoes` devolve número do termo, cliente e competência; `/confere/historico` ganha
 a coluna **Contrato · competência** com link para o contrato (a página do contrato aplica a

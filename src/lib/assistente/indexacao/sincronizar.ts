@@ -68,7 +68,9 @@ async function gravarIndice(
           )}`)
       }
     },
-    { timeout: 60_000 }
+    // maxWait: na carga grande o processo passa segundos lendo um PDF pesado; os 2 s padrão para
+    // abrir a transação estouravam e o arquivo nem registrava a falha.
+    { timeout: 60_000, maxWait: 20_000 }
   )
 }
 
@@ -94,7 +96,7 @@ export async function indexarFonte(fonte: FonteDocumento, deps: DepsIndexacao = 
     try {
       await gravarIndice(fonte, { status: 'erro', versao: null, mensagem, trechos: [] })
     } catch (erroGravacao) {
-      console.error('[assistente] falha ao registrar erro de indexação', fonte.origem, fonte.origemId, erroGravacao)
+      console.error('[assistente] falha ao registrar erro de indexação', fonte.origem, fonte.origemId, mensagem, erroGravacao)
     }
     return 'erro'
   }

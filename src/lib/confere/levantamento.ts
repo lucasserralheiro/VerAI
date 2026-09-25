@@ -134,9 +134,9 @@ export async function lerCabecalhoDoLevantamento(conteudo: ArrayBuffer | Uint8Ar
   let dataLevantamento: string | null = null
   let contratoReferencia: string | null = null
   for (const celulas of linhas) {
-    const data = dataLevantamento === null ? DATA.exec(celulas.join(' ')) : null
+    const data: RegExpExecArray | null = dataLevantamento === null ? DATA.exec(celulas.join(' ')) : null
     if (data) dataLevantamento = paraIso(data[1])
-    const contrato = contratoReferencia === null ? CONTRATO.exec(celulas[0]) : null
+    const contrato: RegExpExecArray | null = contratoReferencia === null ? CONTRATO.exec(celulas[0]) : null
     if (contrato) contratoReferencia = contrato[1].trim()
   }
   return { titulo: linhas[0][0] || null, dataLevantamento, contratoReferencia }

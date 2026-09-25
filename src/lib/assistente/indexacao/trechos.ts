@@ -27,7 +27,9 @@ export function cortarEmTrechos(
 ): Trecho[] {
   const trechos: Trecho[] = []
   for (const { pagina, texto } of paginas) {
-    const limpo = texto.replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+    // Alguns PDFs trazem 0x00 e outros caracteres de controle no texto; o Postgres recusa 0x00 em
+    // `text` e a gravação do trecho inteiro falhava. Quebra de linha e tab ficam.
+    const limpo = texto.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
     if (!limpo) continue
     let inicio = 0
     while (inicio < limpo.length) {

@@ -7,6 +7,11 @@ describe('cortarEmTrechos', () => {
     ])
   })
 
+  it('tira caractere nulo e de controle (o Postgres recusa 0x00 em texto)', () => {
+    const [trecho] = cortarEmTrechos([{ pagina: 1, texto: 'Cláu\u0000sula 5ª\u0007 — reajuste\u0000' }])
+    expect(trecho.texto).toBe('Cláusula 5ª — reajuste')
+  })
+
   it('pula página vazia e numera a ordem através das páginas', () => {
     const trechos = cortarEmTrechos([
       { pagina: 1, texto: 'um' },

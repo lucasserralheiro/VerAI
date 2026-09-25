@@ -1,7 +1,7 @@
 import { chaveDoNome } from '@/lib/importacao-sharepoint/estrutura'
 import { chaveExata } from '@/lib/relatorios-clientes/vincular-itens'
 
-import type { IdentidadeDoContrato } from './identidade'
+import { siglaComparavel, type IdentidadeDoContrato } from './identidade'
 
 // Qual contrato do cadastro é o da planilha (docs/superpowers/specs/2026-09-25-confere-contrato-do-
 // cadastro-design.md §6.2). Regra de ouro do projeto: só escolhe sozinho quando o candidato é ÚNICO —
@@ -22,12 +22,9 @@ export type ResultadoDaLocalizacao =
   | { tipo: 'ambiguo'; candidatos: ContratoParaBusca[] }
   | { tipo: 'nenhum'; mesmoNumero: ContratoParaBusca[]; doOrgao: ContratoParaBusca[] }
 
-function normalizar(texto: string): string {
-  return texto
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toUpperCase()
-    .trim()
+/** A sigla da chave do SharePoint ("SUB-ITP|1 2026" → "SUBITP"), comparável com o órgão lido. */
+function siglaDaChave(contrato: ContratoParaBusca): string | null {
+  return contrato.chaveSharepoint ? siglaComparavel(contrato.chaveSharepoint.split('|')[0]) : null
 }
 
 /** "SMIT|52 2024" → "52 2024"; sem chave, o número e o ano do nº do termo ("031/SEME/2017" → "31 2017"). */
@@ -38,10 +35,11 @@ function numeroEAno(contrato: ContratoParaBusca): string | null {
 }
 
 /** O órgão escrito na planilha é o do cliente: sigla igual; uma começando com a outra, com pelo menos
- *  3 letras ("FTMSP"/"FTM" — "SF" não casa com "SFM"); ou o nº do termo citando o órgão. */
+ *  3 letras ("FTMSP"/"FTM", "SMCG"/"SMC", "SUBIT"/"SUB-ITP" — "SF" não casa com "SFM"); ou o nº do
+ *  termo citando o órgão. As duas pontas comparadas só por letras e números. */
 export function siglaParecida(orgao: string, contrato: ContratoParaBusca): boolean {
-  const o = normalizar(orgao)
-  const sigla = normalizar(contrato.clienteSigla ?? '')
+  const o = siglaComparavel(orgao)
+  const sigla = siglaComparavel(contrato.clienteSigla ?? '')
   if (sigla && sigla === o) return true
   const menor = Math.min(sigla.length, o.length)
   if (menor >= 3 && (sigla.startsWith(o) || o.startsWith(sigla))) return true
@@ -59,8 +57,8 @@ export function localizarContrato(identidade: IdentidadeDoContrato, contratos: C
   }
 
   const orgao = identidade.orgao
-  const chave = normalizar(`${orgao}|${alvo}`)
-  const exatos = contratos.filter((c) => c.chaveSharepoint !== null && normalizar(c.chaveSharepoint) === chave)
+  const sigla = siglaComparavel(orgao)
+  const exatos = mesmoNumero.filter((c) => siglaDaChave(c) === sigla)
   if (exatos.length === 1) return { tipo: 'encontrado', contrato: exatos[0] }
   if (exatos.length > 1) return { tipo: 'ambiguo', candidatos: exatos }
 

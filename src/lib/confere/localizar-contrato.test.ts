@@ -16,6 +16,9 @@ const CADASTRO = [
   contrato('sf-10', 'SF', 'TC 010/2024', 'SF|10 2024'),
   contrato('seme-31', 'SEME', '031/SEME/2017', null),
   contrato('smit-52', 'SMIT', 'TC 52/SMIT/2024', 'SMIT|52 2024'),
+  contrato('regula-4', 'SPREGULA', 'TC 04/SP/REGULA/2022', 'SPREGULA|4 2022'),
+  contrato('itp-1', 'SUB-ITP', 'TC 001/SUB/IT/2026', 'SUB-ITP|1 2026'),
+  contrato('smc-30', 'SMC', 'TC 30/SMC/G/2025', 'SMC|30 2025'),
 ]
 
 describe('localizarContrato', () => {
@@ -56,6 +59,21 @@ describe('localizarContrato', () => {
     expect(localizarContrato({ base: 52, orgao: 'SMIT', ano: '2024' }, [...CADASTRO, duplicado])).toEqual({
       tipo: 'ambiguo',
       candidatos: [CADASTRO[8], duplicado],
+    })
+  })
+
+  it('órgão escrito com barra ou hífen: compara só letras e números', () => {
+    expect(localizarContrato({ base: 4, orgao: 'SPREGULA', ano: '2022' }, CADASTRO)).toEqual({
+      tipo: 'encontrado',
+      contrato: CADASTRO[9],
+    })
+    expect(localizarContrato({ base: 1, orgao: 'SUBIT', ano: '2026' }, CADASTRO)).toEqual({
+      tipo: 'encontrado',
+      contrato: CADASTRO[10],
+    })
+    expect(localizarContrato({ base: 30, orgao: 'SMCG', ano: '2025' }, CADASTRO)).toEqual({
+      tipo: 'encontrado',
+      contrato: CADASTRO[11],
     })
   })
 

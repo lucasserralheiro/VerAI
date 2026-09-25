@@ -265,6 +265,30 @@ Referência de peça (`PA-SMIT-260319-739`) não casa em nenhuma, como no Confer
 Confere não reconhece: para esses levantamentos o portão de identidade dele fica em silêncio
 (`R-IDT-06`), e quem casa o par é a busca do VerAI.
 
+Nas três formas o órgão pode vir **em partes** (`04/SP/REGULA/2022`, `30/SMC/G/2025`,
+`65/SMSUB/COGEL/2025`, `01/SUB-ITP/2026`), o ano da forma 1 pode ter **dois dígitos**
+(`103/SIURB/24` → 2024) e a forma 3 aceita **hífen** (`050-2024`). O órgão é comparado só por letras e
+números (`SP/REGULA` = `SPREGULA`, `SUB/IT` começa `SUB-ITP`) — a mesma regra vale para a sigla do
+cliente e a da chave do SharePoint.
+
+### 6.1.1 Cobertura medida (25/09/2026, banco de desenvolvimento)
+
+Para cada um dos **122 contratos em vigor** (39 clientes), simulando a planilha com o número do termo
+como está no cadastro e o título "COMPROVAÇÃO <sigla>":
+
+| Resultado | Contratos |
+|---|---|
+| Acha o próprio contrato | **115** (também quando a planilha não diz o órgão) |
+| Cadastro duplicado — acha o registro do SharePoint, que tem a proposta | 2 (SEGES 24/2025: dois registros do legado com os faturamentos e um do SharePoint) |
+| Número com erro no cadastro (`TC 54460/2022`) | 1 |
+| Sem número no cadastro (`IntegraçãoBenefícios`, `Novo Sustenta`, `SGM -IntegrBenef`, `TC SN/2024`) | 4 |
+| Achado, mas sem proposta nenhuma no cadastro (sugere as do cliente) | 2 (SME 505/2024, SGM 028/2026) |
+| Com aviso de aditivo sem PA | 9 |
+| Com termo posicionado pela data da proposta | 23 |
+
+A primeira versão (só as três formas, sem órgão em partes/ano curto/hífen) achava 98. Os que não
+são achados caem nas sugestões e na busca, nunca num contrato errado.
+
 ### 6.2 Ordem da busca
 
 1. **Chave exata**: `chaveSharepoint = "<ÓRGÃO>|<número> <ano>"`.

@@ -2,23 +2,56 @@
 
 import { useState } from "react";
 
+import type { DocumentoDoCadastro } from "@/lib/confere/tipos-cadastro";
+import { textoDaOrigem } from "../lib/cadastro";
 import { pareceLevantamento } from "../lib/documento";
-import { type Achado, CAMPO_ADITIVOS, CAMPOS, type NomeDoCampo } from "../lib/types";
+import {
+	type Achado,
+	CAMPO_ADITIVOS,
+	CAMPOS,
+	type NomeDoCampo,
+	nomeDaPeca,
+	type Peca,
+} from "../lib/types";
+import { MenuDeDocumentos } from "./MenuDeDocumentos";
 
 interface Props {
-	arquivos: Partial<Record<NomeDoCampo, File>>;
+	/** O levantamento escolhido — o campo que só aceita arquivo do computador e
+	 *  dispara a busca do contrato no cadastro. */
+	levantamento?: File;
+	/** O campo Contrato: arquivo do computador ou proposta do cadastro. */
+	contrato?: Peca;
 	onSelecionar: (campo: NomeDoCampo, arquivo: File | undefined) => void;
+	/** Todas as propostas do contrato em uso — para "Trocar" e "+ Adicionar do
+	 *  cadastro" (desenho de 25/09/2026 §4.2). */
+	alternativas: readonly DocumentoDoCadastro[];
+	onTrocarContrato: (documento: DocumentoDoCadastro) => void;
 	/** ESPEC 019 `R-ADT-10` — os aditivos da proposta, opcionais e em qualquer
-	 *  número. Fora de `arquivos` porque não entram na regra que habilita o
-	 *  botão (`D-10`). */
-	aditivos: readonly File[];
+	 *  número, em ordem de aplicação. Fora do Contrato porque não entram na regra
+	 *  que habilita o botão (`D-10`). Misturam cadastro e computador. */
+	aditivos: readonly Peca[];
+	/** A seleção do computador **acrescenta** no fim da lista — a lista é da
+	 *  tela, não do `<input>`. */
 	onSelecionarAditivos: (escolhidos: readonly File[]) => void;
+	onRemoverAditivo: (posicao: number) => void;
+	onAdicionarAditivo: (documento: DocumentoDoCadastro) => void;
+	/** O texto do campo de aditivos vazio. */
+	semAditivos: string;
+	/** A faixa de identificação do contrato — entre os dois cartões e o de
+	 *  aditivos. */
+	faixa?: React.ReactNode;
 	onEnviar: () => void;
 	processando: boolean;
 	/** ESPEC 015 `R-LMP-04` — muda a cada limpeza e remonta os dois campos, que é
 	 *  o que zera `input.value`. Zerar só o estado do React deixaria a tela
 	 *  dizendo `escolher arquivo…` com o elemento ainda carregando o arquivo. */
 	chave: number;
+	/** Remonta só o campo Contrato — zera o `<input>` quando o cadastro volta a
+	 *  ocupá-lo, sem mexer no levantamento nem roubar o foco. */
+	chaveContrato: number;
+	/** Remonta só o campo de aditivos — zera o `<input>` a cada seleção
+	 *  acrescentada, para que escolher o mesmo arquivo de novo volte a disparar. */
+	chaveAditivos: number;
 	/** `R-LMP-02` — decidido em `page.tsx`, que é quem tem o estado da tela. */
 	podeLimpar: boolean;
 	onLimpar: () => void;
@@ -71,13 +104,22 @@ function Giro() {
 }
 
 export function UploadForm({
-	arquivos,
+	levantamento,
+	contrato,
 	onSelecionar,
+	alternativas,
+	onTrocarContrato,
 	aditivos,
 	onSelecionarAditivos,
+	onRemoverAditivo,
+	onAdicionarAditivo,
+	semAditivos,
+	faixa,
 	onEnviar,
 	processando,
 	chave,
+	chaveContrato,
+	chaveAditivos,
 	podeLimpar,
 	onLimpar,
 	refLimpar,
@@ -87,19 +129,29 @@ export function UploadForm({
 	onGerarAssimMesmo,
 	onDescartarPergunta,
 }: Props) {
-	const completo = CAMPOS.every((campo) => arquivos[campo.nome]);
+	const completo = contrato !== undefined && levantamento !== undefined;
 	const bloqueado = !completo || processando;
+	const contratoDoComputador = contrato?.tipo === "arquivo" ? contrato.arquivo : undefined;
+	const contratoDoCadastro = contrato?.tipo === "cadastro" ? contrato.documento : undefined;
+	// "+ Adicionar do cadastro" oferece o que ainda não está nem no Contrato nem
+	// na lista.
+	const naLista = new Set(
+		aditivos.flatMap((peca) => (peca.tipo === "cadastro" ? [peca.documento.arquivoId] : [])),
+	);
+	const paraAdicionar = alternativas.filter(
+		(documento) =>
+			documento.arquivoId !== contratoDoCadastro?.arquivoId && !naLista.has(documento.arquivoId),
+	);
 
 	// ESPEC 025 `R-DOC-08` — o arquivo dispensado, pelo nome. Guardar o **nome**
 	// e não um booleano é o que faz o aviso voltar quando a pessoa troca por
 	// outro levantamento: um `false` sobreviveria à troca e calaria o segundo
-	// engano.
+	// engano. Só vale para o arquivo enviado do computador.
 	const [nomeDispensado, setNomeDispensado] = useState<string | null>(null);
-	const contrato = arquivos.contrato;
 	const avisarLevantamento =
-		contrato !== undefined &&
-		pareceLevantamento(contrato.name) &&
-		contrato.name !== nomeDispensado;
+		contratoDoComputador !== undefined &&
+		pareceLevantamento(contratoDoComputador.name) &&
+		contratoDoComputador.name !== nomeDispensado;
 
 	// `aria-disabled` mantém o botão clicável de verdade: a inibição sai do
 	// navegador e passa a ser deste código. Guarda única, cobrindo clique e
@@ -116,7 +168,8 @@ export function UploadForm({
 		<form onSubmit={submeter} className="rounded-lg border border-confere-line bg-white p-6 shadow-sm">
 			<div className="grid gap-4 md:grid-cols-2">
 				{CAMPOS.map((campo, indice) => {
-					const escolhido = arquivos[campo.nome];
+					const escolhido =
+						campo.nome === "contrato" ? (contrato ? nomeDaPeca(contrato) : undefined) : levantamento?.name;
 					return (
 						// Borda sólida e não tracejada: tracejado é a convenção de área
 						// de arraste, e arrastar aqui não faz nada — quem tenta não
@@ -125,14 +178,22 @@ export function UploadForm({
 						// `has-[:focus-visible]` e não `focus-within`: clicar o rótulo
 						// foca o input, e o `focus-within` faria o anel aparecer para
 						// quem usa mouse e não precisa dele.
-						<label
+						//
+						// O cartão é o `<div>`, e o `<label>` fica dentro dele: o que
+						// é do cadastro (Ver PDF, Trocar) tem botões e mora **fora** do
+						// rótulo — dentro, clicar num deles abriria o seletor junto,
+						// pela mesma razão do aviso da `R-DOC-08`.
+						<div
 							// A chave composta é o que remonta o campo na limpeza
 							// (`R-LMP-04`). Só o nome não bastaria: o React reaproveitaria
 							// o mesmo elemento e o `input.value` sobreviveria — a tela
-							// diria vazio com o formulário ainda carregando o arquivo.
-							key={`${chave}-${campo.nome}`}
-							className="flex cursor-pointer flex-col gap-2 rounded-md border border-confere-teal-100 bg-confere-teal-50/40 p-4 transition hover:border-confere-teal-400 has-[:focus-visible]:border-confere-teal-400 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-confere-teal-500 has-[:focus-visible]:ring-offset-2"
+							// diria vazio com o formulário ainda carregando o arquivo. O
+							// Contrato tem também a sua chave: o cadastro volta a ocupá-lo
+							// sem remontar o levantamento.
+							key={`${chave}-${campo.nome}-${campo.nome === "contrato" ? chaveContrato : 0}`}
+							className="flex flex-col gap-2 rounded-md border border-confere-teal-100 bg-confere-teal-50/40 p-4 transition hover:border-confere-teal-400 has-[:focus-visible]:border-confere-teal-400 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-confere-teal-500 has-[:focus-visible]:ring-offset-2"
 						>
+						<label className="flex cursor-pointer flex-col gap-2">
 							<span className="text-sm font-semibold text-confere-navy-600">
 								{campo.rotulo}
 							</span>
@@ -169,12 +230,38 @@ export function UploadForm({
 										: "border-confere-line bg-white text-confere-navy-300"
 								}`}
 							>
-								{escolhido ? escolhido.name : "escolher arquivo…"}
+								{escolhido ?? "escolher arquivo…"}
 							</span>
 						</label>
+						{campo.nome === "contrato" && contratoDoCadastro && (
+							<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+								<span className="text-confere-teal-600">
+									Do cadastro · {textoDaOrigem(contratoDoCadastro.origem)}
+								</span>
+								<a
+									href={`/api/arquivos/${contratoDoCadastro.arquivoId}?modo=inline`}
+									target="_blank"
+									rel="noreferrer"
+									className="font-semibold text-confere-teal-600 underline"
+								>
+									Ver PDF
+								</a>
+								<MenuDeDocumentos
+									rotulo="Trocar"
+									documentos={alternativas.filter(
+										(documento) => documento.arquivoId !== contratoDoCadastro.arquivoId,
+									)}
+									onEscolher={onTrocarContrato}
+									onEnviarDoComputador={() => refPrimeiroCampo.current?.click()}
+								/>
+							</div>
+						)}
+						</div>
 					);
 				})}
 			</div>
+
+			{faixa}
 
 			{/* ESPEC 025 `R-DOC-08` — o aviso que chega **antes** dos 16,6 s.
 
@@ -214,7 +301,7 @@ export function UploadForm({
 						</button>
 						<button
 							type="button"
-							onClick={() => setNomeDispensado(contrato?.name ?? null)}
+							onClick={() => setNomeDispensado(contratoDoComputador?.name ?? null)}
 							className="rounded-md px-4 py-2 text-xs font-semibold text-amber-900 underline transition hover:bg-amber-100"
 						>
 							Usar assim mesmo
@@ -298,45 +385,95 @@ export function UploadForm({
 
 			    Ocupa a largura inteira, fora do `grid md:grid-cols-2`, porque o par
 			    de cima é o que é obrigatório: a assimetria visual **é** a informação
-			    de que este não é (`D-10`). */}
-			<label
-				key={`${chave}-${CAMPO_ADITIVOS.nome}`}
-				className="mt-4 flex cursor-pointer flex-col gap-2 rounded-md border border-confere-line bg-white p-4 transition hover:border-confere-teal-400 has-[:focus-visible]:border-confere-teal-400 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-confere-teal-500 has-[:focus-visible]:ring-offset-2"
+			    de que este não é (`D-10`).
+
+			    Desde 25/09/2026 a lista é da tela, não do `<input>`: mistura propostas
+			    do cadastro e arquivos do computador, e cada item sai com o seu botão.
+			    O cartão é o `<div>`; o `<label>` fica só com título, descrição e o
+			    campo vazio, pela mesma razão dos dois cartões de cima. */}
+			<div
+				key={`${chave}-${CAMPO_ADITIVOS.nome}-${chaveAditivos}`}
+				className="mt-4 flex flex-col gap-2 rounded-md border border-confere-line bg-white p-4 transition hover:border-confere-teal-400 has-[:focus-visible]:border-confere-teal-400 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-confere-teal-500 has-[:focus-visible]:ring-offset-2"
 			>
-				<span className="text-sm font-semibold text-confere-navy-600">
-					{CAMPO_ADITIVOS.rotulo}
-				</span>
-				<span id={`${CAMPO_ADITIVOS.nome}-descricao`} className="text-xs text-confere-navy-300">
-					{CAMPO_ADITIVOS.descricao}
-				</span>
-				<input
-					type="file"
-					multiple
-					ref={refAditivos}
-					accept={CAMPO_ADITIVOS.aceita}
-					disabled={processando}
-					className="sr-only"
-					aria-label={CAMPO_ADITIVOS.rotulo}
-					aria-describedby={`${CAMPO_ADITIVOS.nome}-descricao ${CAMPO_ADITIVOS.nome}-estado`}
-					onChange={(evento) =>
-						onSelecionarAditivos(Array.from(evento.target.files ?? []))
-					}
-				/>
-				<span
-					id={`${CAMPO_ADITIVOS.nome}-estado`}
-					className={`mt-1 rounded border px-2 py-1 text-xs ${
-						aditivos.length
-							? "border-confere-teal-400 bg-white text-confere-teal-600"
-							: "border-confere-line bg-white text-confere-navy-300"
-					}`}
-				>
-					{/* Os nomes, e não a contagem: a ordem de envio é a ordem de
-					    aplicação (`R-ADT-07`), e quem confere precisa vê-la. */}
-					{aditivos.length
-						? aditivos.map((aditivo) => aditivo.name).join(" · ")
-						: "nenhum aditivo — opcional"}
-				</span>
-			</label>
+				<label className="flex cursor-pointer flex-col gap-2">
+					<span className="text-sm font-semibold text-confere-navy-600">
+						{CAMPO_ADITIVOS.rotulo}
+					</span>
+					<span id={`${CAMPO_ADITIVOS.nome}-descricao`} className="text-xs text-confere-navy-300">
+						{CAMPO_ADITIVOS.descricao}
+					</span>
+					<input
+						type="file"
+						multiple
+						ref={refAditivos}
+						accept={CAMPO_ADITIVOS.aceita}
+						disabled={processando}
+						className="sr-only"
+						aria-label={CAMPO_ADITIVOS.rotulo}
+						aria-describedby={`${CAMPO_ADITIVOS.nome}-descricao ${CAMPO_ADITIVOS.nome}-estado`}
+						onChange={(evento) =>
+							onSelecionarAditivos(Array.from(evento.target.files ?? []))
+						}
+					/>
+					{aditivos.length === 0 && (
+						<span
+							id={`${CAMPO_ADITIVOS.nome}-estado`}
+							className="mt-1 rounded border border-confere-line bg-white px-2 py-1 text-xs text-confere-navy-300"
+						>
+							{semAditivos}
+						</span>
+					)}
+				</label>
+				{/* Os nomes, e não a contagem: a ordem de envio é a ordem de
+				    aplicação (`R-ADT-07`), e quem confere precisa vê-la — e de onde
+				    veio cada um. */}
+				{aditivos.length > 0 && (
+					<ol id={`${CAMPO_ADITIVOS.nome}-estado`} className="space-y-1">
+						{aditivos.map((peca, posicao) => (
+							<li
+								key={`${posicao}-${nomeDaPeca(peca)}`}
+								className="flex items-center justify-between gap-2 rounded border border-confere-teal-400 bg-white px-2 py-1 text-xs text-confere-teal-600"
+							>
+								<span className="truncate">
+									{posicao + 1}. {nomeDaPeca(peca)}
+									<span className="text-confere-navy-300">
+										{" · "}
+										{peca.tipo === "cadastro"
+											? `do cadastro · ${textoDaOrigem(peca.documento.origem)}`
+											: "do computador"}
+									</span>
+								</span>
+								<button
+									type="button"
+									onClick={() => onRemoverAditivo(posicao)}
+									disabled={processando}
+									aria-label={`Remover ${nomeDaPeca(peca)}`}
+									className="shrink-0 rounded px-1.5 font-semibold text-confere-navy-600 hover:bg-confere-navy-50"
+								>
+									×
+								</button>
+							</li>
+						))}
+					</ol>
+				)}
+				<div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+					{paraAdicionar.length > 0 && (
+						<MenuDeDocumentos
+							rotulo="+ Adicionar do cadastro"
+							documentos={paraAdicionar}
+							onEscolher={onAdicionarAditivo}
+						/>
+					)}
+					<button
+						type="button"
+						onClick={() => refAditivos.current?.click()}
+						disabled={processando}
+						className="font-semibold text-confere-teal-600 underline"
+					>
+						+ Enviar do computador
+					</button>
+				</div>
+			</div>
 
 			{/* As classes de estado são expressão condicional, não variante
 			    `disabled:`. A variante depende do atributo real, que deixou de

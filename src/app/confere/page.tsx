@@ -2,12 +2,27 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import type { DocumentoDoCadastro, DocumentosDoContrato } from "@/lib/confere/tipos-cadastro";
 import { ConfirmarLimpeza } from "./components/ConfirmarLimpeza";
+import { FaixaDoContrato } from "./components/FaixaDoContrato";
 import { ProgressoDaGeracao } from "./components/ProgressoDaGeracao";
 import { ResultadoPanel } from "./components/ResultadoPanel";
 import { UploadForm } from "./components/UploadForm";
-import { aquecerServico, conferirIdentidade, gerarRelatorio } from "./lib/api";
-import { type Achado, CAMPOS, type Estado, type NomeDoCampo } from "./lib/types";
+import {
+	aquecerServico,
+	conferirIdentidade,
+	documentosDoContrato,
+	gerarRelatorio,
+	identificarLevantamento,
+} from "./lib/api";
+import {
+	type Achado,
+	CAMPOS,
+	type Estado,
+	type Identificacao,
+	type NomeDoCampo,
+	type Peca,
+} from "./lib/types";
 
 // Página portada de services/confere/frontend/src/app/page.tsx (o frontend
 // próprio do Confere, hospedado à parte) — ver
@@ -49,8 +64,29 @@ export default function ConferePage() {
 	const [arquivos, setArquivos] = useState<Partial<Record<NomeDoCampo, File>>>({});
 	// ESPEC 019 `R-ADT-10` — estado próprio, e não uma entrada de `arquivos`:
 	// aquele mapa é de campo único e alimenta o `completo` que habilita o botão.
-	// Os aditivos são opcionais e são uma lista (`D-10`).
-	const [aditivos, setAditivos] = useState<readonly File[]>([]);
+	// Os aditivos são opcionais e são uma lista (`D-10`) — que mistura propostas
+	// do cadastro e arquivos do computador (desenho de 25/09/2026 §4.2).
+	const [aditivos, setAditivos] = useState<readonly Peca[]>([]);
+	// O campo Contrato vindo do cadastro. Fica à parte de `arquivos` porque o
+	// arquivo do computador **prevalece** — a escolha manual nunca é trocada
+	// sozinha (§4.3) — e a proposta do cadastro continua à mão para "Usar a
+	// proposta do cadastro".
+	const [contratoDoCadastro, setContratoDoCadastro] = useState<DocumentoDoCadastro | undefined>(
+		undefined,
+	);
+	const [identificacao, setIdentificacao] = useState<Identificacao>({ situacao: "ociosa" });
+	const [documentos, setDocumentos] = useState<DocumentosDoContrato | undefined>(undefined);
+	const [chaveContrato, setChaveContrato] = useState(0);
+	const [chaveAditivos, setChaveAditivos] = useState(0);
+	// Numera os pedidos de identificação: a resposta de uma planilha já trocada
+	// não pode preencher os campos da nova.
+	const pedidoDeIdentificacao = useRef(0);
+
+	const contrato: Peca | undefined = arquivos.contrato
+		? { tipo: "arquivo", arquivo: arquivos.contrato }
+		: contratoDoCadastro
+			? { tipo: "cadastro", documento: contratoDoCadastro }
+			: undefined;
 	const [estado, setEstado] = useState<Estado>({ situacao: "inicial" });
 	// T-2099 / ESPEC 029 `R-IDT-10` — o achado do portão, enquanto ele espera
 	// resposta. Estado próprio e **não** uma situação de `Estado`: a pergunta
@@ -112,6 +148,12 @@ export default function ConferePage() {
 		descartar(estado);
 		setArquivos({});
 		setAditivos([]);
+		// A busca em andamento, se houver, chega depois da limpeza: o número novo
+		// a descarta.
+		pedidoDeIdentificacao.current += 1;
+		setIdentificacao({ situacao: "ociosa" });
+		setDocumentos(undefined);
+		setContratoDoCadastro(undefined);
 		setEstado({ situacao: "inicial" });
 		setChave((n) => n + 1);
 		setConfirmando(false);
@@ -141,24 +183,120 @@ export default function ConferePage() {
 		// anterior. Guardá-la faria a caixa acusar uma divergência que talvez já
 		// não exista — e a próxima resposta do portão a repõe se ainda existir.
 		setPergunta(undefined);
+		// A planilha diz de qual contrato e competência ela é: escolhê-la busca o
+		// contrato no cadastro e preenche Contrato e Aditivos (desenho de
+		// 25/09/2026 §4.2).
+		if (campo === "levantamento") void identificar(arquivo);
 	}
 
-	/** `R-ADT-10` — a seleção **substitui** a anterior, como em qualquer campo de
-	 *  arquivo múltiplo: o `<input>` só conhece a última escolha, e acumular aqui
-	 *  faria a tela listar arquivos que o formulário já não carrega. */
-	function selecionarAditivos(escolhidos: readonly File[]) {
+	/** Qualquer outra mudança nas entradas invalida o resultado anterior — a
+	 *  mesma sequência de `selecionar`, na mesma ordem (ver o comentário de lá). */
+	function entradaMudou() {
 		descartar(estado);
-		if (escolhidos.length > 0) aquecer();
-		setAditivos(escolhidos);
 		setEstado({ situacao: "inicial" });
 		setAviso("");
 		setPergunta(undefined);
 	}
 
+	/** Os documentos do contrato em uso. Os aditivos do cadastro são refeitos; os
+	 *  enviados do computador ficam, no fim da lista (§4.3). */
+	function aplicarDocumentos(novos: DocumentosDoContrato) {
+		setDocumentos(novos);
+		setContratoDoCadastro(novos.base ?? undefined);
+		setAditivos((atual) => [
+			...novos.aditivos.map((documento): Peca => ({ tipo: "cadastro", documento })),
+			...atual.filter((peca) => peca.tipo === "arquivo"),
+		]);
+	}
+
+	/** Planilha trocada por outra sem contrato achado: o que veio do cadastro era
+	 *  do contrato anterior e sai; o que veio do computador fica. */
+	function limparDoCadastro() {
+		setDocumentos(undefined);
+		setContratoDoCadastro(undefined);
+		setAditivos((atual) => atual.filter((peca) => peca.tipo === "arquivo"));
+	}
+
+	async function identificar(arquivo: File | undefined) {
+		const pedido = ++pedidoDeIdentificacao.current;
+		if (!arquivo) {
+			setIdentificacao({ situacao: "ociosa" });
+			limparDoCadastro();
+			return;
+		}
+		setIdentificacao({ situacao: "lendo" });
+		const resposta = await identificarLevantamento(arquivo);
+		if (pedido !== pedidoDeIdentificacao.current) return;
+		if (!resposta) {
+			setIdentificacao({ situacao: "falhou" });
+			limparDoCadastro();
+			return;
+		}
+		setIdentificacao(resposta);
+		if (resposta.situacao === "encontrado") aplicarDocumentos(resposta.documentos);
+		else limparDoCadastro();
+	}
+
+	/** Contrato escolhido à mão — empate, sugestão ou "trocar contrato" —, na
+	 *  competência que a planilha disse. */
+	async function escolherContrato(contratoId: string) {
+		const competencia = "leitura" in identificacao ? identificacao.leitura.competencia : null;
+		const novos = await documentosDoContrato(contratoId, competencia);
+		if (!novos) {
+			setIdentificacao({ situacao: "falhou" });
+			return;
+		}
+		entradaMudou();
+		aplicarDocumentos(novos);
+	}
+
+	/** "Trocar": outra proposta do cadastro no campo Contrato — inclusive no
+	 *  lugar de um arquivo do computador, que a pessoa acabou de dispensar. */
+	function trocarContrato(documento: DocumentoDoCadastro) {
+		entradaMudou();
+		setContratoDoCadastro(documento);
+		setArquivos((atual) => ({ ...atual, contrato: undefined }));
+		setChaveContrato((n) => n + 1);
+	}
+
+	/** "Usar a proposta do cadastro": o arquivo do computador sai do campo. */
+	function usarDoCadastro() {
+		entradaMudou();
+		setContratoDoCadastro(documentos?.base ?? undefined);
+		setArquivos((atual) => ({ ...atual, contrato: undefined }));
+		setChaveContrato((n) => n + 1);
+	}
+
+	/** `R-ADT-10`, revisto (desenho de 25/09/2026 §4.2) — a lista deixou de ser a
+	 *  do `<input>`: mistura propostas do cadastro e arquivos do computador. A
+	 *  seleção **acrescenta** no fim, e a chave zera o `<input>` para que escolher
+	 *  o mesmo arquivo de novo volte a disparar. */
+	function selecionarAditivos(escolhidos: readonly File[]) {
+		if (escolhidos.length === 0) return;
+		entradaMudou();
+		aquecer();
+		setAditivos((atual) => [
+			...atual,
+			...escolhidos.map((arquivo): Peca => ({ tipo: "arquivo", arquivo })),
+		]);
+		setChaveAditivos((n) => n + 1);
+	}
+
+	function removerAditivo(posicao: number) {
+		entradaMudou();
+		setAditivos((atual) => atual.filter((_, indice) => indice !== posicao));
+	}
+
+	function adicionarAditivo(documento: DocumentoDoCadastro) {
+		entradaMudou();
+		setAditivos((atual) => [...atual, { tipo: "cadastro", documento }]);
+	}
+
 	async function enviar(identidadeConfirmada = false) {
-		// `D-10` — a exigência continua sendo só a de `CAMPOS`. Os aditivos são
-		// opcionais, e o piloto, que não tem nenhum, segue submissível.
-		if (!CAMPOS.every((campo) => arquivos[campo.nome])) return;
+		const levantamento = arquivos.levantamento;
+		// `D-10` — a exigência continua sendo contrato e levantamento. Os aditivos
+		// são opcionais, e o piloto, que não tem nenhum, segue submissível.
+		if (!contrato || !levantamento) return;
 
 		// ESPEC 029 `R-IDT-10` — **o portão vem antes do trabalho.** São ~0,9 s
 		// contra os ~30 s da geração: perguntar depois custaria os 30 s para
@@ -166,10 +304,14 @@ export default function ConferePage() {
 		//
 		// `null` é falha aberta (`R-IDT-12`), e segue direto: quem barra o par
 		// divergente de verdade é a validação de dentro do fluxo.
-		if (!identidadeConfirmada) {
+		//
+		// Só no envio todo do computador: com proposta do cadastro o par já foi
+		// casado pelo número do contrato — e o portão, hoje, dá 404 no VerAI.
+		const tudoDoComputador = aditivos.every((peca) => peca.tipo === "arquivo");
+		if (!identidadeConfirmada && contrato.tipo === "arquivo" && tudoDoComputador) {
 			const conferencia = await conferirIdentidade(
-				arquivos as Record<NomeDoCampo, File>,
-				aditivos,
+				{ contrato: contrato.arquivo, levantamento } as Record<NomeDoCampo, File>,
+				aditivos.flatMap((peca) => (peca.tipo === "arquivo" ? [peca.arquivo] : [])),
 			);
 			if (conferencia && !conferencia.combinam && conferencia.achados[0]) {
 				setPergunta(conferencia.achados[0]);
@@ -182,8 +324,7 @@ export default function ConferePage() {
 		setAviso("");
 		setEstado({ situacao: "processando" });
 		const resultado = await gerarRelatorio(
-			arquivos as Record<NomeDoCampo, File>,
-			aditivos,
+			{ levantamento, contrato, aditivos, contratoId: documentos?.contrato.id ?? null },
 			identidadeConfirmada,
 		);
 
@@ -218,7 +359,9 @@ export default function ConferePage() {
 	const podeLimpar =
 		estado.situacao !== "processando" &&
 		(CAMPOS.some((campo) => arquivos[campo.nome]) ||
+			contratoDoCadastro !== undefined ||
 			aditivos.length > 0 ||
+			identificacao.situacao !== "ociosa" ||
 			estado.situacao !== "inicial");
 
 	// A barra de aplicação da ESPEC 007 (logo + assinatura de marca + slot de
@@ -235,19 +378,44 @@ export default function ConferePage() {
 			    da janela. */}
 			<main id="conteudo" className="mx-auto w-full max-w-[110rem] flex-1 scroll-mt-4 px-6 py-10 lg:px-8">
 				<h1 className="text-2xl font-bold text-confere-brand-navy">ConfereAI</h1>
+				{/* Texto do VerAI, não do Confere: diz por onde começar desde que a
+				    planilha passou a buscar o contrato no cadastro (desenho de
+				    25/09/2026 §4.1). */}
 				<p className="mt-2 mb-8 text-sm text-confere-navy-600">
-					Envie o contrato e o levantamento da competência. A aplicação compara o
+					Envie o levantamento da competência: o contrato e os aditivos são buscados no
+					cadastro do cliente — ou envie os arquivos do computador. A aplicação compara o
 					contratado com o medido e devolve o relatório de comprovação.
 				</p>
 
 				<UploadForm
-					arquivos={arquivos}
+					levantamento={arquivos.levantamento}
+					contrato={contrato}
 					onSelecionar={selecionar}
+					alternativas={documentos?.alternativas ?? []}
+					onTrocarContrato={trocarContrato}
 					aditivos={aditivos}
 					onSelecionarAditivos={selecionarAditivos}
+					onRemoverAditivo={removerAditivo}
+					onAdicionarAditivo={adicionarAditivo}
+					semAditivos={
+						documentos
+							? "nenhum aditivo depois da proposta-base — opcional"
+							: "nenhum aditivo — opcional"
+					}
+					faixa={
+						<FaixaDoContrato
+							identificacao={identificacao}
+							documentos={documentos}
+							contratoDoComputador={arquivos.contrato !== undefined}
+							onEscolherContrato={(contratoId) => void escolherContrato(contratoId)}
+							onUsarDoCadastro={usarDoCadastro}
+						/>
+					}
 					onEnviar={() => void enviar()}
 					processando={estado.situacao === "processando"}
 					chave={chave}
+					chaveContrato={chaveContrato}
+					chaveAditivos={chaveAditivos}
 					podeLimpar={podeLimpar}
 					onLimpar={() => setConfirmando(true)}
 					refLimpar={limpar}

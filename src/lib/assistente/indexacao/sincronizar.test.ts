@@ -70,6 +70,18 @@ describe('indexarFonte', () => {
 })
 
 describe('sincronizarIndice', () => {
+  it('erro com mais de 24 h volta a pendente; com menos, não', async () => {
+    const agora = new Date('2026-09-25T12:00:00Z')
+    ;(listarFontes as jest.Mock).mockResolvedValue([fonte({ origemId: 'velho', url: 'r2:velho' }), fonte({ origemId: 'recente', url: 'r2:recente' })])
+    ;(prisma.indiceDocumento.findMany as jest.Mock).mockResolvedValue([
+      { id: 'i1', origem: 'HISTORICO_TERMO', origemId: 'velho', url: 'r2:velho', versao: null, status: 'erro', indexadoEm: new Date('2026-09-24T11:00:00Z') },
+      { id: 'i2', origem: 'HISTORICO_TERMO', origemId: 'recente', url: 'r2:recente', versao: null, status: 'erro', indexadoEm: new Date('2026-09-25T01:00:00Z') },
+    ])
+    const resumo = await sincronizarIndice({ deps, agora })
+    expect(resumo).toEqual({ ok: 1, sem_texto: 0, erro: 0, removidos: 0, restantes: 0 })
+    expect(extrairPaginas).toHaveBeenCalledTimes(1)
+  })
+
   it('indexa o que falta, reindexa URL trocada, remove órfão e respeita o limite', async () => {
     ;(listarFontes as jest.Mock).mockResolvedValue([
       fonte({ origemId: 'novo', url: 'https://b/novo.pdf' }),

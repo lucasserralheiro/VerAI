@@ -102,6 +102,12 @@ export async function indexarFonte(fonte: FonteDocumento, deps: DepsIndexacao = 
 
 const chave = (origem: string, origemId: string) => `${origem}:${origemId}`
 
+const UM_DIA_MS = 24 * 60 * 60 * 1000
+/** Falha não fica para sempre: é tentada de novo no máximo uma vez por dia (spec
+ *  2026-09-25-assistente-base-economica §3.9). */
+const falhaVencida = (indice: { status: string; indexadoEm: Date }, agora: Date) =>
+  indice.status === 'erro' && agora.getTime() - indice.indexadoEm.getTime() > UM_DIA_MS
+
 /**
  * Deixa o índice igual ao banco: indexa arquivo novo ou trocado (URL diferente, ou texto pronto com
  * hash diferente), remove o que não existe mais e — com `conferirVersao` — reindexa arquivo
@@ -110,14 +116,14 @@ const chave = (origem: string, origemId: string) => `${origem}:${origemId}`
  * sincronização sob demanda da busca.
  */
 export async function sincronizarIndice(
-  opcoes: { clienteId?: string; conferirVersao?: boolean; limite?: number; deps?: DepsIndexacao } = {}
+  opcoes: { clienteId?: string; conferirVersao?: boolean; limite?: number; deps?: DepsIndexacao; agora?: Date } = {}
 ): Promise<ResumoSincronizacao> {
-  const { clienteId, conferirVersao = false, limite = 50, deps = depsPadrao } = opcoes
+  const { clienteId, conferirVersao = false, limite = 50, deps = depsPadrao, agora = new Date() } = opcoes
   const [fontes, indices] = await Promise.all([
     listarFontes({ clienteId }),
     prisma.indiceDocumento.findMany({
       where: clienteId ? { clienteId } : {},
-      select: { id: true, origem: true, origemId: true, url: true, versao: true },
+      select: { id: true, origem: true, origemId: true, url: true, versao: true, status: true, indexadoEm: true },
     }),
   ])
   const porChave = new Map(indices.map((i) => [chave(i.origem, i.origemId), i]))
@@ -129,7 +135,7 @@ export async function sincronizarIndice(
   const pendentes: FonteDocumento[] = []
   for (const fonte of fontes) {
     const indice = porChave.get(chave(fonte.origem, fonte.origemId))
-    if (!indice || indice.url !== fonte.url) {
+    if (!indice || indice.url !== fonte.url || falhaVencida(indice, agora)) {
       pendentes.push(fonte)
     } else if (fonte.textoPronto !== null) {
       if (indice.versao !== hashTexto(fonte.textoPronto)) pendentes.push(fonte)

@@ -717,6 +717,7 @@ enum OrigemTrecho {
   FATURAMENTO_PDF
   PROPOSTA_COMERCIAL_ARQUIVO
   DOCUMENTO
+  ARQUIVO_CLIENTE
 }
 
 // Estado da indexação de UM arquivo (um por origem+registro). `versao` é o `uploadedAt` do blob

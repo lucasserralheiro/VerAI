@@ -67,6 +67,8 @@ it('linkDoTrecho: tipo:id que a IA cita', () => {
   expect(linkDoTrecho({ ...base, origem: 'FATURAMENTO_PDF', origemId: 'f1' })).toBe('faturamento:f1')
   expect(linkDoTrecho({ ...base, origem: 'DOCUMENTO', origemId: 'd1' })).toBe('documento:d1')
   expect(linkDoTrecho({ ...base, origem: 'PROPOSTA_COMERCIAL_ARQUIVO', origemId: 'p1', clienteId: null })).toBeNull()
+  expect(linkDoTrecho({ ...base, origem: 'ARQUIVO_CLIENTE', origemId: 'a1', clienteId: 'c3', contratoId: null })).toBe('cliente:c3')
+  expect(hrefDoTrecho({ ...base, origem: 'ARQUIVO_CLIENTE', origemId: 'a1', clienteId: 'c3', contratoId: null })).toBe('/clientes/c3?aba=documentos')
 })
 
 describe('analisesDeDocumentos', () => {

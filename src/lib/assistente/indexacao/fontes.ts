@@ -1,8 +1,10 @@
 import type { OrigemTrecho } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
-/** Um arquivo que o assistente deve conseguir ler, venha de onde vier. Quando o `ArquivoCliente`
- *  (spec do repositório de documentos) existir, ele entra aqui como mais uma origem. */
+/** Extensões que `extrairPaginas` lê. */
+export const EXTENSOES_INDEXAVEIS = ['pdf', 'docx', 'xlsx', 'csv']
+
+/** Um arquivo que o assistente deve conseguir ler, venha de onde vier. */
 export interface FonteDocumento {
   origem: OrigemTrecho
   origemId: string
@@ -17,7 +19,7 @@ export interface FonteDocumento {
 
 export async function listarFontes(filtro: { clienteId?: string } = {}): Promise<FonteDocumento[]> {
   const { clienteId } = filtro
-  const [historicos, faturamentos, documentos, arquivosProposta] = await Promise.all([
+  const [historicos, faturamentos, documentos, arquivosProposta, arquivosCliente] = await Promise.all([
     prisma.historicoContrato.findMany({
       where: {
         OR: [{ propostaArquivoId: { not: null } }, { termoArquivoId: { not: null } }],
@@ -46,6 +48,19 @@ export async function listarFontes(filtro: { clienteId?: string } = {}): Promise
           where: { conteudoExtraido: { not: null } },
           select: { id: true, caminhoOriginal: true, nomeArquivo: true, tipo: true, conteudoExtraido: true },
         }),
+    // Arquivo do repositório que não é PC/PA/TC/TA do histórico nem Documento (esses têm origem própria).
+    // Arquivo não tem contrato (CLAUDE.md, §7 da spec do repositório): contratoId fica null.
+    prisma.arquivoCliente.findMany({
+      where: {
+        removidoEm: null,
+        extensao: { in: EXTENSOES_INDEXAVEIS },
+        linhasComoProposta: { none: {} },
+        linhasComoTermo: { none: {} },
+        documentos: { none: {} },
+        ...(clienteId ? { clienteId } : {}),
+      },
+      select: { id: true, clienteId: true, nome: true, extensao: true, urlBlob: true },
+    }),
   ])
 
   const fontes: FonteDocumento[] = []
@@ -92,6 +107,18 @@ export async function listarFontes(filtro: { clienteId?: string } = {}): Promise
       clienteId: null,
       contratoId: null,
       textoPronto: a.conteudoExtraido,
+    })
+  }
+  for (const a of arquivosCliente) {
+    fontes.push({
+      origem: 'ARQUIVO_CLIENTE',
+      origemId: a.id,
+      url: a.urlBlob,
+      nomeArquivo: a.nome,
+      tipo: a.extensao,
+      clienteId: a.clienteId,
+      contratoId: null,
+      textoPronto: null,
     })
   }
   return fontes

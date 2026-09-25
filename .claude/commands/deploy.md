@@ -4,6 +4,12 @@ description: Roda testes, build de produção e sobe as mudanças pro Vercel (gi
 
 # Deploy pra produção (VerAI)
 
+> ⚠️ **Deploy suspenso a pedido do usuário (25/09/2026).** Não rode `git push` nem `vercel --prod`
+> sem autorização explícita dele na conversa atual. O push está travado por `.git/hooks/pre-push`;
+> o `vercel --prod` não passa pelo git, então a trava dele é este aviso. Motivo: o `main` tem 17
+> migrações de banco que a produção ainda não tem, e a produção roda o hotfix do ConfereAI (branch
+> `hotfix/confere-504`) — um deploy do `main` sem as migrações derruba telas com erro 500.
+
 Roteiro testado nesta sessão. Siga na ordem — cada passo existe por causa de um problema real que já aconteceu (comentado). Pare e avise o usuário sempre que um passo pedir autorização explícita; não pule silenciosamente.
 
 ## 1. Ver o que mudou

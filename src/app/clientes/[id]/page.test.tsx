@@ -9,6 +9,9 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), replace: mockReplace }),
   useSearchParams: () => new URLSearchParams(mockAba ? `aba=${mockAba}` : ''),
 }))
+// A aba Documentos envia direto ao Blob; o cliente do @vercel/blob puxa o `jose` em ESM, que o Jest
+// não transforma — mesmo mock de envio-arquivos.test.tsx.
+jest.mock('@vercel/blob/client', () => ({ upload: jest.fn() }))
 
 const CLIENTE = {
   id: 'cliente-1',
@@ -118,7 +121,7 @@ describe('ClienteDetalhePage', () => {
       'Responsáveis',
     ])
     expect(screen.getByRole('tab', { name: 'Documentos' })).toHaveAttribute('aria-selected', 'true')
-    expect(await screen.findByRole('button', { name: 'Abrir competência' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Documentos do cliente' })).toBeInTheDocument()
   })
 
   it('trocar de aba grava ?aba= na URL', async () => {

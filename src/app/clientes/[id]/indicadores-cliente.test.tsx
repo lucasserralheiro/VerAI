@@ -18,7 +18,8 @@ describe('IndicadoresCliente', () => {
     render(<IndicadoresCliente clienteId="c1" />)
 
     expect(await screen.findByText('Contratos ativos')).toBeInTheDocument()
-    expect(global.fetch).toHaveBeenCalledWith('/api/clientes/c1/indicadores')
+    // Sem cache: os cartões refletem na hora o que acabou de ser salvo nas abas.
+    expect(global.fetch).toHaveBeenCalledWith('/api/clientes/c1/indicadores', { cache: 'no-store' })
     expect(screen.getByText('1 vencendo em 30 dias')).toBeInTheDocument()
     expect(screen.getByText(/R\$\s1\.234,50/)).toBeInTheDocument()
     expect(screen.getByText(/R\$\s150,75/)).toBeInTheDocument()

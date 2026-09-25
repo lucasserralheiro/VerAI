@@ -4,7 +4,7 @@ import ContratoDetalhePage from './page'
 
 const HISTORICO = [
   { id: 'h1', contratoId: 'k1', tipo: 'CONTRATO', numero: 'TC 203/2023', data: '2023-12-28T00:00:00.000Z', valor: '1000000', objeto: null, proposta: null, situacao: 'Assinada', dataInicio: null, dataVencimento: null, dataEnvio: null, observacao: null },
-  { id: 'h2', contratoId: 'k1', tipo: 'ADITIVO', numero: '1º TA', data: '2024-06-01T00:00:00.000Z', valor: '250000', objeto: 'Acréscimo de pontos', proposta: null, situacao: null, dataInicio: null, dataVencimento: null, dataEnvio: null, observacao: null, propostaPdfUrl: 'https://blob.example/h2-proposta.pdf', propostaPdfNome: 'PA-01.pdf', termoPdfUrl: null, termoPdfNome: null },
+  { id: 'h2', contratoId: 'k1', tipo: 'ADITIVO', numero: '1º TA', data: '2024-06-01T00:00:00.000Z', valor: '250000', objeto: 'Acréscimo de pontos', proposta: null, situacao: null, dataInicio: null, dataVencimento: null, dataEnvio: null, observacao: null, propostaPdfUrl: '/api/arquivos/a-h2?modo=inline', propostaPdfNome: 'PA-01.pdf', termoPdfUrl: null, termoPdfNome: null },
 ]
 
 const ITEM = { id: 'i1', contratoId: 'k1', contratoTextoLegado: null, descricao: 'Ponto de acesso Wi-fi', quantidade: '10', valorUnitario: '100', valorTotal: '1000' }
@@ -37,16 +37,20 @@ function resposta(ok: boolean, corpo: unknown) {
 function mockApi(options: { semItens?: boolean; erroHistorico?: string } = {}) {
   let historico: Array<Record<string, unknown>> = [...HISTORICO]
   let itens: Array<Record<string, unknown>> = options.semItens ? [] : [ITEM]
+  // O que o PATCH gravou no cabeçalho: depois de salvar, a página recarrega o contrato do servidor.
+  let cabecalho: Record<string, unknown> = {}
   const soltos = [{ id: 'i7', contratoId: null, contratoTextoLegado: '031/SEME/2017', descricao: 'Licença', quantidade: null, valorUnitario: null, valorTotal: '500' }]
   global.fetch = jest.fn((url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url)
     const metodo = init?.method ?? 'GET'
-    const corpo = init?.body ? JSON.parse(String(init.body)) : null
+    // O PDF vai como FormData (multipart); só corpo de texto é JSON.
+    const corpo = typeof init?.body === 'string' ? JSON.parse(init.body) : null
     if (u === '/api/contratos/k1' && metodo === 'GET') {
       const semSaldo = itens.length === 0
       return resposta(
         true,
         contrato({
+          ...cabecalho,
           historico,
           itens,
           saldo: semSaldo
@@ -55,7 +59,10 @@ function mockApi(options: { semItens?: boolean; erroHistorico?: string } = {}) {
         })
       )
     }
-    if (u === '/api/contratos/k1' && metodo === 'PATCH') return resposta(true, contrato(corpo))
+    if (u === '/api/contratos/k1' && metodo === 'PATCH') {
+      cabecalho = { ...cabecalho, ...corpo }
+      return resposta(true, contrato(cabecalho))
+    }
     if (u === '/api/contratos/k1/historico' && metodo === 'POST') {
       if (options.erroHistorico) return resposta(false, { error: options.erroHistorico })
       const nova = { ...HISTORICO[0], id: 'h3', valor: null, ...corpo }
@@ -63,8 +70,8 @@ function mockApi(options: { semItens?: boolean; erroHistorico?: string } = {}) {
       return resposta(true, nova)
     }
     if (u === '/api/historico-contrato/h1/pdf/proposta' && metodo === 'POST') {
-      historico = historico.map((h) => (h.id === 'h1' ? { ...h, propostaPdfUrl: 'https://blob.example/h1-proposta.pdf', propostaPdfNome: 'PC-01.pdf' } : h))
-      return resposta(true, { propostaPdfUrl: 'https://blob.example/h1-proposta.pdf', propostaPdfNome: 'PC-01.pdf' })
+      historico = historico.map((h) => (h.id === 'h1' ? { ...h, propostaPdfUrl: '/api/arquivos/a-h1?modo=inline', propostaPdfNome: 'PC-01.pdf' } : h))
+      return resposta(true, { propostaPdfUrl: '/api/arquivos/a-h1?modo=inline', propostaPdfNome: 'PC-01.pdf' })
     }
     if (u === '/api/historico-contrato/h2/pdf/proposta' && metodo === 'DELETE') {
       historico = historico.map((h) => (h.id === 'h2' ? { ...h, propostaPdfUrl: null, propostaPdfNome: null } : h))
@@ -117,12 +124,12 @@ describe('ContratoDetalhePage', () => {
     expect(screen.getByText('Ponto de acesso Wi-fi')).toBeInTheDocument()
   })
 
-  it('avisa que o saldo não é calculável quando não há itens vinculados', async () => {
+  it('avisa que não há valor quando nem o histórico nem os itens têm valor', async () => {
     mockApi({ semItens: true })
     await renderizar()
     expect(
       await screen.findByText(
-        'Sem itens vinculados — saldo não calculável. Vincule os itens importados ou cadastre os itens do contrato.'
+        'Sem valor — nem no histórico (contrato/aditivo) nem em itens vinculados. Informe o valor no histórico ou cadastre os itens.'
       )
     ).toBeInTheDocument()
   })
@@ -145,16 +152,14 @@ describe('ContratoDetalhePage', () => {
 
     fireEvent.click(within(historico).getByRole('button', { name: 'Ver PDF PC/PA' }))
 
+    // O PDF vem da rota autenticada do repositório: `?modo=inline` abre na tela, sem o `modo` baixa.
     const visualizador = await within(historico).findByTitle('Visualização do PDF PC/PA')
-    expect(visualizador).toHaveAttribute('src', 'https://blob.example/h2-proposta.pdf')
+    expect(visualizador).toHaveAttribute('src', '/api/arquivos/a-h2?modo=inline')
     expect(within(historico).getByRole('link', { name: /Abrir em nova aba/ })).toHaveAttribute(
       'href',
-      'https://blob.example/h2-proposta.pdf'
+      '/api/arquivos/a-h2?modo=inline'
     )
-    expect(within(historico).getByRole('link', { name: /Baixar/ })).toHaveAttribute(
-      'href',
-      'https://blob.example/h2-proposta.pdf?download=1'
-    )
+    expect(within(historico).getByRole('link', { name: /Baixar/ })).toHaveAttribute('href', '/api/arquivos/a-h2')
     expect(within(historico).getByText(/PA-01\.pdf/)).toBeInTheDocument()
     expect(within(historico).getByRole('button', { name: /Remover PDF/ })).toBeInTheDocument()
   })
@@ -220,7 +225,7 @@ describe('ContratoDetalhePage', () => {
     mockApi()
     await renderizar()
     const historico = await screen.findByRole('region', { name: 'Histórico do contrato' })
-    const linha = within(historico).getByText('1º TA').closest('li')!
+    const linha = within(historico).getByText('1º TA').closest('tr')!
     fireEvent.click(within(linha).getByRole('button', { name: 'Excluir' }))
     fireEvent.click(within(linha).getByRole('button', { name: 'Sim' }))
     await waitFor(() => expect(within(historico).queryByText('1º TA')).not.toBeInTheDocument())
@@ -252,15 +257,19 @@ describe('ContratoDetalhePage', () => {
         expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ contratoId: 'k1' }) })
       )
     )
-    expect(global.fetch).toHaveBeenCalledWith('/api/itens-contrato?semContrato=1&q=SEME')
+    // A busca só lista itens do cliente do contrato (item do legado nunca vai pra contrato de outro cliente).
+    expect(global.fetch).toHaveBeenCalledWith('/api/itens-contrato?semContrato=1&contratoId=k1&q=SEME')
   })
 
   it('edita o cabeçalho do contrato', async () => {
     mockApi()
     await renderizar()
     fireEvent.click(await screen.findByRole('button', { name: /Editar contrato/ }))
-    fireEvent.change(screen.getByLabelText('Situação'), { target: { value: 'Encerrado' } })
+    // Situação é o combo do legado: Ativo ou Finalizado.
+    fireEvent.change(screen.getByLabelText('Situação'), { target: { value: 'Finalizado' } })
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
-    expect(await screen.findByText('Encerrado')).toBeInTheDocument()
+    // Espera o formulário fechar (senão "Finalizado" casa com a opção do combo) e confere o cabeçalho recarregado.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Salvar' })).not.toBeInTheDocument())
+    expect(screen.getByText('Finalizado')).toBeInTheDocument()
   })
 })

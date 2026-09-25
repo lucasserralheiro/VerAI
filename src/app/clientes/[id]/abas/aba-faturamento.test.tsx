@@ -63,9 +63,9 @@ describe('AbaFaturamento', () => {
   it('lista os faturamentos como no mockup', async () => {
     mockApi()
     render(<AbaFaturamento clienteId="c1" />)
-    const link = await screen.findByRole('link', { name: '7010.2026/0009363-0' })
-    expect(link).toHaveAttribute('href', '/clientes/c1/faturamentos/f1')
-    const linha = link.closest('tr')!
+    // O nº SEI é o SeiLink (sem link cadastrado, o clique copia o número); o lançamento abre em "ver lançamento".
+    const linha = (await screen.findByRole('button', { name: '7010.2026/0009363-0' })).closest('tr')!
+    expect(within(linha).getByRole('link', { name: 'ver lançamento' })).toHaveAttribute('href', '/clientes/c1/faturamentos/f1')
     expect(within(linha).getByText('TC 107/2025/SI')).toBeInTheDocument()
     expect(within(linha).getByText('7010.2026/0009363-0')).toBeInTheDocument()
     expect(within(linha).getByText('Data Center, Redes')).toBeInTheDocument()
@@ -92,7 +92,7 @@ describe('AbaFaturamento', () => {
     expect(within(resumo).getByText('0/1')).toBeInTheDocument() // enviado ao GFP
 
     fireEvent.click(screen.getByRole('button', { name: 'Só pendentes de envio' }))
-    expect(screen.getByRole('link', { name: '7010.2026/0009363-0' })).toBeInTheDocument() // GFP pendente: continua
+    expect(screen.getByRole('button', { name: '7010.2026/0009363-0' })).toBeInTheDocument() // GFP pendente: continua
   })
 
   it('filtra por competência e contrato', async () => {
@@ -135,7 +135,7 @@ describe('AbaFaturamento', () => {
     fireEvent.change(within(form).getByLabelText('SEI'), { target: { value: '7010.2026/0008279-5' } })
     fireEvent.click(within(form).getByLabelText('Enviado ao cliente'))
     fireEvent.click(within(form).getByRole('button', { name: 'Salvar' }))
-    expect(await screen.findByRole('link', { name: '7010.2026/0008279-5' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '7010.2026/0008279-5' })).toBeInTheDocument()
     const post = (global.fetch as jest.Mock).mock.calls.find(([, init]) => init?.method === 'POST')!
     expect(JSON.parse(post[1].body)).toEqual(
       expect.objectContaining({

@@ -25,12 +25,17 @@ function chave(url: string, init?: RequestInit) {
   return `${init?.cache ?? 'default'}|${url}`
 }
 
+/** Repassa ao `fetch` só o que veio — drop-in fiel (sem `init`, a chamada é `fetch(url)`). */
+function buscar(url: string, init?: RequestInit) {
+  return init === undefined ? fetch(url) : fetch(url, init)
+}
+
 /** Dispara a busca e guarda a promessa. Não faz nada se já houver uma válida pra mesma URL. */
 export function preCarregar(url: string, init?: RequestInit): Promise<void> {
   const k = chave(url, init)
   const existente = pendentes.get(k)
   if (existente && Date.now() - existente.criadaEm < TTL_MS) return existente.promessa.then(() => undefined)
-  const promessa = fetch(url, init).catch(() => null)
+  const promessa = buscar(url, init).catch(() => null)
   pendentes.set(k, { promessa, criadaEm: Date.now() })
   return promessa.then(() => undefined)
 }
@@ -49,5 +54,5 @@ export async function fetchComPreCarga(url: string, init?: RequestInit): Promise
       if (resposta) return resposta
     }
   }
-  return fetch(url, init)
+  return buscar(url, init)
 }

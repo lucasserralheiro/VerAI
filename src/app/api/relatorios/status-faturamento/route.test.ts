@@ -8,8 +8,11 @@ jest.mock('@/lib/auth', () => ({
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     contrato: { findMany: jest.fn() },
+    historicoContrato: { findMany: jest.fn() },
+    itemContrato: { groupBy: jest.fn() },
     notaFiscal: { groupBy: jest.fn() },
     usuario: { findUnique: jest.fn() },
+    $queryRaw: jest.fn(),
   },
 }))
 
@@ -22,11 +25,22 @@ const comum = { id: 'u2', nome: 'Comum', email: 'c@x', role: 'responsavel' as co
 const get = (query: string) => new NextRequest(`http://localhost/api/relatorios/status-faturamento${query}`)
 const cliente = { id: 'c1', nome: 'Saúde', siglaLegado: 'SMS' }
 
+/** A rota lista os contratos e `consolidarContratos` volta ao banco pelas contagens (`_count`) para saber se
+ *  o contrato está vazio — a mesma lista responde às duas consultas. */
+function contratosNoBanco(lista: Array<Record<string, unknown>>) {
+  ;(prisma.contrato.findMany as jest.Mock).mockImplementation(async (args?: { select?: { _count?: unknown } }) =>
+    args?.select?._count ? lista.map((c) => ({ ...c, _count: { historico: 0, itens: 0, faturamentos: 0 } })) : lista
+  )
+}
+
 beforeEach(() => {
   jest.clearAllMocks()
   ;(getAuthUser as jest.Mock).mockResolvedValue(admin)
   ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [{ id: 'c1' }] })
-  ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([])
+  contratosNoBanco([])
+  ;(prisma.historicoContrato.findMany as jest.Mock).mockResolvedValue([])
+  ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([])
+  ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([])
   ;(prisma.notaFiscal.groupBy as jest.Mock).mockResolvedValue([])
 })
 
@@ -51,7 +65,7 @@ describe('GET /api/relatorios/status-faturamento', () => {
   })
 
   it('mantém ativos sem faturamento (faltou faturar), descarta encerrados sem faturamento e soma as notas', async () => {
-    ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([
+    contratosNoBanco([
       { id: 'k1', numeroTermo: 'T1', descricao: null, situacao: 'Ativo', dataVencimento: null, cliente, faturamentos: [] },
       { id: 'k2', numeroTermo: 'T2', descricao: null, situacao: 'Finalizado', dataVencimento: null, cliente, faturamentos: [] },
       {
@@ -76,7 +90,17 @@ describe('GET /api/relatorios/status-faturamento', () => {
     expect(corpo.map((linha: { id: string }) => linha.id)).toEqual(['k1', 'k3'])
     expect(corpo[0]).toEqual({ id: 'k1', numeroTermo: 'T1', descricao: null, cliente, faturamentos: [] })
     expect(corpo[1].faturamentos).toEqual([
-      { id: 'f1', situacao: null, sei: 'S1', complementar: false, enviadoCliente: true, enviadoGfp: false, valorExibido: '110' },
+      {
+        id: 'f1',
+        situacao: null,
+        sei: 'S1',
+        complementar: false,
+        enviadoCliente: true,
+        enviadoGfp: false,
+        valorExibido: '110',
+        semNota: false,
+        cancelado: false,
+      },
     ])
   })
 })

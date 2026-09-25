@@ -40,3 +40,21 @@ if (!global.fetch) global.fetch = fetch
 if (!global.Headers) global.Headers = Headers
 if (!global.Request) global.Request = Request
 if (!global.Response) global.Response = Response
+
+// jsdom tem o <dialog> e a propriedade `open` (e já esconde o fechado), mas não implementa
+// show()/showModal()/close(). Os modais do sistema são <dialog> nativo + showModal() (clientes,
+// contratos, faturamento, SEI, Confere) — sem isto todo teste que abre um modal quebra com
+// "el.showModal is not a function". Basta o essencial: `open` e o evento `close`, de que o
+// onClose dos modais depende.
+if (typeof HTMLDialogElement !== 'undefined' && !HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.show = function (this: HTMLDialogElement) {
+    this.open = true
+  }
+  HTMLDialogElement.prototype.showModal = HTMLDialogElement.prototype.show
+  HTMLDialogElement.prototype.close = function (this: HTMLDialogElement, retorno?: string) {
+    if (!this.open) return
+    this.open = false
+    if (retorno !== undefined) this.returnValue = retorno
+    this.dispatchEvent(new Event('close'))
+  }
+}

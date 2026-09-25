@@ -13,21 +13,24 @@ import { saldosDosContratos } from './saldos-contratos'
 
 beforeEach(() => jest.clearAllMocks())
 
+/** O SQL que foi ao banco: `$queryRaw` é chamado como tagged template, então o 1º argumento é a lista de trechos. */
+function sqlDaConsulta(): string {
+  return ((prisma.$queryRaw as jest.Mock).mock.calls[0][0] as string[]).join(' ')
+}
+
 describe('saldosDosContratos', () => {
   it('faturado vem do valor lançado ou, sem ele, das notas — a mesma regra da lista de faturamentos', async () => {
     ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([])
     ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([])
     await saldosDosContratos(['k1'])
-    const sql = ((prisma.$queryRaw as jest.Mock).mock.calls[0][0] as { strings: string[] }).strings.join(' ')
-    expect(sql).toMatch(/COALESCE\(f\."valor", n\."soma"\)/)
+    expect(sqlDaConsulta()).toMatch(/COALESCE\(f\."valor", n\."soma"\)/)
   })
 
   it('faturamento cancelado fica fora do faturado', async () => {
     ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([])
     ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([])
     await saldosDosContratos(['k1'])
-    const sql = ((prisma.$queryRaw as jest.Mock).mock.calls[0][0] as { strings: string[] }).strings.join(' ')
-    expect(sql).toMatch(/f\."situacao" !~\* 'cancel'/)
+    expect(sqlDaConsulta()).toMatch(/f\."situacao" !~\* 'cancel'/)
   })
 
   it('soma itens e notas fiscais por contrato e devolve o saldo de cada um', async () => {

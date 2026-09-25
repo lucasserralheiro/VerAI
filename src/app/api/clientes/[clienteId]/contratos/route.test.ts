@@ -29,11 +29,19 @@ const post = (corpo: unknown) =>
 
 const SEM_SALDO = { valorItens: '0', faturado: '0', saldo: null, percentualFaturado: null }
 
+/** A rota lista os contratos e `consolidarContratos` volta ao banco pelas contagens (`_count`) para saber se
+ *  o contrato está vazio — a mesma lista responde às duas consultas. */
+function contratosNoBanco(lista: Array<Record<string, unknown>>) {
+  ;(prisma.contrato.findMany as jest.Mock).mockImplementation(async (args?: { select?: { _count?: unknown } }) =>
+    args?.select?._count ? lista.map((c) => ({ ...c, _count: { historico: 0, itens: 0, faturamentos: 0 } })) : lista
+  )
+}
+
 beforeEach(() => {
   jest.clearAllMocks()
   ;(getAuthUser as jest.Mock).mockResolvedValue(admin)
   ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue({ id: 'c1' })
-  ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([])
+  contratosNoBanco([])
   ;(prisma.historicoContrato.findMany as jest.Mock).mockResolvedValue([])
   ;(saldosDosContratos as jest.Mock).mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, SEM_SALDO])))
 })
@@ -58,9 +66,7 @@ describe('GET /api/clientes/[clienteId]/contratos', () => {
   })
 
   it('lista os contratos do cliente com saldo e situação de vencimento', async () => {
-    ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([
-      { id: 'k1', clienteId: 'c1', numeroTermo: 'TC 203/2023', dataVencimento: null },
-    ])
+    contratosNoBanco([{ id: 'k1', clienteId: 'c1', numeroTermo: 'TC 203/2023', dataVencimento: null }])
     ;(saldosDosContratos as jest.Mock).mockResolvedValue(
       new Map([['k1', { valorItens: '1000', faturado: '250', saldo: '750', percentualFaturado: '25.00' }]])
     )
@@ -79,14 +85,15 @@ describe('GET /api/clientes/[clienteId]/contratos', () => {
   })
 
   it('resume o histórico de cada contrato: aditivos, prorrogações e PDFs PC/PA e TC/TA mais recentes', async () => {
-    ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([
+    contratosNoBanco([
       { id: 'k1', clienteId: 'c1', numeroTermo: 'TC 142/2021', dataVencimento: null },
       { id: 'k2', clienteId: 'c1', numeroTermo: 'TC 010/2026', dataVencimento: null },
     ])
-    const base = { numero: null, proposta: null, valor: null, propostaPdfUrl: null, propostaPdfNome: null, termoPdfUrl: null, termoPdfNome: null }
+    // PC/PA e TC/TA apontam para o repositório do cliente (propostaArquivo/termoArquivo); a URL é a rota autenticada.
+    const base = { numero: null, proposta: null, valor: null, situacao: null, dataVencimento: null, propostaArquivo: null, termoArquivo: null, propostaDoSharepoint: false, termoDoSharepoint: false }
     ;(prisma.historicoContrato.findMany as jest.Mock).mockResolvedValue([
-      { ...base, contratoId: 'k1', tipo: 'CONTRATO', data: new Date('2021-11-09'), createdAt: new Date('2026-01-01'), numero: 'TC 142/2021', valor: '69687389.32', propostaPdfUrl: 'https://b/p-antiga.pdf', termoPdfUrl: 'https://b/t.pdf' },
-      { ...base, contratoId: 'k1', tipo: 'ADITIVO', data: new Date('2022-08-12'), createdAt: new Date('2026-01-01'), proposta: 'PA-02', propostaPdfUrl: 'https://b/p-nova.pdf' },
+      { ...base, contratoId: 'k1', tipo: 'CONTRATO', data: new Date('2021-11-09'), createdAt: new Date('2026-01-01'), numero: 'TC 142/2021', valor: '69687389.32', propostaArquivo: { id: 'a-pc', nome: 'PC antiga.pdf' }, termoArquivo: { id: 'a-tc', nome: 'TC 142-2021.pdf' } },
+      { ...base, contratoId: 'k1', tipo: 'ADITIVO', data: new Date('2022-08-12'), createdAt: new Date('2026-01-01'), proposta: 'PA-02', propostaArquivo: { id: 'a-pa', nome: 'PA-02.pdf' } },
       { ...base, contratoId: 'k1', tipo: 'PRORROGACAO', data: new Date('2023-10-31'), createdAt: new Date('2026-01-01'), valor: '65911280.84' },
     ])
 
@@ -97,8 +104,8 @@ describe('GET /api/clientes/[clienteId]/contratos', () => {
       aditivos: 1,
       prorrogacoes: 1,
       valorAtual: { valor: '65911280.84', tipo: 'PRORROGACAO', data: '2023-10-31T00:00:00.000Z' },
-      proposta: { url: 'https://b/p-nova.pdf', nome: null, referencia: 'PA-02' },
-      termo: { url: 'https://b/t.pdf', nome: null, referencia: 'TC 142/2021' },
+      proposta: { url: '/api/arquivos/a-pa?modo=inline', nome: 'PA-02.pdf', referencia: 'PA-02' },
+      termo: { url: '/api/arquivos/a-tc?modo=inline', nome: 'TC 142-2021.pdf', referencia: 'TC 142/2021' },
     })
     expect(k2.resumoHistorico).toEqual({ aditivos: 0, prorrogacoes: 0, valorAtual: null, proposta: null, termo: null })
     // Uma consulta só pra todos os contratos (sem N+1).

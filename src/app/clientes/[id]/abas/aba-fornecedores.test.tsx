@@ -118,12 +118,13 @@ describe('AbaFornecedores', () => {
     expect(await screen.findByText('Contrato: não pertence a este cliente')).toBeInTheDocument()
   })
 
-  it('exclui um termo depois da confirmação inline', async () => {
+  it('exclui um termo pelo modal (clique na linha), depois da confirmação', async () => {
     mockApi()
     render(<AbaFornecedores clienteId="c1" />)
-    await screen.findByText('ALMAVIVA')
-    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Sim' }))
+    fireEvent.click((await screen.findByText('ALMAVIVA')).closest('tr')!)
+    const modal = screen.getByRole('dialog', { name: 'Editar termo de confirmação' })
+    fireEvent.click(within(modal).getByRole('button', { name: /Excluir termo de confirmação/ }))
+    fireEvent.click(within(modal).getByRole('button', { name: 'Sim' }))
     await waitFor(() => expect(screen.queryByText('ALMAVIVA')).not.toBeInTheDocument())
   })
 })

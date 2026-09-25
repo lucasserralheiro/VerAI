@@ -8,6 +8,7 @@ jest.mock('@/lib/auth', () => ({
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     contrato: { findMany: jest.fn() },
+    historicoContrato: { findMany: jest.fn() },
     itemContrato: { groupBy: jest.fn() },
     usuario: { findUnique: jest.fn() },
     $queryRaw: jest.fn(),
@@ -37,11 +38,20 @@ const contrato = (id: string, situacao: string | null, dataVencimento: Date | nu
   cliente: { id: 'c1', nome: 'Saúde', siglaLegado: 'SMS' },
 })
 
+/** A rota lista os contratos e `consolidarContratos` volta ao banco pelas contagens (`_count`) para saber se
+ *  o contrato está vazio — a mesma lista responde às duas consultas. */
+function contratosNoBanco(lista: Array<Record<string, unknown>>) {
+  ;(prisma.contrato.findMany as jest.Mock).mockImplementation(async (args?: { select?: { _count?: unknown } }) =>
+    args?.select?._count ? lista.map((c) => ({ ...c, _count: { historico: 0, itens: 0, faturamentos: 0 } })) : lista
+  )
+}
+
 beforeEach(() => {
   jest.clearAllMocks()
   ;(getAuthUser as jest.Mock).mockResolvedValue(admin)
   ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [{ id: 'c1' }] })
-  ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([])
+  contratosNoBanco([])
+  ;(prisma.historicoContrato.findMany as jest.Mock).mockResolvedValue([])
   ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([])
   ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([])
 })
@@ -64,10 +74,7 @@ describe('GET /api/relatorios/vencimentos', () => {
   })
 
   it('cada contrato traz cliente, semáforo, saldo e se está ativo', async () => {
-    ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([
-      contrato('k1', 'Ativo', new Date('2099-01-01T03:00:00Z')),
-      contrato('k2', 'Finalizado', null),
-    ])
+    contratosNoBanco([contrato('k1', 'Ativo', new Date('2099-01-01T03:00:00Z')), contrato('k2', 'Finalizado', null)])
     ;(prisma.itemContrato.groupBy as jest.Mock).mockResolvedValue([{ contratoId: 'k1', _sum: { valorTotal: '1000' } }])
 
     const corpo = await (await GET(get())).json()

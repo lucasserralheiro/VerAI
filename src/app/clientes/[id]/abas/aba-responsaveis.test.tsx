@@ -98,12 +98,12 @@ describe('AbaResponsaveis', () => {
     expect(await screen.findByText('email: e-mail inválido')).toBeInTheDocument()
   })
 
-  it('edita um responsável', async () => {
+  it('edita um responsável (o clique no cartão abre o modal)', async () => {
     mockApi()
     render(<AbaResponsaveis clienteId="c1" />)
 
-    const cartao = (await screen.findByText('Ana Souza')).closest('li') as HTMLElement
-    fireEvent.click(within(cartao).getByRole('button', { name: 'Editar' }))
+    fireEvent.click((await screen.findByText('Ana Souza')).closest('li') as HTMLElement)
+    expect(screen.getByRole('dialog', { name: 'Editar responsável' })).toBeInTheDocument()
     expect(screen.getByLabelText('Nome')).toHaveValue('Ana Souza')
     fireEvent.change(screen.getByLabelText('Área'), { target: { value: 'Infraestrutura' } })
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
@@ -114,18 +114,19 @@ describe('AbaResponsaveis', () => {
     expect(await screen.findByText('Infraestrutura')).toBeInTheDocument()
   })
 
-  it('exclui com confirmação inline', async () => {
+  it('exclui pelo modal, com confirmação', async () => {
     mockApi()
     render(<AbaResponsaveis clienteId="c1" />)
 
-    const cartao = (await screen.findByText('Ana Souza')).closest('li') as HTMLElement
-    fireEvent.click(within(cartao).getByRole('button', { name: 'Excluir' }))
-    expect(within(cartao).getByText('Excluir?')).toBeInTheDocument()
-    fireEvent.click(within(cartao).getByRole('button', { name: 'Não' }))
-    expect(screen.getByText('Ana Souza')).toBeInTheDocument()
+    fireEvent.click((await screen.findByText('Ana Souza')).closest('li') as HTMLElement)
+    const modal = screen.getByRole('dialog', { name: 'Editar responsável' })
+    fireEvent.click(within(modal).getByRole('button', { name: 'Excluir responsável' }))
+    expect(within(modal).getByText('Excluir este responsável?')).toBeInTheDocument()
+    fireEvent.click(within(modal).getByRole('button', { name: 'Não' }))
+    expect(within(modal).queryByText('Excluir este responsável?')).not.toBeInTheDocument()
 
-    fireEvent.click(within(cartao).getByRole('button', { name: 'Excluir' }))
-    fireEvent.click(within(cartao).getByRole('button', { name: 'Sim' }))
+    fireEvent.click(within(modal).getByRole('button', { name: 'Excluir responsável' }))
+    fireEvent.click(within(modal).getByRole('button', { name: 'Sim' }))
 
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith('/api/responsaveis/r1', expect.objectContaining({ method: 'DELETE' }))

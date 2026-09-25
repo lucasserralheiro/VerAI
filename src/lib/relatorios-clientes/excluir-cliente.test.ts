@@ -1,5 +1,5 @@
 /** @jest-environment node */
-jest.mock('@/lib/storage', () => ({ buildDocumentoPrefix: jest.fn(() => 'p/'), deleteUploadPrefix: jest.fn() }))
+jest.mock('@/lib/storage', () => ({ buildDocumentoPrefix: jest.fn(() => 'p/'), deleteUploadPrefix: jest.fn(() => Promise.resolve()) }))
 jest.mock('@/lib/prisma', () => {
   const modelos = [
     'notaFiscal', 'faturamento', 'historicoContrato', 'itemContrato', 'termoConfirmacao', 'tramiteDemanda',

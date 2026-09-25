@@ -3,9 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { exigirUsuario } from '@/lib/relatorios-clientes/acesso'
 import { configuracaoDoAssistente } from '@/lib/assistente/configuracao'
 import { executarAgente, MAX_HISTORICO, type MensagemHistorico } from '@/lib/assistente/agente'
-import { descreverContexto, interpretarRota } from '@/lib/assistente/contexto-pagina'
+import { prepararContexto } from '@/lib/assistente/preparar'
 import { esquemaPergunta, excedeuLimite, LIMITE_POR_HORA } from '@/lib/assistente/conversas'
-import { formatarData } from '@/lib/relatorios-clientes/formatacao'
 
 export const maxDuration = 60
 const TIMEOUT_MS = 60_000
@@ -35,13 +34,14 @@ export async function POST(request: NextRequest, { params }: Contexto) {
     where: { conversaId: id },
     orderBy: { createdAt: 'desc' },
     take: MAX_HISTORICO,
-    select: { papel: true, conteudo: true },
+    select: { papel: true, conteudo: true, ferramentas: true },
   })
-  const historico = anteriores.reverse() as MensagemHistorico[]
+  // Da mais recente para a mais antiga, antes do reverse() (que muda o array no lugar).
+  const recentes = anteriores.filter((m) => m.papel === 'assistente').slice(0, 3).map((m) => m.ferramentas)
+  const historico = anteriores.reverse().map(({ papel, conteudo }) => ({ papel, conteudo })) as MensagemHistorico[]
   await prisma.mensagemAssistente.create({ data: { conversaId: id, papel: 'usuario', conteudo: pergunta } })
 
-  const tela = await descreverContexto(interpretarRota(rota ?? ''), usuario)
-  const contexto = [`Hoje é ${formatarData(new Date().toISOString())}.`, tela?.texto].filter(Boolean).join(' ')
+  const contexto = await prepararContexto({ usuario, pergunta, rota: rota ?? null, recentes })
 
   const resultado = executarAgente(
     { usuario, historico, pergunta, contexto, abortSignal: AbortSignal.any([request.signal, AbortSignal.timeout(TIMEOUT_MS)]) },

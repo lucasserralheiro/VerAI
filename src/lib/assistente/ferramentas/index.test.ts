@@ -7,7 +7,7 @@ jest.mock('unpdf', () => ({}))
 jest.mock('ai', () => ({ tool: jest.fn((config: unknown) => config) }))
 import { z } from 'zod'
 import { definirFerramenta } from './comum'
-import { criarFerramentas, executarComSeguranca, FERRAMENTAS, ROTULOS_FERRAMENTAS } from './index'
+import { criarFerramentas, executarComSeguranca, FERRAMENTAS, ROTULOS_FERRAMENTAS, textoParaModelo } from './index'
 
 const ctx = { usuario: { id: 'u', nome: 'U', email: 'u@x', role: 'admin' as const }, hoje: new Date() }
 
@@ -32,6 +32,10 @@ it('erro da ferramenta vira { erro } para a IA, sem lançar', async () => {
 it('resultado grande é truncado', async () => {
   const grande = definirFerramenta({ descricao: 'x', entrada: z.object({}), executar: async () => ({ s: 'x'.repeat(9000) }) })
   expect(await executarComSeguranca('grande', grande, {}, ctx)).toMatchObject({ truncado: true })
+})
+
+it('textoParaModelo: hoje o modelo recebe o JSON do resultado', () => {
+  expect(textoParaModelo('buscarClientes', { total: 0, clientes: [] })).toBe('{"total":0,"clientes":[]}')
 })
 
 describe('criarFerramentas', () => {

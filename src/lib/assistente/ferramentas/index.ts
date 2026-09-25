@@ -39,6 +39,11 @@ export async function executarComSeguranca(
   }
 }
 
+/** O que o modelo recebe de uma ferramenta. A régua mede por aqui, antes e depois. */
+export function textoParaModelo(_nome: string, saida: unknown): string {
+  return JSON.stringify(saida) ?? ''
+}
+
 /** O usuário entra por closure: a IA nunca escolhe em nome de quem a consulta roda. */
 export function criarFerramentas(contexto: ContextoFerramenta): ToolSet {
   return Object.fromEntries(

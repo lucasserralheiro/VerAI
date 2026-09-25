@@ -10,15 +10,13 @@ jest.mock('@/lib/prisma', () => ({
 }))
 jest.mock('@/lib/assistente/configuracao', () => ({ configuracaoDoAssistente: jest.fn() }))
 jest.mock('@/lib/assistente/agente', () => ({ MAX_HISTORICO: 6, executarAgente: jest.fn() }))
-jest.mock('@/lib/assistente/contexto-pagina', () => ({
-  interpretarRota: jest.fn(() => ({ clienteId: 'c1' })),
-  descreverContexto: jest.fn(async () => ({ texto: 'Tela aberta: SMIT', rotulo: 'SMIT' })),
-}))
+jest.mock('@/lib/assistente/preparar', () => ({ prepararContexto: jest.fn(async () => 'Hoje é 25/09/2026. Tela aberta: SMIT') }))
 
 import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { configuracaoDoAssistente } from '@/lib/assistente/configuracao'
 import { executarAgente } from '@/lib/assistente/agente'
+import { prepararContexto } from '@/lib/assistente/preparar'
 import { POST } from './route'
 
 const params = { params: Promise.resolve({ id: 'conv' }) }
@@ -32,8 +30,8 @@ beforeEach(() => {
   ;(prisma.conversaAssistente.findUnique as jest.Mock).mockResolvedValue({ usuarioId: 'u1' })
   ;(prisma.mensagemAssistente.count as jest.Mock).mockResolvedValue(0)
   ;(prisma.mensagemAssistente.findMany as jest.Mock).mockResolvedValue([
-    { papel: 'assistente', conteudo: 'resposta antiga' },
-    { papel: 'usuario', conteudo: 'pergunta antiga' },
+    { papel: 'assistente', conteudo: 'resposta antiga', ferramentas: [{ nome: 'resumoDoCliente', entrada: { clienteId: 'c1' } }] },
+    { papel: 'usuario', conteudo: 'pergunta antiga', ferramentas: null },
   ])
   ;(executarAgente as jest.Mock).mockReturnValue({ toUIMessageStreamResponse: () => new Response('stream') })
 })
@@ -72,7 +70,13 @@ it('grava a pergunta, chama o agente com histórico em ordem e contexto, e grava
     { papel: 'usuario', conteudo: 'pergunta antiga' },
     { papel: 'assistente', conteudo: 'resposta antiga' },
   ])
-  expect(entrada.contexto).toMatch(/^Hoje é \d{2}\/\d{2}\/\d{4}\. Tela aberta: SMIT$/)
+  expect(entrada.contexto).toBe('Hoje é 25/09/2026. Tela aberta: SMIT')
+  expect(prepararContexto).toHaveBeenCalledWith({
+    usuario: expect.objectContaining({ id: 'u1' }),
+    pergunta: 'qual o saldo?',
+    rota: '/clientes/c1',
+    recentes: [[{ nome: 'resumoDoCliente', entrada: { clienteId: 'c1' } }]],
+  })
 
   await aoTerminar({ texto: 'R$ 10,00', ferramentas: [{ nome: 'resumoDoCliente', entrada: {} }], tokensEntrada: 5, tokensSaida: 2, tokensCache: 1 })
   expect(prisma.mensagemAssistente.create).toHaveBeenLastCalledWith({

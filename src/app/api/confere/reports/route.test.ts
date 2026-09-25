@@ -13,8 +13,22 @@ jest.mock('@/lib/storage', () => ({
 jest.mock('@/lib/prisma', () => ({
   prisma: { confereExecucao: { create: jest.fn(async () => ({})) } },
 }))
+jest.mock('@/lib/auth', () => ({ ...jest.requireActual('@/lib/auth'), getAuthUser: jest.fn() }))
+// Contrato e aditivos podem vir do cadastro por id (desenho de 25/09/2026 §7.2): o que o
+// cadastro baixa e confere tem teste próprio (`src/lib/confere/cadastro.test.ts`).
+jest.mock('@/lib/confere/cadastro', () => ({
+  ...jest.requireActual('@/lib/confere/cadastro'),
+  carregarArquivosDoCadastro: jest.fn(),
+  contratoDoUsuario: jest.fn(),
+}))
 
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+
+import { getAuthUser } from '@/lib/auth'
+import { ArquivoDoCadastroRecusado, carregarArquivosDoCadastro, contratoDoUsuario } from '@/lib/confere/cadastro'
 import { chamarConfere } from '@/lib/confere/cliente'
+import { prisma } from '@/lib/prisma'
 import { POST, maxDuration } from './route'
 
 function requisicao(campos: Record<string, string | File | File[]>) {
@@ -36,6 +50,83 @@ function arquivo(nome: string, conteudo = 'conteudo'): File {
 describe('POST /api/confere/reports', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    ;(getAuthUser as jest.Mock).mockResolvedValue({ id: 'u1', nome: 'Admin', email: 'a@x', role: 'admin' })
+    ;(carregarArquivosDoCadastro as jest.Mock).mockResolvedValue(new Map())
+    ;(contratoDoUsuario as jest.Mock).mockResolvedValue({ id: 'ct-1', clienteId: 'cl-1' })
+  })
+
+  it('401 sem usuário', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(null)
+    const resposta = await POST(requisicao({ contrato: arquivo('c.pdf'), levantamento: arquivo('l.xlsx') }))
+    expect(resposta.status).toBe(401)
+    expect(chamarConfere).not.toHaveBeenCalled()
+  })
+
+  it('proposta e aditivos do cadastro por referência, na ordem pedida, misturados com os do computador', async () => {
+    ;(chamarConfere as jest.Mock).mockResolvedValue({ tipo: 'erro', mensagem: 'irrelevante' })
+    ;(carregarArquivosDoCadastro as jest.Mock).mockResolvedValue(
+      new Map([
+        ['pc', { nome: 'PC.pdf', bytes: Buffer.from('pc') }],
+        ['pa1', { nome: 'PA1.pdf', bytes: Buffer.from('pa1') }],
+        ['pa2', { nome: 'PA2.pdf', bytes: Buffer.from('pa2') }],
+      ])
+    )
+
+    await POST(
+      requisicao({
+        contrato_arquivo_id: 'pc',
+        levantamento: arquivo('l.xlsx'),
+        aditivos: ['cadastro:pa1', arquivo('manual.pdf'), 'cadastro:pa2'] as unknown as File[],
+        contrato_id: 'ct-1',
+      })
+    )
+
+    expect(carregarArquivosDoCadastro).toHaveBeenCalledWith(expect.objectContaining({ id: 'u1' }), ['pc', 'pa1', 'pa2'], 'cl-1')
+    expect(chamarConfere).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contrato: expect.objectContaining({ nome: 'PC.pdf' }),
+        aditivos: [
+          expect.objectContaining({ nome: 'PA1.pdf' }),
+          expect.objectContaining({ nome: 'manual.pdf' }),
+          expect.objectContaining({ nome: 'PA2.pdf' }),
+        ],
+      }),
+      expect.anything()
+    )
+  })
+
+  it('arquivo do cadastro recusado: devolve o status e o motivo, sem chamar o Confere', async () => {
+    ;(carregarArquivosDoCadastro as jest.Mock).mockRejectedValue(
+      new ArquivoDoCadastroRecusado('O arquivo X foi removido do cadastro', 409)
+    )
+    const resposta = await POST(requisicao({ contrato_arquivo_id: 'pc', levantamento: arquivo('l.xlsx') }))
+    expect(resposta.status).toBe(409)
+    expect(await resposta.json()).toEqual({ detail: 'O arquivo X foi removido do cadastro' })
+    expect(chamarConfere).not.toHaveBeenCalled()
+  })
+
+  it('contrato informado fora do acesso: 403', async () => {
+    ;(contratoDoUsuario as jest.Mock).mockResolvedValue(null)
+    const resposta = await POST(
+      requisicao({ contrato: arquivo('c.pdf'), levantamento: arquivo('l.xlsx'), contrato_id: 'ct-x' })
+    )
+    expect(resposta.status).toBe(403)
+    expect(chamarConfere).not.toHaveBeenCalled()
+  })
+
+  it('o histórico grava o contrato e a competência lida da planilha', async () => {
+    ;(chamarConfere as jest.Mock).mockResolvedValue({
+      tipo: 'concluido',
+      resposta: { docx_base64: 'AA==', analise_xlsx_base64: 'BB==' },
+    })
+    const planilha = new File(
+      [readFileSync(path.join(process.cwd(), 'services/confere/backend/tests/fixtures/levantamento.xlsx'))],
+      'levantamento.xlsx'
+    )
+    await POST(requisicao({ contrato: arquivo('c.pdf'), levantamento: planilha, contrato_id: 'ct-1' }))
+    expect(prisma.confereExecucao.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ contratoId: 'ct-1', competenciaAno: 2026, competenciaMes: 7 }),
+    })
   })
 
   it('retorna 400 quando falta o contrato ou o levantamento', async () => {

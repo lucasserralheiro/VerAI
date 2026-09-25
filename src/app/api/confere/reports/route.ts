@@ -3,8 +3,17 @@ import { randomUUID } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 
+import {
+  ArquivoDoCadastroRecusado,
+  carregarArquivosDoCadastro,
+  contratoDoUsuario,
+  type ArquivoBaixado,
+} from '@/lib/confere/cadastro'
 import { chamarConfere, type RespostaRelatorioConfere } from '@/lib/confere/cliente'
+import { competenciaDaData, lerCabecalhoDoLevantamento } from '@/lib/confere/levantamento'
+import { PREFIXO_DO_CADASTRO, type Competencia } from '@/lib/confere/tipos-cadastro'
 import { prisma } from '@/lib/prisma'
+import { exigirUsuario } from '@/lib/relatorios-clientes/acesso'
 import { buildConfereExecucaoPath, putUpload } from '@/lib/storage'
 
 const TIPO_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -21,10 +30,15 @@ const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
  *  dele e as duas colunas de caminho são obrigatórias — criar a linha vazia
  *  pra depois atualizar deixaria registro pela metade se o upload falhasse no
  *  meio.
+ *
+ *  `vinculo` diz de que contrato e competência foi o relatório (desenho de
+ *  25/09/2026 §7.4) — os dois podem faltar: envio sem contrato identificado,
+ *  planilha sem data.
  */
 async function registrarNoHistorico(
   resposta: RespostaRelatorioConfere,
-  nomes: { contrato: string; levantamento: string; aditivos: string[] }
+  nomes: { contrato: string; levantamento: string; aditivos: string[] },
+  vinculo: { contratoId: string | null; competencia: Competencia | null }
 ): Promise<void> {
   try {
     const id = randomUUID()
@@ -46,6 +60,9 @@ async function registrarNoHistorico(
         nomesAditivos: nomes.aditivos,
         caminhoDocx,
         caminhoXlsx,
+        contratoId: vinculo.contratoId,
+        competenciaAno: vinculo.competencia?.ano ?? null,
+        competenciaMes: vinculo.competencia?.mes ?? null,
         // Veio de `response.json()` do Confere, então é JSON de verdade — o
         // tipo do cliente (`[chave: string]: unknown`) só é largo demais pro
         // `InputJsonValue` do Prisma. Mesmo cast das rotas de análise.
@@ -84,8 +101,17 @@ const MENSAGEM_TEMPO_ESGOTADO =
   'O Confere não terminou dentro do tempo máximo de processamento e a geração foi interrompida. ' +
   'Ele continua trabalhando neste envio por mais alguns minutos — espere um pouco antes de tentar de novo.'
 
-async function paraArquivo(arquivo: File): Promise<{ nome: string; bytes: Buffer }> {
+async function paraArquivo(arquivo: File): Promise<ArquivoBaixado> {
   return { nome: arquivo.name, bytes: Buffer.from(await arquivo.arrayBuffer()) }
+}
+
+/** O que a planilha diz ser a competência — só para o histórico; planilha ilegível fica sem. */
+async function competenciaDoLevantamento(bytes: Buffer): Promise<Competencia | null> {
+  try {
+    return competenciaDaData((await lerCabecalhoDoLevantamento(bytes)).dataLevantamento)
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -102,26 +128,74 @@ async function paraArquivo(arquivo: File): Promise<{ nome: string; bytes: Buffer
  * os arquivos de entrada não são guardados. O que fica é o registro no
  * histórico, no caminho de sucesso e só nele (ver `registrarNoHistorico` e o
  * adendo "histórico do ConfereAI" do design doc).
+ *
+ * Contrato e aditivos também podem vir **do cadastro do cliente**, por id
+ * (`contrato_arquivo_id`; `aditivos=cadastro:<id>`, na mesma lista e ordem dos
+ * enviados do computador): o servidor confere o acesso e baixa o PDF do R2, e o
+ * corpo da requisição fica só com a planilha — ver
+ * docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md §7.2.
  */
 export async function POST(request: NextRequest) {
   // O relógio do `maxDuration` corre desde a invocação, e o upload dos arquivos
-  // acontece dentro dele: o orçamento do Confere é o que sobrar.
+  // — e o download do cadastro — acontecem dentro dele: o orçamento do Confere
+  // é o que sobrar.
   const inicio = Date.now()
+  const autenticado = await exigirUsuario(request)
+  if ('erro' in autenticado) return autenticado.erro
+  const { usuario } = autenticado
   const formData = await request.formData()
 
-  const contrato = formData.get('contrato')
   const levantamento = formData.get('levantamento')
-  if (!(contrato instanceof File) || !(levantamento instanceof File)) {
+  const contratoEnviado = formData.get('contrato')
+  const idDoContrato = formData.get('contrato_arquivo_id')
+  const contratoDoCadastro = typeof idDoContrato === 'string' && idDoContrato !== '' ? idDoContrato : null
+  if (!(levantamento instanceof File) || (!(contratoEnviado instanceof File) && !contratoDoCadastro)) {
     return NextResponse.json({ detail: 'contrato e levantamento são obrigatórios' }, { status: 400 })
   }
 
-  const aditivos = formData.getAll('aditivos').filter((valor): valor is File => valor instanceof File)
+  // Em ordem de aplicação: cada entrada é um arquivo ou `cadastro:<id>`.
+  const entradas = formData
+    .getAll('aditivos')
+    .filter(
+      (valor): valor is File | string =>
+        valor instanceof File || (typeof valor === 'string' && valor.startsWith(PREFIXO_DO_CADASTRO))
+    )
+  const idDoCadastro = (entrada: string) => entrada.slice(PREFIXO_DO_CADASTRO.length)
   const identidadeConfirmada = formData.get('identidade_confirmada') === 'true'
 
+  const contratoInformado = formData.get('contrato_id')
+  const contratoId = typeof contratoInformado === 'string' && contratoInformado !== '' ? contratoInformado : null
+  const contratoEscolhido = contratoId ? await contratoDoUsuario(usuario, contratoId) : null
+  if (contratoId && !contratoEscolhido) {
+    return NextResponse.json({ detail: 'Sem acesso ao contrato escolhido.' }, { status: 403 })
+  }
+
+  let doCadastro: Map<string, ArquivoBaixado>
+  try {
+    doCadastro = await carregarArquivosDoCadastro(
+      usuario,
+      [
+        ...(contratoDoCadastro ? [contratoDoCadastro] : []),
+        ...entradas.filter((entrada): entrada is string => typeof entrada === 'string').map(idDoCadastro),
+      ],
+      contratoEscolhido?.clienteId ?? null
+    )
+  } catch (erro) {
+    if (erro instanceof ArquivoDoCadastroRecusado) {
+      return NextResponse.json({ detail: erro.message }, { status: erro.status })
+    }
+    throw erro
+  }
+
+  const planilha = await paraArquivo(levantamento)
   const parametros = {
-    contrato: await paraArquivo(contrato),
-    levantamento: await paraArquivo(levantamento),
-    aditivos: await Promise.all(aditivos.map(paraArquivo)),
+    contrato: contratoEnviado instanceof File ? await paraArquivo(contratoEnviado) : doCadastro.get(contratoDoCadastro!)!,
+    levantamento: planilha,
+    aditivos: await Promise.all(
+      entradas.map((entrada) =>
+        entrada instanceof File ? paraArquivo(entrada) : Promise.resolve(doCadastro.get(idDoCadastro(entrada))!)
+      )
+    ),
     identidadeConfirmada,
   }
   // Desistir do Confere **antes** de a Vercel desistir da função é o que
@@ -134,11 +208,15 @@ export async function POST(request: NextRequest) {
     // encerra a invocação, e trabalho pendente depois dela pode ser cortado
     // no meio — o histórico sairia gravado às vezes. São ~2 uploads sobre uma
     // requisição que já levou ~25s.
-    await registrarNoHistorico(resultado.resposta, {
-      contrato: contrato.name,
-      levantamento: levantamento.name,
-      aditivos: aditivos.map((arquivo) => arquivo.name),
-    })
+    await registrarNoHistorico(
+      resultado.resposta,
+      {
+        contrato: parametros.contrato.nome,
+        levantamento: levantamento.name,
+        aditivos: parametros.aditivos.map((arquivo) => arquivo.nome),
+      },
+      { contratoId: contratoEscolhido?.id ?? null, competencia: await competenciaDoLevantamento(planilha.bytes) }
+    )
     return NextResponse.json(resultado.resposta, { status: 200 })
   }
   if (resultado.tipo === 'bloqueado') {

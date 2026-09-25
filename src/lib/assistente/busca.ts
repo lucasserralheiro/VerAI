@@ -22,13 +22,15 @@ export interface FiltroBusca {
 
 export const LIMITE_TRECHOS = 6
 
-/** Palavra da consulta com 6+ dígitos (SEI, nº de contrato, CNPJ) sem a pontuação — o full-text
- *  quebra "6018.2023/0001234-5" em pedaços; o texto também é comparado sem `.`, `/` e `-`. */
+/** Palavra da consulta com 6+ dígitos (SEI, nº de contrato, CNPJ), só os dígitos — o full-text
+ *  quebra "6018.2023/0001234-5" em pedaços; o texto também é comparado sem pontuação. Remove
+ *  TUDO que não é dígito (não só `.`, `/`, `-`): a palavra vira o valor do padrão LIKE, e deixar
+ *  `%`/`_` (coringas do LIKE) passar da consulta do usuário pro SQL distorce a busca. */
 function numerosDaConsulta(consulta: string): string[] {
   return consulta
     .split(/\s+/)
-    .map((palavra) => palavra.replace(/[./-]/g, ''))
-    .filter((palavra) => (palavra.match(/\d/g) ?? []).length >= 6)
+    .map((palavra) => palavra.replace(/\D/g, ''))
+    .filter((digitos) => digitos.length >= 6)
 }
 
 export function montarConsultaTrechos(
@@ -44,10 +46,14 @@ export function montarConsultaTrechos(
       : permissao.clienteIds.length > 0
         ? Prisma.sql`(t."clienteId" IS NULL OR t."clienteId" IN (${Prisma.join(permissao.clienteIds)}))`
         : Prisma.sql`t."clienteId" IS NULL`
+  // Admin não tem restrição de cliente (clienteIds null) — também não filtra por documento: montar
+  // a lista IN de TODOS os documentos visíveis (todos, pra admin) é um SQL enorme à toa.
   const condDocumento =
-    permissao.documentoIds.length > 0
-      ? Prisma.sql`(t.origem <> 'DOCUMENTO' OR t."origemId" IN (${Prisma.join(permissao.documentoIds)}))`
-      : Prisma.sql`t.origem <> 'DOCUMENTO'`
+    permissao.clienteIds === null
+      ? Prisma.sql`TRUE`
+      : permissao.documentoIds.length > 0
+        ? Prisma.sql`(t.origem <> 'DOCUMENTO' OR t."origemId" IN (${Prisma.join(permissao.documentoIds)}))`
+        : Prisma.sql`t.origem <> 'DOCUMENTO'`
   const numeros = numerosDaConsulta(consulta)
   const condNumeros =
     numeros.length > 0
@@ -67,11 +73,12 @@ export function montarConsultaTrechos(
 }
 
 export async function buscarTrechos(filtro: FiltroBusca, usuario: AuthUser): Promise<TrechoEncontrado[]> {
-  const [clienteIds, documentos] = await Promise.all([
-    clienteIdsPermitidos(usuario),
-    prisma.documento.findMany({ where: await documentosVisiveisWhere(usuario), select: { id: true } }),
-  ])
-  return prisma.$queryRaw<TrechoEncontrado[]>(
-    montarConsultaTrechos(filtro, { clienteIds, documentoIds: documentos.map((d) => d.id) })
-  )
+  const clienteIds = await clienteIdsPermitidos(usuario)
+  // Admin (clienteIds null) não filtra por documento (condDocumento vira TRUE) — listar todos os
+  // documentos do banco só pra montar um IN que a query nem usa seria desperdício.
+  const documentoIds =
+    clienteIds === null
+      ? []
+      : (await prisma.documento.findMany({ where: await documentosVisiveisWhere(usuario), select: { id: true } })).map((d) => d.id)
+  return prisma.$queryRaw<TrechoEncontrado[]>(montarConsultaTrechos(filtro, { clienteIds, documentoIds }))
 }

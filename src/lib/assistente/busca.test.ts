@@ -31,6 +31,18 @@ describe('montarConsultaTrechos', () => {
     expect(q.values).toContain('%6018202300012345%')
   })
 
+  it('caractere de wildcard do LIKE (%, _) na consulta não vaza pro padrão — só dígito sobra', () => {
+    const q = montarConsultaTrechos({ consulta: '601820%2300_01234-5' }, { clienteIds: null, documentoIds: [] })
+    expect(q.values).toContain('%6018202300012345%')
+    expect(q.values).not.toContain('%601820%2300_01234-5%')
+  })
+
+  it('admin (clienteIds null): não monta a lista IN de documentos, condDocumento vira TRUE', () => {
+    const q = montarConsultaTrechos({ consulta: 'x' }, { clienteIds: null, documentoIds: ['d1', 'd2', 'd3'] })
+    expect(texto(q)).not.toContain('"origemId" IN')
+    expect(q.values).not.toContain('d1')
+  })
+
   it('filtra por cliente e contrato quando pedido', () => {
     const q = montarConsultaTrechos({ consulta: 'x', clienteId: 'c1', contratoId: 'k1', limite: 3 }, { clienteIds: null, documentoIds: [] })
     expect(q.values).toEqual(expect.arrayContaining(['c1', 'k1', 3]))

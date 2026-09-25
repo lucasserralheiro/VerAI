@@ -46,7 +46,11 @@ describe('detalheDoContrato', () => {
         ...contrato('k1'),
         _count: { itens: 12 },
         historico: [
-          { id: 'h1', tipo: 'ADITIVO', numero: 'TA 02', data: new Date('2024-05-01T00:00:00Z'), valor: '150.5', objeto: 'Reajuste', proposta: 'PA 7', situacao: null, dataInicio: null, dataVencimento: null, observacao: null, propostaPdfNome: null, termoPdfNome: 'TA_02.pdf' },
+          {
+            id: 'h1', tipo: 'ADITIVO', numero: 'TA 02', data: new Date('2024-05-01T00:00:00Z'), valor: '150.5', objeto: 'Reajuste', proposta: 'PA 7', situacao: null, dataInicio: null, dataVencimento: null, observacao: null,
+            // PC/PA e TC/TA vêm do repositório (propostaArquivo/termoArquivo), não das colunas antigas propostaPdfNome/termoPdfNome (zeradas pela migração).
+            propostaArquivo: null, termoArquivo: { id: 'a1', nome: 'TA_02.pdf' }, propostaDoSharepoint: false, termoDoSharepoint: true,
+          },
         ],
       },
     ])
@@ -145,16 +149,28 @@ describe('contratosVencendo', () => {
 })
 
 describe('buscarPorSei', () => {
-  it('compara por dígitos e esconde linha de cliente sem permissão', async () => {
+  it('filtra por cliente DENTRO do SQL (antes do LIMIT) — não em JS depois de truncar', async () => {
+    // Simula o que o Postgres devolveria já filtrado pela cláusula WHERE do sub-select: a linha do
+    // cliente sem permissão (c9) nunca chega aqui — não é escondida depois em JS, como antes.
     ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([
       { tipo: 'contrato', id: 'k1', clienteId: 'c1', rotulo: '031/2023', sei: '6018.2023/0001234-5' },
-      { tipo: 'demanda', id: 'd9', clienteId: 'c9', rotulo: 'Ofício', sei: '6018202300012345' },
       { tipo: 'fornecedor', id: 'f1', clienteId: null, rotulo: 'ACME', sei: '6018202300012345' },
     ])
-    const r = (await rodar(buscarPorSei, { numero: '6018.2023/0001234-5' })) as { ocorrencias: { tipo: string; href: string }[] }
+    const r = (await rodar(buscarPorSei, { numero: '6018.2023/0001234-5' })) as { total: number; ocorrencias: { tipo: string; href: string }[] }
     const sql = (prisma.$queryRaw as jest.Mock).mock.calls[0][0]
+    expect(sql.sql).toContain('"clienteId" IS NULL OR sub."clienteId" IN')
+    expect(sql.values).toContain('c1')
     expect(sql.values).toContain('%6018202300012345%')
+    expect(r.total).toBe(2)
     expect(r.ocorrencias.map((o) => o.tipo)).toEqual(['contrato', 'fornecedor'])
     expect(r.ocorrencias[0].href).toBe('/clientes/c1/contratos/k1')
+  })
+
+  it('admin (sem restrição de cliente): SQL não filtra por clienteId', async () => {
+    ;(clienteIdsPermitidos as jest.Mock).mockResolvedValue(null)
+    ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([])
+    await rodar(buscarPorSei, { numero: '601820230001234' })
+    const sql = (prisma.$queryRaw as jest.Mock).mock.calls[0][0]
+    expect(sql.sql).not.toContain('"clienteId" IN')
   })
 })

@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
       JOIN "ConversaAssistente" c ON c.id = m."conversaId"
       JOIN "Usuario" u ON u.id = c."usuarioId"
      WHERE m."createdAt" >= now() - interval '6 months'
-     GROUP BY 1, 2
-     ORDER BY 1 DESC, 2`
+     GROUP BY 1, u.id, u.nome
+     ORDER BY 1 DESC, u.nome`
   const precos = precosDoAmbiente()
   return NextResponse.json({
     precosConfigurados: precos !== null,

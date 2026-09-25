@@ -17,6 +17,12 @@ beforeEach(() => {
   ;(prisma.$queryRaw as jest.Mock).mockResolvedValue([{ mes: '2026-09', usuario: 'Ana', perguntas: 10, entrada: 1_000_000, cache: 0, saida: 0 }])
 })
 
+it('agrupa por usuário (id), não só pelo nome — usuários homônimos não se misturam', async () => {
+  await GET(req())
+  const strings = (prisma.$queryRaw as jest.Mock).mock.calls[0][0] as TemplateStringsArray
+  expect(strings.join('')).toMatch(/GROUP BY[^;]*u\.id/)
+})
+
 it('403 para não-admin', async () => {
   ;(getAuthUser as jest.Mock).mockResolvedValue({ id: 'u', nome: 'B', email: 'b@x', role: 'uploader' })
   expect((await GET(req())).status).toBe(403)

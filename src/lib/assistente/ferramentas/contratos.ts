@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { podeVerCliente } from '@/lib/visibilidade'
 import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
+import { SELECAO_ANEXOS } from '@/lib/relatorios-clientes/anexos-historico'
 import { digitosDoSei } from '@/lib/relatorios-clientes/sei'
 import { situacaoVencimento } from '@/lib/relatorios-clientes/vencimento'
 import { SELECT_CONTRATO } from '@/app/api/contratos/esquema'
@@ -46,7 +47,10 @@ export const detalheDoContrato = definirFerramenta({
           orderBy: [{ data: 'asc' }, { createdAt: 'asc' }],
           select: {
             id: true, tipo: true, numero: true, data: true, valor: true, objeto: true, proposta: true, situacao: true,
-            dataInicio: true, dataVencimento: true, observacao: true, propostaPdfNome: true, termoPdfNome: true,
+            dataInicio: true, dataVencimento: true, observacao: true,
+            // PC/PA e TC/TA vêm do repositório (`propostaArquivo`/`termoArquivo`) — as colunas antigas
+            // `propostaPdfNome`/`termoPdfNome` foram zeradas pela migração do repositório de arquivos.
+            ...SELECAO_ANEXOS,
           },
         },
       },
@@ -79,8 +83,8 @@ export const detalheDoContrato = definirFerramenta({
         inicio: data(h.dataInicio),
         vencimento: data(h.dataVencimento),
         observacao: h.observacao,
-        pdfProposta: h.propostaPdfNome ? { nome: h.propostaPdfNome, leitura: leitura('HISTORICO_PROPOSTA', h.id) } : null,
-        pdfTermo: h.termoPdfNome ? { nome: h.termoPdfNome, leitura: leitura('HISTORICO_TERMO', h.id) } : null,
+        pdfProposta: h.propostaArquivo ? { nome: h.propostaArquivo.nome, leitura: leitura('HISTORICO_PROPOSTA', h.id) } : null,
+        pdfTermo: h.termoArquivo ? { nome: h.termoArquivo.nome, leitura: leitura('HISTORICO_TERMO', h.id) } : null,
       })),
       itens: contrato._count.itens,
     }
@@ -185,27 +189,33 @@ export const buscarPorSei = definirFerramenta({
     const digitos = digitosDoSei(numero)
     if (digitos.length < 6) return { erro: 'informe ao menos 6 dígitos do SEI' }
     const padrao = `%${digitos}%`
-    const linhas = await prisma.$queryRaw<OcorrenciaSei[]>(Prisma.sql`
-      SELECT 'contrato' AS tipo, c.id, c."clienteId", c."numeroTermo" AS rotulo, coalesce(c."seiCliente", c."seiProdam") AS sei
-        FROM "Contrato" c WHERE ${soDigitos(Prisma.sql`c."seiCliente"`)} LIKE ${padrao} OR ${soDigitos(Prisma.sql`c."seiProdam"`)} LIKE ${padrao}
-      UNION ALL
-      SELECT 'faturamento', f.id, f."clienteId", concat(lpad(f."competenciaMes"::text, 2, '0'), '/', f."competenciaAno"), f.sei
-        FROM "Faturamento" f WHERE ${soDigitos(Prisma.sql`f.sei`)} LIKE ${padrao}
-      UNION ALL
-      SELECT 'demanda', d.id, d."clienteId", d.assunto, d.sei
-        FROM "Demanda" d WHERE ${soDigitos(Prisma.sql`d.sei`)} LIKE ${padrao}
-      UNION ALL
-      SELECT 'fornecedor', fo.id, NULL, fo."razaoSocial", fo.sei
-        FROM "Fornecedor" fo WHERE ${soDigitos(Prisma.sql`fo.sei`)} LIKE ${padrao}
-      UNION ALL
-      SELECT 'termo', t.id, t."clienteId", t.numero, t.sei
-        FROM "TermoConfirmacao" t WHERE ${soDigitos(Prisma.sql`t.sei`)} LIKE ${padrao}
-      LIMIT 50`)
     const filtro = await filtroDeClientes(usuario)
-    const visiveis = linhas.filter((l) => l.clienteId === null || !filtro || filtro.in.includes(l.clienteId))
+    // Filtro de cliente DENTRO do SQL, antes do LIMIT: filtrar em JS depois do LIMIT 50 podia
+    // esconder do usuário restrito um resultado que existe (empurrado pra fora dos 50 primeiros
+    // por linhas de clientes que ele nem vê) — falso "não encontrado".
+    const condCliente = filtro ? Prisma.sql`WHERE sub."clienteId" IS NULL OR sub."clienteId" IN (${Prisma.join(filtro.in)})` : Prisma.empty
+    const linhas = await prisma.$queryRaw<OcorrenciaSei[]>(Prisma.sql`
+      SELECT * FROM (
+        SELECT 'contrato' AS tipo, c.id, c."clienteId", c."numeroTermo" AS rotulo, coalesce(c."seiCliente", c."seiProdam") AS sei
+          FROM "Contrato" c WHERE ${soDigitos(Prisma.sql`c."seiCliente"`)} LIKE ${padrao} OR ${soDigitos(Prisma.sql`c."seiProdam"`)} LIKE ${padrao}
+        UNION ALL
+        SELECT 'faturamento', f.id, f."clienteId", concat(lpad(f."competenciaMes"::text, 2, '0'), '/', f."competenciaAno"), f.sei
+          FROM "Faturamento" f WHERE ${soDigitos(Prisma.sql`f.sei`)} LIKE ${padrao}
+        UNION ALL
+        SELECT 'demanda', d.id, d."clienteId", d.assunto, d.sei
+          FROM "Demanda" d WHERE ${soDigitos(Prisma.sql`d.sei`)} LIKE ${padrao}
+        UNION ALL
+        SELECT 'fornecedor', fo.id, NULL, fo."razaoSocial", fo.sei
+          FROM "Fornecedor" fo WHERE ${soDigitos(Prisma.sql`fo.sei`)} LIKE ${padrao}
+        UNION ALL
+        SELECT 'termo', t.id, t."clienteId", t.numero, t.sei
+          FROM "TermoConfirmacao" t WHERE ${soDigitos(Prisma.sql`t.sei`)} LIKE ${padrao}
+      ) sub
+      ${condCliente}
+      LIMIT 50`)
     return {
-      total: visiveis.length,
-      ocorrencias: visiveis.slice(0, LIMITE_PADRAO).map((l) => ({ tipo: l.tipo, rotulo: l.rotulo, sei: sei(l.sei), href: hrefDaOcorrencia(l) })),
+      total: linhas.length,
+      ocorrencias: linhas.slice(0, LIMITE_PADRAO).map((l) => ({ tipo: l.tipo, rotulo: l.rotulo, sei: sei(l.sei), href: hrefDaOcorrencia(l) })),
     }
   },
 })

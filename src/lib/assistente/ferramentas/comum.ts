@@ -80,6 +80,8 @@ export function resumirContrato(contrato: ContratoComSelect, consolidado: Contra
     situacao: contrato.situacao,
     ativo: consolidado.ativo,
     rescindido: consolidado.rescindido,
+    situacaoDesatualizada: consolidado.situacaoDesatualizada,
+    prorrogacaoEmAndamento: consolidado.prorrogacaoEmAndamento,
     inicio: data(contrato.dataInicio),
     fimVigencia: data(consolidado.vigenciaFim),
     vencimento: consolidado.vencimento.nivel,

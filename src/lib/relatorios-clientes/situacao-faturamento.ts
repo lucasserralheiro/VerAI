@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client'
+
 /**
  * Situação do faturamento — lista FECHADA (decisão do usuário, 23/09/2026). Antes era texto livre e a
  * regra "cancelado não abate saldo" dependia de alguém escrever "cancelado" certinho.

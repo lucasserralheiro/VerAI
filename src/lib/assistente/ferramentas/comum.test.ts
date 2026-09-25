@@ -6,6 +6,8 @@ const consolidado = {
   rescindido: false,
   vazio: false,
   ativo: true,
+  situacaoDesatualizada: false,
+  prorrogacaoEmAndamento: false,
   resumoHistorico: { aditivos: 2, prorrogacoes: 1, valorAtual: null, proposta: null, termo: null },
   valorBase: '1000.5',
   saldo: { valorItens: '1000.5', faturado: '250', saldo: '750.5', percentualFaturado: '24.99' },
@@ -45,6 +47,8 @@ it('resumirContrato usa só o consolidado para ativo, vigência, valor e saldo',
     situacao: 'Ativo',
     ativo: true,
     rescindido: false,
+    situacaoDesatualizada: false,
+    prorrogacaoEmAndamento: false,
     inicio: '01/01/2023',
     fimVigencia: '31/12/2026',
     vencimento: 'ok',
@@ -57,6 +61,12 @@ it('resumirContrato usa só o consolidado para ativo, vigência, valor e saldo',
     prorrogacoes: 1,
     href: '/clientes/c1/contratos/k1',
   })
+})
+
+it('situacaoDesatualizada e prorrogacaoEmAndamento passam do consolidado pro resumo (spec §11.5/§11.6)', () => {
+  const r = resumirContrato(contrato, { ...consolidado, situacaoDesatualizada: true, prorrogacaoEmAndamento: true })
+  expect(r.situacaoDesatualizada).toBe(true)
+  expect(r.prorrogacaoEmAndamento).toBe(true)
 })
 
 it('contrato sem valor não inventa saldo', () => {

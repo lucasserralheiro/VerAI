@@ -63,7 +63,33 @@ describe('executarAgente', () => {
       tokensSaida: 18,
       tokensCache: 120,
     })
-    // A 2ª chamada recebeu o resultado da ferramenta.
+    // A 2ª chamada recebeu o resultado da ferramenta, em texto compacto.
     expect(JSON.stringify(modelo.doStreamCalls[1].prompt)).toContain('c1|SMIT|SMIT|1')
+  })
+})
+
+describe('contexto da pergunta', () => {
+  it('"Já identificados" vai na última mensagem do usuário, nunca no system', async () => {
+    const modelo = new MockLanguageModelV4({
+      doStream: [
+        {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'stream-start', warnings: [] },
+              { type: 'text-start', id: '1' },
+              { type: 'text-delta', id: '1', delta: 'ok' },
+              { type: 'text-end', id: '1' },
+              { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage: uso(1, 0, 1) },
+            ],
+          }),
+        },
+      ],
+    })
+    const contexto = 'Hoje é 25/09/2026. Já identificados (use estes ids, não procure de novo): cliente SMIT (clienteId: c1).'
+    await executarAgente({ usuario, historico: [], pergunta: 'saldo?', contexto, modelo }, async () => {}).consumeStream()
+    const prompt = modelo.doStreamCalls[0].prompt
+    // A regra 4 da instrução cita o rótulo "Já identificados"; o que não pode ir ao system é o conteúdo.
+    expect(JSON.stringify(prompt.filter((m) => m.role === 'system'))).not.toContain('clienteId: c1')
+    expect(JSON.stringify(prompt.at(-1))).toContain('cliente SMIT (clienteId: c1)')
   })
 })

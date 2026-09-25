@@ -1,5 +1,7 @@
 /** Contratos da API — espelham `backend/src/api/schemas.py`. */
 
+import type { DocumentoDoCadastro, RespostaDaIdentificacao } from "@/lib/confere/tipos-cadastro";
+
 export interface Achado {
 	validacao: string;
 	severidade: "BLOQUEIA" | "AVISA";
@@ -254,7 +256,27 @@ export type NomeDoCampo = (typeof CAMPOS)[number]["nome"];
 export const CAMPO_ADITIVOS = {
 	nome: "aditivos",
 	rotulo: "Aditivos da proposta",
-	descricao:
-		"Opcional. Um ou mais PDFs; aplicados na ordem em que forem selecionados",
+	// A ordem é a da lista, que mistura propostas do cadastro e arquivos do
+	// computador (desenho de 25/09/2026 §4.2) — não mais a da seleção.
+	descricao: "Opcional. Um ou mais PDFs, aplicados na ordem da lista",
 	aceita: ".pdf",
 } as const;
+
+/** O conteúdo do campo Contrato ou de um aditivo: arquivo enviado do computador
+ *  ou proposta do cadastro do cliente
+ *  (docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md). */
+export type Peca =
+	| { tipo: "arquivo"; arquivo: File }
+	| { tipo: "cadastro"; documento: DocumentoDoCadastro };
+
+export function nomeDaPeca(peca: Peca): string {
+	return peca.tipo === "arquivo" ? peca.arquivo.name : peca.documento.nome;
+}
+
+/** O que a tela sabe sobre a planilha escolhida: nada ainda, lendo, a resposta
+ *  da rota de identificação ou a falha dela. */
+export type Identificacao =
+	| { situacao: "ociosa" }
+	| { situacao: "lendo" }
+	| { situacao: "falhou" }
+	| RespostaDaIdentificacao;

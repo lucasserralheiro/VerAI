@@ -1,6 +1,15 @@
+import {
+	PREFIXO_DO_CADASTRO,
+	type Competencia,
+	type DocumentosDoContrato,
+	type RespostaDaIdentificacao,
+	type ResumoDoContrato,
+} from "@/lib/confere/tipos-cadastro";
+
 import type {
 	Estado,
 	NomeDoCampo,
+	Peca,
 	RespostaBloqueada,
 	RespostaDaConferencia,
 	RespostaRelatorio,
@@ -122,20 +131,83 @@ export async function conferirIdentidade(
 	}
 }
 
-/** Envia os três arquivos e devolve o estado resultante.
+/** Lê o cabeçalho do levantamento e busca o contrato no cadastro do cliente
+ *  (docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md).
+ *  `null` quando a busca não respondeu — a tela segue pelo envio manual, nada
+ *  bloqueia. */
+export async function identificarLevantamento(
+	levantamento: File,
+): Promise<RespostaDaIdentificacao | null> {
+	const corpo = new FormData();
+	corpo.append("levantamento", levantamento);
+	try {
+		const resposta = await fetch(`${API_BASE_URL}/levantamento`, {
+			method: "POST",
+			body: corpo,
+		});
+		return resposta.ok ? ((await resposta.json()) as RespostaDaIdentificacao) : null;
+	} catch {
+		return null;
+	}
+}
+
+/** Os documentos de um contrato escolhido à mão, na competência da planilha. */
+export async function documentosDoContrato(
+	contratoId: string,
+	competencia: Competencia | null,
+): Promise<DocumentosDoContrato | null> {
+	const parametro = competencia
+		? `?competencia=${competencia.ano}-${String(competencia.mes).padStart(2, "0")}`
+		: "";
+	try {
+		const resposta = await fetch(
+			`${API_BASE_URL}/contratos/${encodeURIComponent(contratoId)}/documentos${parametro}`,
+		);
+		return resposta.ok ? ((await resposta.json()) as DocumentosDoContrato) : null;
+	} catch {
+		return null;
+	}
+}
+
+/** Busca livre de contrato no cadastro; falha vira lista vazia. */
+export async function buscarContratos(texto: string): Promise<ResumoDoContrato[]> {
+	try {
+		const resposta = await fetch(
+			`${API_BASE_URL}/contratos?busca=${encodeURIComponent(texto)}`,
+		);
+		return resposta.ok ? ((await resposta.json()) as ResumoDoContrato[]) : [];
+	} catch {
+		return [];
+	}
+}
+
+export interface EntradaDaGeracao {
+	levantamento: File;
+	contrato: Peca;
+	/** Em ordem de aplicação. */
+	aditivos: readonly Peca[];
+	/** O contrato achado ou escolhido no cadastro — vai para o histórico. */
+	contratoId?: string | null;
+}
+
+/** Envia contrato, levantamento e aditivos e devolve o estado resultante.
  *
  *  Bloqueio de validação não é erro de rede: chega como 422 com a lista de
  *  achados, e o usuário precisa vê-la — não uma mensagem genérica de falha.
  */
 export async function gerarRelatorio(
-	arquivos: Record<NomeDoCampo, File>,
-	aditivos: readonly File[] = [],
+	entrada: EntradaDaGeracao,
 	identidadeConfirmada = false,
 ): Promise<Estado> {
 	const corpo = new FormData();
-	for (const [campo, arquivo] of Object.entries(arquivos)) {
-		corpo.append(campo, arquivo);
+	// Proposta do cadastro vai por id: o servidor baixa do R2, e o corpo da
+	// requisição fica só com a planilha — longe do limite de 4,5 MB da Vercel.
+	if (entrada.contrato.tipo === "arquivo") {
+		corpo.append("contrato", entrada.contrato.arquivo);
+	} else {
+		corpo.append("contrato_arquivo_id", entrada.contrato.documento.arquivoId);
 	}
+	corpo.append("levantamento", entrada.levantamento);
 	// ESPEC 029 `R-IDT-10` — a resposta ao portão. Só vai quando **é** `true`:
 	// mandar `false` seria dizer ao backend que a pergunta foi feita e recusada,
 	// e ela pode nem ter sido feita (`R-IDT-12`).
@@ -144,9 +216,18 @@ export async function gerarRelatorio(
 	}
 	// ESPEC 019 `R-ADT-10` — o mesmo nome repetido é como `multipart` expressa
 	// lista, e é o que o FastAPI recebe em `list[UploadFile]`. A ordem de
-	// `append` é a ordem de aplicação (`R-ADT-07`).
-	for (const aditivo of aditivos) {
-		corpo.append("aditivos", aditivo);
+	// `append` é a ordem de aplicação (`R-ADT-07`). Aditivo do cadastro vai como
+	// `cadastro:<id>` na mesma lista, e o proxy o troca pelo PDF.
+	for (const aditivo of entrada.aditivos) {
+		corpo.append(
+			"aditivos",
+			aditivo.tipo === "arquivo"
+				? aditivo.arquivo
+				: `${PREFIXO_DO_CADASTRO}${aditivo.documento.arquivoId}`,
+		);
+	}
+	if (entrada.contratoId) {
+		corpo.append("contrato_id", entrada.contratoId);
 	}
 
 	// `AbortController` e não `AbortSignal.timeout()`: o segundo tem suporte mais

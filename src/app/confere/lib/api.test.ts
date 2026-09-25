@@ -1,10 +1,11 @@
 /** @jest-environment node */
-import { gerarRelatorio } from "./api";
+import { type EntradaDaGeracao, gerarRelatorio, identificarLevantamento } from "./api";
 
-// Os dois campos que `CAMPOS` exige.
-const ARQUIVOS = {
-	contrato: new File(["%PDF"], "contrato.pdf"),
+// Contrato e levantamento do computador — o caminho de sempre.
+const ENTRADA: EntradaDaGeracao = {
 	levantamento: new File(["xlsx"], "levantamento.xlsx"),
+	contrato: { tipo: "arquivo", arquivo: new File(["%PDF"], "contrato.pdf") },
+	aditivos: [],
 };
 
 afterEach(() => {
@@ -25,7 +26,7 @@ describe("gerarRelatorio — o que a tela diz quando dá errado", () => {
 			),
 		);
 
-		const estado = await gerarRelatorio(ARQUIVOS);
+		const estado = await gerarRelatorio(ENTRADA);
 
 		expect(estado).toEqual({
 			situacao: "erro",
@@ -40,7 +41,7 @@ describe("gerarRelatorio — o que a tela diz quando dá errado", () => {
 			}),
 		);
 
-		const estado = await gerarRelatorio(ARQUIVOS);
+		const estado = await gerarRelatorio(ENTRADA);
 
 		expect(estado).toEqual({
 			situacao: "erro",
@@ -59,7 +60,7 @@ describe("gerarRelatorio — o que a tela diz quando dá errado", () => {
 			),
 		);
 
-		const estado = await gerarRelatorio(ARQUIVOS);
+		const estado = await gerarRelatorio(ENTRADA);
 
 		expect(estado).toEqual({
 			situacao: "erro",
@@ -90,7 +91,7 @@ describe("gerarRelatorio — teto de espera do navegador", () => {
 		jest.useFakeTimers();
 		const sinal = fetchQueNuncaResponde();
 
-		void gerarRelatorio(ARQUIVOS);
+		void gerarRelatorio(ENTRADA);
 		jest.advanceTimersByTime(300_000);
 
 		expect(sinal()?.aborted).toBe(false);
@@ -102,12 +103,48 @@ describe("gerarRelatorio — teto de espera do navegador", () => {
 		jest.useFakeTimers();
 		fetchQueNuncaResponde();
 
-		const promessa = gerarRelatorio(ARQUIVOS);
+		const promessa = gerarRelatorio(ENTRADA);
 		jest.advanceTimersByTime(600_000);
 
 		await expect(promessa).resolves.toEqual({
 			situacao: "erro",
 			mensagem: expect.stringMatching(/interrompida/),
 		});
+	});
+});
+
+describe("gerarRelatorio — propostas do cadastro", () => {
+	it("manda os ids do cadastro na ordem da lista, com o contrato escolhido", async () => {
+		const espiao = jest
+			.spyOn(global, "fetch")
+			.mockResolvedValue(Response.json({ detail: "x" }, { status: 502 }));
+		const documento = (arquivoId: string) => ({ arquivoId, nome: `${arquivoId}.pdf`, origem: null });
+
+		await gerarRelatorio({
+			levantamento: new File(["xlsx"], "l.xlsx"),
+			contrato: { tipo: "cadastro", documento: documento("pa-04") },
+			aditivos: [
+				{ tipo: "cadastro", documento: documento("pa-05") },
+				{ tipo: "arquivo", arquivo: new File(["%PDF"], "manual.pdf") },
+			],
+			contratoId: "ct-pgm",
+		});
+
+		const corpo = espiao.mock.calls[0][1]?.body as FormData;
+		expect(corpo.get("contrato")).toBeNull();
+		expect(corpo.get("contrato_arquivo_id")).toBe("pa-04");
+		const aditivos = corpo.getAll("aditivos");
+		expect(aditivos[0]).toBe("cadastro:pa-05");
+		expect((aditivos[1] as File).name).toBe("manual.pdf");
+		expect(corpo.get("contrato_id")).toBe("ct-pgm");
+	});
+});
+
+describe("identificarLevantamento", () => {
+	it("falha da busca vira null — a tela segue pelo envio manual", async () => {
+		jest.spyOn(global, "fetch").mockResolvedValue(new Response("x", { status: 500 }));
+		await expect(identificarLevantamento(new File(["x"], "l.xlsx"))).resolves.toBeNull();
+		jest.spyOn(global, "fetch").mockRejectedValue(new TypeError("rede"));
+		await expect(identificarLevantamento(new File(["x"], "l.xlsx"))).resolves.toBeNull();
 	});
 });

@@ -68,9 +68,9 @@ spin-down — upgrade pontual, não bloqueia começar no free.
 **Status (2026-09-21): implantado e validado.** Deploy em `https://confere-backend.onrender.com`
 (Docker, Root Directory `services/confere/backend`, source commit `c851c60`). `GET /health` e o
 bloqueio via `X-Confere-Secret` (`POST /reports` sem header → 401) confirmados em produção, fora
-dos ambientes de automação (cujo allowlist de rede bloqueia `onrender.com`). **Ainda pendente**:
-medir o cold-start real de 15+min — só vai acontecer organicamente na primeira chamada de verdade
-feita pelo VerAI (Task 5).
+dos ambientes de automação (cujo allowlist de rede bloqueia `onrender.com`). **Medido em
+24/09/2026**: ~23 s de despertar (`/health` depois de 15+ min parado) — e a geração em si é bem
+mais lenta do que se supunha aqui, 69–134 s. Ver o adendo "o 504 de 24/09/2026" no fim.
 
 ### 3.4 Chamada síncrona, sem fila/polling
 
@@ -82,6 +82,9 @@ Isso é seguro no Vercel: **correção em relação ao que se pensava antes** �
 (padrão em todo projeto Vercel hoje), a duração padrão de uma function já é 300s mesmo no plano
 Hobby, não é preciso Pro só por causa da duração. A rota que chama o Confere deve declarar
 `maxDuration` explícito (ex.: 120) para ter folga sobre cold-start + geração.
+
+**Correção (24/09/2026):** o raciocínio acima se contradiz — se o padrão já é 300 s, declarar 120
+*reduz* o prazo. Foi a causa do 504 de produção. Ver o adendo "o 504 de 24/09/2026" no fim.
 
 ### 3.5 Segurança: segredo compartilhado, com uma pequena adição ao Confere
 
@@ -247,3 +250,74 @@ texto no padrão institucional (necessário também porque o link "Pular para o 
 um destino com título). O que a barra tinha de informação real — referência do contrato e
 competência (`R-CAB-05`/`R-CAB-06`) — passou para o cartão "Relatório gerado" do `ResultadoPanel`,
 onde o dado nasce.
+
+## Adendo — o 504 de 24/09/2026 (orçamento de tempo do proxy)
+
+**Sintoma.** Gerar o relatório com um contrato real (PC-CGM-240603-82 + aditivo PA-CGM-250912-127
++ levantamento CGM de 08/2026) terminava, em produção, em *"Falha no processamento (HTTP 504)."*
+
+**Causa raiz, medida.** A §3.4 supôs ~30 s de geração e mandou declarar um `maxDuration` "com
+folga" (120). As duas suposições estavam erradas:
+
+- No Render free (0,1 CPU) o Confere é de 3 a 6 vezes mais lento que no Container Apps onde os
+  22,8 s foram medidos. Chamando o serviço direto, com o serviço **já acordado**: **69 s** no piloto
+  (conjunto B, sem aditivo) e **132–134 s** no contrato CGM com 1 aditivo (duas medições). O
+  despertar soma **~23 s**.
+- Com Fluid compute (ligado neste projeto, plano Hobby — conferido pela API da Vercel), o padrão
+  **já é** 300 s, que é também o teto do Hobby. Declarar 120 *reduziu* o prazo: a Vercel matava a
+  função aos 120 s e devolvia o 504 dela (`FUNCTION_INVOCATION_TIMEOUT`, corpo em texto). Sem
+  `detail` no corpo, `api.ts` caía na mensagem genérica com o código cru.
+
+O log de runtime da Vercel no Hobby dura ~1 h: o POST que deu o 504 já não aparecia quando a
+investigação começou. A causa foi reconstruída pela medição direta no Render com os mesmos
+arquivos, pela documentação da Vercel e pelo código — o proxy nunca devolve 504 sozinho.
+
+**Correção — orçamento em cadeia, cada elo desiste antes do de fora:**
+
+| Elo | Teto | Por quê |
+|---|---|---|
+| Rota do proxy | `maxDuration = 300` | teto do Hobby; acima disso o deploy é recusado |
+| Chamada ao Confere | o que sobrar de 300 s, menos 30 s | a folga cobre o histórico (2 uploads + 1 insert) e o envio dos ~5 MB; estourou → `tempo-esgotado` → **504 com `detail`** |
+| Navegador | 310 s | precisa esperar **mais** que o proxy para receber a resposta dele; fica só para conexão pendurada |
+
+- `chamarConfere` ganhou `tempoLimiteMs` (`AbortSignal.timeout`, que cobre também a leitura do
+  corpo) e o resultado `tempo-esgotado`. Também deixou de aceitar um 200 com corpo ilegível como
+  sucesso: a tela leria os base64 de `null`, a promessa rejeitaria sem tratamento e o modal de
+  progresso ficaria aberto para sempre.
+- `api.ts`: erro **sem** `detail` vem da plataforma (o proxy e o Confere sempre mandam um); 504 e
+  413 viram frases que dizem o que houve e o que fazer. Desvio consciente da cópia fiel: o frontend
+  original não tinha uma função serverless no meio do caminho.
+- Testes: `src/lib/confere/cliente.test.ts`, `src/app/api/confere/reports/route.test.ts` (inclui a
+  regressão: o orçamento do Confere cabe no pior caso medido, ≥ 160 s, e acaba ≥ 20 s antes do
+  `maxDuration`) e `src/app/confere/lib/api.test.ts` (novo).
+
+**O que continua em aberto:**
+
+- **Folga fina no plano free.** 134 s + 23 s de despertar cabem nos 270 s, mas um contrato com mais
+  aditivos, ou duas gerações ao mesmo tempo (0,1 CPU dividido — e uma geração abandonada continua
+  ocupando o serviço até o fim), passam. O `Starter` do Render (0,5 CPU, sem hibernação) é o que
+  resolve de verdade. Decisão de custo, do usuário.
+- **Resposta de ~5 MB × limite de 4,5 MB da Vercel.** As duas respostas medidas têm ~5,1 MB por
+  causa dos dois base64. A Vercel limita o corpo de resposta de função a 4,5 MB
+  (`FUNCTION_RESPONSE_PAYLOAD_TOO_LARGE`), mas resposta em streaming não tem esse limite, e
+  streaming é o padrão de toda função Node.js em conta Hobby desde 08/07/2024 (changelog da
+  Vercel). Improvável que bata — a prova final é o primeiro teste real depois do deploy. Se
+  aparecer *"Falha no processamento (HTTP 500)"*, é isso, e o caminho é devolver os dois
+  documentos por URL (o histórico já os guarda) em vez de base64.
+- **Envio acima de 4,5 MB.** O mesmo limite vale para o corpo da requisição: contrato + levantamento
+  + aditivos somando mais de 4,5 MB recebem 413 da Vercel antes de chegar ao código (a tela agora
+  explica). Resolver de verdade é upload direto ao Blob, como o repositório de documentos faz.
+- **Painel de progresso** calibrado nos ~25 s do piloto no Container Apps. Não mente (regra 3 do
+  componente), mas estima curto no plano free; recalibrar depois de decidir o plano do Render.
+- **Vercel Blob suspenso (achado da mesma investigação).** O teste de ponta a ponta local gerou o
+  relatório, mas o histórico não gravou: `Vercel Blob: This store has been suspended`. A API da
+  Vercel mostra o store `verai-uploads` (o mesmo em dev e produção) como
+  `limits-exceeded-suspended`, com ~1,03 GB, acima da cota de 1 GB do Hobby; leitura pública dos
+  arquivos dá 403. A geração do ConfereAI não depende do Blob e segue funcionando — o histórico e
+  os downloads de execuções antigas, sim. O problema é do VerAI inteiro (tudo que passa por
+  `putUpload`/`abrirUpload` fora do R2), não só do ConfereAI. No Hobby, estourar a cota **suspende
+  o Blob por 30 dias** — apagar arquivo não destrava antes; só o Pro. 87% do store (890,6 MB, 790
+  arquivos) são as cópias antigas de PDF do histórico (`historico-contrato/`), que
+  `scripts/migrar-sharepoint-lugar-certo.ts --apagar-copias` já prevê apagar depois do deploy do
+  main e da sincronização. **Decisão do usuário (25/09/2026): os uploads vão para o R2** (o
+  projeto já o usa para o SharePoint, com 10 GB) — a desenhar e planejar à parte.

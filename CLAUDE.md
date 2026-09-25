@@ -63,7 +63,8 @@ próprio documento. O gerador serve pra medir e avisar.
 ## Integração do Confere
 
 O serviço **Confere** (Python/FastAPI separado, mantido pela PRODAM, deploy em
-`https://confere-backend.onrender.com` — plano free, cold start ~1min) compara contrato × medição
+`https://confere-backend.onrender.com` — plano free: ~23 s pra acordar e 70–135 s de geração,
+medidos em 24/09/2026) compara contrato × medição
 e gera relatório de comprovação (DOCX + XLSX). Dentro do VerAI ele vive em `/confere`
 (`src/app/confere/`): **cópia fiel do frontend próprio do Confere**
 (`services/confere/frontend/`, copiado wholesale nesta integração — mantido no repo só como
@@ -87,7 +88,7 @@ nada do tipo" + "ele precisa ficar a cópia do Confere, do mesmo jeito". A vers�
   (`model ConfereExecucao`, migração `20260921180000_add_confere_execucao`): o **nome** dos
   arquivos submetidos (contrato, levantamento e aditivos — os arquivos de entrada **não** são
   guardados em lugar nenhum) e os dois documentos gerados, no Vercel Blob, pra rebaixar sem repetir
-  os ~25s. Continua sem vínculo com `Cliente` nem competência. A gravação é **best-effort** dentro
+  a geração. Continua sem vínculo com `Cliente` nem competência. A gravação é **best-effort** dentro
   do proxy: o relatório já está no corpo da resposta, e falha de storage ou de banco não derruba a
   entrega. A listagem vive em `/confere/historico` (sub-item do grupo "ConfereAI" no menu), servida
   por `/api/confere/execucoes`.
@@ -99,6 +100,10 @@ nada do tipo" + "ele precisa ficar a cópia do Confere, do mesmo jeito". A vers�
   espera, chama `chamarConfere()` (`src/lib/confere/cliente.ts`, construído em Task 5 e reaproveitado
   sem mudanças) e devolve a resposta dele quase sem tocar. É também onde a execução é registrada no
   histórico, no caminho de sucesso e só nele.
+- **Orçamento de tempo em cadeia** — `maxDuration = 300` (teto do Hobby com Fluid, e já o padrão);
+  o Confere recebe o que sobra menos 30 s e o estouro vira 504 **com `detail`**; o navegador espera
+  310 s, mais que o proxy. **Não baixe esses números sem medir o Confere antes**: com 120 a Vercel
+  matava a função no meio da geração (o 504 de 24/09/2026 — adendo no design doc).
 
 - **Sem faixa de marca própria** — a barra de aplicação do Confere (logo + "Confere o contratado. /
   Confere o utilizado.") e o rodapé institucional da Prodam foram removidos: dentro do VerAI a

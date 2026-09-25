@@ -89,11 +89,10 @@ inalterado exceto pela Task 2).
       - `GET /health` sem header → `200 {"status":"ok"}`
       - `POST /reports` sem header → `401 Não Autorizado` (confirma o middleware do segredo
         compartilhado ativo em produção, não só nos 5 testes locais)
-- [ ] Pendente: medir o tempo real de cold-start (depois de 15+ min sem tráfego) numa chamada real
-      de `POST /reports` — só vai acontecer organicamente quando a Task 5 estiver pronta e o VerAI
-      fizer a primeira chamada de verdade; registrar o tempo medido aqui quando acontecer
+- [x] Medido em 24/09/2026 (Task 10): ~23 s de despertar; geração com o serviço acordado, 69 s no
+      piloto e 132–134 s no contrato CGM com 1 aditivo — 3 a 6× o previsto
 - [ ] Pendente: decidir e documentar se fica no free tier ou sobe pro Starter (remove spin-down) —
-      decisão adiada até sentir o impacto real do cold-start no uso
+      agora com números: no free, o contrato CGM usa ~160 s dos 270 s de orçamento (Task 10)
 
 ### Task 4: Model Prisma novo
 
@@ -218,6 +217,34 @@ ficar "a cópia do Confere, do mesmo jeito" (com print do frontend de verdade do
       migração de reversão), `npx tsc --noEmit`, suíte completa do Jest, `npm run dev` pra
       conferir visualmente contra o print que o usuário mandou
 - [ ] Commit
+
+### Task 10: Orçamento de tempo do proxy — o 504 de produção (24/09/2026)
+
+**Status:** ✅ Código e testes concluídos (24/09/2026); deploy pendente. Causa, números e decisões no
+adendo "o 504 de 24/09/2026" do design doc.
+
+- [x] Causa raiz medida: Confere no Render free leva 134 s (acordado) + ~23 s (despertar); a rota
+      declarava `maxDuration = 120`, abaixo do padrão de 300 s do Fluid → Vercel matava a função →
+      504 cru → "Falha no processamento (HTTP 504)."
+- [x] `chamarConfere`: `tempoLimiteMs` + resultado `tempo-esgotado`; 200 sem relatório inteiro vira
+      `erro` (2 testes novos em `cliente.test.ts`)
+- [x] Rota: `maxDuration = 300`; Confere recebe o que sobrar menos 30 s de folga; `tempo-esgotado`
+      → 504 com `detail` (2 testes novos em `route.test.ts`, um deles a regressão do bug)
+- [x] `api.ts`: teto do navegador 310 s (acima do proxy); 504/413 da plataforma com mensagem que
+      explica (`api.test.ts`, novo, 5 testes)
+- [x] Fluxo completo verificado no `next dev` local com os arquivos reais do incidente: 200 em
+      130 s, 5,09 MB, relatório inteiro (TC 16/CGM/2024, 12 divergências). O **histórico não
+      gravou**: o store do Vercel Blob (`verai-uploads`) está suspenso por cota (ver adendo)
+- [ ] Destravar o storage: decisão do usuário (25/09) é mover os uploads para o R2 — a desenhar e
+      planejar à parte. Enquanto isso o histórico do ConfereAI não grava e os downloads antigos dão
+      403 (o Blob do Hobby fica suspenso por 30 dias)
+- [ ] Deploy como **hotfix** (decisão do usuário, 25/09): branch a partir de `824f1a2` — o que está
+      em produção desde 21/09 — com só esta correção, sem os 106 commits das outras frentes nem
+      migração de banco. (O `tsc` do main já passa desde `13bcdfb`; o Jest do main segue com 19
+      suítes quebradas em relatórios-clientes, fora do Confere.)
+- [ ] Primeiro teste real em produção depois do deploy: confirmar que a resposta de ~5,1 MB passa
+      (limite de 4,5 MB da Vercel para resposta que não é streaming — ver adendo)
+- [ ] Decidir o plano do Render (Task 3)
 
 ### Task 8: Atualizar os docs deste plano
 

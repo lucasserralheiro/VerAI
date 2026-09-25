@@ -1,4 +1,4 @@
-import { destinoDoLink } from './links'
+import { destinoDoLink, ESQUEMA_PROPRIO } from './links'
 
 it('classifica links da resposta', () => {
   expect(destinoDoLink('sei:7010202600096354')).toEqual({ tipo: 'sei', numero: '7010202600096354' })
@@ -10,4 +10,17 @@ it('classifica links da resposta', () => {
   // "//evil.com" (protocol-relative) e troca de origem. Sem checar a origem resolvida, passava como interno.
   expect(destinoDoLink('/\\evil.com')).toEqual({ tipo: 'texto' })
   expect(destinoDoLink(undefined)).toEqual({ tipo: 'texto' })
+})
+
+it('esquemas curtos viram /ir/<tipo>/<id>; id estranho vira texto', () => {
+  expect(destinoDoLink('contrato:ck1abc')).toEqual({ tipo: 'interno', href: '/ir/contrato/ck1abc' })
+  expect(destinoDoLink('confere:ck9')).toEqual({ tipo: 'interno', href: '/ir/confere/ck9' })
+  expect(destinoDoLink('contrato:../x')).toEqual({ tipo: 'texto' })
+  expect(destinoDoLink('usuario:ck1')).toEqual({ tipo: 'texto' })
+})
+
+it('o markdown deixa passar os esquemas próprios', () => {
+  expect(ESQUEMA_PROPRIO.test('sei:123')).toBe(true)
+  expect(ESQUEMA_PROPRIO.test('contrato:ck1')).toBe(true)
+  expect(ESQUEMA_PROPRIO.test('javascript:alert(1)')).toBe(false)
 })

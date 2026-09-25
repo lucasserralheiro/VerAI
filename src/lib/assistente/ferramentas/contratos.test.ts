@@ -178,6 +178,7 @@ describe('buscarPorSei', () => {
     expect(r.total).toBe(2)
     expect(r.ocorrencias.map((o) => o.tipo)).toEqual(['contrato', 'fornecedor'])
     expect(r.ocorrencias[0].href).toBe('/clientes/c1/contratos/k1')
+    expect(r.ocorrencias.map((o) => (o as { link?: string }).link)).toEqual(['contrato:k1', 'fornecedor:f1'])
   })
 
   it('admin (sem restrição de cliente): SQL não filtra por clienteId', async () => {

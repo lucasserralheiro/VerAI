@@ -207,7 +207,12 @@ function hrefDaOcorrencia(o: OcorrenciaSei): string {
   }
 }
 
-const soDigitos = (coluna: Prisma.Sql) => Prisma.sql`regexp_replace(coalesce(${coluna}, ''), '[^0-9]', '', 'g')`
+/** Link curto (`tipo:id`) que a IA cita; termo de confirmação não tem tela própria — vai ao cliente. */
+function linkDaOcorrencia(o: OcorrenciaSei): string {
+  return o.tipo === 'termo' ? `cliente:${o.clienteId}` : `${o.tipo}:${o.id}`
+}
+
+const soDigitos =(coluna: Prisma.Sql) => Prisma.sql`regexp_replace(coalesce(${coluna}, ''), '[^0-9]', '', 'g')`
 
 export const buscarPorSei = definirFerramenta({
   descricao: 'Onde um número de processo SEI aparece: contratos, faturamentos, demandas, fornecedores e termos de confirmação. Aceita o número com ou sem pontuação, inteiro ou parcial (6+ dígitos).',
@@ -242,7 +247,7 @@ export const buscarPorSei = definirFerramenta({
       LIMIT 50`)
     return {
       total: linhas.length,
-      ocorrencias: linhas.slice(0, LIMITE_PADRAO).map((l) => ({ tipo: l.tipo, rotulo: l.rotulo, sei: sei(l.sei), href: hrefDaOcorrencia(l) })),
+      ocorrencias: linhas.slice(0, LIMITE_PADRAO).map((l) => ({ tipo: l.tipo, rotulo: l.rotulo, sei: sei(l.sei), link: linkDaOcorrencia(l), href: hrefDaOcorrencia(l) })),
     }
   },
 })

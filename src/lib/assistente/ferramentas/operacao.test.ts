@@ -59,7 +59,7 @@ describe('faturamentos', () => {
       valorTotalPeriodo: 'R$ 300,00',
       faturamentos: [
         {
-          competencia: '08/2026', contrato: '031/2023', valor: 'R$ 300,00', situacao: 'Faturado', sei: null, enviadoCliente: true, enviadoGfp: false,
+          id: 'f1', competencia: '08/2026', contrato: '031/2023', valor: 'R$ 300,00', situacao: 'Faturado', sei: null, enviadoCliente: true, enviadoGfp: false,
           observacao: null, pdf: 'NF.pdf',
           notasFiscais: [{ numero: '123', servico: 'Rede', valor: 'R$ 300,00', emissao: '01/09/2026' }],
           totalNotas: 'R$ 300,00',
@@ -114,7 +114,8 @@ describe('fornecedores', () => {
         dataAssinatura: null, sei: null, contratosOperacionalizacao: [], termosConfirmacao: [],
       })),
     )
-    const resultado = (await rodar(fornecedores, {})) as { total: number; fornecedores: unknown[] }
+    const resultado = (await rodar(fornecedores, {})) as { total: number; fornecedores: { id?: string }[] }
+    expect(resultado.fornecedores[0].id).toBe('f0')
     expect(resultado.total).toBe(25)
     expect(resultado.fornecedores).toHaveLength(20)
   })

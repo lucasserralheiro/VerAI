@@ -1,11 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import ReactMarkdown, { type Components } from 'react-markdown'
+import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { SeiLink } from '@/components/relatorios-clientes/sei-link'
 import { LINK_NAVY } from '@/lib/ui'
-import { destinoDoLink } from './links'
+import { destinoDoLink, ESQUEMA_PROPRIO } from './links'
+
+/** O `urlTransform` padrão do react-markdown apaga qualquer esquema fora de http/mailto — `sei:` e
+ *  `contrato:` chegavam vazios e o link virava texto. `destinoDoLink` valida o resto. */
+export const transformarUrl = (url: string) => (ESQUEMA_PROPRIO.test(url) ? url : defaultUrlTransform(url))
 
 /** Componentes do markdown da resposta: tabela (GFM), link interno navega sem fechar o painel,
  *  SEI vira SeiLink, link externo só https e em outra aba, imagem NUNCA carrega — texto gerado
@@ -40,7 +44,7 @@ export const componentesMarkdown: Components = {
 export function RespostaMarkdown({ texto }: { texto: string }) {
   return (
     <div className="prose-assistente space-y-2 text-sm leading-relaxed text-foreground [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-border-grey [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-border-grey [&_th]:bg-navy/[0.04] [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={componentesMarkdown}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={componentesMarkdown} urlTransform={transformarUrl}>
         {texto}
       </ReactMarkdown>
     </div>

@@ -16,7 +16,7 @@ import { podeVerCliente } from '@/lib/visibilidade'
 import { buscarTrechos } from '@/lib/assistente/busca'
 import { sincronizarIndice } from '@/lib/assistente/indexacao/sincronizar'
 import type { Ferramenta, ContextoFerramenta } from './comum'
-import { analisesDeDocumentos, buscarNosDocumentos, execucoesConfere, hrefDoTrecho } from './conteudo'
+import { analisesDeDocumentos, buscarNosDocumentos, execucoesConfere, hrefDoTrecho, linkDoTrecho } from './conteudo'
 
 const ctx: ContextoFerramenta = { usuario: { id: 'u', nome: 'U', email: 'u@x', role: 'responsavel' }, hoje: new Date('2026-09-23T12:00:00Z') }
 const rodar = <E extends import('zod').ZodType>(f: Ferramenta<E>, entrada: unknown) => f.executar(f.entrada.parse(entrada), ctx)
@@ -36,9 +36,9 @@ describe('buscarNosDocumentos', () => {
     expect(buscarTrechos).toHaveBeenCalledWith({ consulta: 'reajuste', clienteId: 'c1', contratoId: undefined }, ctx.usuario)
     expect(r).toEqual({
       total: 1,
-      trechos: [{ arquivo: 'TA_02.pdf', pagina: 3, origem: 'HISTORICO_TERMO', citacao: 'reajuste pelo IPCA', href: '/clientes/c1/contratos/k1' }],
+      trechos: [{ arquivo: 'TA_02.pdf', pagina: 3, origem: 'HISTORICO_TERMO', citacao: 'reajuste pelo IPCA', link: 'contrato:k1', href: '/clientes/c1/contratos/k1' }],
     })
-    expect(buscarNosDocumentos.compactar!(r)).toBe('trechos (total 1):\n[TA_02.pdf, p. 3]\n"reajuste pelo IPCA"')
+    expect(buscarNosDocumentos.compactar!(r)).toBe('trechos (total 1):\n[TA_02.pdf, p. 3] contrato:k1\n"reajuste pelo IPCA"')
   })
 
   it('cliente sem permissão: não encontrado, sem buscar', async () => {
@@ -60,6 +60,15 @@ it('hrefDoTrecho aponta para a tela de origem', () => {
   expect(hrefDoTrecho({ ...base, origem: 'PROPOSTA_COMERCIAL_ARQUIVO', origemId: 'p1', clienteId: null })).toBe('/propostas-comerciais')
 })
 
+it('linkDoTrecho: tipo:id que a IA cita', () => {
+  const base = { clienteId: 'c1', contratoId: 'k1', nomeArquivo: 'a', pagina: null, texto: '' }
+  expect(linkDoTrecho({ ...base, origem: 'HISTORICO_TERMO', origemId: 'h1' })).toBe('contrato:k1')
+  expect(linkDoTrecho({ ...base, origem: 'HISTORICO_PROPOSTA', origemId: 'h1', contratoId: null })).toBe('cliente:c1')
+  expect(linkDoTrecho({ ...base, origem: 'FATURAMENTO_PDF', origemId: 'f1' })).toBe('faturamento:f1')
+  expect(linkDoTrecho({ ...base, origem: 'DOCUMENTO', origemId: 'd1' })).toBe('documento:d1')
+  expect(linkDoTrecho({ ...base, origem: 'PROPOSTA_COMERCIAL_ARQUIVO', origemId: 'p1', clienteId: null })).toBeNull()
+})
+
 describe('analisesDeDocumentos', () => {
   it('só documentos visíveis ao usuário', async () => {
     ;(prisma.documento.findMany as jest.Mock).mockResolvedValue([])
@@ -79,6 +88,7 @@ describe('execucoesConfere', () => {
     const r = (await rodar(execucoesConfere, {})) as { execucoes: { resultado: string; href: string }[] }
     expect(r.execucoes[0].resultado.length).toBeLessThanOrEqual(1500)
     expect(r.execucoes[0].href).toBe('/confere/historico/e1')
+    expect((r.execucoes[0] as { id?: string }).id).toBe('e1')
   })
 
   it('total vem da contagem real, não do tamanho da página (findMany capado por take)', async () => {

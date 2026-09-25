@@ -66,6 +66,7 @@ export const faturamentos = definirFerramenta({
       total: totais._count._all,
       valorTotalPeriodo: moeda(totais._sum.valor),
       faturamentos: lista.map((f) => ({
+        id: f.id,
         competencia: competenciaTexto(f.competenciaAno, f.competenciaMes),
         contrato: f.contrato.numeroTermo,
         valor: moeda(f.valor),
@@ -259,6 +260,7 @@ export const fornecedores = definirFerramenta({
     return {
       total,
       fornecedores: lista.map((f) => ({
+        id: f.id,
         razaoSocial: f.razaoSocial,
         cnpj: f.cnpj,
         contato: f.contato,

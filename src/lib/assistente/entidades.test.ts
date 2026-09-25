@@ -74,6 +74,15 @@ it('contrato ambíguo não entra; com cliente identificado, desempata', async ()
   expect((await ids('o 032/2025/SEHAB do SMS')).contratos).toEqual(['k32'])
 })
 
+it('número do cadastro com sufixo ("TC 105/2025/SMS/1/CONTRATOS") casa por número + ano', async () => {
+  CONTRATOS.push({ id: 'k105', numeroTermo: 'TC 105/2025/SMS/1/CONTRATOS', clienteId: 'sms' })
+  try {
+    expect((await ids('e o 105/2025 da SMS?')).contratos).toEqual(['k105'])
+  } finally {
+    CONTRATOS.pop()
+  }
+})
+
 it('SEI e data não viram contrato', async () => {
   expect((await ids('SEI 6018.2023/0122629-0 de 31/12/2026')).contratos).toEqual([])
 })

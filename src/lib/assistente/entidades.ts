@@ -31,6 +31,9 @@ const apelido = (nome: string) => (nome.includes(' - ') ? nome.slice(nome.lastIn
 /** "45/2023", "TC 45/SMIT/2023", "032/2025/SEHAB" — nunca pedaço de SEI ("6018.2023/0122629-0") nem data. */
 const NUMERO_DE_CONTRATO = /(?<![\d./])\d{1,4}\s*\/\s*(?:[A-Za-zÀ-ú]+\s*\/\s*)?\d{4}(?:\s*\/\s*[A-Za-zÀ-ú]+)?(?![\d/])/g
 
+/** Número + ano: o cadastro traz sufixo ("TC 105/2025/SMS/1/CONTRATOS" → "105 2025 1") que ninguém digita. */
+const numeroEAno = (texto: string | null | undefined) => chaveNumerica(texto)?.split(' ').slice(0, 2).join(' ') ?? null
+
 function idsDaMemoria(recentes: unknown[]): { clientes: string[]; contratos: string[] } {
   const clientes = new Set<string>()
   const contratos = new Set<string>()
@@ -63,7 +66,7 @@ export async function identificarEntidades(entrada: { pergunta: string; usuario:
   const citados = visiveis.filter((c) => cita(entrada.pergunta, c.siglaLegado) || cita(entrada.pergunta, apelido(c.nome)) || cita(entrada.pergunta, c.nome))
   const cliente = citados.length === 1 ? citados[0] : null
 
-  const chaves = [...new Set((entrada.pergunta.match(NUMERO_DE_CONTRATO) ?? []).map(chaveNumerica).filter((c): c is string => c !== null))]
+  const chaves = [...new Set((entrada.pergunta.match(NUMERO_DE_CONTRATO) ?? []).map(numeroEAno).filter((c): c is string => c !== null))]
   const filtroCliente = cliente ? cliente.id : permitidos === null ? undefined : { in: permitidos }
   let contrato: { id: string; numeroTermo: string | null; clienteId: string } | null = null
   if (chaves.length === 1) {
@@ -71,7 +74,7 @@ export async function identificarEntidades(entrada: { pergunta: string; usuario:
       where: filtroCliente ? { clienteId: filtroCliente } : {},
       select: { id: true, numeroTermo: true, clienteId: true },
     })
-    const casados = candidatos.filter((c) => chaveNumerica(c.numeroTermo) === chaves[0])
+    const casados = candidatos.filter((c) => numeroEAno(c.numeroTermo) === chaves[0])
     contrato = casados.length === 1 ? casados[0] : null
   }
 

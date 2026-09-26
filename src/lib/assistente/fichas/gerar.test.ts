@@ -65,6 +65,13 @@ it('IA só nos campos que a regra não achou; alterações só em aditivo', asyn
   expect(gravado.campos.reajusteIndice.fonte).toBe('regra')
 })
 
+it('campo que a IA achou e a verificação descartou fica anotado como não confirmado', async () => {
+  ;(prisma.indiceDocumento.findMany as jest.Mock).mockResolvedValue([indice('h1')])
+  ler.mockResolvedValueOnce({ campos: {}, descartados: ['multas', 'medicao'], tokensEntrada: 10, tokensSaida: 1 })
+  await gerarFichasPendentes({ ler })
+  expect((prisma.fichaDocumento.upsert as jest.Mock).mock.calls[0][0].create.mensagem).toBe('não confirmados: multas, medicao')
+})
+
 it('sem IA: fica parcial e não chama', async () => {
   ;(prisma.indiceDocumento.findMany as jest.Mock).mockResolvedValue([indice('h1')])
   const r = await gerarFichasPendentes({ ler, comIa: false })

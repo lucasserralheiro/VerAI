@@ -76,11 +76,13 @@ export async function gerarFichasPendentes(
       let campos: CamposFicha = porRegra
       let tokensEntrada: number | undefined
       let tokensSaida: number | undefined
+      let naoConfirmados: string[] = []
       if (comIa && faltando.length > 0) {
         const lido = await ler({ paginas, faltando, tipoLinha, modelo })
         campos = { ...porRegra, ...lido.campos }
         tokensEntrada = lido.tokensEntrada
         tokensSaida = lido.tokensSaida
+        naoConfirmados = lido.descartados
         resumo.tokens += (tokensEntrada ?? 0) + (tokensSaida ?? 0)
         resumo.comIa++
       } else {
@@ -88,7 +90,15 @@ export async function gerarFichasPendentes(
       }
       const parcial = aplicaveis.some((n) => !campos[n])
       if (parcial) resumo.parciais++
-      await gravar({ campos, status: parcial ? 'parcial' : 'ok', modelo: tokensEntrada !== undefined ? nomeDoModelo : null, tokensEntrada, tokensSaida })
+      await gravar({
+        campos,
+        status: parcial ? 'parcial' : 'ok',
+        // A IA achou, mas o trecho não se confirmou no texto: a ferramenta mostra "não confirmado".
+        ...(naoConfirmados.length ? { mensagem: `não confirmados: ${naoConfirmados.join(', ')}` } : {}),
+        modelo: tokensEntrada !== undefined ? nomeDoModelo : null,
+        tokensEntrada,
+        tokensSaida,
+      })
     } catch (erro) {
       resumo.erros++
       const mensagem = (erro instanceof Error ? erro.message : String(erro)).slice(0, 500)

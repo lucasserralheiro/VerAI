@@ -63,6 +63,17 @@ describe('vencimento', () => {
     expect(a.temaManual).toBe('prorrogacao')
   })
 
+  it('já venceu com prorrogação sem assinatura: título e ação próprios, sem dias negativos no texto', () => {
+    const [a] = alertasDoContrato(
+      dados({}, { vencimento: { nivel: 'vencido', dias: -103 }, prorrogacaoEmAndamento: true, vigenciaFim: new Date('2026-06-15T00:00:00Z') }),
+      hoje
+    )
+    expect(a.codigo).toBe('prorrogacao-sem-assinatura')
+    expect(a.nivel).toBe('critico')
+    expect(a.titulo).toBe('Venceu há 103 dias com prorrogação sem assinatura')
+    expect(a.acao).toBe('Conferir se a prorrogação foi assinada e registrar a data de assinatura; sem ela o contrato está vencido desde 15/06/2026.')
+  })
+
   it('rescindido, inativo ou vazio não alerta', () => {
     expect(alertasDoContrato(dados({}, { vencimento: { nivel: 'critico', dias: 10 }, rescindido: true }), hoje)).toEqual([])
     expect(alertasDoContrato(dados({}, { vencimento: { nivel: 'critico', dias: 10 }, ativo: false }), hoje)).toEqual([])

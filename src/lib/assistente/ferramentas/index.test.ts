@@ -13,12 +13,12 @@ const ctx = { usuario: { id: 'u', nome: 'U', email: 'u@x', role: 'admin' as cons
 
 type FerramentaStub = { description: string; inputSchema: unknown; execute: (entrada: unknown) => Promise<unknown> }
 
-it('registra as 15 ferramentas, todas com rótulo de progresso', () => {
+it('registra as ferramentas, todas com rótulo de progresso', () => {
   expect(Object.keys(FERRAMENTAS).sort()).toEqual(
     [
       'analisesDeDocumentos', 'buscarClientes', 'buscarNosDocumentos', 'buscarPorSei', 'contratosVencendo', 'demandas',
       'detalheDoContrato', 'execucoesConfere', 'faturamentos', 'fornecedores', 'itensDoContrato', 'propostasComerciais',
-      'resumoDoCliente', 'solicitacoes', 'tramitesDaDemanda',
+      'resumoDoCliente', 'solicitacoes', 'tramitesDaDemanda', 'alertas',
     ].sort()
   )
   for (const nome of Object.keys(FERRAMENTAS)) expect(ROTULOS_FERRAMENTAS[nome]).toBeTruthy()
@@ -49,7 +49,7 @@ it('criarFerramentas liga o toModelOutput ao texto compacto', async () => {
 })
 
 describe('criarFerramentas', () => {
-  it('expõe as 15 ferramentas com description/inputSchema vindos de cada Ferramenta', () => {
+  it('expõe as ferramentas com description/inputSchema vindos de cada Ferramenta', () => {
     const ferramentas = criarFerramentas(ctx) as unknown as Record<string, FerramentaStub>
     expect(Object.keys(ferramentas).sort()).toEqual(Object.keys(FERRAMENTAS).sort())
     for (const [nome, ferramenta] of Object.entries(FERRAMENTAS)) {

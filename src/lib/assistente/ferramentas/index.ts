@@ -5,6 +5,7 @@ import { buscarClientes, resumoDoCliente } from './clientes'
 import { buscarPorSei, contratosVencendo, detalheDoContrato, itensDoContrato } from './contratos'
 import { demandas, faturamentos, fornecedores, solicitacoes, tramitesDaDemanda } from './operacao'
 import { analisesDeDocumentos, buscarNosDocumentos, execucoesConfere, propostasComerciais } from './conteudo'
+import { alertas } from './alertas'
 
 export { ROTULOS_FERRAMENTAS } from './rotulos'
 
@@ -24,6 +25,7 @@ export const FERRAMENTAS: Record<string, Ferramenta> = {
   analisesDeDocumentos,
   execucoesConfere,
   buscarNosDocumentos,
+  alertas,
 } as Record<string, Ferramenta>
 
 export async function executarComSeguranca(

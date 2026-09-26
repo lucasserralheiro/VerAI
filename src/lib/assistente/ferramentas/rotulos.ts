@@ -15,4 +15,5 @@ export const ROTULOS_FERRAMENTAS: Record<string, string> = {
   analisesDeDocumentos: 'Consultando análises de documentos',
   execucoesConfere: 'Consultando o ConfereAI',
   buscarNosDocumentos: 'Lendo os documentos',
+  alertas: 'Conferindo os alertas',
 }

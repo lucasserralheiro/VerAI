@@ -162,12 +162,16 @@ export function alertasDoContrato(d: DadosAlerta, hoje: Date): Alerta[] {
     })
   }
   if (k.prorrogacaoEmAndamento && !k.rescindido && dias !== null && dias <= LIMIARES.venceAtencaoDias) {
+    const fim = k.vigenciaFim ? data(k.vigenciaFim) : null
+    const venceu = dias < 0
     novo({
       codigo: 'prorrogacao-sem-assinatura',
-      nivel: nivelPorPrazo(dias),
-      titulo: `Prorrogação sem assinatura — vence em ${dias} dias`,
+      nivel: venceu ? 'critico' : nivelPorPrazo(dias),
+      titulo: venceu ? `Venceu há ${-dias} dias com prorrogação sem assinatura` : `Prorrogação sem assinatura — vence em ${dias} dias`,
       detalhe: 'Há aditivo/prorrogação no histórico ainda sem assinatura; até assinar, não estende a vigência.',
-      acao: `Conseguir a assinatura antes de ${k.vigenciaFim ? data(k.vigenciaFim) : 'o fim da vigência'}: sem ela a vigência não estende.`,
+      acao: venceu
+        ? `Conferir se a prorrogação foi assinada e registrar a data de assinatura; sem ela o contrato está vencido desde ${fim ?? 'o fim da vigência'}.`
+        : `Conseguir a assinatura antes de ${fim ?? 'o fim da vigência'}: sem ela a vigência não estende.`,
       temaManual: 'prorrogacao',
       dias,
     })

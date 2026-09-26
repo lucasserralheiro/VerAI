@@ -66,7 +66,11 @@ export function montarTextoParaIa(paginas: PaginaDeTexto[], faltando: NomeCampo[
   return partes.join('\n\n')
 }
 
-const esquemaCampo = z.object({ valor: z.string(), pagina: z.number().int().nullable(), trecho: z.string() }).nullable()
+/** Página tolerante ao JSON do provedor (o DeepSeek às vezes manda "2" ou omite): ~2% das fichas
+ *  falhavam com "response did not match schema". O campo em si continua obrigatório no JSON Schema —
+ *  opcional, o modelo passa a omitir tudo. A verificação literal segue igual. */
+const pagina = z.preprocess((v) => (typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v) : v === '' || v === undefined ? null : v), z.number().int().nullable())
+const esquemaCampo = z.object({ valor: z.string(), pagina, trecho: z.string() }).nullable()
 
 /**
  * IA uma vez, só para os campos que a regra não achou (spec fase 2 §5.2, etapa 2). Todo campo passa

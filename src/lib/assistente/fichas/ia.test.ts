@@ -39,6 +39,15 @@ it('só fica o campo que passa na verificação literal', async () => {
   expect(r.tokensSaida).toBe(80)
 })
 
+it('esquema tolerante: página como texto vira número; página ausente vira nula', async () => {
+  ;(generateObject as jest.Mock).mockResolvedValue({ object: {}, usage: {} })
+  await lerComIa({ paginas, faltando: ['multas', 'medicao'], tipoLinha: 'ADITIVO' })
+  const { schema } = (generateObject as jest.Mock).mock.calls[0][0]
+  expect(schema.parse({ multas: { valor: '0,5%', pagina: '2', trecho: 'x' }, medicao: null })).toEqual({ multas: { valor: '0,5%', pagina: 2, trecho: 'x' }, medicao: null })
+  expect(schema.parse({ multas: { valor: '0,5%', trecho: 'x' }, medicao: null }).multas.pagina).toBeNull()
+  expect(schema.parse({ multas: { valor: '0,5%', pagina: null, trecho: 'x' }, medicao: null }).multas.pagina).toBeNull()
+})
+
 describe('montarTextoParaIa', () => {
   it('texto curto vai inteiro', () => {
     expect(montarTextoParaIa(paginas, ['multas'])).toBe('=== página 1 ===\nTERMO ADITIVO Nº 2. Objeto: sustentação.\n\n=== página 2 ===\nA multa por atraso será de 0,5% ao dia sobre o valor da parcela.')

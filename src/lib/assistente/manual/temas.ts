@@ -2,3 +2,16 @@
  *  Sem import: usado também pelas regras de alertas (`src/lib/relatorios-clientes/alertas.ts`). */
 export const TEMAS_MANUAL = ['prorrogacao', 'aditivo-valor', 'reajuste', 'apostilamento', 'rescisao', 'faturamento', 'sei', 'confere'] as const
 export type TemaManual = (typeof TEMAS_MANUAL)[number]
+
+/** Um tema do manual. `rascunho` não é regra: a equipe revisa e troca para `validado`. Até 3.000
+ *  caracteres de texto (markdown), gastos só quando o tema é consultado. */
+export interface TemaDoManual {
+  tema: TemaManual
+  titulo: string
+  palavrasChave: string[]
+  status: 'rascunho' | 'validado'
+  validadoPor: string | null
+  /** AAAA-MM-DD */
+  validadoEm: string | null
+  texto: string
+}

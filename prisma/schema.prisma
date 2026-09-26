@@ -736,6 +736,26 @@ model DocumentoReferencia {
   removidoEm   DateTime?
 }
 
+// Ficha de um PDF do histórico (proposta ou termo), lida UMA vez por versão do índice: primeiro por
+// regra, depois IA só no que faltou, com verificação literal do trecho (spec
+// docs/superpowers/specs/2026-09-25-assistente-senior-design.md §5). `campos` = { nome: { valor, pagina,
+// trecho, fonte } }. Sem FK de propósito, como o índice: `origem` + `origemId` apontam a linha do histórico.
+model FichaDocumento {
+  id            String       @id @default(cuid())
+  origem        OrigemTrecho
+  origemId      String
+  versao        String?
+  campos        Json
+  status        String // ok | parcial | sem_texto | erro
+  mensagem      String?
+  modelo        String?
+  tokensEntrada Int?
+  tokensSaida   Int?
+  geradaEm      DateTime     @default(now())
+
+  @@unique([origem, origemId])
+}
+
 // Estado da indexação de UM arquivo (um por origem+registro). `versao` é o `uploadedAt` do blob
 // (ISO) ou o hash do texto já extraído; muda quando o arquivo é trocado no mesmo caminho.
 model IndiceDocumento {

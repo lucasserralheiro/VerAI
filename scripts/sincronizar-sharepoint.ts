@@ -20,7 +20,7 @@ import { PrismaClient } from '@prisma/client'
 import { config } from 'dotenv'
 import { fonteDaPasta, pastaPadraoDaBiblioteca } from '../src/lib/arquivos/sharepoint/fonte-pasta'
 import { sincronizarSharepoint } from '../src/lib/arquivos/sharepoint/sincronizar'
-import { atualizarIndiceDoAssistente } from '../src/lib/assistente/indexacao/apos-sincronizacao'
+import { atualizarFichasDoAssistente, atualizarIndiceDoAssistente } from '../src/lib/assistente/indexacao/apos-sincronizacao'
 import { ROTULO_ACHADO } from '../src/lib/importacao-sharepoint/auditoria'
 import { auditarNoBanco } from '../src/lib/importacao-sharepoint/auditoria-banco'
 import { textoDoPdf } from '../src/lib/importacao-sharepoint/pdf-texto'
@@ -131,6 +131,8 @@ async function main() {
         ? (await prisma.cliente.findMany({ where: { siglaLegado: { in: clientes.map((s) => s.toUpperCase()) } }, select: { id: true } })).map((c) => c.id)
         : undefined
       console.log(`\n${await atualizarIndiceDoAssistente({ clienteIds })}`)
+      // Fichas dos PDFs do histórico (spec 2026-09-25-assistente-senior §5.3), depois do índice.
+      console.log(await atualizarFichasDoAssistente())
     }
 
     mkdirSync('logs', { recursive: true })

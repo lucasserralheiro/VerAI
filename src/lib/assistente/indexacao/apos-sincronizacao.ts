@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/prisma'
+import { configuracaoDoAssistente } from '@/lib/assistente/configuracao'
+import { gerarFichasPendentes, type ResumoFichas } from '@/lib/assistente/fichas/gerar'
 import { sincronizarIndice } from './sincronizar'
 import { emMb, LIMITE_BYTES_INDICE, tamanhoDoIndice } from './tamanho'
 
@@ -13,9 +15,9 @@ export const MIGRACAO_DO_INDICE = '20260926100000_assistente_referencias'
  * deploy anterior a esta fase: sem a migração, o banco recusa `ARQUIVO_CLIENTE` e o cron do código
  * antigo apagaria o que fosse indexado. A etapa só roda quando a migração já foi aplicada ali.
  */
-async function migracaoAplicada(): Promise<boolean> {
+async function migracaoAplicada(nome: string): Promise<boolean> {
   const linhas = await prisma.$queryRaw<{ n: bigint }[]>`
-    SELECT count(*) AS n FROM "_prisma_migrations" WHERE migration_name = ${MIGRACAO_DO_INDICE} AND finished_at IS NOT NULL`
+    SELECT count(*) AS n FROM "_prisma_migrations" WHERE migration_name = ${nome} AND finished_at IS NOT NULL`
   return Number(linhas[0]?.n ?? 0) > 0
 }
 
@@ -29,7 +31,7 @@ export async function atualizarIndiceDoAssistente(
   deps: { sincronizar: Sincronizar; tamanho: () => Promise<number>; bancoPronto: () => Promise<boolean> } = {
     sincronizar: sincronizarIndice,
     tamanho: tamanhoDoIndice,
-    bancoPronto: migracaoAplicada,
+    bancoPronto: () => migracaoAplicada(MIGRACAO_DO_INDICE),
   }
 ): Promise<string> {
   try {
@@ -46,5 +48,32 @@ export async function atualizarIndiceDoAssistente(
     return `índice do assistente: indexados ${soma.ok} · sem texto ${soma.sem_texto} · removidos ${soma.removidos} · erros ${soma.erro} · pendentes ${soma.restantes}`
   } catch (erro) {
     return `índice do assistente: falhou — ${erro instanceof Error ? erro.message : String(erro)} (a próxima rodada tenta de novo)`
+  }
+}
+
+/** Migração da tabela `FichaDocumento` (spec fase 2 §5). */
+export const MIGRACAO_DAS_FICHAS = '20260926110000_assistente_fichas'
+
+/**
+ * Fichas dos PDFs do histórico, depois do índice (spec 2026-09-25-assistente-senior §5.3): até 50 por
+ * rodada. Sem chave de IA, roda só as regras. Mesma guarda e mesmo contrato do índice: nunca lança.
+ */
+export async function atualizarFichasDoAssistente(
+  deps: { gerar: (opcoes: { limite: number; comIa: boolean }) => Promise<ResumoFichas>; bancoPronto: () => Promise<boolean>; comIa: () => boolean } = {
+    gerar: gerarFichasPendentes,
+    bancoPronto: () => migracaoAplicada(MIGRACAO_DAS_FICHAS),
+    comIa: () => configuracaoDoAssistente() !== null,
+  }
+): Promise<string> {
+  try {
+    if (!(await deps.bancoPronto())) return `fichas: pulado — migração ${MIGRACAO_DAS_FICHAS} não aplicada neste banco`
+    const comIa = deps.comIa()
+    const r = await deps.gerar({ limite: 50, comIa })
+    return (
+      `fichas: por regra ${r.porRegra} · com IA ${r.comIa} · parciais ${r.parciais} · sem texto ${r.semTexto} · erros ${r.erros} · tokens ${r.tokens} · pendentes ${r.restantes}` +
+      (comIa ? '' : ' (sem IA: chave não configurada)')
+    )
+  } catch (erro) {
+    return `fichas: falhou — ${erro instanceof Error ? erro.message : String(erro)} (a próxima rodada tenta de novo)`
   }
 }

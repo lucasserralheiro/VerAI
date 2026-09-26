@@ -2,8 +2,10 @@
 jest.mock('./sincronizar', () => ({ sincronizarIndice: jest.fn() }))
 jest.mock('./tamanho', () => ({ ...jest.requireActual('./tamanho'), tamanhoDoIndice: jest.fn() }))
 jest.mock('@/lib/prisma', () => ({ prisma: {} }))
+jest.mock('@/lib/assistente/fichas/gerar', () => ({ gerarFichasPendentes: jest.fn() }))
+jest.mock('@/lib/assistente/configuracao', () => ({ configuracaoDoAssistente: jest.fn() }))
 
-import { atualizarIndiceDoAssistente } from './apos-sincronizacao'
+import { atualizarFichasDoAssistente, atualizarIndiceDoAssistente } from './apos-sincronizacao'
 
 const resumo = (over = {}) => ({ ok: 2, sem_texto: 1, erro: 0, removidos: 1, restantes: 3, ...over })
 
@@ -43,4 +45,34 @@ it('falha vira linha no log, nunca exceção', async () => {
   })
   const linha = await atualizarIndiceDoAssistente({}, { sincronizar: falha, tamanho: async () => 10, bancoPronto: pronto })
   expect(linha).toBe('índice do assistente: falhou — R2 fora (a próxima rodada tenta de novo)')
+})
+
+describe('atualizarFichasDoAssistente', () => {
+  const resumoFichas = { porRegra: 3, comIa: 5, parciais: 6, semTexto: 2, erros: 0, tokens: 41000, restantes: 12 }
+
+  it('banco sem a migração das fichas: pula e avisa', async () => {
+    const gerar = jest.fn()
+    const linha = await atualizarFichasDoAssistente({ gerar, bancoPronto: async () => false, comIa: () => true })
+    expect(gerar).not.toHaveBeenCalled()
+    expect(linha).toBe('fichas: pulado — migração 20260926110000_assistente_fichas não aplicada neste banco')
+  })
+
+  it('linha do log com teto de 50', async () => {
+    const gerar = jest.fn(async () => resumoFichas)
+    const linha = await atualizarFichasDoAssistente({ gerar, bancoPronto: async () => true, comIa: () => true })
+    expect(gerar).toHaveBeenCalledWith({ limite: 50, comIa: true })
+    expect(linha).toBe('fichas: por regra 3 · com IA 5 · parciais 6 · sem texto 2 · erros 0 · tokens 41000 · pendentes 12')
+  })
+
+  it('sem chave de IA: só regras, e avisa', async () => {
+    const gerar = jest.fn(async () => resumoFichas)
+    const linha = await atualizarFichasDoAssistente({ gerar, bancoPronto: async () => true, comIa: () => false })
+    expect(gerar).toHaveBeenCalledWith({ limite: 50, comIa: false })
+    expect(linha).toMatch(/ \(sem IA: chave não configurada\)$/)
+  })
+
+  it('falha vira linha, nunca exceção', async () => {
+    const linha = await atualizarFichasDoAssistente({ gerar: jest.fn(async () => { throw new Error('banco fora') }), bancoPronto: async () => true, comIa: () => true })
+    expect(linha).toBe('fichas: falhou — banco fora (a próxima rodada tenta de novo)')
+  })
 })

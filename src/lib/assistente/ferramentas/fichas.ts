@@ -52,7 +52,7 @@ export const fichasDoContrato = definirFerramenta({
       const situacao: FichaResumo['situacao'] =
         indice?.status === 'sem_texto' ? 'escaneado' : !ficha ? 'sem ficha' : ficha.status === 'erro' ? 'erro' : ficha.status === 'ok' ? 'ok' : 'parcial'
       const campos = Object.fromEntries(
-        Object.entries((ficha?.campos ?? {}) as Record<string, CampoFicha>).map(([nome, c]) => [nome, { valor: c.valor, pagina: c.pagina }])
+        Object.entries((ficha?.campos ?? {}) as unknown as Record<string, CampoFicha>).map(([nome, c]) => [nome, { valor: c.valor, pagina: c.pagina }])
       )
       return { arquivo: arquivo.nome, situacao, campos, naoConfirmados: naoConfirmadosDe(ficha?.mensagem) }
     }

@@ -50,6 +50,14 @@ describe('indexarFonte', () => {
     expect(sql.values).toContain('Termo aditivo nº 2 — reajuste pelo IPCA acumulado.')
   })
 
+  it('REFERENCIA com artigos: um trecho por artigo, com o título do texto oficial', async () => {
+    const lei = Array.from({ length: 5 }, (_, i) => `Art. ${i + 1}º Regra ${i + 1}.`).join('\n')
+    ;(extrairPaginas as jest.Mock).mockResolvedValueOnce([{ pagina: null, texto: lei }])
+    expect(await indexarFonte(fonte({ origem: 'REFERENCIA', origemId: 'r1', nomeArquivo: 'Lei 14.133/2021', clienteId: null, contratoId: null }), deps)).toBe('ok')
+    expect(tx.indiceDocumento.create.mock.calls[0][0].data).toMatchObject({ totalTrechos: 5 })
+    expect(tx.$executeRaw.mock.calls[0][0].values).toContain('[Lei 14.133/2021 — Art. 2º] Art. 2º Regra 2.')
+  })
+
   it('sem_texto: registra o estado e não grava trecho', async () => {
     ;(extrairPaginas as jest.Mock).mockResolvedValueOnce([{ pagina: 1, texto: ' ' }])
     expect(await indexarFonte(fonte(), deps)).toBe('sem_texto')

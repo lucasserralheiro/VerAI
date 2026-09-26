@@ -48,3 +48,13 @@ describe('montarConsultaTrechos', () => {
     expect(q.values).toEqual(expect.arrayContaining(['c1', 'k1', 3]))
   })
 })
+
+describe('filtro por origem', () => {
+  it('origens restringe e excluirOrigens tira', () => {
+    const so = montarConsultaTrechos({ consulta: 'x', origens: ['REFERENCIA'] }, { clienteIds: null, documentoIds: [] })
+    expect(texto(so)).toContain('AND t.origem IN (')
+    expect(so.values).toContain('REFERENCIA')
+    const sem = montarConsultaTrechos({ consulta: 'x', excluirOrigens: ['REFERENCIA'] }, { clienteIds: null, documentoIds: [] })
+    expect(texto(sem)).toContain('AND t.origem NOT IN (')
+  })
+})

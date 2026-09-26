@@ -13,7 +13,7 @@ it('banco sem a migração do índice (produção antes do deploy): pula e avisa
   const sincronizar = jest.fn()
   const linha = await atualizarIndiceDoAssistente({}, { sincronizar, tamanho: async () => 10, bancoPronto: async () => false })
   expect(sincronizar).not.toHaveBeenCalled()
-  expect(linha).toBe('índice do assistente: pulado — migração 20260925190000_assistente_arquivo_cliente não aplicada neste banco')
+  expect(linha).toBe('índice do assistente: pulado — migração 20260926100000_assistente_referencias não aplicada neste banco')
 })
 
 it('uma rodada com teto 200 e a linha do log', async () => {

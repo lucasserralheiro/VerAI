@@ -1,8 +1,11 @@
 import type { OrigemTrecho } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { extensaoDe } from '@/lib/arquivos/tipos'
 
 /** Extensões que `extrairPaginas` lê. */
 export const EXTENSOES_INDEXAVEIS = ['pdf', 'docx', 'xlsx', 'csv']
+/** Textos oficiais também podem vir do site da lei (txt, html). */
+export const EXTENSOES_REFERENCIA = ['pdf', 'docx', 'html', 'htm', 'txt']
 
 /** Um arquivo que o assistente deve conseguir ler, venha de onde vier. */
 export interface FonteDocumento {
@@ -19,7 +22,7 @@ export interface FonteDocumento {
 
 export async function listarFontes(filtro: { clienteId?: string } = {}): Promise<FonteDocumento[]> {
   const { clienteId } = filtro
-  const [historicos, faturamentos, documentos, arquivosProposta, arquivosCliente] = await Promise.all([
+  const [historicos, faturamentos, documentos, arquivosProposta, arquivosCliente, referencias] = await Promise.all([
     prisma.historicoContrato.findMany({
       where: {
         OR: [{ propostaArquivoId: { not: null } }, { termoArquivoId: { not: null } }],
@@ -61,6 +64,10 @@ export async function listarFontes(filtro: { clienteId?: string } = {}): Promise
       },
       select: { id: true, clienteId: true, nome: true, extensao: true, urlBlob: true },
     }),
+    // Texto oficial (lei, decreto, regulamento): sem cliente, como as propostas comerciais.
+    clienteId
+      ? Promise.resolve([])
+      : prisma.documentoReferencia.findMany({ where: { removidoEm: null }, select: { id: true, titulo: true, nomeArquivo: true, urlBlob: true } }),
   ])
 
   const fontes: FonteDocumento[] = []
@@ -117,6 +124,19 @@ export async function listarFontes(filtro: { clienteId?: string } = {}): Promise
       nomeArquivo: a.nome,
       tipo: a.extensao,
       clienteId: a.clienteId,
+      contratoId: null,
+      textoPronto: null,
+    })
+  }
+  for (const r of referencias) {
+    fontes.push({
+      origem: 'REFERENCIA',
+      origemId: r.id,
+      url: r.urlBlob,
+      // O título vira o prefixo dos trechos ("[Lei 14.133/2021 — Art. 3º]") e o nome citado.
+      nomeArquivo: r.titulo,
+      tipo: extensaoDe(r.nomeArquivo),
+      clienteId: null,
       contratoId: null,
       textoPronto: null,
     })

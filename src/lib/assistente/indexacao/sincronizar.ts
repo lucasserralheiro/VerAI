@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { getUpload } from '@/lib/storage'
 import { extrairPaginas, semCamadaDeTexto } from './extrair'
 import { listarFontes, type FonteDocumento } from './fontes'
-import { cortarEmTrechos, hashTexto, htmlParaTexto, type PaginaDeTexto, type Trecho } from './trechos'
+import { cortarEmTrechos, cortarPorArtigo, hashTexto, htmlParaTexto, type PaginaDeTexto, type Trecho } from './trechos'
 
 export type StatusIndice = 'ok' | 'sem_texto' | 'erro'
 
@@ -89,7 +89,9 @@ export async function indexarFonte(fonte: FonteDocumento, deps: DepsIndexacao = 
       await gravarIndice(fonte, { status: 'sem_texto', versao, trechos: [] })
       return 'sem_texto'
     }
-    await gravarIndice(fonte, { status: 'ok', versao, trechos: cortarEmTrechos(paginas) })
+    // Texto oficial com artigos: um trecho por artigo, com o título na frente (spec fase 2 §4.2).
+    const trechos = (fonte.origem === 'REFERENCIA' ? cortarPorArtigo(paginas, fonte.nomeArquivo) : null) ?? cortarEmTrechos(paginas)
+    await gravarIndice(fonte, { status: 'ok', versao, trechos })
     return 'ok'
   } catch (erro) {
     const mensagem = (erro instanceof Error ? erro.message : String(erro)).slice(0, 500)

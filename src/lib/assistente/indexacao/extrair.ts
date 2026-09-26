@@ -1,7 +1,7 @@
 import { extractTextItems, getDocumentProxy } from 'unpdf'
 import { extrairConteudo } from '@/lib/extracao'
 import { repararTextosDoPdf } from '@/lib/extracao/repararTextoPdf'
-import type { PaginaDeTexto } from './trechos'
+import { htmlParaTexto, type PaginaDeTexto } from './trechos'
 
 /**
  * Texto de um PDF página a página, SEM o limite de 60 mil caracteres do `extrairPdf` (aquele é pra
@@ -25,6 +25,9 @@ async function extrairPaginasPdf(buffer: Buffer): Promise<PaginaDeTexto[]> {
 
 export async function extrairPaginas(buffer: Buffer, tipo: string): Promise<PaginaDeTexto[]> {
   if (tipo === 'pdf') return extrairPaginasPdf(buffer)
+  // Texto oficial baixado do site (lei, decreto): txt ou html, sem página.
+  if (tipo === 'txt') return [{ pagina: null, texto: buffer.toString('utf8') }]
+  if (tipo === 'html' || tipo === 'htm') return [{ pagina: null, texto: htmlParaTexto(buffer.toString('utf8')) }]
   return [{ pagina: null, texto: await extrairConteudo(buffer, tipo) }]
 }
 

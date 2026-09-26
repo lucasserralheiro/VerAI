@@ -33,7 +33,7 @@ describe('buscarNosDocumentos', () => {
     ])
     const r = await rodar(buscarNosDocumentos, { consulta: 'reajuste', clienteId: 'c1' })
     expect(sincronizarIndice).toHaveBeenCalledWith({ clienteId: 'c1', limite: 2 })
-    expect(buscarTrechos).toHaveBeenCalledWith({ consulta: 'reajuste', clienteId: 'c1', contratoId: undefined }, ctx.usuario)
+    expect(buscarTrechos).toHaveBeenCalledWith({ consulta: 'reajuste', clienteId: 'c1', contratoId: undefined, excluirOrigens: ['REFERENCIA'] }, ctx.usuario)
     expect(r).toEqual({
       total: 1,
       trechos: [{ arquivo: 'TA_02.pdf', pagina: 3, origem: 'HISTORICO_TERMO', citacao: 'reajuste pelo IPCA', link: 'contrato:k1', href: '/clientes/c1/contratos/k1' }],
@@ -69,6 +69,8 @@ it('linkDoTrecho: tipo:id que a IA cita', () => {
   expect(linkDoTrecho({ ...base, origem: 'PROPOSTA_COMERCIAL_ARQUIVO', origemId: 'p1', clienteId: null })).toBeNull()
   expect(linkDoTrecho({ ...base, origem: 'ARQUIVO_CLIENTE', origemId: 'a1', clienteId: 'c3', contratoId: null })).toBe('cliente:c3')
   expect(hrefDoTrecho({ ...base, origem: 'ARQUIVO_CLIENTE', origemId: 'a1', clienteId: 'c3', contratoId: null })).toBe('/clientes/c3?aba=documentos')
+  expect(hrefDoTrecho({ ...base, origem: 'REFERENCIA', origemId: 'r1', clienteId: null, contratoId: null })).toBe('')
+  expect(linkDoTrecho({ ...base, origem: 'REFERENCIA', origemId: 'r1', clienteId: null, contratoId: null })).toBeNull()
 })
 
 describe('analisesDeDocumentos', () => {

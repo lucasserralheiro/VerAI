@@ -18,6 +18,10 @@ export interface FiltroBusca {
   clienteId?: string
   contratoId?: string
   limite?: number
+  /** Só estas origens (ex.: `REFERENCIA` para as normas). */
+  origens?: OrigemTrecho[]
+  /** Todas menos estas (ex.: documentos do cliente sem as normas). */
+  excluirOrigens?: OrigemTrecho[]
 }
 
 export const LIMITE_TRECHOS = 6
@@ -37,7 +41,8 @@ export function montarConsultaTrechos(
   filtro: FiltroBusca,
   permissao: { clienteIds: string[] | null; documentoIds: string[] }
 ): Prisma.Sql {
-  const { consulta, clienteId, contratoId, limite = LIMITE_TRECHOS } = filtro
+  const { consulta, clienteId, contratoId, limite = LIMITE_TRECHOS, origens, excluirOrigens } = filtro
+  const listaDeOrigens = (lista: OrigemTrecho[]) => Prisma.join(lista.map((o) => Prisma.sql`${o}::"OrigemTrecho"`))
   const tsquery = Prisma.sql`websearch_to_tsquery('portuguese', unaccent(${consulta}))`
 
   const condCliente =
@@ -67,6 +72,8 @@ export function montarConsultaTrechos(
       AND ${condDocumento}
       ${clienteId ? Prisma.sql`AND t."clienteId" = ${clienteId}` : Prisma.empty}
       ${contratoId ? Prisma.sql`AND t."contratoId" = ${contratoId}` : Prisma.empty}
+      ${origens?.length ? Prisma.sql`AND t.origem IN (${listaDeOrigens(origens)})` : Prisma.empty}
+      ${excluirOrigens?.length ? Prisma.sql`AND t.origem NOT IN (${listaDeOrigens(excluirOrigens)})` : Prisma.empty}
       AND (t.busca @@ ${tsquery} ${condNumeros})
     ORDER BY ts_rank(t.busca, ${tsquery}) DESC, t.ordem ASC
     LIMIT ${limite}`

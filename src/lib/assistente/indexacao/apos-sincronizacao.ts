@@ -4,8 +4,9 @@ import { emMb, LIMITE_BYTES_INDICE, tamanhoDoIndice } from './tamanho'
 
 type Sincronizar = (opcoes: { clienteId?: string; limite?: number }) => ReturnType<typeof sincronizarIndice>
 
-/** Migração que traz a origem `ARQUIVO_CLIENTE`. Sem ela o banco recusa gravar esses índices. */
-export const MIGRACAO_DO_INDICE = '20260925190000_assistente_arquivo_cliente'
+/** A mais recente das migrações que o índice usa (origens `ARQUIVO_CLIENTE` e `REFERENCIA`, tabela
+ *  `DocumentoReferencia`): aplicada ela, as anteriores também estão. Sem ela o banco recusa gravar. */
+export const MIGRACAO_DO_INDICE = '20260926100000_assistente_referencias'
 
 /**
  * O agendador do SharePoint roda o código da pasta do projeto contra PRODUÇÃO, que pode estar num

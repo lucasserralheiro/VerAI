@@ -6,6 +6,7 @@ jest.mock('@/lib/prisma', () => ({
     documento: { findMany: jest.fn() },
     propostaComercialArquivo: { findMany: jest.fn() },
     arquivoCliente: { findMany: jest.fn() },
+    documentoReferencia: { findMany: jest.fn() },
   },
 }))
 
@@ -30,6 +31,9 @@ beforeEach(() => {
   ;(prisma.documento.findMany as jest.Mock).mockResolvedValue([
     { id: 'd1', caminhoOriginal: 'https://b/d1.xlsx', nomeArquivo: 'med.xlsx', tipo: 'xlsx', clienteId: 'c2' },
   ])
+  ;(prisma.documentoReferencia.findMany as jest.Mock).mockResolvedValue([
+    { id: 'r1', titulo: 'Lei 14.133/2021', nomeArquivo: 'lei-14133.html', urlBlob: 'r2:referencias/r1-lei-14133.html' },
+  ])
   ;(prisma.arquivoCliente.findMany as jest.Mock).mockResolvedValue([
     { id: 'a1', clienteId: 'c3', nome: 'Publicação DOC.pdf', extensao: 'pdf', urlBlob: 'r2:a1' },
   ])
@@ -38,7 +42,7 @@ beforeEach(() => {
   ])
 })
 
-it('junta as seis origens com cliente/contrato desnormalizados', async () => {
+it('junta as sete origens com cliente/contrato desnormalizados', async () => {
   const fontes = await listarFontes()
   expect(fontes).toEqual([
     { origem: 'HISTORICO_PROPOSTA', origemId: 'h1', url: 'https://b/h1-p.pdf', nomeArquivo: 'PC_031.pdf', tipo: 'pdf', clienteId: 'c1', contratoId: 'k1', textoPronto: null },
@@ -47,6 +51,7 @@ it('junta as seis origens com cliente/contrato desnormalizados', async () => {
     { origem: 'DOCUMENTO', origemId: 'd1', url: 'https://b/d1.xlsx', nomeArquivo: 'med.xlsx', tipo: 'xlsx', clienteId: 'c2', contratoId: null, textoPronto: null },
     { origem: 'PROPOSTA_COMERCIAL_ARQUIVO', origemId: 'p1', url: 'https://b/p1.pdf', nomeArquivo: 'prop.pdf', tipo: 'pdf', clienteId: null, contratoId: null, textoPronto: '<p>x</p>' },
     { origem: 'ARQUIVO_CLIENTE', origemId: 'a1', url: 'r2:a1', nomeArquivo: 'Publicação DOC.pdf', tipo: 'pdf', clienteId: 'c3', contratoId: null, textoPronto: null },
+    { origem: 'REFERENCIA', origemId: 'r1', url: 'r2:referencias/r1-lei-14133.html', nomeArquivo: 'Lei 14.133/2021', tipo: 'html', clienteId: null, contratoId: null, textoPronto: null },
   ])
 })
 
@@ -55,6 +60,7 @@ it('com clienteId filtra no banco e deixa proposta comercial (sem cliente) de fo
   expect((prisma.faturamento.findMany as jest.Mock).mock.calls[0][0].where).toMatchObject({ clienteId: 'c1' })
   expect((prisma.historicoContrato.findMany as jest.Mock).mock.calls[0][0].where).toMatchObject({ contrato: { clienteId: 'c1' } })
   expect(prisma.propostaComercialArquivo.findMany).not.toHaveBeenCalled()
+  expect(prisma.documentoReferencia.findMany).not.toHaveBeenCalled()
 })
 
 it('ARQUIVO_CLIENTE: só ativo, legível, sem uso no histórico nem em Documento', async () => {

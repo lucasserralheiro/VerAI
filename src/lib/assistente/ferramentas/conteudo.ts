@@ -21,6 +21,8 @@ export function hrefDoTrecho(t: TrechoEncontrado): string {
       return '/propostas-comerciais'
     case 'ARQUIVO_CLIENTE':
       return `/clientes/${t.clienteId}?aba=documentos`
+    case 'REFERENCIA':
+      return ''
   }
 }
 
@@ -38,6 +40,8 @@ export function linkDoTrecho(t: TrechoEncontrado): string | null {
       return null
     case 'ARQUIVO_CLIENTE':
       return t.clienteId ? `cliente:${t.clienteId}` : null
+    case 'REFERENCIA':
+      return null
   }
 }
 
@@ -61,7 +65,8 @@ export const buscarNosDocumentos = definirFerramenta({
         aviso = 'Arquivos anexados recentemente podem ainda não estar pesquisáveis.'
       }
     }
-    const trechos = await buscarTrechos({ consulta, clienteId, contratoId }, usuario)
+    // Normas ficam de fora: são de buscarNasNormas, e não se misturam aos documentos do cliente.
+    const trechos = await buscarTrechos({ consulta, clienteId, contratoId, excluirOrigens: ['REFERENCIA'] }, usuario)
     return {
       total: trechos.length,
       trechos: trechos.map((t) => ({ arquivo: t.nomeArquivo, pagina: t.pagina, origem: t.origem, citacao: t.texto, link: linkDoTrecho(t), href: hrefDoTrecho(t) })),

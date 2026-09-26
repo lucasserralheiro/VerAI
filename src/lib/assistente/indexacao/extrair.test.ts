@@ -43,3 +43,12 @@ describe('semCamadaDeTexto', () => {
     expect(semCamadaDeTexto([{ pagina: 1, texto: 'Termo de contrato de prestação de serviços' }])).toBe(false)
   })
 })
+
+describe('texto oficial em txt e html', () => {
+  it('txt vira uma página com o texto; html perde as tags', async () => {
+    expect(await extrairPaginas(Buffer.from('Art. 1º Regra.', 'utf8'), 'txt')).toEqual([{ pagina: null, texto: 'Art. 1º Regra.' }])
+    expect(await extrairPaginas(Buffer.from('<p>Art. 1º <b>Regra</b>.</p><p>Art. 2º Outra.</p>', 'utf8'), 'html')).toEqual([
+      { pagina: null, texto: 'Art. 1º Regra.\nArt. 2º Outra.' },
+    ])
+  })
+})

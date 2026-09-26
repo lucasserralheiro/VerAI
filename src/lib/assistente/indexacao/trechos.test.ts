@@ -1,4 +1,4 @@
-import { cortarEmTrechos, htmlParaTexto, hashTexto } from './trechos'
+import { cortarEmTrechos, cortarPorArtigo, htmlParaTexto, hashTexto } from './trechos'
 
 describe('cortarEmTrechos', () => {
   it('página curta vira um trecho só, com a página preservada', () => {
@@ -52,5 +52,28 @@ describe('hashTexto', () => {
   it('é estável e muda com o conteúdo', () => {
     expect(hashTexto('a')).toBe(hashTexto('a'))
     expect(hashTexto('a')).not.toBe(hashTexto('b'))
+  })
+})
+
+describe('cortarPorArtigo', () => {
+  const lei = (n: number, extra = '') =>
+    Array.from({ length: n }, (_, i) => `Art. ${i + 1}º O contrato observará a regra ${i + 1}.${extra}`).join('\n')
+
+  it('um trecho por artigo, com o título e o número na frente', () => {
+    const trechos = cortarPorArtigo([{ pagina: 1, texto: `LEI Nº 14.133\n${lei(6)}` }], 'Lei 14.133/2021')!
+    expect(trechos).toHaveLength(6)
+    expect(trechos[2]).toEqual({ pagina: 1, ordem: 2, texto: '[Lei 14.133/2021 — Art. 3º] Art. 3º O contrato observará a regra 3.' })
+  })
+
+  it('artigo longo é repartido e cada parte leva o prefixo; página é a do começo do artigo', () => {
+    const longo = `Art. 7º ${'palavra '.repeat(400)}`
+    const trechos = cortarPorArtigo([{ pagina: 1, texto: lei(6) }, { pagina: 2, texto: longo }], 'Decreto 62.100/2022')!
+    const doSete = trechos.filter((t) => t.texto.startsWith('[Decreto 62.100/2022 — Art. 7º]'))
+    expect(doSete.length).toBeGreaterThan(1)
+    expect(doSete.every((t) => t.pagina === 2)).toBe(true)
+  })
+
+  it('menos de 5 artigos: null (usa o corte normal)', () => {
+    expect(cortarPorArtigo([{ pagina: 1, texto: lei(4) }], 'Regulamento')).toBeNull()
   })
 })

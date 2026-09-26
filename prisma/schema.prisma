@@ -718,6 +718,22 @@ enum OrigemTrecho {
   PROPOSTA_COMERCIAL_ARQUIVO
   DOCUMENTO
   ARQUIVO_CLIENTE
+  REFERENCIA
+}
+
+// Texto oficial (lei, decreto, regulamento interno) que o assistente cita com artigo — spec
+// docs/superpowers/specs/2026-09-25-assistente-senior-design.md §4.2. Sem cliente: não usa ArquivoCliente.
+// Entra por scripts/referencias-assistente.ts; o arquivo fica no R2 (`urlBlob` = `r2:…`).
+model DocumentoReferencia {
+  id           String    @id @default(cuid())
+  titulo       String
+  nomeArquivo  String
+  urlBlob      String
+  sha256       String    @unique
+  contentType  String
+  tamanhoBytes Int
+  createdAt    DateTime  @default(now())
+  removidoEm   DateTime?
 }
 
 // Estado da indexação de UM arquivo (um por origem+registro). `versao` é o `uploadedAt` do blob

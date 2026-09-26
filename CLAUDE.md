@@ -281,9 +281,29 @@ ou instrução, rode a **régua**: `npx dotenv -e <env> -- npx tsx scripts/regua
 
 Modelo: `ASSISTENTE_AI_*` (fallback `AI_*`), `deepseek-chat`. Instrução do sistema é fixa
 (`instrucoes.ts`) para o cache do DeepSeek — data, tela aberta e "Já identificados" vão na mensagem,
-não nela.
+não nela. Nunca pôr número real (SEI, id) como exemplo na instrução: a IA copia.
+
+**Analista sênior (fase 2) — a senioridade fica no código, não no prompt:**
+- **Alertas** em `src/lib/relatorios-clientes/alertas.ts` (regra pura, fora do assistente — as telas
+  podem usar) + `alertas-banco.ts`; limiares num objeto só, `LIMIARES` (aprovados pelo usuário em
+  26/09). Tipo novo de alerta entra lá, com teste. Ferramenta `alertas`.
+- **Manual da equipe** em `src/lib/assistente/manual/` (um arquivo por tema, `status` rascunho ×
+  validado; a equipe valida trocando o `status`). Rascunho não é regra; artigo de lei só com
+  `[confirmar]`. Ferramenta `consultarManual`.
+- **Textos oficiais** (`DocumentoReferencia`, origem `REFERENCIA`, cortados por artigo) entram por
+  `scripts/referencias-assistente.ts --pasta=… [--aplicar]`; `buscarNasNormas` busca só neles e
+  `buscarNosDocumentos` os exclui.
+- **Fichas** (`FichaDocumento`) de cada PDF do histórico: regra → IA uma vez por versão → verificação
+  literal (trecho na página citada, números do valor dentro do trecho; o que falha fica "não
+  confirmado"). `scripts/fichas-documentos.ts` (sem `--aplicar` é a régua de cobertura das regras —
+  rode antes e depois de mexer em `fichas/regras.ts`). Ferramenta `fichasDoContrato`.
+- A sincronização do SharePoint com `--aplicar` termina com índice e fichas, cada etapa com guarda pela
+  própria migração (`MIGRACAO_DO_INDICE`, `MIGRACAO_DAS_FICHAS`): o agendador roda o código da pasta
+  contra produção, que pode estar num deploy anterior.
 
 - **Design**: `docs/superpowers/specs/2026-09-23-assistente-ia-design.md`; fase 1 da melhoria (texto
-  compacto, identificação, links curtos, índice): `docs/superpowers/specs/2026-09-25-assistente-base-economica-design.md`
+  compacto, identificação, links curtos, índice): `docs/superpowers/specs/2026-09-25-assistente-base-economica-design.md`;
+  fase 2 (analista sênior): `docs/superpowers/specs/2026-09-25-assistente-senior-design.md`
 - **Plano**: `docs/superpowers/plans/2026-09-23-assistente-ia.md`; fase 1:
-  `docs/superpowers/plans/2026-09-25-assistente-base-economica.md`
+  `docs/superpowers/plans/2026-09-25-assistente-base-economica.md`; fase 2:
+  `docs/superpowers/plans/2026-09-26-assistente-senior.md`

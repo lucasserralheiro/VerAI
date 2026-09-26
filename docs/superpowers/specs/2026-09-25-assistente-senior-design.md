@@ -1,7 +1,9 @@
 # Assistente de IA — sênior em contratos (fase 2 de 3) (design)
 
-**Status**: Desenho escrito em 25/09/2026, a partir do brainstorm com o usuário. §10 respondido pelo
-usuário em 26/09/2026 (ver §10.4). Implementação não iniciada.
+**Status**: Implementada e validada no dev em 26/09/2026 (plano
+`docs/superpowers/plans/2026-09-26-assistente-senior.md`, seção Andamento). §10 respondido pelo
+usuário em 26/09/2026 (§10.4). Pendente: arquivos oficiais e validação do manual (equipe); produção
+junto com o deploy.
 **Data**: 25/09/2026
 **Fases**: `2026-09-25-assistente-base-economica-design.md` (1) → esta spec (2) →
 `2026-09-25-assistente-interface-design.md` (3).

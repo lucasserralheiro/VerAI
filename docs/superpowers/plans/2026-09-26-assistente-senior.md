@@ -12,7 +12,32 @@
 
 ## Andamento
 
-- (preencher ao concluir cada task)
+- **26/09/2026 — Tasks 1–9 concluídas no dev**: `1abb322` (regras dos alertas), `56252cf` (ferramenta
+  alertas; "venceu com prorrogação sem assinatura" com título próprio), `2b6fb64` (manual, 8 rascunhos),
+  `dd0347b` (referências por artigo, txt/html, `buscarNasNormas`; guarda do índice passou a exigir
+  `20260926100000`), `4cfaa3f` (fichas por regra; IPC-FIPE por extenso), `d4ac02d`/`898c133`/`118d140`
+  (IA uma vez, "não confirmados", página tolerante ao JSON do DeepSeek), `363be13`/`afe6c8d`
+  (`fichasDoContrato`), `408d3da`/`ab8fac9` (instrução; sem SEI de exemplo — a IA o copiava — e PDF
+  citado pelo contrato), `4d46518` (régua com 12 perguntas).
+- **Alertas no dev**: 109 na carteira (24 vencimentos sem prorrogação, 31 ativos sem valor, 29 termos
+  escaneados…). Referência de teste (lei de 5 artigos) indexada, achada por `buscarNasNormas`, fora de
+  `buscarNosDocumentos`, e removida.
+- **Fichas no dev**: 1.080 PDFs → 829 com texto (812 lidos com IA + 17 refeitos após o conserto do
+  esquema) e 251 escaneados; 0 erros; **6,1 milhões de tokens** (a spec estimava ~6). Cobertura final:
+  termos — valor 87%, objeto 83%, meses 74%, reajuste 42%; propostas — valor 95%, objeto 92%, medição
+  84%, reajuste 65%. Em 408 fichas a verificação barrou ao menos um campo da IA.
+- **Régua com IA** (`…2026-09-26T14-13-37-242Z-com-ia.json` × fase 1 `…T23-36-28-957Z`): nas 8 perguntas
+  antigas, entrada bruta +22% na mediana (catálogo 15 → 19 ferramentas, tudo em cache), mas **fora do
+  cache** a mediana foi 937 → 1.071 e o total 12,3 mil → 12,9 mil; saída 6.546 → 5.660 (−14%). O limite de
+  "+10% na mediana" do plano não foi cumprido na entrada bruta; no custo real (fora do cache + saída)
+  ficou igual ou menor — registrado para o usuário. Perguntas novas: 9 usa `alertas`; 10 `alertas` +
+  detalhe; 11 manual + normas + fichas (diz que o manual é rascunho e que a norma não está na base, sem
+  inventar artigo); 12 só `fichasDoContrato`, separando o confirmado do não confirmado.
+- **Ajuste ao plano**: as perguntas 10 e 12 usam o TC 52/SMIT/2024 (o TC 13/SMIT/2024 não tem aditivo no
+  dev). São 19 ferramentas (a spec §7 falava em 18).
+- **Pendente**: arquivos oficiais (equipe) → `scripts/referencias-assistente.ts`; validação dos 8 temas
+  do manual; produção junto com o deploy (migrações `20260926100000` e `20260926110000`, índice e fichas
+  em produção — ~6 milhões de tokens uma vez).
 
 ## Global Constraints
 

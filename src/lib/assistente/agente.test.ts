@@ -7,6 +7,7 @@ jest.mock('@/lib/prisma', () => ({ prisma: { cliente: { findMany: jest.fn(async 
 jest.mock('@/lib/visibilidade', () => ({ clienteIdsPermitidos: jest.fn(async () => null), podeVerCliente: jest.fn(async () => true), documentosVisiveisWhere: jest.fn(async () => ({})) }))
 
 import { executarAgente, montarMensagens, MAX_HISTORICO, type ResultadoAgente } from './agente'
+import { INSTRUCOES_SISTEMA } from './instrucoes'
 
 const usuario = { id: 'u', nome: 'U', email: 'u@x', role: 'admin' as const }
 const uso = (entrada: number, cache: number, saida: number) => ({
@@ -91,5 +92,14 @@ describe('contexto da pergunta', () => {
     // A regra 4 da instrução cita o rótulo "Já identificados"; o que não pode ir ao system é o conteúdo.
     expect(JSON.stringify(prompt.filter((m) => m.role === 'system'))).not.toContain('clienteId: c1')
     expect(JSON.stringify(prompt.at(-1))).toContain('cliente SMIT (clienteId: c1)')
+  })
+})
+
+describe('instrução do sistema', () => {
+  it('cabe no teto e cita as ferramentas de analista, o formato e as regras da fase 1', () => {
+    expect(INSTRUCOES_SISTEMA.length).toBeLessThanOrEqual(4000)
+    for (const termo of ['alertas', 'consultarManual', 'buscarNasNormas', 'fichasDoContrato', 'buscarNosDocumentos', 'Atenção', 'Próximo passo', 'Já identificados', '(tipo:id)', 'sei:', '"|"']) {
+      expect(INSTRUCOES_SISTEMA).toContain(termo)
+    }
   })
 })

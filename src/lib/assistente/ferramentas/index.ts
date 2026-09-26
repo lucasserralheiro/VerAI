@@ -8,6 +8,7 @@ import { analisesDeDocumentos, buscarNosDocumentos, execucoesConfere, propostasC
 import { alertas } from './alertas'
 import { consultarManual } from './manual'
 import { buscarNasNormas } from './normas'
+import { fichasDoContrato } from './fichas'
 
 export { ROTULOS_FERRAMENTAS } from './rotulos'
 
@@ -30,6 +31,7 @@ export const FERRAMENTAS: Record<string, Ferramenta> = {
   alertas,
   consultarManual,
   buscarNasNormas,
+  fichasDoContrato,
 } as Record<string, Ferramenta>
 
 export async function executarComSeguranca(

@@ -18,7 +18,7 @@ it('registra as ferramentas, todas com rótulo de progresso', () => {
     [
       'analisesDeDocumentos', 'buscarClientes', 'buscarNosDocumentos', 'buscarPorSei', 'contratosVencendo', 'demandas',
       'detalheDoContrato', 'execucoesConfere', 'faturamentos', 'fornecedores', 'itensDoContrato', 'propostasComerciais',
-      'resumoDoCliente', 'solicitacoes', 'tramitesDaDemanda', 'alertas', 'consultarManual', 'buscarNasNormas',
+      'resumoDoCliente', 'solicitacoes', 'tramitesDaDemanda', 'alertas', 'consultarManual', 'buscarNasNormas', 'fichasDoContrato',
     ].sort()
   )
   for (const nome of Object.keys(FERRAMENTAS)) expect(ROTULOS_FERRAMENTAS[nome]).toBeTruthy()

@@ -29,6 +29,11 @@ const PERGUNTAS = [
   'Onde aparece o SEI 6018.2023/0122629-0?',
   'O que diz o termo do contrato TC 13/SMIT/2024 sobre reajuste?',
   'Faturamento do SGM nos últimos 6 meses',
+  // Fase 2 (analista sênior): alertas, projeção de saldo, manual/normas e fichas.
+  'O que precisa de ação no SMIT?',
+  'O contrato TC 52/SMIT/2024 corre risco de faltar saldo?',
+  'Posso prorrogar o TC 45/SMIT/2023 mais uma vez?',
+  'O que o último termo aditivo do TC 52/SMIT/2024 mudou?',
 ]
 
 interface MedidaSemIa { cliente: string; ferramenta: string; caracteres: number; cortado: boolean }
@@ -135,9 +140,12 @@ function comparar(rodada: Rodada, arquivo: string) {
       const v = velhas[i]
       console.log(`  [${i + 1}] entrada ${v?.tokensEntrada} → ${m.tokensEntrada} · saída ${v?.tokensSaida} → ${m.tokensSaida} · ferramentas ${v?.ferramentas.length} → ${m.ferramentas.length}`)
     })
-    const [ma, md] = [mediana(velhas.map((m) => m.tokensEntrada)), mediana(novas.map((m) => m.tokensEntrada))]
-    const [sa, sd] = [velhas.reduce((a, m) => a + m.tokensSaida, 0), novas.reduce((a, m) => a + m.tokensSaida, 0)]
-    console.log(`  mediana de entrada ${ma} → ${md} (${ma ? Math.round(((md - ma) / ma) * 100) : 0}%) · saída total ${sa} → ${sd}`)
+    // Só as perguntas que existem nas duas rodadas entram na mediana (a lista cresceu na fase 2).
+    const n = Math.min(velhas.length, novas.length)
+    const [va, vd] = [velhas.slice(0, n), novas.slice(0, n)]
+    const [ma, md] = [mediana(va.map((m) => m.tokensEntrada)), mediana(vd.map((m) => m.tokensEntrada))]
+    const [sa, sd] = [va.reduce((a, m) => a + m.tokensSaida, 0), vd.reduce((a, m) => a + m.tokensSaida, 0)]
+    console.log(`  perguntas comuns (${n}): mediana de entrada ${ma} → ${md} (${ma ? Math.round(((md - ma) / ma) * 100) : 0}%) · saída total ${sa} → ${sd}`)
   }
 }
 

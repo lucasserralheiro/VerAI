@@ -695,6 +695,21 @@ model ArquivoSharepoint {
   @@index([historicoId])
 }
 
+// Uma linha por passada COMPLETA da sincronização do SharePoint (biblioteca inteira, com --aplicar,
+// conferência sem divergência, nada suspenso nem falhado) — só para as telas mostrarem "Documentos do
+// SharePoint atualizados em …" (docs/superpowers/specs/2026-09-28-sharepoint-atualizado-em-design.md).
+// Execução que falha não grava: a data nunca promete mais do que foi feito.
+model AtualizacaoSharepoint {
+  id          String   @id @default(cuid())
+  // Quando a listagem da pasta começou: o VerAI está igual ao SharePoint deste momento.
+  iniciadaEm  DateTime
+  concluidaEm DateTime @default(now())
+  // Arquivos no SharePoint conferidos nesta passada.
+  arquivos    Int
+
+  @@index([iniciadaEm])
+}
+
 model AcessoArquivo {
   id        String         @id @default(cuid())
   arquivoId String

@@ -10,14 +10,16 @@
  * SHAREPOINT_PASTA), --clientes=SMS,SGM (só esses — listagem e remoção), --reler-tudo (reprocessa todos
  * os contratos). Configuração: scripts/sharepoint-clientes.json. Os arquivos vão para o Cloudflare R2
  * (variáveis R2_* no .env.local — spec §11). Antes da primeira vez: scripts/migrar-sharepoint-lugar-certo.ts.
- * Idempotente; o agendador roda scripts/sincronizar-sharepoint.bat. Com --aplicar, termina indexando para
- * o assistente de IA até 200 arquivos novos/trocados (sem mudar o código de saída).
+ * Idempotente; o agendador roda scripts/sincronizar-sharepoint.bat. Com --aplicar, a passada completa grava
+ * a data que as telas mostram ("Documentos do SharePoint atualizados em …") e termina indexando para o
+ * assistente de IA até 200 arquivos novos/trocados (nada disso muda o código de saída).
  */
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import { config } from 'dotenv'
+import { registrarAtualizacao } from '../src/lib/arquivos/sharepoint/atualizacao'
 import { fonteDaPasta, pastaPadraoDaBiblioteca } from '../src/lib/arquivos/sharepoint/fonte-pasta'
 import { sincronizarSharepoint } from '../src/lib/arquivos/sharepoint/sincronizar'
 import { atualizarFichasDoAssistente, atualizarIndiceDoAssistente } from '../src/lib/assistente/indexacao/apos-sincronizacao'
@@ -124,6 +126,9 @@ async function main() {
         if (doTipo.length > 15) console.log(`    … e mais ${doTipo.length - 15} (lista completa em logs/sharepoint-sincronizacao.json)`)
       }
     }
+
+    // Data que as telas mostram (spec 2026-09-28-sharepoint-atualizado-em). Não muda o código de saída.
+    if (aplicar) console.log(`\n${await registrarAtualizacao(prisma, r, { aplicar, clientes, iniciadaEm: new Date(inicio) })}`)
 
     if (aplicar) {
       // Índice do assistente (spec 2026-09-25-assistente-base-economica §7). Não muda o código de saída.

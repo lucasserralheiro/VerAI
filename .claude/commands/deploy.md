@@ -10,7 +10,7 @@ description: Roda testes, build de produção e sobe as mudanças pro Vercel (gi
 > migrações de banco que a produção ainda não tem, e a produção roda o hotfix do ConfereAI (branch
 > `hotfix/confere-504`) — um deploy do `main` sem as migrações derruba telas com erro 500.
 
-Roteiro testado nesta sessão. Siga na ordem — cada passo existe por causa de um problema real que já aconteceu (comentado). Pare e avise o usuário sempre que um passo pedir autorização explícita; não pule silenciosamente.
+Siga na ordem — cada passo existe por causa de um problema real que já aconteceu (comentado). Pare e avise o usuário sempre que um passo pedir autorização explícita; não pule silenciosamente.
 
 ## 1. Ver o que mudou
 
@@ -26,7 +26,7 @@ git status --short
 npx jest
 ```
 
-`src/lib/copiarMarkdownFormatado.test.ts` (7 testes) falha por um gap de ambiente pré-existente, sem relação com mudança nenhuma — `Blob.prototype.text()` não implementado no jsdom deste projeto. **Ignore só essa suíte especificamente.** Qualquer OUTRA suíte falhando precisa ser investigada e corrigida antes de continuar — nunca empurre teste quebrado pra produção.
+Qualquer suíte falhando precisa ser investigada e corrigida antes de continuar — nunca empurre teste quebrado pra produção.
 
 ## 3. Build de produção
 
@@ -46,24 +46,26 @@ npm run build
 
 ## 4. Migração de banco pendente?
 
-```
-git diff --stat main^..main -- prisma/schema.prisma prisma/migrations
-```
-
-Se `schema.prisma` ou algo em `prisma/migrations/` mudou nesta leva de commits, **PARE e pergunte ao usuário antes de aplicar em produção** — rodar `prisma migrate deploy` contra o banco de produção é uma ação que pede autorização explícita a cada vez, mesmo quando a migração parece segura (aditiva, `IF NOT EXISTS`). Pular esse passo silenciosamente é como o app já quebrou uma vez: rota dando 500 (`P2022: column does not exist`) porque o build da Vercel só roda `prisma generate` (client), nunca `prisma migrate deploy` (banco de verdade) sozinho.
-
-Se autorizado:
+Compare com o que o banco de produção já tem — não com o commit anterior: o `main` pode acumular várias migrações entre um deploy e outro, e olhar só o último commit deixa as antigas passarem.
 
 ```
 npx vercel env pull /tmp/prod.env --environment=production --yes
 ```
 
-Bash:
+Bash (só lê — lista as migrações que a produção ainda não tem, não aplica nada):
+```
+set -a && source /tmp/prod.env && set +a && npx prisma migrate status
+```
+
+Se aparecer migração pendente, **PARE e pergunte ao usuário antes de aplicar em produção**, mostrando a lista — rodar `prisma migrate deploy` contra o banco de produção é uma ação que pede autorização explícita a cada vez, mesmo quando a migração parece segura (aditiva, `IF NOT EXISTS`). Pular esse passo silenciosamente é como o app já quebrou uma vez: rota dando 500 (`P2022: column does not exist`) porque o build da Vercel só roda `prisma generate` (client), nunca `prisma migrate deploy` (banco de verdade) sozinho.
+
+Se autorizado:
+
 ```
 set -a && source /tmp/prod.env && set +a && npx prisma migrate deploy
 ```
 
-Apague `/tmp/prod.env` logo depois — tem a connection string do banco de produção em texto puro.
+Apague `/tmp/prod.env` logo depois (com ou sem migração pendente) — tem a connection string do banco de produção em texto puro.
 
 ## 5. Commit e push
 
@@ -95,4 +97,4 @@ Nunca escreva o valor real de `DEV_AUTH_TOKEN` num arquivo do repositório — �
 
 ## 8. Avisar
 
-Resuma pro usuário: o que mudou, o que foi testado (e o que ficou de fora, tipo `copiarMarkdownFormatado`, e por quê), se precisou de migração, e o link do deploy. Nunca declare "está funcionando" sem ter batido numa rota de verdade no passo 7.
+Resuma pro usuário: o que mudou, o que foi testado (e o que ficou de fora, e por quê), se precisou de migração, e o link do deploy. Nunca declare "está funcionando" sem ter batido numa rota de verdade no passo 7.

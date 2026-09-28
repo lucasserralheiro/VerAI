@@ -12,8 +12,22 @@ ler este arquivo primeiro.
   (teste falhando → implementação → teste passando → commit) — ver qualquer arquivo existente em
   `docs/superpowers/plans/` como referência de formato antes de escrever um novo.
 - **Stack**: Next.js 15 (App Router, Turbopack), React 19, Prisma 6/Postgres, Tailwind 4,
-  Jest + Testing Library, `@react-pdf/renderer` para relatórios em PDF, Vercel Blob para storage
-  de upload (`src/lib/storage.ts`).
+  Jest + Testing Library, `@react-pdf/renderer` para relatórios em PDF, storage em
+  `src/lib/storage.ts` (Vercel Blob para upload; Cloudflare R2, endereço `r2:<chave>`, para os
+  arquivos do SharePoint). O store do Blob está suspenso por cota desde 24/09/2026 e a decisão do
+  usuário é levar os uploads para o R2 (ainda sem desenho) — não construa upload novo em cima do
+  Blob sem combinar com ele. Primeira peça já no R2 (28/09): as **imagens extraídas do PDF** na
+  conversão de proposta (`src/lib/propostas/imagens.ts`) — o `<img>` aponta pra
+  `/api/propostas-comerciais/[id]/imagens/[indice]/[nome]` (confere login, lê do R2) e a exclusão
+  da proposta apaga as chaves citadas no HTML. Segunda peça (28/09): o **envio da "Nova conversão"**
+  — o navegador pede um PUT pré-assinado a `/api/propostas-comerciais/envio` (`urlDeEnvioR2` em
+  `src/lib/r2.ts`, amarra tipo e tamanho, 15 min) e sobe direto pra `tmp-uploads/` no R2 com
+  `enviarParaR2` (`src/lib/envio-r2-navegador.ts`); a conversão **só aceita** endereço
+  `r2:tmp-uploads/<uuid>.<ext>` do navegador (ela lê e apaga o que recebe) e grava o original em
+  `propostas-comerciais/<id>/<indice>/original.<ext>`. Depende do CORS do bucket `verai-documentos`
+  (PUT, `content-type`, origens produção + localhost 3000/3001). Spec
+  `docs/superpowers/specs/2026-09-28-envio-proposta-r2-design.md`. Ainda no Blob: arquivos do cliente,
+  PDFs de relatório, faturamento e histórico do ConfereAI.
 - **Domínios principais hoje**: `Cliente` → `Documento`/`Analise` (análise por IA de um documento
   isolado), `AnaliseConsolidada` e `AnaliseEvolucao` (comparações dentro/entre competências —
   vivem como abas em `src/app/clientes/[id]/[competencia]/page.tsx`), `PropostaComercial`
@@ -72,12 +86,10 @@ referência/fonte, não faz parte do build do VerAI), não uma tela redesenhada 
 institucional do VerAI. Mesmo texto, mesmo layout, mesma paleta (tokens `confere-*` em
 `src/app/globals.css`, namespaced pra não colidir com a paleta institucional `navy`/`orange`).
 
-**Decisão de arquitetura (2026-09-21, revista no mesmo dia — ver "Nota de processo" no design
-doc):** a primeira versão desta integração (Tasks 3–7 do plano) entrou como uma quarta aba dentro
-de `src/app/clientes/[id]/[competencia]/page.tsx`, com um model `AnaliseMedicaoContratual` no
-Prisma vinculado a `Cliente` + competência, upload dedicado e upsert por competência. **Essa
-versão foi removida no mesmo dia**, a pedido explícito do usuário: "não vamos vincular a cliente e
-nada do tipo" + "ele precisa ficar a cópia do Confere, do mesmo jeito". A versão atual:
+**Não vincule o Confere ao fluxo de cliente/competência nem o redesenhe** — o usuário quer a cópia
+fiel do Confere, fora de `Cliente` (uma versão como aba da competência, com model
+`AnaliseMedicaoContratual`, foi desfeita por isso; ver "Nota de processo" no design doc). Como é
+hoje:
 
 - **Área solta no menu, mas o levantamento busca o contrato no cadastro** (25/09/2026) — `/confere`
   continua fora do fluxo de cliente (como "Proposta Comercial"), só que escolher a planilha lê o
@@ -94,6 +106,11 @@ nada do tipo" + "ele precisa ficar a cópia do Confere, do mesmo jeito". A vers�
   só lê `ArquivoSharepoint.caminho`, nenhuma pasta nova no VerAI —, e os cartões aceitam arrastar e
   soltar do seu tipo (`useSoltarArquivos`). Design
   `docs/superpowers/specs/2026-09-25-confere-ux-pastas-design.md`.
+- **Tela em fases** (28/09/2026): o início é só o levantamento (`EntradaDoLevantamento`); a busca do
+  contrato abre um modal (`BuscaDoContratoModal`) que fecha sozinho quando acha (tempo mínimo de
+  600 ms) e pergunta quando não acha (sugestões, busca, enviar do computador, trocar planilha); os
+  documentos viram linhas de conferência; a janela de pastas tem Voltar, "em uso" e duplo clique. A
+  regra da busca não mudou. Design `docs/superpowers/specs/2026-09-28-confere-levantamento-primeiro-design.md`.
 - **Geração sem estado, com histórico ao lado** — a aplicação portada continua sem estado: sobe os
   arquivos, gera, baixa DOCX/XLSX. As duas tabelas da primeira versão foram revertidas por migração
   (`prisma/migrations/20260921160000_remove_analise_medicao_contratual/`). O que existe hoje é um
@@ -111,8 +128,7 @@ nada do tipo" + "ele precisa ficar a cópia do Confere, do mesmo jeito". A vers�
   (`src/components/nav-bar.tsx`) — a posição no menu é a do ambiente local, não a primeira.
 - **Proxy próprio** (`src/app/api/confere/reports/route.ts`) — o navegador nunca fala direto com o
   Confere nem conhece `CONFERE_SHARED_SECRET`; a rota recebe o mesmo multipart que o Confere
-  espera, chama `chamarConfere()` (`src/lib/confere/cliente.ts`, construído em Task 5 e reaproveitado
-  sem mudanças) e devolve a resposta dele quase sem tocar. É também onde a execução é registrada no
+  espera, chama `chamarConfere()` (`src/lib/confere/cliente.ts`) e devolve a resposta dele quase sem tocar. É também onde a execução é registrada no
   histórico, no caminho de sucesso e só nele. Contrato e aditivos podem vir **por id do cadastro**
   (`contrato_arquivo_id`, `aditivos=cadastro:<id>`): a rota confere o acesso e baixa o PDF do R2 —
   `urlBlob` nunca vai ao navegador, e o corpo da requisição fica só com a planilha.
@@ -171,6 +187,11 @@ arquivo guarda `...ArquivoId` — nunca URL própria nem cópia do blob. Upload 
 `/api/arquivos/[id]` (checa `podeVerCliente`, grava `AcessoArquivo`) — `urlBlob` nunca vai pro
 navegador. Remoção é lógica e bloqueada enquanto `usosDosArquivos` achar uso; módulo novo que
 referencia arquivo **acrescenta sua fonte em `usosDosArquivos`**.
+
+**Converter em Markdown** (ícone na linha da aba Documentos, painel do arquivo e a janela que os ícones PC/PA **e** TC/TA da aba Contratos abrem — uma só, `DocumentosDoContrato` com `coluna`, filtro `documentosDoContrato`; nenhum dos dois abre o PDF direto — todos por `useConverterArquivo`, `abas/documentos/converter-arquivo.ts`): chama a mesma `POST /api/propostas-comerciais` da
+Proposta Comercial com `arquivosCliente: [id]` — confere acesso ao cliente, lê o blob do próprio
+arquivo (sem cópia, sem novo upload) e grava `PropostaComercialArquivo.arquivoClienteId`, que vira o
+uso `conversao-markdown`. Por isso excluir esse arquivo da proposta nunca apaga o blob.
 
 Contrato e competência **não** são do arquivo: cada uso (`UsoArquivo`, em `src/lib/arquivos/tipos.ts`)
 traz o seu `contrato`/`competencia`, e a aba deriva as colunas e os filtros daí — fonte nova de uso

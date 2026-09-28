@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ChevronRight, Loader2, Inbox, Plus, Search } from 'lucide-react'
+import { Loader2, Inbox, Plus, Search } from 'lucide-react'
 import { BTN_OUTLINE, INPUT_BASE } from '@/lib/ui'
 import { AtualizacaoSharepoint } from '@/components/sharepoint/atualizacao-sharepoint'
 import { ModalCliente } from './modal-cliente'
@@ -131,23 +131,30 @@ export function ListaClientes() {
           <p className="text-sm text-mid-grey">Nenhum cliente encontrado para &ldquo;{busca.trim()}&rdquo;.</p>
         </div>
       ) : (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 lg:grid-cols-6">
           {clientesFiltrados.map((cliente) => (
             <li key={cliente.id}>
               <Link
                 href={`/clientes/${cliente.id}`}
-                className="card card-interactive group flex items-center gap-3"
+                className="group flex flex-col items-center gap-2 rounded-xl p-3 text-center transition-colors hover:bg-navy/5"
               >
-                {cliente.siglaLegado && (
-                  <span className="shrink-0 rounded-md bg-orange px-2 py-0.5 font-mono text-xs font-semibold tracking-wide text-white">
-                    {cliente.siglaLegado}
+                <span className="relative h-12 w-16">
+                  <span aria-hidden="true" className="absolute top-0 left-1.5 h-2.5 w-7 rounded-t-md bg-navy" />
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-2 left-0 h-10 w-16 overflow-hidden rounded-md bg-navy-3 shadow-sm"
+                  >
+                    <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0)_40%)]" />
                   </span>
-                )}
-                <span className="flex-1 text-sm font-semibold text-navy">{cliente.nome}</span>
-                <ChevronRight
-                  className="size-4 text-mid-grey transition-transform group-hover:translate-x-0.5 group-hover:text-orange"
-                  strokeWidth={2.25}
-                />
+                  {cliente.siglaLegado && (
+                    <span className="absolute bottom-1 left-1/2 max-w-14 -translate-x-1/2 truncate rounded bg-orange px-1.5 py-0.5 font-mono text-[9px] font-semibold tracking-wide text-white">
+                      {cliente.siglaLegado}
+                    </span>
+                  )}
+                </span>
+                <span className="line-clamp-2 text-[13px] leading-tight font-semibold text-navy">
+                  {cliente.nome}
+                </span>
               </Link>
             </li>
           ))}

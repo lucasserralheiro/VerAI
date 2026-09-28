@@ -10,7 +10,8 @@ import { avisarMudancaDeDados } from '@/lib/relatorios-clientes/atualizacao-dado
 import { BarraFaturado, PillVencimento } from '@/components/relatorios-clientes/indicadores-contrato'
 import { SeiLink } from '@/components/relatorios-clientes/sei-link'
 import { FormularioContrato, type Contrato } from '../contratos/formulario-contrato'
-import type { AnexoResumo } from '@/lib/relatorios-clientes/resumo-historico'
+import { DocumentosDoContrato } from '../contratos/documentos-do-contrato'
+import type { ColunaDoContrato } from './documentos/derivados'
 import type { GrupoItensAguardando } from '@/lib/relatorios-clientes/itens-aguardando'
 
 /** "2 aditivos · 1 prorrog." embaixo do nº do termo; some quando o contrato não tem nenhum. */
@@ -43,22 +44,32 @@ function ValorContrato({ valorAtual }: { valorAtual: NonNullable<Contrato['resum
   )
 }
 
-/** Ícone que abre o PDF (PC/PA ou TC/TA) mais recente do contrato; sem anexo, um traço. */
-function IconePdf({ rotulo, anexo }: { rotulo: string; anexo: AnexoResumo | null }) {
-  if (!anexo) return <span className="block text-center text-mid-grey/60">—</span>
-  const detalhe = [anexo.referencia, anexo.nome].filter(Boolean).join(' — ')
+/** Ícone da coluna PC/PA ou TC/TA: abre a janela com todos os documentos daquela coluna do contrato
+ *  (abrir PDF ou converter em Markdown). Sem nenhum anexo na coluna, um traço. */
+function BotaoDocumentos({
+  contrato,
+  coluna,
+  aoAbrir,
+}: {
+  contrato: Contrato
+  coluna: ColunaDoContrato
+  aoAbrir: (contrato: Contrato, coluna: ColunaDoContrato) => void
+}) {
+  if (!contrato.resumoHistorico?.[coluna]) return <span className="block text-center text-mid-grey/60">—</span>
+  const [artigo, sigla] = coluna === 'proposta' ? ['a', 'PC/PA'] : ['o', 'TC/TA']
   return (
-    <a
-      href={anexo.url}
-      target="_blank"
-      rel="noreferrer"
-      title={`Abrir ${rotulo}${detalhe ? `: ${detalhe}` : ''}`}
-      aria-label={`Abrir PDF ${rotulo}`}
-      onClick={(e) => e.stopPropagation()}
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        aoAbrir(contrato, coluna)
+      }}
+      title={`Escolher ${artigo} ${sigla} para abrir ou converter em Markdown`}
+      aria-label={`${sigla} do ${contrato.numeroTermo ?? 'contrato'}`}
       className="mx-auto flex w-fit rounded-md p-1 text-orange hover:bg-orange-light hover:text-orange-dark"
     >
       <FileText className="size-[1.1rem]" strokeWidth={2} />
-    </a>
+    </button>
   )
 }
 
@@ -79,6 +90,10 @@ export function AbaContratos({ clienteId }: { clienteId: string }) {
   // 'novo' = criando um contrato; um Contrato = editando aquela linha; null = modal fechado.
   const [modalContrato, setModalContrato] = useState<'novo' | Contrato | null>(null)
   const [busca, setBusca] = useState('')
+  // Contrato e coluna (PC/PA ou TC/TA) cuja lista está aberta, para abrir ou converter um dos
+  // documentos; null = fechada.
+  const [documentosDe, setDocumentosDe] = useState<{ contrato: Contrato; coluna: ColunaDoContrato } | null>(null)
+  const abrirDocumentos = (contrato: Contrato, coluna: ColunaDoContrato) => setDocumentosDe({ contrato, coluna })
   // Itens do legado deste cliente (pela sigla) que esperam um contrato com o mesmo número.
   const [aguardando, setAguardando] = useState<GrupoItensAguardando[]>([])
   const [numeroSugerido, setNumeroSugerido] = useState<string | null>(null)
@@ -228,7 +243,7 @@ export function AbaContratos({ clienteId }: { clienteId: string }) {
                 <th>Vigência</th>
                 <th className="text-right whitespace-nowrap">Valor</th>
                 <th className="whitespace-nowrap">Faturado</th>
-                <th className="text-center" title="Proposta comercial / proposta de aditivo — a mais recente com PDF anexado">
+                <th className="text-center" title="Proposta comercial / proposta de aditivo — clique para escolher qual abrir ou converter">
                   PC/PA
                 </th>
                 <th className="text-center" title="Termo de contrato / termo aditivo — o mais recente com PDF anexado">
@@ -305,10 +320,10 @@ export function AbaContratos({ clienteId }: { clienteId: string }) {
                     <BarraFaturado saldo={contrato.saldo} />
                   </td>
                   <td className="w-16">
-                    <IconePdf rotulo="PC/PA" anexo={contrato.resumoHistorico?.proposta ?? null} />
+                    <BotaoDocumentos contrato={contrato} coluna="proposta" aoAbrir={abrirDocumentos} />
                   </td>
                   <td className="w-16">
-                    <IconePdf rotulo="TC/TA" anexo={contrato.resumoHistorico?.termo ?? null} />
+                    <BotaoDocumentos contrato={contrato} coluna="termo" aoAbrir={abrirDocumentos} />
                   </td>
                 </tr>
               ))}
@@ -316,6 +331,13 @@ export function AbaContratos({ clienteId }: { clienteId: string }) {
           </table>
         </div>
       )}
+
+      <DocumentosDoContrato
+        clienteId={clienteId}
+        contrato={documentosDe?.contrato ?? null}
+        coluna={documentosDe?.coluna ?? 'proposta'}
+        aoFechar={() => setDocumentosDe(null)}
+      />
 
       <ModalContrato
         estado={modalContrato}

@@ -1,18 +1,59 @@
 'use client'
 
 import { useState } from 'react'
-import { FileSpreadsheet, FileText, File as FileIcon, Search } from 'lucide-react'
+import Link from 'next/link'
+import { AlertCircle, FileCode2, FileSpreadsheet, FileText, File as FileIcon, Loader2, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { INPUT_BASE } from '@/lib/ui'
 import { CATEGORIAS, formatarTamanho, rotuloCategoria } from '@/lib/arquivos/tipos'
 import { formatarData } from '@/lib/relatorios-clientes/formatacao'
 import { competenciasDoArquivo, contratosDoArquivo, foraDoSharepoint, opcoesDeContrato, rotuloCompetencias, rotuloContratos } from './derivados'
+import { conversaoDoArquivo, podeConverter, useConverterArquivo } from './converter-arquivo'
 import type { ArquivoRepositorio } from './tipos'
+
+const BTN_ICONE =
+  'inline-flex size-7 items-center justify-center rounded-md text-mid-grey hover:bg-orange/10 hover:text-orange disabled:opacity-50'
 
 function IconeArquivo({ extensao }: { extensao: string }) {
   if (['xlsx', 'xls', 'csv'].includes(extensao)) return <FileSpreadsheet className="size-4 shrink-0 text-green-ok" strokeWidth={2} />
   if (extensao === 'pdf') return <FileText className="size-4 shrink-0 text-red-crit" strokeWidth={2} />
   return <FileIcon className="size-4 shrink-0 text-mid-grey" strokeWidth={2} />
+}
+
+/** Atalho da linha para a conversão em Markdown — o mesmo do painel, sem precisar abri-lo. */
+function AcaoConverter({
+  arquivo,
+  convertendo,
+  ocupado,
+  aoConverter,
+}: {
+  arquivo: ArquivoRepositorio
+  convertendo: boolean
+  ocupado: boolean
+  aoConverter: () => void
+}) {
+  const conversao = conversaoDoArquivo(arquivo)
+  if (conversao) {
+    const rotulo = `Abrir ${arquivo.nome} em Markdown`
+    return (
+      <Link href={conversao.href} aria-label={rotulo} title="Abrir em Markdown" className={cn(BTN_ICONE, 'text-navy')}>
+        <FileCode2 className="size-4" strokeWidth={2.25} />
+      </Link>
+    )
+  }
+  if (!podeConverter(arquivo)) return null
+  return (
+    <button
+      type="button"
+      onClick={aoConverter}
+      disabled={ocupado}
+      aria-label={`Converter ${arquivo.nome} em Markdown`}
+      title={convertendo ? 'Convertendo...' : 'Converter em Markdown'}
+      className={BTN_ICONE}
+    >
+      {convertendo ? <Loader2 className="size-4 animate-spin" strokeWidth={2.25} /> : <FileCode2 className="size-4" strokeWidth={2.25} />}
+    </button>
+  )
 }
 
 export function ListaArquivos({
@@ -29,6 +70,7 @@ export function ListaArquivos({
   const [tipo, setTipo] = useState('')
   const [competencia, setCompetencia] = useState('') // AAAA-MM do <input type="month">
   const [busca, setBusca] = useState('')
+  const { converter, convertendoId, erro } = useConverterArquivo()
 
   const contratos = opcoesDeContrato(arquivos)
   const tipos = [...new Set(arquivos.map((a) => a.extensao).filter(Boolean))].sort()
@@ -89,6 +131,13 @@ export function ListaArquivos({
         />
       </div>
 
+      {erro && (
+        <p className="flex items-center gap-1.5 rounded-lg bg-red-crit-light px-3 py-2 text-sm text-red-crit">
+          <AlertCircle className="size-4 shrink-0" strokeWidth={2.25} />
+          {erro}
+        </p>
+      )}
+
       {visiveis.length === 0 ? (
         <div className="card-flush p-10 text-center text-sm text-mid-grey">
           {arquivos.length === 0 ? 'Nenhum arquivo neste cliente ainda.' : 'Nenhum arquivo com esses filtros.'}
@@ -105,6 +154,9 @@ export function ListaArquivos({
                 <th>Tamanho</th>
                 <th>Enviado</th>
                 <th>Usado em</th>
+                <th>
+                  <span className="sr-only">Ações</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -141,6 +193,14 @@ export function ListaArquivos({
                     {a.enviadoPor?.nome ?? (a.origem === 'migrado' ? 'migrado' : a.origem === 'sharepoint' ? 'SharePoint' : '—')} · {formatarData(a.createdAt)}
                   </td>
                   <td className="font-mono text-xs">{a.usos.length || <span className="font-sans text-mid-grey">não usado</span>}</td>
+                  <td className="w-px" onClick={(e) => e.stopPropagation()}>
+                    <AcaoConverter
+                      arquivo={a}
+                      convertendo={convertendoId === a.id}
+                      ocupado={convertendoId !== null}
+                      aoConverter={() => converter(a)}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -74,7 +74,7 @@ export function formatarTamanho(bytes: number): string {
 /** Um lugar onde o arquivo é usado. Contrato e competência do arquivo são SEMPRE derivados daqui
  *  (spec §7.1) — o `ArquivoCliente` não guarda nenhum dos dois. Fases 2–4 acrescentam tipos. */
 export interface UsoArquivo {
-  tipo: 'analise-documento' | 'historico-contrato' | 'sharepoint'
+  tipo: 'analise-documento' | 'historico-contrato' | 'sharepoint' | 'conversao-markdown'
   rotulo: string
   href: string
   /** Contrato a que este uso liga o arquivo; `null` quando o uso não é de contrato. */
@@ -84,4 +84,6 @@ export interface UsoArquivo {
   /** Uso criado pela sincronização com o SharePoint (o lugar do arquivo lá, ou a coluna PC/PA–TC/TA
    *  preenchida por ela). Não segura o arquivo quando ele sai do SharePoint (spec lugar-certo §3.1). */
   daSincronizacao?: boolean
+  /** Só em `historico-contrato`: a coluna da linha que o arquivo ocupa (PC/PA = proposta, TC/TA = termo). */
+  coluna?: 'proposta' | 'termo'
 }

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { AbaContratos } from './aba-contratos'
+jest.mock('next/navigation', () => ({ useRouter: () => ({ push: jest.fn() }) }))
 
 function contrato(parcial: Record<string, unknown>) {
   return {
@@ -74,6 +75,38 @@ describe('AbaContratos', () => {
     expect(within(linha).getByText('R$ 81.031.443,62')).toBeInTheDocument()
     expect(within(linha).getByText('Contrato de 30/11/2025')).toBeInTheDocument()
     expect(within(linha).getByText('62% faturado')).toBeInTheDocument()
+  })
+
+  it('PC/PA e TC/TA abrem a mesma janela de escolha, cada uma com os seus documentos (não o PDF direto)', async () => {
+    HTMLDialogElement.prototype.showModal = jest.fn(function (this: HTMLDialogElement) {
+      this.setAttribute('open', '')
+    })
+    const anexo = { url: '/api/arquivos/x?modo=inline', nome: 'x.pdf', referencia: 'TA 01' }
+    mockApi({
+      lista: [
+        contrato({
+          resumoHistorico: { aditivos: 1, prorrogacoes: 0, valorAtual: null, proposta: anexo, termo: anexo },
+        }),
+      ],
+    })
+    render(<AbaContratos clienteId="c1" />)
+
+    const botaoTermo = await screen.findByRole('button', { name: 'TC/TA do TC 105/2025/SI' })
+    expect(screen.getByRole('button', { name: 'PC/PA do TC 105/2025/SI' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Abrir PDF/ })).not.toBeInTheDocument()
+
+    fireEvent.click(botaoTermo)
+    expect(await screen.findByRole('heading', { name: 'TC/TA do TC 105/2025/SI' })).toBeInTheDocument()
+  })
+
+  it('contrato sem termo nem proposta mostra só o traço nas duas colunas', async () => {
+    mockApi({
+      lista: [contrato({ resumoHistorico: { aditivos: 0, prorrogacoes: 0, valorAtual: null, proposta: null, termo: null } })],
+    })
+    render(<AbaContratos clienteId="c1" />)
+
+    await screen.findByRole('link', { name: 'TC 105/2025/SI' })
+    expect(screen.queryByRole('button', { name: /(PC\/PA|TC\/TA) do/ })).not.toBeInTheDocument()
   })
 
   it('mostra cada nível do semáforo e "sem valor" quando o contrato não tem base', async () => {

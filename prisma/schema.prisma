@@ -520,9 +520,15 @@ model PropostaComercialArquivo {
   caminhoOriginal  String
   conteudoExtraido String?           @db.Text // null quando a extração desse arquivo específico falhou
   ordem            Int // ordem de upload — preserva a sequência que o usuário escolheu
+  // Preenchido quando a conversão partiu de um arquivo do repositório do cliente (aba Documentos,
+  // "Converter em Markdown"): `caminhoOriginal` é o próprio `urlBlob` dele, sem cópia — por isso
+  // excluir este arquivo da proposta nunca apaga o blob. Vira uso em `usosDosArquivos`.
+  arquivoClienteId String?
+  arquivoCliente   ArquivoCliente?   @relation(fields: [arquivoClienteId], references: [id], onDelete: SetNull)
   createdAt        DateTime          @default(now())
 
   @@index([propostaId])
+  @@index([arquivoClienteId])
 }
 
 model RegraNotificacao {
@@ -660,6 +666,7 @@ model ArquivoCliente {
   sharepoint     ArquivoSharepoint[]
   linhasComoProposta HistoricoContrato[] @relation("PropostaDaLinha")
   linhasComoTermo    HistoricoContrato[] @relation("TermoDaLinha")
+  conversoesMarkdown PropostaComercialArquivo[]
 
   @@index([clienteId, createdAt])
   @@index([clienteId, categoria])

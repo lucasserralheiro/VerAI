@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { AbaDocumentos } from './aba-documentos'
 
 jest.mock('./documentos/envio-arquivos', () => ({ EnvioArquivos: () => null }))
+jest.mock('next/navigation', () => ({ useRouter: () => ({ push: jest.fn() }) }))
 
 const PROPOSTA = {
   id: 'a1',

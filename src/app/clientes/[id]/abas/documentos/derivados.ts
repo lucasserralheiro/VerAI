@@ -48,3 +48,22 @@ export function opcoesDeContrato(arquivos: ComUsos[]): ContratoDoUso[] {
 export function foraDoSharepoint(arquivo: Pick<ArquivoRepositorio, 'origem' | 'usos'>): boolean {
   return arquivo.origem === 'sharepoint' && !arquivo.usos.some((u) => u.tipo === 'sharepoint')
 }
+
+/** Coluna do histórico do contrato: PC/PA = `proposta`, TC/TA = `termo`. */
+export type ColunaDoContrato = 'proposta' | 'termo'
+
+const CATEGORIAS_DA_COLUNA: Record<ColunaDoContrato, string[]> = {
+  proposta: ['PROPOSTA_COMERCIAL', 'PROPOSTA_ADITIVO'],
+  termo: ['TERMO_CONTRATO', 'TERMO_ADITIVO'],
+}
+
+/** PC/PA ou TC/TA de um contrato: o arquivo está naquela coluna de alguma linha do histórico dele, ou
+ *  é da categoria da coluna e está ligado a ele (ex.: na pasta do contrato no SharePoint). */
+export function documentosDoContrato<T extends Pick<ArquivoRepositorio, 'categoria' | 'usos'>>(
+  arquivos: T[],
+  contratoId: string,
+  coluna: ColunaDoContrato
+): T[] {
+  const daCategoria = (a: T) => CATEGORIAS_DA_COLUNA[coluna].includes(a.categoria)
+  return arquivos.filter((a) => a.usos.some((u) => u.contrato?.id === contratoId && (u.coluna === coluna || daCategoria(a))))
+}

@@ -71,12 +71,17 @@ export async function DELETE(
   }
 
   await prisma.propostaComercialArquivo.delete({ where: { id: arquivoId } })
-  await deleteUpload(arquivo.caminhoOriginal).catch(() => {})
 
-  // As imagens extraídas de dentro do PDF ficam numa subpasta ao lado do
-  // original — sem apagar o prefixo elas ficariam órfãs no storage pra sempre.
-  const prefixoDeImagens = prefixoDeImagensDoOriginal(arquivo.caminhoOriginal)
-  if (prefixoDeImagens) await deleteUploadPrefix(prefixoDeImagens).catch(() => {})
+  // Arquivo que veio do repositório do cliente aponta pro blob DELE — nunca apagar. (As imagens
+  // extraídas desse PDF ficam na pasta da proposta e saem junto quando ela é excluída.)
+  if (!arquivo.arquivoClienteId) {
+    await deleteUpload(arquivo.caminhoOriginal).catch(() => {})
+
+    // As imagens extraídas de dentro do PDF ficam numa subpasta ao lado do
+    // original — sem apagar o prefixo elas ficariam órfãs no storage pra sempre.
+    const prefixoDeImagens = prefixoDeImagensDoOriginal(arquivo.caminhoOriginal)
+    if (prefixoDeImagens) await deleteUploadPrefix(prefixoDeImagens).catch(() => {})
+  }
 
   return NextResponse.json({ ok: true })
 }

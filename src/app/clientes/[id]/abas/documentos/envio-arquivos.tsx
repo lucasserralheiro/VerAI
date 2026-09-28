@@ -91,6 +91,10 @@ export function EnvioArquivos({
 
   return (
     <div className="card space-y-4">
+      <p className="text-xs text-mid-grey">
+        Os arquivos ficam guardados na lista de documentos do cliente. Para converter um deles em Markdown, use o
+        ícone na linha dele depois de enviado.
+      </p>
       <MultiFileDropzone
         arquivos={arquivos}
         onChange={aoMudarArquivos}

@@ -1,6 +1,7 @@
 import {
   competenciasDoArquivo,
   contratosDoArquivo,
+  documentosDoContrato,
   foraDoSharepoint,
   opcoesDeContrato,
   rotuloCompetencias,
@@ -53,5 +54,24 @@ describe('foraDoSharepoint', () => {
     expect(foraDoSharepoint({ origem: 'sharepoint', usos: [] })).toBe(true)
     expect(foraDoSharepoint({ origem: 'sharepoint', usos: [lugar] })).toBe(false)
     expect(foraDoSharepoint({ origem: 'upload', usos: [] })).toBe(false)
+  })
+})
+
+describe('documentosDoContrato', () => {
+  const arquivo = (id: string, categoria: string, usos: UsoArquivo[]) => ({ id, categoria, usos }) as never
+  const naColunaProposta = arquivo('a1', 'OUTRO', [{ ...uso(k1, null), tipo: 'historico-contrato', coluna: 'proposta' }])
+  const paPelaCategoria = arquivo('a2', 'PROPOSTA_ADITIVO', [{ ...uso(k1, null), tipo: 'sharepoint' }])
+  const naColunaTermo = arquivo('a3', 'OUTRO', [{ ...uso(k1, null), tipo: 'historico-contrato', coluna: 'termo' }])
+  const taPelaCategoria = arquivo('a4', 'TERMO_ADITIVO', [{ ...uso(k1, null), tipo: 'sharepoint' }])
+  const outroContrato = arquivo('a5', 'TERMO_CONTRATO', [{ ...uso(k2, null), tipo: 'sharepoint' }])
+  const todos = [naColunaProposta, paPelaCategoria, naColunaTermo, taPelaCategoria, outroContrato]
+  const ids = (lista: { id: string }[]) => lista.map((a) => a.id)
+
+  it('PC/PA deste contrato: coluna proposta do histórico ou categoria de proposta ligada a ele', () => {
+    expect(ids(documentosDoContrato(todos, 'k1', 'proposta'))).toEqual(['a1', 'a2'])
+  })
+
+  it('TC/TA deste contrato: coluna termo do histórico ou categoria de termo ligada a ele', () => {
+    expect(ids(documentosDoContrato(todos, 'k1', 'termo'))).toEqual(['a3', 'a4'])
   })
 })

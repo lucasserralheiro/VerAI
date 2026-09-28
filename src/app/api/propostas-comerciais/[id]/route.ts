@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { buildDocumentoPrefix, deleteUploadPrefix } from '@/lib/storage'
+import { deleteR2 } from '@/lib/r2'
+import { chavesDasImagensNoHtml } from '@/lib/propostas/imagens'
+import { chaveDoOriginalNoR2 } from '@/lib/propostas/envio'
 import { temBlocoOcrPendente } from '@/lib/ocr/marcadorOcrPendente'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -55,7 +58,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   }
 
   const { id } = await params
-  const proposta = await prisma.propostaComercial.findUnique({ where: { id } })
+  const proposta = await prisma.propostaComercial.findUnique({
+    where: { id },
+    include: { arquivos: { select: { conteudoExtraido: true, caminhoOriginal: true, arquivoClienteId: true } } },
+  })
   if (!proposta) {
     return NextResponse.json({ error: 'proposta comercial não encontrada' }, { status: 404 })
   }
@@ -68,6 +74,21 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   // existirem (ou o storage estiver indisponível) a exclusão segue sem erro.
   const prefixo = buildDocumentoPrefix(proposta.id, proposta.createdAt)
   await deleteUploadPrefix(prefixo).catch(() => {})
+
+  // Imagens extraídas dos PDFs ficam no R2, que não se apaga por prefixo aqui: as chaves saem
+  // do próprio HTML (o de cada arquivo, que não é editado, e o final). Também best-effort.
+  const chaves = new Set(
+    [proposta.conteudoMarkdown, ...proposta.arquivos.map((a) => a.conteudoExtraido)].flatMap((html) =>
+      chavesDasImagensNoHtml(html, proposta.id)
+    )
+  )
+  // O original enviado pela "Nova conversão" também mora no R2, na pasta da proposta. O que veio do
+  // repositório do cliente (`arquivoClienteId`) é do cliente — nunca apagar.
+  const originais = proposta.arquivos.flatMap((a) => {
+    const chave = a.arquivoClienteId ? null : chaveDoOriginalNoR2(a.caminhoOriginal, proposta.id)
+    return chave ? [chave] : []
+  })
+  await Promise.allSettled([...chaves, ...originais].map((chave) => deleteR2(chave)))
 
   return NextResponse.json({ ok: true })
 }

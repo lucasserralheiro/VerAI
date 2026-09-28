@@ -4,6 +4,7 @@ jest.mock('@/lib/prisma', () => ({
     documento: { findMany: jest.fn(async () => []) },
     historicoContrato: { findMany: jest.fn() },
     arquivoSharepoint: { findMany: jest.fn() },
+    propostaComercialArquivo: { findMany: jest.fn(async () => []) },
   },
 }))
 
@@ -29,6 +30,7 @@ it('coluna PC/PA–TC/TA da linha e lugar no SharePoint viram usos com contrato'
       contrato: { id: 'k1', numeroTermo: 'TC 211/2022' },
       competencia: null,
       daSincronizacao: true,
+      coluna: 'termo',
     },
     {
       tipo: 'sharepoint',
@@ -50,4 +52,20 @@ it('coluna PC/PA–TC/TA da linha e lugar no SharePoint viram usos com contrato'
     },
   ])
   expect((prisma.arquivoSharepoint.findMany as jest.Mock).mock.calls[0][0].where).toEqual({ arquivoId: { in: ['a1', 'a2'] }, removidoNaOrigemEm: null })
+})
+
+it('conversão em Markdown (Proposta Comercial) feita a partir do arquivo vira uso sem contrato', async () => {
+  ;(prisma.historicoContrato.findMany as jest.Mock).mockResolvedValue([])
+  ;(prisma.arquivoSharepoint.findMany as jest.Mock).mockResolvedValue([])
+  ;(prisma.propostaComercialArquivo.findMany as jest.Mock).mockResolvedValue([{ arquivoClienteId: 'a1', propostaId: 'p1' }])
+  const usos = await usosDosArquivos(['a1'])
+  expect(usos.get('a1')).toEqual([
+    {
+      tipo: 'conversao-markdown',
+      rotulo: 'Conversão em Markdown',
+      href: '/propostas-comerciais/p1',
+      contrato: null,
+      competencia: null,
+    },
+  ])
 })

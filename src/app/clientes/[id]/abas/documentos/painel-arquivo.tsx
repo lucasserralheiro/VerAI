@@ -2,9 +2,10 @@
 
 import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
-import { AlertCircle, Download, X } from 'lucide-react'
+import { AlertCircle, Download, FileText, Loader2, X } from 'lucide-react'
 import { BTN_OUTLINE, BTN_OUTLINE_SM, BTN_PRIMARY, INPUT_BASE, LINK_DANGER } from '@/lib/ui'
 import { CATEGORIAS, formatarTamanho } from '@/lib/arquivos/tipos'
+import { conversaoDoArquivo, podeConverter, useConverterArquivo } from './converter-arquivo'
 import { rotuloCompetencias, rotuloContratos } from './derivados'
 import type { ArquivoRepositorio } from './tipos'
 
@@ -21,8 +22,10 @@ export function PainelArquivo({
 }) {
   const [categoria, setCategoria] = useState(arquivo.categoria)
   const [confirmando, setConfirmando] = useState(false)
-  const [erro, setErro] = useState<string | null>(null)
+  const { converter, convertendoId, erro, setErro } = useConverterArquivo()
+  const convertendo = convertendoId === arquivo.id
   const emUso = arquivo.usos.length > 0
+  const conversao = conversaoDoArquivo(arquivo)
 
   async function salvar(event: FormEvent) {
     event.preventDefault()
@@ -119,6 +122,23 @@ export function PainelArquivo({
           <Download className="size-3.5" strokeWidth={2.25} />
           Baixar
         </a>
+        {conversao ? (
+          <Link href={conversao.href} className={BTN_OUTLINE}>
+            <FileText className="size-3.5" strokeWidth={2.25} />
+            Abrir em Markdown
+          </Link>
+        ) : (
+          podeConverter(arquivo) && (
+            <button type="button" onClick={() => converter(arquivo)} disabled={convertendo} className={BTN_OUTLINE}>
+              {convertendo ? (
+                <Loader2 className="size-3.5 animate-spin" strokeWidth={2.25} />
+              ) : (
+                <FileText className="size-3.5" strokeWidth={2.25} />
+              )}
+              {convertendo ? 'Convertendo...' : 'Converter em Markdown'}
+            </button>
+          )
+        )}
         {confirmando ? (
           <span className="flex items-center gap-2 text-sm">
             Remover?

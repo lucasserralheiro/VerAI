@@ -110,7 +110,7 @@ export async function usosDosArquivos(ids: string[]): Promise<Map<string, UsoArq
   const usos = new Map<string, UsoArquivo[]>(ids.map((id) => [id, []]))
   if (ids.length === 0) return usos
 
-  const [documentos, linhas, locais] = await Promise.all([
+  const [documentos, linhas, locais, conversoes] = await Promise.all([
     prisma.documento.findMany({
       where: { arquivoId: { in: ids } },
       select: { arquivoId: true, clienteId: true, competenciaAno: true, competenciaMes: true },
@@ -137,6 +137,10 @@ export async function usosDosArquivos(ids: string[]): Promise<Map<string, UsoArq
         arquivo: { select: { clienteId: true } },
       },
     }),
+    prisma.propostaComercialArquivo.findMany({
+      where: { arquivoClienteId: { in: ids } },
+      select: { arquivoClienteId: true, propostaId: true },
+    }),
   ])
 
   for (const doc of documentos) {
@@ -150,10 +154,10 @@ export async function usosDosArquivos(ids: string[]): Promise<Map<string, UsoArq
   }
   for (const linha of linhas) {
     const colunas = [
-      ['PC/PA', linha.propostaArquivoId, linha.propostaDoSharepoint],
-      ['TC/TA', linha.termoArquivoId, linha.termoDoSharepoint],
+      ['PC/PA', 'proposta', linha.propostaArquivoId, linha.propostaDoSharepoint],
+      ['TC/TA', 'termo', linha.termoArquivoId, linha.termoDoSharepoint],
     ] as const
-    for (const [rotulo, arquivoId, daSincronizacao] of colunas) {
+    for (const [rotulo, coluna, arquivoId, daSincronizacao] of colunas) {
       if (!arquivoId) continue
       usos.get(arquivoId)?.push({
         tipo: 'historico-contrato',
@@ -162,6 +166,7 @@ export async function usosDosArquivos(ids: string[]): Promise<Map<string, UsoArq
         contrato: { id: linha.contrato.id, numeroTermo: linha.contrato.numeroTermo },
         competencia: null,
         daSincronizacao,
+        coluna,
       })
     }
   }
@@ -175,6 +180,15 @@ export async function usosDosArquivos(ids: string[]): Promise<Map<string, UsoArq
       contrato: local.contrato ? { id: local.contrato.id, numeroTermo: local.contrato.numeroTermo } : null,
       competencia: null,
       daSincronizacao: true,
+    })
+  }
+  for (const conversao of conversoes) {
+    usos.get(conversao.arquivoClienteId!)?.push({
+      tipo: 'conversao-markdown',
+      rotulo: 'Conversão em Markdown',
+      href: `/propostas-comerciais/${conversao.propostaId}`,
+      contrato: null,
+      competencia: null,
     })
   }
   return usos

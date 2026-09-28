@@ -1,12 +1,26 @@
 # "Documentos do SharePoint atualizados em …" — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** A lista de clientes e a aba Documentos mostram quando os documentos vieram do SharePoint pela última vez ("Documentos do SharePoint atualizados em 28/09/2026 10:30"), em laranja quando passou de 2 h.
 
 **Architecture:** No fim de cada passada completa (spec §3), `scripts/sincronizar-sharepoint.ts` grava uma linha em `AtualizacaoSharepoint` via `registrarAtualizacao()` (guarda pela migração, nunca lança). `GET /api/sharepoint/atualizacao` devolve a mais recente; o componente `<AtualizacaoSharepoint />` monta o texto com `textoDaAtualizacao()` e entra nas duas telas.
 
 **Tech Stack:** Prisma 6/Postgres, Next.js 15 route handler, React 19, Jest + Testing Library, lucide-react.
+
+## Andamento (28/09/2026)
+
+- ✅ Tasks 1–3 no dev; falta só produção (migração no Neon + deploy, com o usuário).
+- Conferido: 79 testes das suítes tocadas, `tsc` limpo; no localhost a lista e a aba Documentos mostram os
+  três estados (cinza, "atualização atrasada", "Ainda não sincronizado"); `registrarAtualizacao` real
+  contra o dev grava a passada completa e recusa a parcial (linhas de teste apagadas em seguida).
+- **Commits:** Task 1 = `d3a939c`. A Task 2 **não tem commit próprio**: outra sessão commitou
+  (`f0f0cc8`, "feat(confere): modal da busca do contrato") com os arquivos dela preparados no mesmo
+  índice compartilhado, e os da Task 2 entraram junto — conteúdo certo, mensagem de outro assunto. Não
+  reescrito (histórico da `main` com outra sessão ativa). Daqui em diante, commit com trecho parcial
+  usa índice próprio (`GIT_INDEX_FILE`), nunca o compartilhado.
+- O `next dev` precisou reiniciar para enxergar o model novo; um `next dev` antigo na porta 3001 segura
+  a DLL do motor do Prisma (`prisma generate` gera o cliente, só não troca a DLL — mesma versão).
 
 ## Global Constraints
 
@@ -31,7 +45,7 @@
 **Interfaces:**
 - Produces: `motivoIncompleta(r, { aplicar, clientes? }): string | null`; `registrarAtualizacao(prisma, r, { aplicar, clientes?, iniciadaEm }, deps?): Promise<string>`; `MIGRACAO_DA_ATUALIZACAO`; `prisma.atualizacaoSharepoint` com `iniciadaEm: Date`.
 
-- [ ] **Step 1: Model e migração**
+- [x] **Step 1: Model e migração**
 
 ```prisma
 model AtualizacaoSharepoint {
@@ -57,11 +71,11 @@ CREATE INDEX "AtualizacaoSharepoint_iniciadaEm_idx" ON "AtualizacaoSharepoint"("
 
 Run: `npx prisma validate`, depois `npx dotenv -e .env.development -- npx prisma migrate deploy` e `npx prisma generate`.
 
-- [ ] **Step 2: Teste falhando** — `atualizacao.test.ts`: `motivoIncompleta` devolve `null` para passada completa e o motivo para: só listagem, `clientes` preenchido, conferência `null`, divergência, remoção suspensa, falha de arquivo. `registrarAtualizacao` grava `{ iniciadaEm, arquivos: soma de noSharepoint }`; não grava quando incompleta; pula sem a migração; erro do banco vira texto (não lança).
+- [x] **Step 2: Teste falhando** — `atualizacao.test.ts`: `motivoIncompleta` devolve `null` para passada completa e o motivo para: só listagem, `clientes` preenchido, conferência `null`, divergência, remoção suspensa, falha de arquivo. `registrarAtualizacao` grava `{ iniciadaEm, arquivos: soma de noSharepoint }`; não grava quando incompleta; pula sem a migração; erro do banco vira texto (não lança).
 
-- [ ] **Step 3: Rodar e ver falhar** — `npx jest src/lib/arquivos/sharepoint/atualizacao.test.ts` → FAIL (módulo não existe).
+- [x] **Step 3: Rodar e ver falhar** — `npx jest src/lib/arquivos/sharepoint/atualizacao.test.ts` → FAIL (módulo não existe).
 
-- [ ] **Step 4: Implementar `atualizacao.ts`**
+- [x] **Step 4: Implementar `atualizacao.ts`**
 
 ```ts
 export const MIGRACAO_DA_ATUALIZACAO = '20260928120000_atualizacao_sharepoint'
@@ -90,14 +104,14 @@ export async function registrarAtualizacao(prisma, r, opcoes, deps = { bancoPron
 }
 ```
 
-- [ ] **Step 5: Rodar e ver passar**; ligar no script:
+- [x] **Step 5: Rodar e ver passar**; ligar no script:
 
 ```ts
 // Data que as telas mostram (spec 2026-09-28-sharepoint-atualizado-em). Não muda o código de saída.
 console.log(`\n${await registrarAtualizacao(prisma, r, { aplicar, clientes, iniciadaEm: new Date(inicio) })}`)
 ```
 
-- [ ] **Step 6: Commit** — `feat(sharepoint): grava a passada completa para as telas mostrarem a data`.
+- [x] **Step 6: Commit** — `feat(sharepoint): grava a passada completa para as telas mostrarem a data`.
 
 ### Task 2: API e linha na tela
 
@@ -111,19 +125,19 @@ console.log(`\n${await registrarAtualizacao(prisma, r, { aplicar, clientes, inic
 - Consumes: `prisma.atualizacaoSharepoint` (Task 1).
 - Produces: `GET /api/sharepoint/atualizacao` → `{ atualizadoEm: string | null }`; `textoDaAtualizacao(iso | null, agora): { texto, atrasada }`; `<AtualizacaoSharepoint className? />`.
 
-- [ ] **Step 1: Testes falhando**
+- [x] **Step 1: Testes falhando**
   - rota: 401 sem usuário; `{ atualizadoEm: iso }` da mais recente (`orderBy: { iniciadaEm: 'desc' }`); `null` sem linha.
   - texto: `2026-09-28T13:30:00Z` → "Documentos do SharePoint atualizados em 28/09/2026 10:30"; 2 h exatas não atrasa; 2 h e 1 min → "… — atualização atrasada"; `null` → "Ainda não sincronizado com o SharePoint" (atrasada); meia-noite sai "00:05", não "24:05".
   - componente: recente em cinza; atrasada em laranja (`text-orange-dark`); API com erro → nada.
   - telas: a linha aparece embaixo do título da lista e do resumo da aba.
-- [ ] **Step 2: Rodar e ver falhar.**
-- [ ] **Step 3: Implementar** (rota com `getAuthUser` + `findFirst`; texto com `Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hourCycle: 'h23', … }).formatToParts`; componente busca uma vez no `useEffect`, some se a resposta não trouxer `atualizadoEm`).
-- [ ] **Step 4: Rodar e ver passar** — as suítes novas + `lista-clientes.test.tsx` + `aba-documentos.test.tsx`; `npx tsc --noEmit`.
-- [ ] **Step 5: Conferir no localhost** — lista e aba Documentos, com o banco de dev.
-- [ ] **Step 6: Commit** — `feat(sharepoint): "documentos atualizados em" na lista de clientes e na aba Documentos`.
+- [x] **Step 2: Rodar e ver falhar.**
+- [x] **Step 3: Implementar** (rota com `getAuthUser` + `findFirst`; texto com `Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hourCycle: 'h23', … }).formatToParts`; componente busca uma vez no `useEffect`, some se a resposta não trouxer `atualizadoEm`).
+- [x] **Step 4: Rodar e ver passar** — as suítes novas + `lista-clientes.test.tsx` + `aba-documentos.test.tsx`; `npx tsc --noEmit`.
+- [x] **Step 5: Conferir no localhost** — lista e aba Documentos, com o banco de dev.
+- [x] **Step 6: Commit** — `feat(sharepoint): "documentos atualizados em" na lista de clientes e na aba Documentos`.
 
 ### Task 3: Documentação
 
-- [ ] CLAUDE.md, seção "Sincronização com o SharePoint": o selo existe (28/09), onde grava, o que conta como passada completa, guarda da migração.
-- [ ] Memória `sharepoint-lugar-certo`: decisão de 24/09 revista.
+- [x] CLAUDE.md, seção "Sincronização com o SharePoint": o selo existe (28/09), onde grava, o que conta como passada completa, guarda da migração.
+- [x] Memória `sharepoint-lugar-certo`: decisão de 24/09 revista.
 - [ ] **Produção (com o usuário):** `prisma migrate deploy` no Neon + deploy. Até lá o agendador loga "pulada — migração … não aplicada" e o site não mostra a linha.

@@ -217,13 +217,21 @@ que revisa `2026-09-24-sincronizacao-sharepoint-contratos-design.md`):
 - Nada grava sem `--aplicar`; `--clientes=` restringe listagem **e** remoção (use em dev: dev e
   produção dividem o mesmo bucket do Cloudflare R2). Antes da primeira execução num banco:
   `scripts/migrar-sharepoint-lugar-certo.ts` (a sincronização recusa rodar com migração pendente).
-- **Automação**: roda sempre do PC do Lucas, a cada 30 min, pelo Agendador do Windows — sem e-mail,
-  painel ou selo na tela (decisão do usuário). `scripts\agendador-sharepoint.ps1 -Estado` mostra a
+- **Automação**: roda sempre do PC do Lucas, a cada 30 min, pelo Agendador do Windows — sem e-mail
+  nem painel (decisão do usuário). `scripts\agendador-sharepoint.ps1 -Estado` mostra a
   última execução. O Agendador só enxerga o `conhost --headless` (o que evita a janela), que devolve
   sempre 0: o código de verdade o `.bat` grava no log (`[fim … - codigo N]`) e o `-Estado` lê dali —
   não troque isso pelo "resultado" do Agendador. Spec
   `docs/superpowers/specs/2026-09-24-sharepoint-automacao-design.md`, plano
   `docs/superpowers/plans/2026-09-24-sharepoint-automacao.md` — leia antes de mexer no agendador.
+- **Data na tela** (28/09/2026 — revê o "sem selo" de 24/09): cada passada **completa** (biblioteca
+  inteira, `--aplicar`, conferência sem divergência, sem remoção suspensa nem falha de arquivo) grava
+  uma linha em `AtualizacaoSharepoint` (`registrarAtualizacao`, `src/lib/arquivos/sharepoint/atualizacao.ts`,
+  guarda pela migração `MIGRACAO_DA_ATUALIZACAO`, nunca muda o código de saída); execução que falha não
+  grava. A lista de clientes e a aba Documentos mostram a mais recente (`<AtualizacaoSharepoint />`,
+  `GET /api/sharepoint/atualizacao`), em laranja depois de 2 h. O agendador grava só na produção: o
+  localhost mostra a data do banco de dev. Spec
+  `docs/superpowers/specs/2026-09-28-sharepoint-atualizado-em-design.md`.
 - **Régua da leitura**: antes de mexer em regra de estrutura ou identidade (`estrutura.ts`,
   `identidade.ts`, `regras.ts`, `scripts/sharepoint-clientes.json`), rode
   `npx tsx scripts/regua-sharepoint.ts --salvar`; depois da mudança, rode sem `--salvar`. Ela relê a

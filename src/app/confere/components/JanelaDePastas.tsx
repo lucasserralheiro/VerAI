@@ -417,7 +417,9 @@ export function JanelaDePastas({
 							<p role="status" className="sr-only">
 								Carregando as pastas…
 							</p>
-							<ul aria-hidden="true" className="h-[27.5rem] space-y-2 overflow-hidden pt-12">
+							{/* A altura da janela carregada (busca + caminho + lista): ela não
+							    muda de tamanho quando as pastas chegam. */}
+							<ul aria-hidden="true" className="h-[29.125rem] space-y-2 overflow-hidden pt-12">
 								{[0, 1, 2, 3, 4, 5].map((i) => (
 									<li key={i} className="h-8 rounded bg-confere-navy-50 motion-safe:animate-pulse" />
 								))}
@@ -461,22 +463,34 @@ export function JanelaDePastas({
 										>
 											<span aria-hidden="true">←</span> Voltar
 										</button>
-										<nav aria-label="Caminho" className="flex min-w-0 flex-wrap items-center gap-1">
+										{/* Uma linha só, com os trechos longos cortados (o nome inteiro
+										    no `title`): quebrar em duas linhas mudava a altura da janela
+										    a cada pasta. */}
+										<nav
+											aria-label="Caminho"
+											className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden whitespace-nowrap"
+										>
 											<button
 												type="button"
 												onClick={() => setCaminho([])}
-												className="font-semibold text-confere-teal-600 underline"
+												className="shrink-0 font-semibold text-confere-teal-600 underline"
 											>
 												{nomeDoCliente}
 											</button>
 											{caminho.map((parte, i) => (
-												<span key={`${i}-${parte}`} className="flex min-w-0 items-center gap-1">
+												<span
+													key={`${i}-${parte}`}
+													className={`flex min-w-0 items-center gap-1 ${i === caminho.length - 1 ? "" : "max-w-[14rem] shrink-0"}`}
+												>
 													<span aria-hidden="true">›</span>
 													{i === caminho.length - 1 ? (
-														<span className="truncate font-semibold text-confere-navy-600">{parte}</span>
+														<span title={parte} className="truncate font-semibold text-confere-navy-600">
+															{parte}
+														</span>
 													) : (
 														<button
 															type="button"
+															title={parte}
 															onClick={() => setCaminho(caminho.slice(0, i + 1))}
 															className="truncate text-confere-teal-600 underline"
 														>

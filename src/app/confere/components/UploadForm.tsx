@@ -118,7 +118,9 @@ function LinhaDoDocumento({
 	return (
 		<li
 			{...soltar.alvo}
-			className="relative grid gap-x-6 gap-y-2 px-4 py-4 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-inset has-[:focus-visible]:ring-confere-teal-500 md:grid-cols-[16rem_minmax(0,1fr)_auto] md:items-center"
+			// Três colunas só em tela larga; no meio-termo as ações descem para
+			// baixo do arquivo — lado a lado, espremiam o nome dele.
+			className="relative grid gap-x-6 gap-y-2 px-4 py-4 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-inset has-[:focus-visible]:ring-confere-teal-500 md:grid-cols-[14rem_minmax(0,1fr)] md:items-center xl:grid-cols-[16rem_minmax(0,1fr)_auto]"
 		>
 			<div className="flex items-start gap-3">
 				<IconeDoTipo tipo={tipo} />
@@ -135,10 +137,12 @@ function LinhaDoDocumento({
 			<div id={`${nome}-estado`} className="min-w-0">
 				{conteudo}
 			</div>
-			<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs md:justify-end">{acoes}</div>
+			<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs md:col-start-2 xl:col-start-auto xl:justify-end">
+				{acoes}
+			</div>
 			{campo}
 			{soltar.erro && (
-				<p className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900 md:col-span-3">
+				<p className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900 md:col-span-full">
 					{soltar.erro}
 				</p>
 			)}
@@ -285,7 +289,9 @@ export function UploadForm({
 					conteudo={
 						levantamento ? (
 							<>
-								<p className="truncate text-sm text-confere-teal-600">{levantamento.name}</p>
+								<p title={levantamento.name} className="truncate text-sm text-confere-teal-600">
+									{levantamento.name}
+								</p>
 								<p className="text-xs text-confere-navy-300">Do computador</p>
 							</>
 						) : (
@@ -331,8 +337,12 @@ export function UploadForm({
 					conteudo={
 						contrato ? (
 							<>
-								<p className="truncate text-sm text-confere-teal-600">{nomeDaPeca(contrato)}</p>
-								<p className="truncate text-xs text-confere-navy-300">
+								<p title={nomeDaPeca(contrato)} className="truncate text-sm text-confere-teal-600">
+									{nomeDaPeca(contrato)}
+								</p>
+								{/* A origem quebra linha em vez de cortar: "TA 02, renovação
+								    desde…" é o que diz por que esta proposta foi a escolhida. */}
+								<p className="text-xs text-confere-navy-300">
 									{contratoDoCadastro
 										? `Do cadastro · ${textoDoDocumento(contratoDoCadastro)}`
 										: "Do computador"}

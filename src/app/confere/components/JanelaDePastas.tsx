@@ -17,9 +17,17 @@ interface Props {
 	finalidade: "contrato" | "aditivos";
 	/** A proposta que está no campo Contrato: a janela abre na pasta do contrato dela. */
 	arquivoInicial?: string;
+	/** O que já está na tela (a proposta do Contrato e os aditivos do cadastro):
+	 *  marcado "em uso" no arquivo e nas pastas acima dele. */
+	emUso?: readonly string[];
+	/** Aditivos que já estão na lista: aparecem marcados e não podem ser
+	 *  escolhidos de novo. */
+	jaNaLista?: readonly string[];
 	onEscolher: (documentos: DocumentoDoCadastro[]) => void;
 	onFechar: () => void;
 }
+
+const NENHUM: readonly string[] = [];
 
 function semAcento(texto: string): string {
 	return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -34,12 +42,28 @@ function mesmaPasta(a: readonly string[], b: readonly string[]): boolean {
 	return a.length === b.length && a.every((parte, i) => parte === b[i]);
 }
 
+/** Estritamente abaixo de `caminho`. */
 function dentroDe(pasta: readonly string[], caminho: readonly string[]): boolean {
 	return pasta.length > caminho.length && caminho.every((parte, i) => pasta[i] === parte);
 }
 
+/** Em `caminho` ou em qualquer pasta abaixo dele. */
+function naPastaOuAbaixo(pasta: readonly string[], caminho: readonly string[]): boolean {
+	return pasta.length >= caminho.length && caminho.every((parte, i) => pasta[i] === parte);
+}
+
 function ehPdf(arquivo: ArquivoNaPasta): boolean {
 	return arquivo.extensao.toLowerCase() === "pdf";
+}
+
+/** PDFs primeiro — é o que se escolhe aqui —, depois o resto; cada grupo em
+ *  ordem natural. */
+function pdfPrimeiro(a: ArquivoNaPasta, b: ArquivoNaPasta): number {
+	return Number(!ehPdf(a)) - Number(!ehPdf(b)) || porNome(a.nome, b.nome);
+}
+
+function quantos(n: number): string {
+	return n === 1 ? "1 arquivo" : `${n} arquivos`;
 }
 
 function paraDocumento(arquivo: ArquivoNaPasta): DocumentoDoCadastro {
@@ -53,7 +77,7 @@ function paraDocumento(arquivo: ArquivoNaPasta): DocumentoDoCadastro {
 
 function IconeDePasta() {
 	return (
-		<svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 shrink-0">
+		<svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 shrink-0 text-confere-teal-500">
 			<path
 				d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
 				fill="none"
@@ -64,9 +88,31 @@ function IconeDePasta() {
 	);
 }
 
+function IconeDeArquivo({ pdf }: { pdf: boolean }) {
+	return (
+		<span
+			aria-hidden="true"
+			className={`inline-flex h-5 w-7 shrink-0 items-center justify-center rounded text-[9px] font-bold ${
+				pdf ? "bg-confere-navy-50 text-confere-navy-600" : "bg-confere-navy-50 text-confere-navy-300"
+			}`}
+		>
+			{pdf ? "PDF" : "···"}
+		</span>
+	);
+}
+
+function Selo({ children }: { children: React.ReactNode }) {
+	return (
+		<span className="shrink-0 rounded bg-confere-teal-50 px-1.5 text-[11px] font-semibold text-confere-teal-600">
+			{children}
+		</span>
+	);
+}
+
 /** A janela "Pastas do cliente" (docs/superpowers/specs/2026-09-25-confere-ux-pastas-design.md
- *  §3.5): as pastas do SharePoint do cliente, só para procurar e escolher — nada aqui muda arquivo
- *  ou pasta.
+ *  §3.5, revista em docs/superpowers/specs/2026-09-28-confere-levantamento-primeiro-design.md §4):
+ *  as pastas do SharePoint do cliente, só para procurar e escolher — nada aqui muda arquivo ou
+ *  pasta.
  *
  *  `<dialog>` nativo com `showModal()`, como o `ConfirmarLimpeza`: foco preso, `Esc` e fundo
  *  inerte sem ARIA escrita à mão. Mora em `page.tsx`, fora do `<form>` do `UploadForm`. */
@@ -75,6 +121,8 @@ export function JanelaDePastas({
 	clienteId,
 	finalidade,
 	arquivoInicial,
+	emUso = NENHUM,
+	jaNaLista = NENHUM,
 	onEscolher,
 	onFechar,
 }: Props) {
@@ -87,6 +135,14 @@ export function JanelaDePastas({
 	const [caminho, setCaminho] = useState<string[]>([]);
 	const [busca, setBusca] = useState("");
 	const [escolhidos, setEscolhidos] = useState<ArquivoNaPasta[]>([]);
+	// De onde a pessoa saiu em "Outro cliente": "Voltar para <sigla>" devolve ao
+	// mesmo cliente, na mesma pasta.
+	const [anterior, setAnterior] = useState<{ cliente: string; nome: string; caminho: string[] } | null>(
+		null,
+	);
+	// As pastas já lidas nesta abertura: voltar ao cliente anterior não busca de
+	// novo — e não perde a pasta onde a pessoa estava.
+	const lidas = useRef(new Map<string, PastasDoCliente>());
 
 	useEffect(() => {
 		const el = dialogo.current;
@@ -101,10 +157,18 @@ export function JanelaDePastas({
 		setCliente(clienteId);
 		setBusca("");
 		setEscolhidos([]);
+		setAnterior(null);
+		lidas.current.clear();
 	}, [aberto, clienteId]);
 
 	useEffect(() => {
 		if (!aberto || !cliente) return;
+		const guardadas = lidas.current.get(cliente);
+		if (guardadas) {
+			setDados(guardadas);
+			setSituacao("pronta");
+			return;
+		}
 		let valendo = true;
 		setSituacao("carregando");
 		setDados(null);
@@ -114,6 +178,7 @@ export function JanelaDePastas({
 				setSituacao("falhou");
 				return;
 			}
+			lidas.current.set(cliente, resposta);
 			setSituacao("pronta");
 			setDados(resposta);
 			const inicial = resposta.arquivos.find((arquivo) => arquivo.arquivoId === arquivoInicial);
@@ -129,6 +194,38 @@ export function JanelaDePastas({
 		void listarClientes().then(setClientes);
 	}, [aberto, cliente, clientes]);
 
+	const arquivos = dados?.arquivos ?? [];
+	const termo = semAcento(busca.trim());
+	const achados = termo
+		? arquivos.filter((a) => semAcento(a.nome).includes(termo)).sort(pdfPrimeiro)
+		: [];
+	const subpastas = [
+		...new Set(
+			arquivos.filter((a) => dentroDe(a.pasta, caminho)).map((a) => a.pasta[caminho.length]),
+		),
+	].sort(porNome);
+	const aqui = arquivos.filter((a) => mesmaPasta(a.pasta, caminho)).sort(pdfPrimeiro);
+	const usados = arquivos.filter((a) => emUso.includes(a.arquivoId));
+	const nomeDoCliente = dados ? (dados.cliente.sigla ?? dados.cliente.nome) : "";
+	const termoDeCliente = semAcento(filtroDeCliente.trim());
+	const naRaiz = caminho.length === 0;
+	const rotuloDoBotao =
+		finalidade === "contrato"
+			? "Usar este arquivo"
+			: escolhidos.length === 1
+				? "Adicionar 1 aditivo"
+				: escolhidos.length > 1
+					? `Adicionar ${escolhidos.length} aditivos`
+					: "Adicionar aditivos";
+	const resumo =
+		escolhidos.length === 0
+			? "Nenhum arquivo selecionado"
+			: finalidade === "contrato"
+				? `Selecionado: ${escolhidos[0].nome}`
+				: `${escolhidos.length === 1 ? "1 aditivo" : `${escolhidos.length} aditivos`}: ${escolhidos
+						.map((a, i) => `${i + 1}º ${a.nome}`)
+						.join(", ")}`;
+
 	function alternar(arquivo: ArquivoNaPasta) {
 		if (finalidade === "contrato") {
 			setEscolhidos([arquivo]);
@@ -141,70 +238,94 @@ export function JanelaDePastas({
 		);
 	}
 
-	function confirmar() {
-		if (escolhidos.length === 0) return;
-		onEscolher(escolhidos.map(paraDocumento));
+	function confirmar(lista: ArquivoNaPasta[] = escolhidos) {
+		if (lista.length === 0) return;
+		onEscolher(lista.map(paraDocumento));
 		onFechar();
 	}
 
-	const arquivos = dados?.arquivos ?? [];
-	const termo = semAcento(busca.trim());
-	const achados = termo
-		? arquivos
-				.filter((a) => semAcento(a.nome).includes(termo))
-				.sort((a, b) => porNome(a.nome, b.nome))
-		: [];
-	const subpastas = [
-		...new Set(
-			arquivos.filter((a) => dentroDe(a.pasta, caminho)).map((a) => a.pasta[caminho.length]),
-		),
-	].sort(porNome);
-	const aqui = arquivos
-		.filter((a) => mesmaPasta(a.pasta, caminho))
-		.sort((a, b) => porNome(a.nome, b.nome));
-	const nomeDoCliente = dados ? (dados.cliente.sigla ?? dados.cliente.nome) : "";
-	const termoDeCliente = semAcento(filtroDeCliente.trim());
-	const rotuloDoBotao =
-		finalidade === "contrato"
-			? "Usar este arquivo"
-			: escolhidos.length === 1
-				? "Adicionar 1 aditivo"
-				: escolhidos.length > 1
-					? `Adicionar ${escolhidos.length} aditivos`
-					: "Adicionar aditivos";
+	/** Duplo clique: usa o arquivo na hora — nos aditivos, junto com os já
+	 *  marcados, na ordem. */
+	function usarJa(arquivo: ArquivoNaPasta) {
+		if (finalidade === "contrato") {
+			confirmar([arquivo]);
+			return;
+		}
+		confirmar(
+			escolhidos.some((a) => a.arquivoId === arquivo.arquivoId) ? escolhidos : [...escolhidos, arquivo],
+		);
+	}
+
+	function subir() {
+		// `aria-disabled` e não `disabled` (`R-ACE-06`): quem aperta Voltar até a
+		// raiz está com o foco no botão, e desabilitá-lo jogaria o foco no `<body>`.
+		if (!naRaiz) setCaminho(caminho.slice(0, -1));
+	}
+
+	function outroCliente() {
+		if (cliente) setAnterior({ cliente, nome: nomeDoCliente, caminho });
+		setCliente(undefined);
+		setDados(null);
+		setEscolhidos([]);
+		setBusca("");
+	}
+
+	function voltarAoAnterior() {
+		if (!anterior) return;
+		setCaminho(anterior.caminho);
+		setCliente(anterior.cliente);
+		setAnterior(null);
+	}
 
 	function linha(arquivo: ArquivoNaPasta, mostrarPasta: boolean) {
 		const pdf = ehPdf(arquivo);
+		const naLista = finalidade === "aditivos" && jaNaLista.includes(arquivo.arquivoId);
+		const escolhivel = pdf && !naLista;
 		const ordem = escolhidos.findIndex((a) => a.arquivoId === arquivo.arquivoId) + 1;
 		return (
 			<li
 				key={`${arquivo.arquivoId}-${arquivo.pasta.join("/")}`}
-				className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
+				className={`flex items-center gap-2 pr-3 text-xs transition ${
+					ordem > 0 ? "bg-confere-teal-50" : escolhivel ? "hover:bg-confere-navy-50" : ""
+				}`}
 			>
+				{/* A linha toda é o rótulo: clicar em qualquer parte marca. O "ver"
+				    fica fora dele — link dentro de rótulo marcaria junto. */}
 				<label
-					className={`flex min-w-0 flex-1 items-center gap-2 ${
-						pdf ? "cursor-pointer text-confere-navy-600" : "text-confere-navy-300"
+					onDoubleClick={escolhivel ? () => usarJa(arquivo) : undefined}
+					className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-2 ${
+						escolhivel ? "cursor-pointer text-confere-navy-600" : "text-confere-navy-300"
 					}`}
 				>
 					<input
 						type={finalidade === "contrato" ? "radio" : "checkbox"}
 						name="arquivo-da-pasta"
-						checked={ordem > 0}
-						disabled={!pdf}
+						checked={ordem > 0 || naLista}
+						disabled={!escolhivel}
 						onChange={() => alternar(arquivo)}
 					/>
-					<span className="truncate">{arquivo.nome}</span>
-					{finalidade === "aditivos" && ordem > 0 && (
-						<span className="shrink-0 rounded bg-confere-teal-500 px-1.5 text-[11px] font-semibold text-white">
-							{ordem}º
+					<IconeDeArquivo pdf={pdf} />
+					<span className="min-w-0 flex-1">
+						<span className="flex items-center gap-2">
+							<span className="truncate">{arquivo.nome}</span>
+							{naLista ? (
+								<Selo>já na lista</Selo>
+							) : (
+								emUso.includes(arquivo.arquivoId) && <Selo>em uso</Selo>
+							)}
+							{finalidade === "aditivos" && ordem > 0 && (
+								<span className="shrink-0 rounded bg-confere-teal-500 px-1.5 text-[11px] font-semibold text-white">
+									{ordem}º
+								</span>
+							)}
+							{!pdf && <span className="shrink-0">· só PDF</span>}
 						</span>
-					)}
-					{!pdf && <span className="shrink-0">· só PDF</span>}
-					{mostrarPasta && (
-						<span className="truncate text-confere-navy-300">
-							· {arquivo.pasta.join(" › ") || nomeDoCliente}
-						</span>
-					)}
+						{mostrarPasta && (
+							<span className="block truncate text-[11px] text-confere-navy-300">
+								{[nomeDoCliente, ...arquivo.pasta].join(" › ")}
+							</span>
+						)}
+					</span>
 				</label>
 				<a
 					href={`/api/arquivos/${arquivo.arquivoId}?modo=inline`}
@@ -223,7 +344,7 @@ export function JanelaDePastas({
 			ref={dialogo}
 			onClose={onFechar}
 			aria-labelledby="pastas-titulo"
-			className="w-[min(42rem,calc(100vw-2rem))] rounded-lg border border-confere-line bg-white p-6 shadow-lg"
+			className="w-[min(48rem,calc(100vw-2rem))] rounded-lg border border-confere-line bg-white p-6 shadow-lg"
 		>
 			{/* Conteúdo só com a janela aberta: fechada, ela não deixa na página os
 			    nomes de arquivo — que a tela também mostra nos campos. */}
@@ -243,11 +364,7 @@ export function JanelaDePastas({
 						{cliente && (
 							<button
 								type="button"
-								onClick={() => {
-									setCliente(undefined);
-									setDados(null);
-									setEscolhidos([]);
-								}}
+								onClick={outroCliente}
 								className="shrink-0 text-xs font-semibold text-confere-teal-600 underline"
 							>
 								Outro cliente
@@ -257,6 +374,15 @@ export function JanelaDePastas({
 
 					{!cliente ? (
 						<div className="mt-4 text-sm">
+							{anterior && (
+								<button
+									type="button"
+									onClick={voltarAoAnterior}
+									className="mb-3 inline-flex items-center gap-1 rounded-md border border-confere-line px-2.5 py-1 text-xs font-semibold text-confere-navy-600 hover:bg-confere-navy-50"
+								>
+									<span aria-hidden="true">←</span> Voltar para {anterior.nome}
+								</button>
+							)}
 							<input
 								type="search"
 								value={filtroDeCliente}
@@ -265,7 +391,7 @@ export function JanelaDePastas({
 								aria-label="Buscar cliente"
 								className="h-9 w-full rounded border border-confere-line px-2 text-confere-navy-600"
 							/>
-							<ul className="mt-2 max-h-72 space-y-1 overflow-y-auto">
+							<ul className="mt-2 h-96 space-y-1 overflow-y-auto">
 								{(clientes ?? [])
 									.filter(
 										(c) =>
@@ -287,7 +413,16 @@ export function JanelaDePastas({
 							</ul>
 						</div>
 					) : situacao === "carregando" ? (
-						<p className="mt-4 text-sm text-confere-navy-600">Carregando as pastas…</p>
+						<div className="mt-4">
+							<p role="status" className="sr-only">
+								Carregando as pastas…
+							</p>
+							<ul aria-hidden="true" className="h-[27.5rem] space-y-2 overflow-hidden pt-12">
+								{[0, 1, 2, 3, 4, 5].map((i) => (
+									<li key={i} className="h-8 rounded bg-confere-navy-50 motion-safe:animate-pulse" />
+								))}
+							</ul>
+						</div>
 					) : situacao === "falhou" ? (
 						<p className="mt-4 text-sm text-amber-900">
 							Não foi possível abrir as pastas deste cliente.
@@ -303,7 +438,7 @@ export function JanelaDePastas({
 								className="h-9 w-full rounded border border-confere-line px-2 text-confere-navy-600"
 							/>
 							{termo ? (
-								<ul className="mt-3 max-h-80 divide-y divide-confere-line overflow-y-auto rounded border border-confere-line">
+								<ul className="mt-3 h-96 divide-y divide-confere-line overflow-y-auto rounded border border-confere-line">
 									{achados.map((arquivo) => linha(arquivo, true))}
 									{achados.length === 0 && (
 										<li className="px-3 py-2 text-xs text-confere-navy-300">
@@ -313,47 +448,66 @@ export function JanelaDePastas({
 								</ul>
 							) : (
 								<>
-									<nav aria-label="Caminho" className="mt-3 flex flex-wrap items-center gap-1 text-xs">
+									<div className="mt-3 flex items-center gap-2 text-xs">
 										<button
 											type="button"
-											onClick={() => setCaminho([])}
-											className="font-semibold text-confere-teal-600 underline"
+											onClick={subir}
+											aria-disabled={naRaiz}
+											className={`inline-flex shrink-0 items-center gap-1 rounded-md border border-confere-line px-2.5 py-1 font-semibold ${
+												naRaiz
+													? "cursor-not-allowed text-confere-navy-100"
+													: "text-confere-navy-600 hover:bg-confere-navy-50"
+											}`}
 										>
-											{nomeDoCliente}
+											<span aria-hidden="true">←</span> Voltar
 										</button>
-										{caminho.map((parte, i) => (
-											<span key={`${i}-${parte}`} className="flex items-center gap-1">
-												<span aria-hidden="true">›</span>
-												{i === caminho.length - 1 ? (
-													<span className="font-semibold text-confere-navy-600">{parte}</span>
-												) : (
+										<nav aria-label="Caminho" className="flex min-w-0 flex-wrap items-center gap-1">
+											<button
+												type="button"
+												onClick={() => setCaminho([])}
+												className="font-semibold text-confere-teal-600 underline"
+											>
+												{nomeDoCliente}
+											</button>
+											{caminho.map((parte, i) => (
+												<span key={`${i}-${parte}`} className="flex min-w-0 items-center gap-1">
+													<span aria-hidden="true">›</span>
+													{i === caminho.length - 1 ? (
+														<span className="truncate font-semibold text-confere-navy-600">{parte}</span>
+													) : (
+														<button
+															type="button"
+															onClick={() => setCaminho(caminho.slice(0, i + 1))}
+															className="truncate text-confere-teal-600 underline"
+														>
+															{parte}
+														</button>
+													)}
+												</span>
+											))}
+										</nav>
+									</div>
+									<ul className="mt-2 h-96 divide-y divide-confere-line overflow-y-auto rounded border border-confere-line">
+										{subpastas.map((nome) => {
+											const dentro = [...caminho, nome];
+											const total = arquivos.filter((a) => naPastaOuAbaixo(a.pasta, dentro)).length;
+											const comUso = usados.some((a) => naPastaOuAbaixo(a.pasta, dentro));
+											return (
+												<li key={`pasta-${nome}`}>
 													<button
 														type="button"
-														onClick={() => setCaminho(caminho.slice(0, i + 1))}
-														className="text-confere-teal-600 underline"
+														onClick={() => setCaminho(dentro)}
+														className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-confere-navy-600 hover:bg-confere-navy-50"
 													>
-														{parte}
-													</button>
-												)}
-											</span>
-										))}
-									</nav>
-									<ul className="mt-2 max-h-80 divide-y divide-confere-line overflow-y-auto rounded border border-confere-line">
-										{subpastas.map((nome) => (
-											<li key={`pasta-${nome}`}>
-												<button
-													type="button"
-													onClick={() => setCaminho([...caminho, nome])}
-													className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs text-confere-navy-600 hover:bg-confere-navy-50"
-												>
-													<span className="flex min-w-0 items-center gap-2">
 														<IconeDePasta />
-														<span className="truncate">{nome}</span>
-													</span>
-													<span aria-hidden="true">›</span>
-												</button>
-											</li>
-										))}
+														<span className="min-w-0 flex-1 truncate">{nome}</span>
+														{comUso && <Selo>em uso</Selo>}
+														<span className="shrink-0 text-confere-navy-300">{quantos(total)}</span>
+														<span aria-hidden="true">›</span>
+													</button>
+												</li>
+											);
+										})}
 										{aqui.map((arquivo) => linha(arquivo, false))}
 										{subpastas.length === 0 && aqui.length === 0 && (
 											<li className="px-3 py-2 text-xs text-confere-navy-300">Pasta vazia.</li>
@@ -364,7 +518,8 @@ export function JanelaDePastas({
 						</div>
 					)}
 
-					<div className="mt-6 flex flex-wrap justify-end gap-3">
+					<div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+						<p className="min-w-0 flex-1 truncate text-xs text-confere-navy-300">{resumo}</p>
 						<button
 							type="button"
 							onClick={onFechar}
@@ -374,7 +529,7 @@ export function JanelaDePastas({
 						</button>
 						<button
 							type="button"
-							onClick={confirmar}
+							onClick={() => confirmar()}
 							aria-disabled={escolhidos.length === 0}
 							className={`rounded-md px-5 py-2.5 text-sm font-semibold transition ${
 								escolhidos.length === 0

@@ -79,6 +79,7 @@ export default function ConferePage() {
 	const [documentos, setDocumentos] = useState<DocumentosDoContrato | undefined>(undefined);
 	const [chaveContrato, setChaveContrato] = useState(0);
 	const [chaveAditivos, setChaveAditivos] = useState(0);
+	const [chaveLevantamento] = useState(0);
 	// Numera os pedidos de identificação: a resposta de uma planilha já trocada
 	// não pode preencher os campos da nova.
 	const pedidoDeIdentificacao = useRef(0);
@@ -444,7 +445,6 @@ export default function ConferePage() {
 					onSelecionarAditivos={selecionarAditivos}
 					onRemoverAditivo={removerAditivo}
 					semAditivos={documentos ? "Nenhum aditivo depois da proposta-base" : "Nenhum aditivo"}
-					buscandoContrato={identificacao.situacao === "lendo"}
 					onProcurarContrato={() => setJanela({ aberto: true, finalidade: "contrato" })}
 					onProcurarAditivos={() => setJanela({ aberto: true, finalidade: "aditivos" })}
 					dica={dica}
@@ -460,6 +460,7 @@ export default function ConferePage() {
 					onEnviar={() => void enviar()}
 					processando={estado.situacao === "processando"}
 					chave={chave}
+					chaveLevantamento={chaveLevantamento}
 					chaveContrato={chaveContrato}
 					chaveAditivos={chaveAditivos}
 					podeLimpar={podeLimpar}

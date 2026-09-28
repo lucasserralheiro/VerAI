@@ -171,7 +171,9 @@ it("Procurar nas pastas põe outra proposta do contrato no campo Contrato", asyn
 it("começo guiado: selo no levantamento e o que falta embaixo do botão", async () => {
 	render(<ConferePage />);
 	expect(screen.getByText("comece aqui")).toBeInTheDocument();
-	expect(screen.getByText("vem do levantamento — ou escolha um arquivo")).toBeInTheDocument();
+	expect(
+		screen.getByText("Nenhum contrato — procure nas pastas do cliente ou envie do computador."),
+	).toBeInTheDocument();
 	expect(screen.getByText("Escolha o levantamento para começar.")).toBeInTheDocument();
 
 	escolher("Levantamento", new File(["x"], "PGM_Levantamento.xlsx"));
@@ -209,4 +211,27 @@ it("PDFs soltos nos aditivos entram na lista, na ordem", () => {
 	);
 	expect(screen.getByText(/^1\. a\.pdf/)).toBeInTheDocument();
 	expect(screen.getByText(/^2\. b\.pdf/)).toBeInTheDocument();
+});
+
+it("os documentos em linhas: o levantamento primeiro, cada um com o arquivo e de onde veio", async () => {
+	render(<ConferePage />);
+	escolher("Levantamento", new File(["x"], "PGM_Levantamento.xlsx"));
+	await screen.findByText("PA-PGM-251015-159 v5.0.pdf");
+
+	const linhas = Array.from(screen.getByRole("list", { name: "Documentos" }).children);
+	expect(linhas.map((linha) => linha.querySelector("p")?.textContent)).toEqual([
+		"Levantamento",
+		"Contrato",
+		"Aditivos da proposta",
+	]);
+	expect(linhas[0]).toHaveTextContent("PGM_Levantamento.xlsx");
+	expect(linhas[0]).toHaveTextContent("Do computador");
+	expect(linhas[1]).toHaveTextContent("Do cadastro · TA 04, renovação desde 01/12/2025");
+});
+
+it("Enviar do computador, no Contrato, abre o seletor do campo Contrato", () => {
+	const clique = jest.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+	render(<ConferePage />);
+	fireEvent.click(screen.getByRole("button", { name: "Enviar do computador" }));
+	expect(clique.mock.contexts[0]).toBe(screen.getByLabelText("Contrato"));
 });

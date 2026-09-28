@@ -17,7 +17,7 @@ interface Props {
 	onUsarDoCadastro: () => void;
 }
 
-const CAIXA_AMBAR = "mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900";
+const CAIXA_AMBAR = "mb-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900";
 
 /** A faixa entre os dois cartões e o de aditivos: de qual contrato a planilha
  *  é, o que foi escolhido e por quê — ou, sem contrato, as sugestões e a busca
@@ -46,7 +46,7 @@ export function FaixaDoContrato({
 
 	if (identificacao.situacao === "lendo") {
 		return (
-			<p id="contrato-identificado" role="status" className="mt-4 text-sm text-confere-navy-600">
+			<p id="contrato-identificado" role="status" className="mb-4 text-sm text-confere-navy-600">
 				Lendo o levantamento e buscando o contrato no cadastro…
 			</p>
 		);
@@ -58,7 +58,7 @@ export function FaixaDoContrato({
 			<div
 				id="contrato-identificado"
 				role="status"
-				className="mt-4 rounded-md border border-confere-teal-100 bg-confere-teal-50/40 p-4 text-sm text-confere-navy-600"
+				className="mb-4 rounded-md border border-confere-teal-100 bg-confere-teal-50/40 p-4 text-sm text-confere-navy-600"
 			>
 				<p>
 					<strong>Contrato {contrato.numeroTermo ?? "sem número"}</strong> · {contrato.clienteNome} ·

@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ChevronRight, Loader2, Inbox, Plus, Search } from 'lucide-react'
 import { BTN_OUTLINE, INPUT_BASE } from '@/lib/ui'
+import { AtualizacaoSharepoint } from '@/components/sharepoint/atualizacao-sharepoint'
 import { ModalCliente } from './modal-cliente'
 
 interface Cliente {
@@ -71,6 +72,7 @@ export function ListaClientes() {
           <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">
             Relatórios dos clientes
           </h1>
+          <AtualizacaoSharepoint />
         </div>
 
         {ehAdmin && (

@@ -6,10 +6,14 @@ function mockFetch(options: {
   clientes?: Array<{ id: string; nome: string; siglaLegado?: string | null }>
   criarOk?: boolean
   criarErro?: string
+  atualizadoEm?: string | null
 }) {
-  const { role, clientes = [], criarOk = true, criarErro = 'Falha ao criar cliente.' } = options
+  const { role, clientes = [], criarOk = true, criarErro = 'Falha ao criar cliente.', atualizadoEm } = options
   global.fetch = jest.fn((url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url)
+    if (u === '/api/sharepoint/atualizacao' && atualizadoEm !== undefined) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ atualizadoEm }) }) as unknown as Promise<Response>
+    }
     if (u === '/api/clientes') {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(clientes) }) as unknown as Promise<Response>
     }
@@ -43,6 +47,12 @@ describe('ListaClientes', () => {
     const heading = await screen.findByRole('heading', { name: 'Relatórios dos clientes' })
     expect(heading).toHaveClass('font-semibold')
     expect(heading).not.toHaveClass('font-bold')
+  })
+
+  it('mostra embaixo do título quando os documentos vieram do SharePoint', async () => {
+    mockFetch({ role: 'usuario', clientes: [{ id: 'c1', nome: 'Prefeitura X' }], atualizadoEm: new Date().toISOString() })
+    render(<ListaClientes />)
+    expect(await screen.findByText(/^Documentos do SharePoint atualizados em /)).toBeInTheDocument()
   })
 
   it('mostra a sigla ao lado do nome quando o cliente tem', async () => {

@@ -46,6 +46,7 @@ function mockApi() {
       return resposta(true, { ok: true })
     }
     if (u === '/api/arquivos/a1' && metodo === 'PATCH') return resposta(true, { ...PROPOSTA, categoria: 'TERMO_CONTRATO' })
+    if (u === '/api/sharepoint/atualizacao') return resposta(true, { atualizadoEm: new Date().toISOString() })
     return resposta(false, { error: 'inesperado' })
   }) as jest.Mock
 }
@@ -64,6 +65,11 @@ describe('AbaDocumentos', () => {
     expect(within(screen.getByText('PC_SMS_012.pdf').closest('tr')!).getByText('TC 012/2020')).toBeInTheDocument()
     expect(within(screen.getByText('oficio.pdf').closest('tr')!).getByText('não usado')).toBeInTheDocument()
     expect(global.fetch).not.toHaveBeenCalledWith('/api/clientes/c1/contratos')
+  })
+
+  it('mostra embaixo do resumo quando os documentos vieram do SharePoint', async () => {
+    render(<AbaDocumentos clienteId="c1" />)
+    expect(await screen.findByText(/^Documentos do SharePoint atualizados em /)).toBeInTheDocument()
   })
 
   it('filtra por categoria e por busca de nome', async () => {

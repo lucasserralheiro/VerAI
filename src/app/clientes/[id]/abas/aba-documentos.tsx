@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Loader2, Upload } from 'lucide-react'
 import { BTN_PRIMARY } from '@/lib/ui'
 import { formatarTamanho } from '@/lib/arquivos/tipos'
+import { AtualizacaoSharepoint } from '@/components/sharepoint/atualizacao-sharepoint'
 import { ListaArquivos } from './documentos/lista-arquivos'
 import { PainelArquivo } from './documentos/painel-arquivo'
 import { EnvioArquivos } from './documentos/envio-arquivos'
@@ -56,6 +57,7 @@ export function AbaDocumentos({ clienteId }: { clienteId: string }) {
           <p className="text-xs text-mid-grey">
             {resumo.total} arquivo{resumo.total === 1 ? '' : 's'} · {formatarTamanho(resumo.bytes)}
           </p>
+          <AtualizacaoSharepoint className="mt-0.5" />
         </div>
         {!enviando && (
           <button type="button" onClick={() => setEnviando(true)} className={BTN_PRIMARY}>

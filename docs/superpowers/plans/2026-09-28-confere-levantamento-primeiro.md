@@ -12,7 +12,20 @@
 
 ## Andamento
 
-- (preencher ao concluir cada task)
+- **28/09/2026 — Tasks 1–5 concluídas**: `f0f0cc8` (modal), `904f5e2` (janela de pastas),
+  `607d3a2` (linhas de conferência), `e47880e` (fases da tela), `3352351` (ajustes vistos na tela).
+  Tela do ConfereAI com 75 testes (7 suítes); `tsc` e `eslint src/app/confere` limpos.
+- **Na tela** (dev, com `arquivos-teste-confere/conjunto-B-piloto-sem-aditivo/3-levantamento.xlsx`):
+  início só com o levantamento; modal "Buscando os documentos do contrato" abriu e fechou sozinho
+  achando o TC 52/SMIT/2024 (proposta do TA 02); janela de pastas com esqueleto, contagem, "em uso"
+  na pasta do TA 02, Voltar, seleção pelo nome com rodapé e duplo clique; 375 px sem rolagem
+  horizontal; Limpar volta ao início com o foco em "Escolher planilha"; console sem erro.
+- Ajustes da tela (`3352351`): caminho das pastas numa linha (trechos longos cortados, nome no
+  `title`); esqueleto com a altura da janela carregada; linhas em duas colunas abaixo de 1280 px.
+- **Não visto na tela** (coberto só por teste): as perguntas do modal (não achado, empate, sem
+  número, ilegível, falha) — não havia planilha à mão que caísse nelas.
+- `CLAUDE.md` editado (item "Tela em fases") e **não commitado**: o arquivo tem mudanças pendentes de
+  outra sessão.
 
 ## Global Constraints
 

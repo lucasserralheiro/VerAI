@@ -1,6 +1,12 @@
 # ConfereAI — o levantamento como ação principal, o modal da busca e a janela de pastas (design)
 
-**Status**: Aprovado com o usuário em 28/09/2026. Sem migração, sem mudança de API.
+**Status**: Aprovado com o usuário em 28/09/2026 e **implementado no mesmo dia** — plano
+`docs/superpowers/plans/2026-09-28-confere-levantamento-primeiro.md`, commits `f0f0cc8`…`3352351`.
+Sem migração, sem mudança de API.
+
+**Ajuste visto na tela (fora do desenho original)**: nas larguras médias (abaixo de 1280 px) as
+linhas de conferência têm duas colunas e as ações ficam embaixo do arquivo — lado a lado, as três
+ações do Contrato espremiam o nome e a origem da proposta. Três colunas só de 1280 px para cima.
 **Data**: 28/09/2026
 **Continua**: `docs/superpowers/specs/2026-09-25-confere-ux-pastas-design.md` (começo guiado, arrastar
 e soltar, a janela "Pastas do cliente") e `docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md`

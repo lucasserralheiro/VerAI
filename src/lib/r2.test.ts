@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import { createHash } from 'node:crypto'
-import { HASH_VAZIO, assinarSigV4, codificarChave, configR2, deleteR2, putR2 } from './r2'
+import { HASH_VAZIO, assinarSigV4, assinarUrlSigV4, codificarChave, configR2, deleteR2, putR2, urlDeEnvioR2 } from './r2'
 
 describe('assinarSigV4', () => {
   // Exemplo oficial da AWS ("GET Object", Signature Version 4, payload em um bloco só).
@@ -23,6 +23,48 @@ describe('assinarSigV4', () => {
       'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41'
     )
     expect(r.cabecalhos['x-amz-date']).toBe('20130524T000000Z')
+  })
+})
+
+describe('assinarUrlSigV4', () => {
+  // Exemplo oficial da AWS ("Authenticating Requests: Using Query Parameters").
+  it('bate com o exemplo da documentação da AWS', () => {
+    const url = assinarUrlSigV4({
+      metodo: 'GET',
+      host: 'examplebucket.s3.amazonaws.com',
+      caminho: '/test.txt',
+      cabecalhos: {},
+      expiraEmSegundos: 86400,
+      chaveId: 'AKIAIOSFODNN7EXAMPLE',
+      segredo: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+      regiao: 'us-east-1',
+      servico: 's3',
+      quando: new Date('2013-05-24T00:00:00Z'),
+    })
+    expect(url).toBe(
+      'https://examplebucket.s3.amazonaws.com/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20130524%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20130524T000000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404'
+    )
+  })
+})
+
+describe('urlDeEnvioR2', () => {
+  const cfg = { contaId: 'conta', bucket: 'verai-documentos', chaveId: 'id', segredo: 'segredo' }
+
+  it('PUT no endpoint da conta, assinando tipo e tamanho', () => {
+    const url = new URL(
+      urlDeEnvioR2(
+        'tmp-uploads/a b.pdf',
+        { contentType: 'application/pdf', tamanhoBytes: 1234, expiraEmSegundos: 900 },
+        cfg,
+        new Date('2026-09-28T12:00:00Z')
+      )
+    )
+    expect(url.origin + url.pathname).toBe('https://conta.r2.cloudflarestorage.com/verai-documentos/tmp-uploads/a%20b.pdf')
+    expect(url.searchParams.get('X-Amz-Credential')).toBe('id/20260928/auto/s3/aws4_request')
+    expect(url.searchParams.get('X-Amz-Date')).toBe('20260928T120000Z')
+    expect(url.searchParams.get('X-Amz-Expires')).toBe('900')
+    expect(url.searchParams.get('X-Amz-SignedHeaders')).toBe('content-length;content-type;host')
+    expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/)
   })
 })
 

@@ -15,7 +15,11 @@ Proposta Comercial → Nova conversão (produção e dev).
 - Commits: `7abc592` (r2), `ea958b8` (rota do link), mais o da tela. `route.ts`, `[id]/route.ts` e
   testes estão misturados com o "Converter em Markdown" (outra sessão, não commitado) e vão no commit
   combinado com o usuário.
-- ⏳ Produção: hotfix (§7), só com autorização.
+- ✅ Produção (28/09): hotfix `hotfix/proposta-r2` (`c49c559`) no ar.
+  - Deploy `dpl_9jvJRm6RnJzroa6uyVPJuZQeHJ32`, feito pelo usuário pela CLI com `--cwd` e sem `git push`.
+  - Contém o fix do 504 (`hotfix/confere-504`) e **não** leva o "Converter em Markdown", que depende de migração.
+  - Teste da Nova conversão em produção: pendente com o usuário.
+  - O main leva tudo isso na release `076a85a` (plano `2026-09-28-subida-main-producao.md`).
 
 ## 1. Problema
 

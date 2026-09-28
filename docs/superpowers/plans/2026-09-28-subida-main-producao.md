@@ -33,7 +33,7 @@
   - **D2 = manter** o login por senha-mestra em produção.
   - **D3:** o `AI_*` de produção já é DeepSeek, nada a fazer.
   - **D4 = sim:** push e fim da trava depois de validar.
-- Release: `—` · backup no Neon: `—` · deploy anterior: `—` · deploy novo: `—`
+- Release: **`076a85a`** (worktree `C:\projeto\VerAI-release`, branch `release/2026-09-main`) · backup no Neon: `—` · deploy anterior: **`dpl_9jvJRm6RnJzroa6uyVPJuZQeHJ32`** (`hotfix/proposta-r2`, no ar desde 28/09, com o fix do 504; é a volta da release) · deploy novo: `—`
 
 ## Decisões do usuário (antes da Task 1)
 
@@ -147,7 +147,7 @@ Run: `npx jest src/app/api/propostas-comerciais src/lib/propostas src/lib/arquiv
 Expected: PASS. Depois, commit só dos arquivos da frente A (índice próprio, como na Task 1 Step 3).
 
 - [x] **Step 4** (`f4a30e3`; ConfereAI = tela nova, já no HEAD) (🤖 ou sessões donas): frentes B, C e D conforme D1, cada uma com os testes dela verdes e commit próprio. A que ficar fora continua só no working tree, e isso já a deixa fora da release.
-- [ ] **Step 5** (🤖): fixar a release.
+- [x] **Step 5** (🤖): fixar a release — `076a85a` (28/09).
 
 Run: `git rev-parse main`
 Expected: um hash. Anotar como `RELEASE` em "Andamento". O main pode continuar andando; a release não muda.
@@ -162,7 +162,7 @@ Expected: um hash. Anotar como `RELEASE` em "Andamento". O main pode continuar a
 - Consumes: `RELEASE` (Task 2).
 - Produces: worktree `C:\projeto\VerAI-release` verificado (testes, tipos, build).
 
-- [ ] **Step 1** (🤖): criar o worktree. `node_modules` fica como junção para o do projeto (nunca `npm install` nem `prisma generate` lá), e o `.vercel` é copiado.
+- [x] **Step 1** (🤖): criar o worktree. `node_modules` fica como junção para o do projeto (nunca `npm install` nem `prisma generate` lá), e o `.vercel` é copiado.
 
 ```bash
 cd /c/projeto/VerAI
@@ -170,7 +170,7 @@ git worktree add C:/projeto/VerAI-release -b release/2026-09-main $RELEASE
 powershell -Command "New-Item -ItemType Junction -Path C:\projeto\VerAI-release\node_modules -Target C:\projeto\VerAI\node_modules | Out-Null; Copy-Item -Recurse C:\projeto\VerAI\.vercel C:\projeto\VerAI-release\.vercel"
 ```
 
-- [ ] **Step 2** (🤖): o conteúdo dos hotfixes está na release.
+- [x] **Step 2** (28/09: diff vazio, grep = 3, `74e588b` contido, `maxDuration = 300`) (🤖): o conteúdo dos hotfixes está na release.
 
 Run (em `C:/projeto/VerAI-release`):
 - `git diff --stat hotfix/proposta-r2 HEAD -- src/lib/r2.ts src/lib/propostas/envio.ts src/lib/propostas/imagens.ts src/lib/envio-r2-navegador.ts src/app/api/propostas-comerciais/envio src/app/propostas-comerciais/novo/page.tsx "src/app/api/propostas-comerciais/[id]/imagens"`
@@ -179,12 +179,12 @@ Run (em `C:/projeto/VerAI-release`):
 
 Expected: o primeiro diff vazio; o `grep -c` ≥ 2; a última linha mostra `export const maxDuration = 300` (conserto do 504 contido).
 
-- [ ] **Step 3** (🤖): tipos e testes.
+- [x] **Step 3** (🤖): tipos e testes — 28/09: `tsc` limpo; 240 suítes, 1.795 testes verdes (1 suíte e 9 testes pulados, como no main).
 
 Run: `npx tsc --noEmit` e `npx jest`
 Expected: `tsc` sem saída e código 0; jest com todas as suítes verdes. Suíte vermelha: parar e entender antes de seguir (em 24/09 havia suítes falhando por `showModal` no jsdom — conferir se ainda é isso).
 
-- [ ] **Step 3b** (🤖): migrações × `schema.prisma` num banco **descartável**. É o que o Neon vai ficar depois da Task 6. O banco é criado no Postgres local do Docker (`verai-postgres`) e apagado no fim; **nunca** o banco de dev (memória `nunca-shadow-no-banco-dev`). O mesmo teste pega campo sem migração e migração que não aplica do zero, na ordem.
+- [x] **Step 3b** (28/09: 39 migrações aplicadas do zero; `migrate diff` = `-- This is an empty migration.`, nem o DROP INDEX apareceu) (🤖): migrações × `schema.prisma` num banco **descartável**. É o que o Neon vai ficar depois da Task 6. O banco é criado no Postgres local do Docker (`verai-postgres`) e apagado no fim; **nunca** o banco de dev (memória `nunca-shadow-no-banco-dev`). O mesmo teste pega campo sem migração e migração que não aplica do zero, na ordem.
 
 ```bash
 cd /c/projeto/VerAI-release
@@ -202,7 +202,7 @@ Expected:
 
 Qualquer outra linha é campo do schema sem migração, que quebraria produção. **Parar** e corrigir no main (nova release).
 
-- [ ] **Step 4** (🤖): build de produção local. Aqui é `npx next build`, não `npm run build`: este roda `prisma generate` e reescreveria o client no `node_modules` compartilhado. O `.next` do worktree é separado do dev.
+- [x] **Step 4** (🤖): build de produção local — **não roda no worktree** (28/09): o Turbopack recusa o `node_modules` em junção ("Symlink node_modules is invalid, it points out of the filesystem root"), e o webpack falha no `node:zlib` de `pdfImagens.ts`, importado pelo `ocr-runner.tsx` (cliente). Esse mesmo caminho já está no código em produção (`hotfix/confere-504`), que a Vercel buildou com Turbopack em 25/09. A checagem de compilação fica sendo o build da Vercel na Task 7; se falhar, produção não muda. Instrução original: Aqui é `npx next build`, não `npm run build`: este roda `prisma generate` e reescreveria o client no `node_modules` compartilhado. O `.next` do worktree é separado do dev.
 
 Run: `npx next build --turbopack` (se reclamar de variável: `npx dotenv -e C:/projeto/VerAI/.env.development -- npx next build --turbopack`)
 Expected: `✓ Compiled successfully` e a tabela de rotas, com `/api/propostas-comerciais/envio` e `/api/sharepoint/atualizacao` nela.

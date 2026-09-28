@@ -408,9 +408,15 @@ export async function enviarParaR2(arquivo: File, rota: string): Promise<string>
 - `src/app/api/propostas-comerciais/route.ts` — imagens no R2, validação do endereço e original no R2
   (**sem** `arquivosCliente`, que depende de migração); `[id]/route.ts` — exclusão no R2.
 
-- [ ] **Step 1:** `git worktree add ../VerAI-hotfix-proposta-r2 -b hotfix/proposta-r2 hotfix/confere-504`;
+- [x] **Step 1:** `git worktree add ../VerAI-hotfix-proposta-r2 -b hotfix/proposta-r2 hotfix/confere-504`;
   `node_modules` como junction pro do projeto (só jest/tsc lá — nunca `npm install` nem `prisma generate`).
-- [ ] **Step 2:** portar os arquivos acima; `npx jest` das suítes portadas + `npx tsc --noEmit` → verde.
-- [ ] **Step 3:** conferir que produção tem as 4 `R2_*` e o CORS inclui `https://verai-virid.vercel.app`.
-- [ ] **Step 4:** **parar e pedir autorização** pra push/deploy, mostrando o diff contra `hotfix/confere-504`.
-- [ ] **Step 5:** depois do deploy, enviar uma proposta de teste em produção junto com o usuário.
+- [x] **Step 2:** portar os arquivos acima. Feito em 28/09 no commit `c49c559`:
+  - `npx jest` com a base inteira: 75 suítes e 569 testes verdes (antes eram 69 e 516); `npx tsc --noEmit` limpo;
+  - campos Prisma usados conferidos à mão contra o schema de produção;
+  - nenhuma outra rota lê ou apaga endereço vindo do navegador.
+- [x] **Step 3:** produção tem as 4 `R2_*` (`vc.js env ls production`). O preflight CORS real respondeu 204
+  para `https://verai-virid.vercel.app` (PUT, `content-type`) e 403 para outra origem.
+- [x] **Step 4:** autorizado pelo usuário em 28/09. O classificador do modo auto barrou o deploy pela
+  sessão, então o **usuário** rodou `vc.js deploy --prod --cwd "C:/projeto/VerAI-hotfix-proposta-r2"`.
+  Resultado: `dpl_9jvJRm6RnJzroa6uyVPJuZQeHJ32`, "Ready in 1m", alias `verai-virid.vercel.app`, sem `git push`.
+- [ ] **Step 5:** o usuário testa a Nova conversão (PDF → converter → "Conferir totais") em produção.

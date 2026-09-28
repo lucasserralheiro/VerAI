@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { DocumentoDoCadastro, DocumentosDoContrato } from "@/lib/confere/tipos-cadastro";
+import { BuscaDoContratoModal } from "./components/BuscaDoContratoModal";
 import { ConfirmarLimpeza } from "./components/ConfirmarLimpeza";
+import { EntradaDoLevantamento } from "./components/EntradaDoLevantamento";
 import { FaixaDoContrato } from "./components/FaixaDoContrato";
 import { JanelaDePastas } from "./components/JanelaDePastas";
 import { ProgressoDaGeracao } from "./components/ProgressoDaGeracao";
@@ -60,6 +62,11 @@ function descartar(estado: Estado) {
 	URL.revokeObjectURL(estado.urlAnalise);
 }
 
+/** A busca do contrato em modal (desenho de 28/09/2026 §3.2): a da planilha,
+ *  que pergunta quando não acha, ou a do "trocar contrato". */
+type Busca = { aberto: boolean; motivo: "planilha" | "trocar" };
+const BUSCA_FECHADA: Busca = { aberto: false, motivo: "planilha" };
+
 /** Shell fino: cuida do estado da tela e delega o resto aos componentes. */
 export default function ConferePage() {
 	const [arquivos, setArquivos] = useState<Partial<Record<NomeDoCampo, File>>>({});
@@ -79,7 +86,12 @@ export default function ConferePage() {
 	const [documentos, setDocumentos] = useState<DocumentosDoContrato | undefined>(undefined);
 	const [chaveContrato, setChaveContrato] = useState(0);
 	const [chaveAditivos, setChaveAditivos] = useState(0);
-	const [chaveLevantamento] = useState(0);
+	const [chaveLevantamento, setChaveLevantamento] = useState(0);
+	// "Preencher à mão": o formulário inteiro sem a planilha ter achado o
+	// contrato (desenho de 28/09/2026 §3).
+	const [manual, setManual] = useState(false);
+	const [busca, setBusca] = useState<Busca>(BUSCA_FECHADA);
+	const [carregandoContrato, setCarregandoContrato] = useState(false);
 	// Numera os pedidos de identificação: a resposta de uma planilha já trocada
 	// não pode preencher os campos da nova.
 	const pedidoDeIdentificacao = useRef(0);
@@ -147,7 +159,9 @@ export default function ConferePage() {
 	const [chave, setChave] = useState(0);
 
 	const limpar = useRef<HTMLButtonElement>(null);
-	const primeiroCampo = useRef<HTMLInputElement>(null);
+	// O "Escolher planilha" do início: depois de Limpar a tela sempre volta ao
+	// início, e é ali que a próxima ação está.
+	const primeiroCampo = useRef<HTMLButtonElement>(null);
 	// ESPEC 023 `R-FON-07` — o campo de aditivos, para onde a ação do aviso de
 	// divergência devolve o foco. O input é `sr-only`; o `focus()` funciona e o
 	// anel aparece no rótulo por `has-[:focus-visible]`, que já existe.
@@ -178,6 +192,9 @@ export default function ConferePage() {
 		setDocumentos(undefined);
 		setContratoDoCadastro(undefined);
 		setEstado({ situacao: "inicial" });
+		setManual(false);
+		setBusca(BUSCA_FECHADA);
+		setCarregandoContrato(false);
 		setChave((n) => n + 1);
 		setConfirmando(false);
 		setPergunta(undefined);
@@ -209,7 +226,10 @@ export default function ConferePage() {
 		// A planilha diz de qual contrato e competência ela é: escolhê-la busca o
 		// contrato no cadastro e preenche Contrato e Aditivos (desenho de
 		// 25/09/2026 §4.2).
-		if (campo === "levantamento") void identificar(arquivo);
+		if (campo === "levantamento") {
+			if (arquivo) setBusca({ aberto: true, motivo: "planilha" });
+			void identificar(arquivo);
+		}
 	}
 
 	/** Qualquer outra mudança nas entradas invalida o resultado anterior — a
@@ -256,21 +276,62 @@ export default function ConferePage() {
 			return;
 		}
 		setIdentificacao(resposta);
-		if (resposta.situacao === "encontrado") aplicarDocumentos(resposta.documentos);
-		else limparDoCadastro();
+		if (resposta.situacao === "encontrado") {
+			aplicarDocumentos(resposta.documentos);
+			// Achou: o modal fecha sozinho (depois do tempo mínimo) e a tela mostra
+			// os documentos. Não achou: o modal continua e pergunta.
+			setBusca(BUSCA_FECHADA);
+		} else limparDoCadastro();
 	}
 
-	/** Contrato escolhido à mão — empate, sugestão ou "trocar contrato" —, na
-	 *  competência que a planilha disse. */
+	/** Contrato escolhido à mão — empate, sugestão, busca ou "trocar contrato" —,
+	 *  na competência que a planilha disse. O modal mostra a espera. */
 	async function escolherContrato(contratoId: string) {
+		// O mesmo contador da planilha: Cancelar descarta esta resposta também.
+		const pedido = ++pedidoDeIdentificacao.current;
 		const competencia = "leitura" in identificacao ? identificacao.leitura.competencia : null;
+		setCarregandoContrato(true);
 		const novos = await documentosDoContrato(contratoId, competencia);
+		if (pedido !== pedidoDeIdentificacao.current) return;
+		setCarregandoContrato(false);
 		if (!novos) {
 			setIdentificacao({ situacao: "falhou" });
+			setBusca({ aberto: true, motivo: "planilha" });
 			return;
 		}
 		entradaMudou();
 		aplicarDocumentos(novos);
+		setBusca(BUSCA_FECHADA);
+	}
+
+	/** Cancelar e `Esc` no modal da busca (desenho de 28/09/2026 §3.2). */
+	function cancelarBusca() {
+		// A resposta que chegar depois é de uma busca que a pessoa desistiu.
+		pedidoDeIdentificacao.current += 1;
+		if (carregandoContrato) {
+			// Desistiu do contrato escolhido: o modal volta à pergunta (ou à busca).
+			setCarregandoContrato(false);
+			return;
+		}
+		setBusca(BUSCA_FECHADA);
+		if (busca.motivo === "trocar") return;
+		// Desistiu da planilha: ela sai, e com ela o que o cadastro tinha posto. O
+		// que veio do computador fica — e segura a tela no preenchimento à mão.
+		setArquivos((atual) => ({ ...atual, levantamento: undefined }));
+		setChaveLevantamento((n) => n + 1);
+		setIdentificacao({ situacao: "ociosa" });
+		limparDoCadastro();
+	}
+
+	/** Da pergunta do modal: segue à mão, com a planilha. */
+	function enviarDoComputador() {
+		setBusca(BUSCA_FECHADA);
+		setManual(true);
+	}
+
+	/** "trocar contrato" (com contrato) ou "Buscar no cadastro" (sem): reabre o modal. */
+	function buscarContrato() {
+		setBusca({ aberto: true, motivo: documentos ? "trocar" : "planilha" });
 	}
 
 	/** "Trocar": outra proposta do cadastro no campo Contrato — inclusive no
@@ -415,6 +476,17 @@ export default function ConferePage() {
 				: "Falta o contrato: procure nas pastas do cliente ou envie do computador."
 			: null;
 
+	// A fase da tela (desenho de 28/09/2026 §3): o início é só o levantamento;
+	// com o contrato achado, conferir; o que veio do computador, ou "Preencher à
+	// mão", segura o formulário inteiro.
+	const temDoComputador =
+		arquivos.contrato !== undefined || aditivos.some((peca) => peca.tipo === "arquivo");
+	const fase: "inicio" | "manual" | "conferir" = documentos
+		? "conferir"
+		: manual || temDoComputador
+			? "manual"
+			: "inicio";
+
 	// A barra de aplicação da ESPEC 007 (logo + assinatura de marca + slot de
 	// contexto) foi removida: dentro do VerAI a marca já está na barra lateral,
 	// e uma segunda faixa de marca no topo da página era ruído — além de o
@@ -437,41 +509,49 @@ export default function ConferePage() {
 					gere o relatório de comprovação.
 				</p>
 
-				<UploadForm
-					levantamento={arquivos.levantamento}
-					contrato={contrato}
-					onSelecionar={selecionar}
-					aditivos={aditivos}
-					onSelecionarAditivos={selecionarAditivos}
-					onRemoverAditivo={removerAditivo}
-					semAditivos={documentos ? "Nenhum aditivo depois da proposta-base" : "Nenhum aditivo"}
-					onProcurarContrato={() => setJanela({ aberto: true, finalidade: "contrato" })}
-					onProcurarAditivos={() => setJanela({ aberto: true, finalidade: "aditivos" })}
-					dica={dica}
-					faixa={
-						<FaixaDoContrato
-							identificacao={identificacao}
-							documentos={documentos}
-							contratoDoComputador={arquivos.contrato !== undefined}
-							onEscolherContrato={(contratoId) => void escolherContrato(contratoId)}
-							onUsarDoCadastro={usarDoCadastro}
-						/>
-					}
-					onEnviar={() => void enviar()}
-					processando={estado.situacao === "processando"}
-					chave={chave}
-					chaveLevantamento={chaveLevantamento}
-					chaveContrato={chaveContrato}
-					chaveAditivos={chaveAditivos}
-					podeLimpar={podeLimpar}
-					onLimpar={() => setConfirmando(true)}
-					refLimpar={limpar}
-					refPrimeiroCampo={primeiroCampo}
-					refAditivos={campoDeAditivos}
-					perguntaDeIdentidade={pergunta}
-					onGerarAssimMesmo={() => void enviar(true)}
-					onDescartarPergunta={() => setPergunta(undefined)}
-				/>
+				{fase === "inicio" ? (
+					<EntradaDoLevantamento
+						key={`${chave}-${chaveLevantamento}`}
+						onEscolher={(arquivo) => selecionar("levantamento", arquivo)}
+						onPreencherAMao={() => setManual(true)}
+						refBotao={primeiroCampo}
+					/>
+				) : (
+					<UploadForm
+						levantamento={arquivos.levantamento}
+						contrato={contrato}
+						onSelecionar={selecionar}
+						aditivos={aditivos}
+						onSelecionarAditivos={selecionarAditivos}
+						onRemoverAditivo={removerAditivo}
+						semAditivos={documentos ? "Nenhum aditivo depois da proposta-base" : "Nenhum aditivo"}
+						onProcurarContrato={() => setJanela({ aberto: true, finalidade: "contrato" })}
+						onProcurarAditivos={() => setJanela({ aberto: true, finalidade: "aditivos" })}
+						dica={dica}
+						faixa={
+							<FaixaDoContrato
+								identificacao={identificacao}
+								documentos={documentos}
+								contratoDoComputador={arquivos.contrato !== undefined}
+								onBuscarContrato={buscarContrato}
+								onUsarDoCadastro={usarDoCadastro}
+							/>
+						}
+						onEnviar={() => void enviar()}
+						processando={estado.situacao === "processando"}
+						chave={chave}
+						chaveLevantamento={chaveLevantamento}
+						chaveContrato={chaveContrato}
+						chaveAditivos={chaveAditivos}
+						podeLimpar={podeLimpar}
+						onLimpar={() => setConfirmando(true)}
+						refLimpar={limpar}
+						refAditivos={campoDeAditivos}
+						perguntaDeIdentidade={pergunta}
+						onGerarAssimMesmo={() => void enviar(true)}
+						onDescartarPergunta={() => setPergunta(undefined)}
+					/>
+				)}
 
 				{/* `R-LMP-10` / `D-06` — a volta a `inicial` **esvazia** o invólucro
 				    `aria-live` do `ResultadoPanel` (o `Conteudo` devolve `null`), e
@@ -527,8 +607,28 @@ export default function ConferePage() {
 				clienteId={documentos?.contrato.clienteId}
 				finalidade={janela.finalidade}
 				arquivoInicial={contratoDoCadastro?.arquivoId ?? documentos?.base?.arquivoId}
+				emUso={[
+					...(contratoDoCadastro && !arquivos.contrato ? [contratoDoCadastro.arquivoId] : []),
+					...aditivos.flatMap((peca) => (peca.tipo === "cadastro" ? [peca.documento.arquivoId] : [])),
+				]}
+				jaNaLista={aditivos.flatMap((peca) =>
+					peca.tipo === "cadastro" ? [peca.documento.arquivoId] : [],
+				)}
 				onEscolher={aoEscolherDasPastas}
 				onFechar={() => setJanela((atual) => ({ ...atual, aberto: false }))}
+			/>
+
+			{/* A busca do contrato, fora do `<form>` como os outros diálogos. */}
+			<BuscaDoContratoModal
+				aberto={busca.aberto}
+				motivo={busca.motivo}
+				nomeDaPlanilha={arquivos.levantamento?.name}
+				identificacao={identificacao}
+				carregandoContrato={carregandoContrato}
+				onEscolherContrato={(contratoId) => void escolherContrato(contratoId)}
+				onCancelar={cancelarBusca}
+				onEnviarDoComputador={enviarDoComputador}
+				onTrocarPlanilha={(arquivo) => selecionar("levantamento", arquivo)}
 			/>
 		</>
 	);

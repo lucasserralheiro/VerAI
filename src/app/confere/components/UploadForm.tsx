@@ -59,8 +59,6 @@ interface Props {
 	podeLimpar: boolean;
 	onLimpar: () => void;
 	refLimpar: React.RefObject<HTMLButtonElement | null>;
-	/** O input do Levantamento — a primeira linha. */
-	refPrimeiroCampo: React.RefObject<HTMLInputElement | null>;
 	/** ESPEC 023 `R-FON-07` — destino do foco da ação do aviso de divergência. */
 	refAditivos: React.RefObject<HTMLInputElement | null>;
 	/** T-2100 / ESPEC 029 `R-IDT-10` — o achado do portão, quando há um. */
@@ -177,7 +175,6 @@ export function UploadForm({
 	podeLimpar,
 	onLimpar,
 	refLimpar,
-	refPrimeiroCampo,
 	refAditivos,
 	perguntaDeIdentidade,
 	onGerarAssimMesmo,
@@ -190,6 +187,7 @@ export function UploadForm({
 	// O input do Contrato — "Enviar do computador" e o "Trocar arquivo" dos dois
 	// avisos abrem o seletor dele.
 	const campoDoContrato = useRef<HTMLInputElement>(null);
+	const campoDoLevantamento = useRef<HTMLInputElement>(null);
 
 	// Arrastar e soltar por linha: cada uma aceita o seu tipo, e soltar faz o
 	// mesmo que escolher pelo seletor.
@@ -269,7 +267,7 @@ export function UploadForm({
 						<input
 							key={`${chave}-${chaveLevantamento}`}
 							type="file"
-							ref={refPrimeiroCampo}
+							ref={campoDoLevantamento}
 							tabIndex={-1}
 							accept={CAMPO_LEVANTAMENTO.aceita}
 							disabled={processando}
@@ -297,7 +295,7 @@ export function UploadForm({
 					acoes={
 						<button
 							type="button"
-							onClick={() => refPrimeiroCampo.current?.click()}
+							onClick={() => campoDoLevantamento.current?.click()}
 							disabled={processando}
 							className={LINK}
 						>

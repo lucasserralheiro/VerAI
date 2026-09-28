@@ -1,57 +1,43 @@
 "use client";
 
-import { useState } from "react";
-
 import { nomeDaCompetencia, type DocumentosDoContrato } from "@/lib/confere/tipos-cadastro";
 import type { Identificacao } from "../lib/types";
-import { BuscaDeContrato, ListaDeContratos } from "./BuscaDeContrato";
 
 interface Props {
 	identificacao: Identificacao;
-	/** O contrato em uso — achado pela planilha ou escolhido aqui. */
+	/** O contrato em uso — achado pela planilha ou escolhido na busca. */
 	documentos?: DocumentosDoContrato;
 	/** O campo Contrato está com arquivo do computador: a proposta do cadastro
-	 *  vira oferta, nunca troca sozinha (desenho §4.3). */
+	 *  vira oferta, nunca troca sozinha. */
 	contratoDoComputador: boolean;
-	onEscolherContrato: (contratoId: string) => void;
+	/** "trocar contrato" e "Buscar no cadastro": abrem o modal da busca. */
+	onBuscarContrato: () => void;
 	onUsarDoCadastro: () => void;
 }
 
-const CAIXA_AMBAR = "mb-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900";
+/** A planilha foi lida e o contrato não saiu dela — a pergunta foi feita no
+ *  modal, e a pessoa seguiu à mão. */
+const SEM_CONTRATO: ReadonlySet<Identificacao["situacao"]> = new Set([
+	"ambiguo",
+	"nao-encontrado",
+	"sem-referencia",
+	"ilegivel",
+	"falhou",
+]);
 
-/** A faixa entre os dois cartões e o de aditivos: de qual contrato a planilha
- *  é, o que foi escolhido e por quê — ou, sem contrato, as sugestões e a busca
- *  (docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md §4.2).
+/** O resumo em cima dos documentos: de qual contrato a planilha é, o que foi
+ *  escolhido e por quê. Buscar e escolher contrato moram no modal
+ *  (`BuscaDoContratoModal`, desenho de 28/09/2026 §3.2) — aqui só o resultado.
  *
- *  `role="status"` com `id` próprio pelo mesmo motivo do `identidade-aviso`: o
- *  inventário de anúncios da tela resolve por `id`, e dois `status` sem
- *  distinção quebrariam a varredura. */
+ *  `role="status"` com `id` próprio: o inventário de anúncios da tela resolve
+ *  por `id`, e dois `status` sem distinção quebrariam a varredura. */
 export function FaixaDoContrato({
 	identificacao,
 	documentos,
 	contratoDoComputador,
-	onEscolherContrato,
+	onBuscarContrato,
 	onUsarDoCadastro,
 }: Props) {
-	const [buscando, setBuscando] = useState(false);
-
-	const busca = (
-		<BuscaDeContrato
-			onEscolher={(contratoId) => {
-				setBuscando(false);
-				onEscolherContrato(contratoId);
-			}}
-		/>
-	);
-
-	if (identificacao.situacao === "lendo") {
-		return (
-			<p id="contrato-identificado" role="status" className="mb-4 text-sm text-confere-navy-600">
-				Lendo o levantamento e buscando o contrato no cadastro…
-			</p>
-		);
-	}
-
 	if (documentos) {
 		const { contrato, competencia } = documentos;
 		return (
@@ -74,7 +60,7 @@ export function FaixaDoContrato({
 					·{" "}
 					<button
 						type="button"
-						onClick={() => setBuscando((aberto) => !aberto)}
+						onClick={onBuscarContrato}
 						className="font-semibold text-confere-teal-600 underline"
 					>
 						trocar contrato
@@ -97,7 +83,6 @@ export function FaixaDoContrato({
 						</button>
 					</p>
 				)}
-				{buscando && <div className="mt-3">{busca}</div>}
 				{documentos.avisos.length > 0 && (
 					<ul className="mt-3 space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
 						{documentos.avisos.map((aviso) => (
@@ -126,61 +111,20 @@ export function FaixaDoContrato({
 		);
 	}
 
-	switch (identificacao.situacao) {
-		case "ambiguo":
-			return (
-				<div id="contrato-identificado" role="status" className={CAIXA_AMBAR}>
-					<p>
-						<strong>Mais de um contrato com o número {identificacao.leitura.referencia}.</strong> Escolha
-						qual:
-					</p>
-					<ListaDeContratos contratos={identificacao.candidatos} onEscolher={onEscolherContrato} />
-				</div>
-			);
-		case "nao-encontrado":
-			return (
-				<div id="contrato-identificado" role="status" className={CAIXA_AMBAR}>
-					<p>
-						<strong>O contrato {identificacao.leitura.referencia} não está no cadastro.</strong> Escolha
-						um dos contratos sugeridos, busque outro, ou envie a proposta do computador.
-					</p>
-					{identificacao.sugestoes.length > 0 && (
-						<ListaDeContratos contratos={identificacao.sugestoes} onEscolher={onEscolherContrato} />
-					)}
-					<div className="mt-3">{busca}</div>
-				</div>
-			);
-		case "sem-referencia":
-			return (
-				<div id="contrato-identificado" role="status" className={CAIXA_AMBAR}>
-					<p>
-						<strong>Não achamos o número do contrato neste levantamento.</strong> Busque o contrato ou
-						envie a proposta do computador.
-					</p>
-					<div className="mt-3">{busca}</div>
-				</div>
-			);
-		case "ilegivel":
-			return (
-				<div id="contrato-identificado" role="status" className={CAIXA_AMBAR}>
-					<p>
-						<strong>{identificacao.mensagem}.</strong> Escolha o contrato ou envie os arquivos do
-						computador.
-					</p>
-					<div className="mt-3">{busca}</div>
-				</div>
-			);
-		case "falhou":
-			return (
-				<div id="contrato-identificado" role="status" className={CAIXA_AMBAR}>
-					<p>
-						<strong>Não foi possível buscar o contrato agora.</strong> Escolha o contrato ou envie os
-						arquivos do computador.
-					</p>
-					<div className="mt-3">{busca}</div>
-				</div>
-			);
-		default:
-			return null;
+	if (SEM_CONTRATO.has(identificacao.situacao)) {
+		return (
+			<p
+				id="contrato-identificado"
+				role="status"
+				className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+			>
+				<strong>O levantamento não identificou o contrato.</strong>{" "}
+				<button type="button" onClick={onBuscarContrato} className="font-semibold underline">
+					Buscar no cadastro
+				</button>
+			</p>
+		);
 	}
+
+	return null;
 }

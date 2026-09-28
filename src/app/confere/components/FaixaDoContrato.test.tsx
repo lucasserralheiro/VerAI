@@ -1,66 +1,65 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
+import type { DocumentosDoContrato } from "@/lib/confere/tipos-cadastro";
 import { FaixaDoContrato } from "./FaixaDoContrato";
 
 const leitura = { referencia: "TC 99/SMIT/2026", competencia: { ano: 2026, mes: 7 } };
-const sugestao = {
-	id: "ct-52",
-	clienteId: "cl",
-	clienteNome: "SMIT",
-	clienteSigla: "SMIT",
-	numeroTermo: "TC 52/SMIT/2024",
-	descricao: "Sustentação",
-	vigenciaFim: null,
-	ativo: true,
+const DOCUMENTOS: DocumentosDoContrato = {
+	contrato: {
+		id: "ct-52",
+		clienteId: "cl",
+		clienteNome: "SMIT",
+		clienteSigla: "SMIT",
+		numeroTermo: "TC 52/SMIT/2024",
+		descricao: "Sustentação",
+		vigenciaFim: null,
+		ativo: true,
+	},
+	competencia: { ano: 2026, mes: 7, lidaDaPlanilha: true },
+	base: { arquivoId: "pa", nome: "PA-SMIT.pdf", origem: null },
+	aditivos: [],
+	alternativas: [],
+	decisoes: [],
+	avisos: [],
 };
 
-function renderizar(identificacao: Parameters<typeof FaixaDoContrato>[0]["identificacao"]) {
-	const onEscolherContrato = jest.fn();
-	render(
-		<FaixaDoContrato
-			identificacao={identificacao}
-			contratoDoComputador={false}
-			onEscolherContrato={onEscolherContrato}
-			onUsarDoCadastro={jest.fn()}
-		/>,
-	);
-	return { onEscolherContrato };
-}
-
-afterEach(() => jest.restoreAllMocks());
-
-it("nada antes da planilha", () => {
+function renderizar(props: Partial<Parameters<typeof FaixaDoContrato>[0]> = {}) {
+	const onBuscarContrato = jest.fn();
 	const { container } = render(
 		<FaixaDoContrato
 			identificacao={{ situacao: "ociosa" }}
 			contratoDoComputador={false}
-			onEscolherContrato={jest.fn()}
+			onBuscarContrato={onBuscarContrato}
 			onUsarDoCadastro={jest.fn()}
+			{...props}
 		/>,
 	);
-	expect(container).toBeEmptyDOMElement();
+	return { onBuscarContrato, container };
+}
+
+it("nada antes da planilha, nem enquanto lê — quem mostra a busca é o modal", () => {
+	expect(renderizar().container).toBeEmptyDOMElement();
+	expect(renderizar({ identificacao: { situacao: "lendo" } }).container).toBeEmptyDOMElement();
 });
 
-it("não encontrado: diz o número lido e oferece as sugestões", () => {
-	const { onEscolherContrato } = renderizar({ situacao: "nao-encontrado", leitura, sugestoes: [sugestao] });
-	expect(screen.getByText(/O contrato TC 99\/SMIT\/2026 não está no cadastro/)).toBeInTheDocument();
-	fireEvent.click(screen.getByRole("button", { name: /TC 52\/SMIT\/2024/ }));
-	expect(onEscolherContrato).toHaveBeenCalledWith("ct-52");
-	expect(screen.getByRole("searchbox", { name: "Buscar contrato no cadastro" })).toBeInTheDocument();
+it("contrato achado: o resumo, e trocar contrato abre a busca", () => {
+	const { onBuscarContrato } = renderizar({
+		identificacao: { situacao: "encontrado", leitura, documentos: DOCUMENTOS },
+		documentos: DOCUMENTOS,
+	});
+	expect(screen.getByText("Contrato TC 52/SMIT/2024")).toBeInTheDocument();
+	expect(screen.getByText(/competência julho\/2026/)).toBeInTheDocument();
+	fireEvent.click(screen.getByRole("button", { name: "trocar contrato" }));
+	expect(onBuscarContrato).toHaveBeenCalledTimes(1);
+	// A busca não abre mais dentro da faixa.
+	expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
 });
 
-it("empate: lista para escolher", () => {
-	const { onEscolherContrato } = renderizar({ situacao: "ambiguo", leitura, candidatos: [sugestao] });
-	fireEvent.click(screen.getByRole("button", { name: /TC 52\/SMIT\/2024/ }));
-	expect(onEscolherContrato).toHaveBeenCalledWith("ct-52");
-});
-
-it("Enter na busca busca — e cancela o padrão, que submeteria o formulário de fora", () => {
-	const espiao = jest.spyOn(global, "fetch").mockResolvedValue(Response.json([]));
-	renderizar({ situacao: "sem-referencia", leitura });
-	const busca = screen.getByRole("searchbox", { name: "Buscar contrato no cadastro" });
-	fireEvent.change(busca, { target: { value: "cgm" } });
-	// `fireEvent` devolve `false` quando o handler chamou `preventDefault()`.
-	expect(fireEvent.keyDown(busca, { key: "Enter" })).toBe(false);
-	expect(String(espiao.mock.calls[0][0])).toContain("/api/confere/contratos?busca=cgm");
+it("sem contrato achado: uma linha só, que reabre a busca", () => {
+	const { onBuscarContrato } = renderizar({
+		identificacao: { situacao: "nao-encontrado", leitura, sugestoes: [] },
+	});
+	expect(screen.getByText("O levantamento não identificou o contrato.")).toBeInTheDocument();
+	fireEvent.click(screen.getByRole("button", { name: "Buscar no cadastro" }));
+	expect(onBuscarContrato).toHaveBeenCalledTimes(1);
 });

@@ -8,9 +8,29 @@
 
 **Tech Stack:** Prisma 6/Postgres, Next.js 15 (route handlers + página `'use client'`), React 19, Tailwind 4, Jest + Testing Library, `exceljs` (planilha), `unpdf` (texto do PDF), Cloudflare R2 (`src/lib/r2.ts`), lucide-react.
 
-## Andamento
+## Andamento (29/09/2026)
 
-- (preencher ao executar: tarefa, commit, o que foi conferido)
+- ✅ Tasks 1–12 no dev, direto na `main` (pedido do usuário: sem worktree, sem branch). Commits:
+  1 `4d8b79d` · 2 `db8ce25` · 3 `a88fd20` · 4 `7deacac` · 5 `a76ca92` · 6 `6197c67` · 7 `fc74678` ·
+  8 `d27089d` · 9 `3f0f282` · 10 `11e010d` · 11 `f8d0185` · 12 este.
+- Migração conferida num banco descartável (`migrate diff` vazio) e aplicada no dev. O `prisma generate`
+  não trocou a DLL do motor (presa por um `next dev`; mesma versão) — o cliente novo funcionou.
+- **Carga real** (etapa isolada, sem a trava, 807 s): `904 arquivo(s) · novos 904 · ignorados 25`,
+  `tabela de preços 2026 v3.0: 315 serviços · conferem 308 · alterados pelo informativo 7 · fora do PDF 0 ·
+  divergem 0`, "TUDO NO VERAI", data das telas gravada — exatamente o esperado. Passada seguinte pelo script
+  normal (`--aplicar`): `iguais 904`, código 0.
+- **Produção protegida de verdade**: a rodada do agendador das 12:00 (já com o script novo) registrou
+  "biblioteca Documentos: pulada — migração 20260929100000_biblioteca_documentos não aplicada neste banco" e
+  saiu com código 0.
+- Suítes tocadas: 33/33, 222 testes; `tsc` limpo. Régua do assistente (sem IA): 66.208 → 66.208 caracteres,
+  0 cortados — as ferramentas antigas não mudaram.
+- Desvios do plano: o teste do registro de ferramentas (`ferramentas/index.test.ts`) lista cada nome — a
+  ferramenta nova entrou lá também. O commit da Task 10 normalizou `nav-bar.test.tsx` de CRLF para LF (padrão
+  do repositório: 1.085 arquivos LF × 78 CRLF; `core.autocrlf=true`) — só final de linha, sem reescrever a
+  `main`.
+- **Falta**: ver a tela logado (o login de dev usa o token do `.env`, que não uso sozinho — o usuário entra
+  no painel do navegador); produção (migração no Neon + deploy) só com o ok do usuário. Sem a migração, a
+  etapa segue pulada em produção e nada muda lá.
 
 ## Global Constraints
 

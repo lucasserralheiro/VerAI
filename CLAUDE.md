@@ -260,6 +260,26 @@ que revisa `2026-09-24-sincronizacao-sharepoint-contratos-design.md`):
   de outro jeito. Consertar o exemplar da vez sem olhar a régua quebra outro cliente (tirar "apostil"
   do aditivo muda SMTUR e SMUL, por exemplo).
 
+## Biblioteca "Documentos" do SharePoint (tabela de preços, links, calendário)
+
+Segunda biblioteca do mesmo agendador (`rede.sp - Documentos`, spec
+`docs/superpowers/specs/2026-09-29-biblioteca-documentos-prodam-design.md`): a etapa `etapaDaBiblioteca`
+(`src/lib/biblioteca/`) roda no fim de `scripts/sincronizar-sharepoint.ts`, grava cada arquivo no R2 pelo
+`sha256` (`ArquivoBiblioteca`, **não** `ArquivoCliente`), confere e chama o **leitor da área**
+(`registro-leitores.ts`). Área nova = pasta nova em `areaDoCaminho` + leitor + permissão em `podeVerArea`.
+Entrega sempre por `/api/biblioteca/[id]`. Guarda pela migração `MIGRACAO_DA_BIBLIOTECA`; `--reler=<AREA>`
+relê uma área; `--sem-documentos` pula; `--clientes=` também pula (passada parcial).
+
+**Só tabelas novas aqui**: o agendador roda o código e o cliente Prisma desta pasta contra produção — coluna
+nova em model que ele já usa quebra a sincronização até a migração subir (subir a migração antes do
+`prisma generate`).
+
+**Tabela de preços** (`/tabela-de-precos`, subitem de "Relatórios dos clientes", spec
+`2026-09-29-tabela-de-precos-design.md`): itens da "Memória de Cálculo <ano> v<n>.xlsx" (aba achada pelo
+cabeçalho), cada preço conferido com o PDF oficial (`precosNoPdf`: primeiro valor em R$ depois do código) e
+com o informativo de alterações; diferença nunca é resolvida em silêncio — a tela mostra os dois valores.
+Assistente: `consultarTabelaDePrecos`. Links MPLS e calendário de faturamento: specs próprios, ainda a fazer.
+
 ## Consistência de números e vínculos (varredura de 23/09/2026)
 
 - **Uma regra só pra ler valor digitado**: `src/lib/relatorios-clientes/numero.ts`

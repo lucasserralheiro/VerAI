@@ -10,9 +10,9 @@ import { sincronizarBiblioteca, type ResultadoBiblioteca } from './sincronizar'
 // docs/superpowers/specs/2026-09-29-biblioteca-documentos-prodam-design.md §5.1–5.4). Isolada: nunca lança
 // e nunca desfaz a passada dos contratos; `problema` vira código de saída 2 no script.
 
-/** A mais recente das migrações de que a etapa depende (biblioteca, tabela de preços, controles de contratos):
+/** A mais recente das migrações de que a etapa depende (biblioteca, tabela de preços, controles de contratos, planilha de contratos):
  *  aplicada ela, as anteriores também estão. */
-export const MIGRACAO_DA_BIBLIOTECA = '20260929140000_controles_contratos'
+export const MIGRACAO_DA_BIBLIOTECA = '20260929170000_valor_vigencia'
 
 /** Mesma regra de "passada completa" da ContratosReceita; `null` = vale para a data das telas. */
 export function motivoIncompletaBiblioteca(r: ResultadoBiblioteca, aplicar: boolean): string | null {

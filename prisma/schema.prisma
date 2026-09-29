@@ -849,6 +849,44 @@ model ControleContratoLinha {
   @@index([controleId])
 }
 
+// Planilha "Contratos Receita" (biblioteca Documentos, área PLANILHA_CONTRATOS) — uma linha por termo, como
+// está na aba BaseContratos. Fonte de prova do valor/vigência (spec 2026-09-29-valor-vigencia-contratos §0).
+model LinhaPlanilhaContratos {
+  id                 String    @id @default(cuid())
+  arquivoId          String
+  linha              Int
+  sigla              String
+  contratoTexto      String
+  // "SIGLA|nº ano" — a mesma chave da sincronização do SharePoint.
+  chave              String?
+  termoTexto         String?
+  // 0 = contrato inicial; n = nº do termo; null = sem número.
+  termoNumero        Int?
+  tipoTermo          String?
+  valor              Decimal?  @db.Decimal(14, 2)
+  inicio             DateTime?
+  fim                DateTime?
+  statusFormalizacao String?
+
+  @@index([chave])
+  @@index([arquivoId])
+}
+
+// De onde veio o valor/vigência/assinatura que o VerAI gravou sozinho numa linha do histórico. Tabela à parte
+// (e não colunas em HistoricoContrato) porque o agendador roda contra produção com o cliente Prisma da pasta.
+model OrigemCampoHistorico {
+  id          String   @id @default(cuid())
+  historicoId String
+  // valor | vigencia | assinatura
+  campo       String
+  origem      String
+  prova       Json
+  gravadoEm   DateTime @default(now())
+
+  @@unique([historicoId, campo])
+  @@index([historicoId])
+}
+
 model AcessoArquivo {
   id        String         @id @default(cuid())
   arquivoId String

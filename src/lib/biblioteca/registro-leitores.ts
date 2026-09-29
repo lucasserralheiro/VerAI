@@ -1,4 +1,5 @@
 import { lerControlesDeContratos } from '@/lib/controles-contratos/leitor'
+import { lerPlanilhaDeContratosArea } from '@/lib/planilha-contratos/leitor'
 import { lerTabelaDePrecos } from '@/lib/tabela-precos/leitor'
 import type { AreaBiblioteca } from './areas'
 import type { LeitorDeArea } from './leitores'
@@ -7,4 +8,5 @@ import type { LeitorDeArea } from './leitores'
 export const LEITORES: Partial<Record<AreaBiblioteca, LeitorDeArea>> = {
   TABELA_PRECOS: lerTabelaDePrecos,
   CONTROLES_CONTRATOS: lerControlesDeContratos,
+  PLANILHA_CONTRATOS: lerPlanilhaDeContratosArea,
 }

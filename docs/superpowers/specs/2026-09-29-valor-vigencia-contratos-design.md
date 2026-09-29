@@ -1,8 +1,45 @@
 # Valor, vigência e assinatura dos contratos com prova — design
 
-**Status:** rascunho para revisão do usuário (29/09/2026). Decisões tomadas na conversa de 28–29/09
-("como sênior", o usuário delegou as escolhas); medições no banco de dev, com a biblioteca
-ContratosReceita inteira sincronizada.
+**Status:** aprovado pelo usuário em 29/09/2026 ("segue pro valor e vigência"), **com a revisão do §0**,
+que prevalece sobre o resto do documento onde divergir. Decisões tomadas na conversa de 28–29/09 ("como
+sênior", o usuário delegou as escolhas); medições no banco de dev.
+
+## 0. Revisão de 29/09 (tarde) — os Controles de Contratos entram, e a origem vai para tabela nova
+
+Depois deste documento apareceu a fonte que faltava: o **controle mensal do faturamento** por contrato
+(spec `2026-09-29-controles-de-contratos-design.md`, já no dev) — valor previsto do período, vigência e termo
+atuais, atualizado todo mês. Medição (dev, 122 contratos ativos):
+
+| | Resultado |
+|---|---|
+| Ativos com controle conferido | 72 (71 casam com uma linha do histórico pelo nº do termo) |
+| Controle × valor lido do termo (ficha) | 30 iguais, 23 diferentes |
+| Controle × planilha | 22 iguais, 13 diferentes |
+| Controle × valor já no cadastro | 21 iguais, 11 diferentes (1 por centavos; um cadastro com o "valor principal" da proposta, sem tributos) |
+| Fim da vigência: controle × cadastro | 33 iguais, 8 diferentes |
+
+O controle nem sempre é o valor do termo — é o valor **com que o faturamento trabalha hoje** (inclui reajuste
+e apostilamento posteriores). Então:
+
+1. **Valor da linha** (continua sendo o valor do **termo**): grava sozinho com prova literal no termo +
+   categoria aceita + **mais uma prova**, e agora o controle é uma delas (controle do mesmo termo com o mesmo
+   valor). Sem termo lido (escaneado), **planilha e controle iguais** também gravam — duas fontes humanas
+   independentes (contratos e faturamento) dizendo o mesmo número. Controle diferente do termo **não bloqueia**
+   (o termo tem outra prova): vira aviso "o faturamento usa R$ X".
+2. **Vigência da linha**: vazia é erro (o contrato conta como ativo para sempre), então o **controle conferido
+   sozinho** preenche início e fim da linha do termo atual; se a ficha do termo tiver outra data de fim, não
+   grava e avisa. A planilha preenche linhas antigas (§5.4).
+3. **Assinatura**: termo que está no controle do faturamento está sendo faturado — `situacao` vazia recebe
+   "Assinado (controle do faturamento)", como o "contratação concluída" da planilha (§5.5).
+4. **Origem em tabela nova** `OrigemCampoHistorico` (`historicoId`, `campo` valor|vigencia|assinatura,
+   `origem`, `prova` Json) em vez de colunas em `HistoricoContrato` (§6.1): o agendador roda contra produção
+   com o cliente Prisma da pasta; coluna nova num model que ele usa quebraria a sincronização até a migração
+   subir. Tabela nova não afeta ninguém.
+5. **Planilha** entra pelo leitor da área `PLANILHA_CONTRATOS` da biblioteca Documentos (tabela nova
+   `LinhaPlanilhaContratos`), não por script próprio (§6.2).
+6. Fora desta entrega: o "% faturado no mesmo período" (§6.4) — o cartão do controle já mostra o faturado
+   do período pelo faturamento; a tela `PATCH` marcando `DIGITADO` (a gravação automática só preenche campo
+   vazio, então o digitado já está protegido).
 
 ## 1. Pedido
 

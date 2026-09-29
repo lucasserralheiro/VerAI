@@ -717,6 +717,92 @@ model AtualizacaoSharepoint {
   @@index([iniciadaEm])
 }
 
+// Biblioteca "Documentos" do SharePoint (spec docs/superpowers/specs/2026-09-29-biblioteca-documentos-prodam-design.md):
+// um registro por arquivo da pasta sincronizada pelo OneDrive (~/rede.sp/rede.sp - Documentos). Não é
+// ArquivoCliente: preço e calendário são de todos; o dono de um relatório de links é o contrato lido de
+// dentro dele. Só tabelas novas — o agendador roda contra produção com o cliente gerado nesta pasta.
+model ArquivoBiblioteca {
+  id                 String    @id @default(cuid())
+  biblioteca         String
+  // Relativo à raiz da biblioteca, separado por "/".
+  caminho            String
+  // TABELA_PRECOS | LINKS_MPLS | CALENDARIO | PLANILHA_CONTRATOS | OUTRO (src/lib/biblioteca/areas.ts)
+  area               String
+  nome               String
+  extensao           String
+  contentType        String
+  tamanhoBytes       Int
+  sha256             String
+  // `r2:biblioteca-documentos/<sha256>.<ext>` — nunca vai ao navegador (entrega: /api/biblioteca/[id]).
+  chave              String
+  modificadoEm       DateTime
+  vistoEm            DateTime
+  removidoNaOrigemEm DateTime?
+  leituraStatus      String?
+  leituraMensagem    String?
+  lidoEm             DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@unique([biblioteca, caminho])
+  @@index([biblioteca, area])
+}
+
+// "Atualizado em …" das telas da biblioteca Documentos: uma linha por passada completa (mesma regra de
+// AtualizacaoSharepoint). Tabela à parte para não mexer no model que o agendador já usa em produção.
+model AtualizacaoBiblioteca {
+  id          String   @id @default(cuid())
+  biblioteca  String
+  iniciadaEm  DateTime
+  concluidaEm DateTime @default(now())
+  arquivos    Int
+
+  @@index([biblioteca, iniciadaEm])
+}
+
+// Tabela de preços dos serviços da PRODAM, uma linha por versão ("2026 v3.0") — spec
+// docs/superpowers/specs/2026-09-29-tabela-de-precos-design.md. Os arquivo*Id apontam para
+// ArquivoBiblioteca (sem FK: o arquivo nunca é apagado, só marcado como removido na origem).
+model TabelaPrecos {
+  id                   String             @id @default(cuid())
+  versao               String             @unique
+  ano                  Int
+  numero               String
+  // ano*10000 + maior*100 + menor: a vigente é a de maior ordem.
+  ordem                Int
+  publicadaEm          DateTime?
+  arquivoPlanilhaId    String?
+  arquivoPdfId         String?
+  arquivoPublicacaoId  String?
+  arquivoInformativoId String?
+  totalItens           Int
+  divergencias         Int
+  lidaEm               DateTime
+  itens                ItemTabelaPrecos[]
+}
+
+model ItemTabelaPrecos {
+  id          String       @id @default(cuid())
+  tabelaId    String
+  tabela      TabelaPrecos @relation(fields: [tabelaId], references: [id], onDelete: Cascade)
+  // Ordem da planilha (a mesma do PDF) — a tela mostra nessa ordem.
+  posicao     Int
+  grupo       String
+  // Caminho das seções: "C - SOLUÇÕES DE SERVIÇOS DE COMUNICAÇÃO > C7. SD-WAN > C7.1. …"
+  secoes      String
+  codigo      String
+  descricao   String
+  unidade     String
+  preco       Decimal?     @db.Decimal(14, 2)
+  sobDemanda  Boolean      @default(false)
+  // Texto da célula quando não é número nem "SOB DEMANDA".
+  precoTexto  String?
+  // confere | diverge | fora-do-pdf | alterado-pelo-informativo | sem-pdf
+  conferencia String
+  precoNoPdf  Decimal?     @db.Decimal(14, 2)
+
+  @@unique([tabelaId, codigo])
+}
+
 model AcessoArquivo {
   id        String         @id @default(cuid())
   arquivoId String

@@ -34,7 +34,7 @@ function resposta(ok: boolean, corpo: unknown) {
   return Promise.resolve({ ok, json: () => Promise.resolve(corpo) }) as unknown as Promise<Response>
 }
 
-function mockApi(options: { semItens?: boolean; erroHistorico?: string } = {}) {
+function mockApi(options: { semItens?: boolean; erroHistorico?: string; origens?: Record<string, unknown> } = {}) {
   let historico: Array<Record<string, unknown>> = [...HISTORICO]
   let itens: Array<Record<string, unknown>> = options.semItens ? [] : [ITEM]
   // O que o PATCH gravou no cabeçalho: depois de salvar, a página recarrega o contrato do servidor.
@@ -87,6 +87,7 @@ function mockApi(options: { semItens?: boolean; erroHistorico?: string } = {}) {
       return resposta(true, novo)
     }
     if (u.startsWith('/api/itens-contrato?semContrato=1')) return resposta(true, soltos)
+    if (u === '/api/contratos/k1/origens') return resposta(true, options.origens ?? {})
     if (u === '/api/itens-contrato/i7' && metodo === 'PATCH') {
       itens = [...itens, { ...soltos[0], contratoId: 'k1' }]
       return resposta(true, { ...soltos[0], contratoId: 'k1' })
@@ -122,6 +123,14 @@ describe('ContratoDetalhePage', () => {
     expect(within(historico).getByText('Acréscimo de pontos')).toBeInTheDocument()
 
     expect(screen.getByText('Ponto de acesso Wi-fi')).toBeInTheDocument()
+  })
+
+  it('marca o valor preenchido com prova e diz de onde veio', async () => {
+    mockApi({ origens: { h2: { valor: 'Preenchido automaticamente: lido do termo (pág. 2); confere com o valor por extenso' } } })
+    await renderizar()
+    const historico = await screen.findByRole('region', { name: 'Histórico do contrato' })
+    expect(await within(historico).findByRole('img', { name: 'Preenchido automaticamente: lido do termo (pág. 2); confere com o valor por extenso' })).toBeInTheDocument()
+    expect(within(historico).getAllByRole('img', { name: /Preenchido automaticamente/ })).toHaveLength(1)
   })
 
   it('avisa que não há valor quando nem o histórico nem os itens têm valor', async () => {

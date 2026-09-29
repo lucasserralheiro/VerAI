@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { AlertCircle, Download, ExternalLink, FileText, FolderSearch, History, Loader2, Paperclip, Plus, Trash2, X } from 'lucide-react'
+import { AlertCircle, Download, ExternalLink, FileText, FolderSearch, History, Loader2, Paperclip, Plus, ShieldCheck, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BTN_OUTLINE, BTN_OUTLINE_SM, BTN_PRIMARY, INPUT_BASE, LINK_DANGER } from '@/lib/ui'
 import { formatarData, formatarMoeda } from '@/lib/relatorios-clientes/formatacao'
@@ -362,6 +362,19 @@ function ModalPdf({
 
 /** Linha do tempo única do contrato (design doc §3.5): contrato, aditivos, prorrogações, rescisão e
  *  prospecção lado a lado, por data. `aoMudar` recarrega a página. */
+/** Campo preenchido pelo VerAI com prova (termo, planilha de contratos, controle do faturamento): a frase diz
+ *  de onde veio e com o que confere (spec 2026-09-29-valor-vigencia-contratos). */
+function MarcaOrigem({ texto }: { texto?: string }) {
+  if (!texto) return null
+  return (
+    <span title={texto} aria-label={texto} role="img" className="ml-1 inline-flex align-middle text-green-ok">
+      <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+    </span>
+  )
+}
+
+type Origens = Record<string, { valor?: string; vigencia?: string; assinatura?: string }>
+
 export function SecaoHistorico({
   contratoId,
   historico,
@@ -382,6 +395,21 @@ export function SecaoHistorico({
   const [escolhendo, setEscolhendo] = useState<{ linhaId: string; tipo: TipoPdf } | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [confirmandoExclusao, setConfirmandoExclusao] = useState<string | null>(null)
+  const [origens, setOrigens] = useState<Origens>({})
+
+  // Recarrega junto com o histórico: editar uma linha pode trocar o que estava marcado.
+  useEffect(() => {
+    let ativo = true
+    fetch(`/api/contratos/${contratoId}/origens`)
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((corpo: Origens) => {
+        if (ativo) setOrigens(corpo ?? {})
+      })
+      .catch(() => {})
+    return () => {
+      ativo = false
+    }
+  }, [contratoId, historico])
 
   // O formulário abre em modal (<dialog> + showModal): antes ele aparecia acima da grade e, com a
   // tabela longa, quem clicava em "Editar" numa linha de baixo nem via que o formulário abriu.
@@ -577,11 +605,16 @@ export function SecaoHistorico({
                   <td className="font-mono text-xs whitespace-nowrap">{formatarData(linha.data)}</td>
                   <td className="text-right font-mono text-xs font-semibold whitespace-nowrap text-navy">
                     {linha.valor !== null ? formatarMoeda(linha.valor) : '—'}
+                    {linha.valor !== null && <MarcaOrigem texto={origens[linha.id]?.valor} />}
                   </td>
                   <td className="font-mono text-xs whitespace-nowrap">{formatarData(linha.dataInicio)}</td>
-                  <td className="font-mono text-xs whitespace-nowrap">{formatarData(linha.dataVencimento)}</td>
+                  <td className="font-mono text-xs whitespace-nowrap">
+                    {formatarData(linha.dataVencimento)}
+                    {linha.dataVencimento && <MarcaOrigem texto={origens[linha.id]?.vigencia} />}
+                  </td>
                   <td title={linha.observacao ?? undefined}>
                     <PillSituacao situacao={linha.situacao} />
+                    <MarcaOrigem texto={origens[linha.id]?.assinatura} />
                   </td>
                   <td className="w-20">
                     <CelulaPdf

@@ -24,6 +24,7 @@ import {
   Inbox,
   BarChart3,
   Sparkles,
+  Tags,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -54,6 +55,9 @@ const RELATORIOS_SUBLINKS = [
   { href: '/solicitacoes', label: 'Solicitações', icon: Inbox },
   { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
   { href: '/', label: 'Todos os documentos', icon: FileText },
+  // Telas da biblioteca "Documentos" do SharePoint (spec 2026-09-29-biblioteca-documentos-prodam §4):
+  // entram aqui, embaixo de "Relatórios dos clientes", a pedido do usuário (29/09/2026).
+  { href: '/tabela-de-precos', label: 'Tabela de preços', icon: Tags },
 ]
 
 // "Proposta Comercial (Conversão SEI)" é outro módulo à parte — mesmo padrão

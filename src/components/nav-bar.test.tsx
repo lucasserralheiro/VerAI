@@ -81,6 +81,11 @@ describe('NavBar', () => {
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).toBeInTheDocument()
   })
 
+  it('"Tabela de preços" (biblioteca Documentos do SharePoint) fica dentro de "Relatórios dos clientes"', () => {
+    render(<NavBar />)
+    expect(screen.getByRole('link', { name: 'Tabela de preços' })).toHaveAttribute('href', '/tabela-de-precos')
+  })
+
   it('"Fornecedores", "Demandas" e "Solicitações" são sub-itens do grupo "Relatórios dos clientes"', () => {
     render(<NavBar />)
     expect(screen.getByRole('link', { name: 'Fornecedores' })).toHaveAttribute('href', '/fornecedores')

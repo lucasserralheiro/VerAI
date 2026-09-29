@@ -100,6 +100,7 @@ export async function consolidarContratos(
         contratoId: true,
         tipo: true,
         data: true,
+        dataInicio: true,
         createdAt: true,
         numero: true,
         proposta: true,

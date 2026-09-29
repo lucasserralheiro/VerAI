@@ -8,13 +8,17 @@ import { linhaAssinada } from './regras'
  * contrato 69.687.389,32 → aditivo 69.699.911,05 → ... → última prorrogação 68.071.931,88), não o
  * acréscimo. Então o valor atual é o da linha mais recente que tem valor — prospecção (proposta),
  * rescisão (acerto) e aditivo/prorrogação ainda não assinado ficam de fora. "Mais recente" = maior data de
- * assinatura; linha sem data perde pra qualquer linha datada e, entre sem data, vale a criada
- * por último (a ordem em que chegaram).
+ * assinatura, ou o início da vigência quando a linha não tem data de assinatura (assinatura provada pelo
+ * controle do faturamento ou pela planilha de contratos — spec 2026-09-29-valor-vigencia-contratos); linha
+ * sem nenhuma das duas perde pra qualquer linha datada e, entre sem data, vale a criada por último (a ordem
+ * em que chegaram).
  */
 
 export interface LinhaResumoHistorico {
   tipo: 'CONTRATO' | 'ADITIVO' | 'PRORROGACAO' | 'RESCISAO' | 'PROSPECCAO'
   data: Date | null
+  /** Início da vigência da linha — ordena a linha assinada que não tem data de assinatura. */
+  dataInicio?: Date | null
   createdAt: Date
   numero: string | null
   proposta: string | null
@@ -45,8 +49,8 @@ export interface ResumoHistorico {
 }
 
 function maisRecenteQue(a: LinhaResumoHistorico, b: LinhaResumoHistorico): boolean {
-  const ta = a.data?.getTime() ?? -Infinity
-  const tb = b.data?.getTime() ?? -Infinity
+  const ta = (a.data ?? a.dataInicio)?.getTime() ?? -Infinity
+  const tb = (b.data ?? b.dataInicio)?.getTime() ?? -Infinity
   if (ta !== tb) return ta > tb
   return a.createdAt.getTime() >= b.createdAt.getTime()
 }

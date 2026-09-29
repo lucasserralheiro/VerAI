@@ -32,6 +32,15 @@ describe('resumirHistorico', () => {
     expect(resumo.prorrogacoes).toBe(1)
   })
 
+  it('linha assinada sem data de assinatura (assinatura provada pelo controle/planilha) é ordenada pelo início da vigência', () => {
+    const resumo = resumirHistorico([
+      linha({ tipo: 'CONTRATO', data: new Date('2023-11-20'), valor: '4000000' }),
+      linha({ tipo: 'PRORROGACAO', data: new Date('2024-11-20'), valor: '4354000' }),
+      linha({ tipo: 'PRORROGACAO', data: null, dataInicio: new Date('2025-12-02'), situacao: 'Assinado (controle do faturamento)', valor: '4746600' }),
+    ])
+    expect(resumo.valorAtual).toEqual({ valor: '4746600', tipo: 'PRORROGACAO', data: null })
+  })
+
   it('ignora prospecção e linhas sem valor ao escolher o valor atual', () => {
     const resumo = resumirHistorico([
       linha({ tipo: 'CONTRATO', data: new Date('2025-12-12'), valor: '1241864.52' }),

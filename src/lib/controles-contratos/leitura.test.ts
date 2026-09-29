@@ -95,6 +95,23 @@ it('períodos em mês/ano e datas de 2 dígitos com "a"/"ate"', () => {
   expect(c.faturado!.conferida).toBe(true)
 })
 
+// SMUL CO 17/2024 (08.2026): mês digitado errado no rótulo ("MAR/6", "FEV/265") e o intervalo depois do mês.
+it('rótulo "MÊS/ano - dd/mm/aaaa A dd/mm/aaaa", com o ano do mês digitado errado', () => {
+  const c = lerControle([
+    L('CO 17/2024/SMUL', '- T.A.02 - 26/2025/SMUL - Vigência: 01/11/2025 à 31/10/2026'),
+    L('FATURADO'),
+    L('NOV/25 - 01/11/2025 a 20/11/2025-20Dias', '14.965,25', '1.548.778,83'),
+    L('FEV/265 - 21/01/2026 A 20/02/2026', '28.277,14', '3.135.491,19'),
+    L('MAR/6 - 21/02/2026 A 20/03/2026', '23.662,31', '1.759.420,80'),
+    L('SET/26 - 21/08/2026 A 20/09/2026', '0,00'),
+    L('TOTAL', '6.443.690,82'),
+  ])
+  expect(c.termoTexto).toBe('T.A. 02')
+  expect(c.faturado).toMatchObject({ total: '6443690.82', conferida: true })
+  expect(c.faturado!.linhas[2]).toMatchObject({ rotulo: 'MAR/6 - 21/02/2026 A 20/03/2026', inicio: new Date(Date.UTC(2026, 1, 21)), fim: new Date(Date.UTC(2026, 2, 20)) })
+  expect(c.faturado!.linhas[0].inicio).toEqual(new Date(Date.UTC(2025, 10, 1)))
+})
+
 it('data de período fora da vigência ± 1 ano (ano digitado errado) perde a data, fica o texto', () => {
   const c = lerControle([
     L('CO 1/2025 - Vigência: 01/01/2026 à 31/12/2026'),

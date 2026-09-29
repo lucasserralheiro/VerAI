@@ -37,11 +37,13 @@ export interface ControleLido {
 
 const VALOR = /^(-?)(\d{1,3}(?:\.\d{3})*|\d+),(\d{2})$/
 // "à"/"á" não são \w no JS: `\b` depois deles falha — o fim do separador é "seguido de espaço".
-const PERIODO = /^(M[ÊE]S\s*\d+|[A-ZÇ]{3,9}\/\d{2,4}|\d{1,2}\/\d{1,2}\/\d{2,4}\s*(?:[àáa]|at[ée])(?=\s))/i
+// Mês com 1 a 4 dígitos depois da barra: a planilha tem "MAR/6" e "FEV/265" digitados assim.
+const PERIODO = /^(M[ÊE]S\s*\d+|[A-ZÇ]{3,9}\/\d{1,4}|\d{1,2}\/\d{1,2}\/\d{2,4}\s*(?:[àáa]|at[ée])(?=\s))/i
 const DATA = String.raw`(\d{1,2}\/\d{1,2}\/\d{2,4})`
 const ATE = String.raw`\s*(?:[àáa]|at[ée])\s*`
 const VIGENCIA = new RegExp(String.raw`Vig[êe]ncia\s*[:\-–]?\s*${DATA}${ATE}${DATA}`, 'i')
-const INTERVALO = new RegExp(String.raw`^${DATA}${ATE}${DATA}`, 'i')
+// Em qualquer ponto do rótulo: "NOV/25 - 01/11/2025 a 20/11/2025-20Dias" traz o mês e o intervalo.
+const INTERVALO = new RegExp(String.raw`${DATA}${ATE}${DATA}`, 'i')
 const MESES: Record<string, number> = { JAN: 1, FEV: 2, MAR: 3, ABR: 4, MAI: 5, JUN: 6, JUL: 7, AGO: 8, SET: 9, OUT: 10, NOV: 11, DEZ: 12 }
 
 /** "1.254,89" → "1254.89"; o que não for dinheiro com centavos → null. */

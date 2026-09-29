@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { abrirUpload } from '@/lib/storage'
 import { podeVerArea } from '@/lib/biblioteca/areas'
+import { podeVerCliente } from '@/lib/visibilidade'
 
 type Contexto = { params: Promise<{ id: string }> }
 
@@ -21,7 +22,16 @@ export async function GET(request: NextRequest, { params }: Contexto) {
     where: { id },
     select: { area: true, nome: true, contentType: true, chave: true },
   })
-  if (!arquivo || !podeVerArea(usuario.role, arquivo.area)) return NextResponse.json({ error: 'não encontrado' }, { status: 404 })
+  if (!arquivo) return NextResponse.json({ error: 'não encontrado' }, { status: 404 })
+  // Controle de contrato é de um cliente: abre para quem vê esse cliente (sem cliente identificado, só admin).
+  const permitido =
+    arquivo.area === 'CONTROLES_CONTRATOS' && usuario.role !== 'admin'
+      ? await (async () => {
+          const controle = await prisma.controleContrato.findUnique({ where: { arquivoId: id }, select: { clienteId: true } })
+          return !!controle?.clienteId && (await podeVerCliente(usuario, controle.clienteId))
+        })()
+      : podeVerArea(usuario.role, arquivo.area)
+  if (!permitido) return NextResponse.json({ error: 'não encontrado' }, { status: 404 })
 
   const res = await abrirUpload(arquivo.chave).catch(() => null)
   if (!res?.ok || !res.body) {

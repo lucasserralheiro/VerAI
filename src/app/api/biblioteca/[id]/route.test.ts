@@ -2,12 +2,14 @@
 import { NextRequest } from 'next/server'
 
 jest.mock('@/lib/auth', () => ({ ...jest.requireActual('@/lib/auth'), getAuthUser: jest.fn() }))
-jest.mock('@/lib/prisma', () => ({ prisma: { arquivoBiblioteca: { findUnique: jest.fn() } } }))
+jest.mock('@/lib/prisma', () => ({ prisma: { arquivoBiblioteca: { findUnique: jest.fn() }, controleContrato: { findUnique: jest.fn() } } }))
 jest.mock('@/lib/storage', () => ({ abrirUpload: jest.fn() }))
+jest.mock('@/lib/visibilidade', () => ({ podeVerCliente: jest.fn() }))
 
 import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { abrirUpload } from '@/lib/storage'
+import { podeVerCliente } from '@/lib/visibilidade'
 import { GET } from './route'
 
 const usuario = (role: string) => ({ id: 'u1', nome: 'A', email: 'a@x', role })
@@ -57,4 +59,18 @@ it('404 quando não existe; 502 quando o storage falha', async () => {
   ;(prisma.arquivoBiblioteca.findUnique as jest.Mock).mockResolvedValue(arquivo('CALENDARIO'))
   ;(abrirUpload as jest.Mock).mockImplementation(async () => new Response('x', { status: 500 }))
   expect((await GET(pedido(), ctx)).status).toBe(502)
+})
+
+it('controle de contrato: abre para quem vê o cliente do controle; sem cliente, só admin', async () => {
+  ;(getAuthUser as jest.Mock).mockResolvedValue(usuario('responsavel'))
+  ;(prisma.arquivoBiblioteca.findUnique as jest.Mock).mockResolvedValue(arquivo('CONTROLES_CONTRATOS'))
+  ;(prisma.controleContrato.findUnique as jest.Mock).mockResolvedValue({ clienteId: 'c1' })
+  ;(podeVerCliente as jest.Mock).mockResolvedValue(true)
+  expect((await GET(pedido(), ctx)).status).toBe(200)
+  ;(podeVerCliente as jest.Mock).mockResolvedValue(false)
+  expect((await GET(pedido(), ctx)).status).toBe(404)
+  ;(prisma.controleContrato.findUnique as jest.Mock).mockResolvedValue({ clienteId: null })
+  expect((await GET(pedido(), ctx)).status).toBe(404)
+  ;(getAuthUser as jest.Mock).mockResolvedValue(usuario('admin'))
+  expect((await GET(pedido(), ctx)).status).toBe(200)
 })

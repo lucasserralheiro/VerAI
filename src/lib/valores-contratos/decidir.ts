@@ -115,6 +115,11 @@ function decidirVigencia(e: EntradaLinha, avisos: string[]): Gravacao<{ inicio: 
       ? { nome: 'PLANILHA', rotulo: 'a planilha de contratos', inicio: e.planilha.inicio, fim: e.planilha.fim, prova: { planilhaLinha: e.planilha.linha } }
       : null
   if (!fonte) return undefined
+  // Controle e planilha do mesmo termo com fins diferentes: só o termo desempata a favor do controle.
+  if (e.controle?.fim && e.planilha?.fim && !planilhaConfirma && !(e.fichaFim && mesmoDia(e.fichaFim, e.controle.fim))) {
+    avisos.push(`o controle do faturamento diz fim em ${data(e.controle.fim)} e a planilha de contratos ${data(e.planilha.fim)}`)
+    return undefined
+  }
   if (e.fichaFim && !mesmoDia(e.fichaFim, fonte.fim)) {
     avisos.push(`o termo diz fim em ${data(e.fichaFim)} e ${fonte.rotulo} ${data(fonte.fim)}`)
     return undefined
@@ -128,10 +133,12 @@ function decidirVigencia(e: EntradaLinha, avisos: string[]): Gravacao<{ inicio: 
     avisos.push(`${fonte.rotulo} dá vigência fora do normal (${data(inicio)} a ${data(fonte.fim)}) — confira`)
     return undefined
   }
+  const inicioGravado = e.atual.dataInicio ? null : fonte.inicio
   return {
-    dado: { inicio: e.atual.dataInicio ? null : fonte.inicio, fim: fonte.fim },
+    dado: { inicio: inicioGravado, fim: fonte.fim },
     origem: e.fichaFim ? `${fonte.nome}+TERMO` : fonte.nome,
-    prova: fonte.prova,
+    // `gravouInicio` diz se o início também veio daqui (para conferir ou desfazer depois).
+    prova: { ...fonte.prova, gravouInicio: inicioGravado !== null },
   }
 }
 

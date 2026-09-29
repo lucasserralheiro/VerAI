@@ -109,7 +109,7 @@ describe('vigência', () => {
     expect(decidirLinha(base({ controle: controle('1.00', { inicio: d(2023, 12, 15) }) })).vigencia).toEqual({
       dado: { inicio: null, fim: d(2026, 10, 31) },
       origem: 'CONTROLE',
-      prova: { mes: '2026-08', arquivoId: 'ab1' },
+      prova: { mes: '2026-08', arquivoId: 'ab1', gravouInicio: false },
     })
   })
 
@@ -117,7 +117,7 @@ describe('vigência', () => {
     expect(decidirLinha(base({ controle: controle('1.00', { inicio: d(2023, 12, 15) }), planilha: planilha(null) })).vigencia).toEqual({
       dado: { inicio: d(2025, 11, 1), fim: d(2026, 10, 31) },
       origem: 'CONTROLE+PLANILHA',
-      prova: { mes: '2026-08', arquivoId: 'ab1', planilhaLinha: 245 },
+      prova: { mes: '2026-08', arquivoId: 'ab1', planilhaLinha: 245, gravouInicio: true },
     })
   })
 
@@ -130,6 +130,14 @@ describe('vigência', () => {
     const r = decidirLinha(base({ fichaFim: d(2026, 9, 30), controle: controle('1.00') }))
     expect(r.vigencia).toBeUndefined()
     expect(r.avisos).toContain('o termo diz fim em 30/09/2026 e o controle do faturamento 31/10/2026')
+  })
+
+  it('controle e planilha do mesmo termo com fins diferentes: não grava e avisa; o termo igual ao controle desempata', () => {
+    const r = decidirLinha(base({ controle: controle('1.00', { fim: d(2027, 1, 18) }), planilha: planilha(null, { fim: d(2027, 2, 18) }) }))
+    expect(r.vigencia).toBeUndefined()
+    expect(r.avisos).toContain('o controle do faturamento diz fim em 18/01/2027 e a planilha de contratos 18/02/2027')
+    const comTermo = decidirLinha(base({ fichaFim: d(2027, 1, 18), controle: controle('1.00', { fim: d(2027, 1, 18) }), planilha: planilha(null, { fim: d(2027, 2, 18) }) }))
+    expect(comTermo.vigencia).toMatchObject({ dado: { inicio: null, fim: d(2027, 1, 18) }, origem: 'CONTROLE+TERMO' })
   })
 
   it('sem controle, a planilha do mesmo termo preenche', () => {

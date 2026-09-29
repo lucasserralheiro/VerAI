@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from '@prisma/client'
 import { dataBr, valorBr } from '@/lib/controles-contratos/leitura'
 import { nomeDoMes } from '@/lib/controles-contratos/tipos'
 import { formatarData, formatarMoeda } from '@/lib/relatorios-clientes/formatacao'
+import { vigenciaEfetiva } from '@/lib/relatorios-clientes/regras'
 import { chaveNumerica } from '@/lib/relatorios-clientes/vincular-itens'
 import { numeroDoValor } from './categoria'
 import { decidirLinha, type EntradaLinha, type Gravacao } from './decidir'
@@ -70,9 +71,12 @@ function linhaDoTermoDoControle<L extends { id: string; dataVencimento: Date | n
   return peloFim.length === 1 ? peloFim[0] : undefined
 }
 
-export async function aplicarValoresProvados(prisma: PrismaClient, opcoes: { aplicar: boolean }): Promise<ResumoValores> {
-  const [contratos, historico, fichas, planilha, controles] = await Promise.all([
-    prisma.contrato.findMany({ select: { id: true, chaveSharepoint: true, numeroTermo: true, cliente: { select: { siglaLegado: true, nome: true } } } }),
+export async function aplicarValoresProvados(prisma: PrismaClient, opcoes: { aplicar: boolean; hoje?: Date }): Promise<ResumoValores> {
+  const hoje = opcoes.hoje ?? new Date()
+  const [contratos, historico, fichas, planilha, controles, meses] = await Promise.all([
+    prisma.contrato.findMany({
+      select: { id: true, chaveSharepoint: true, numeroTermo: true, dataVencimento: true, cliente: { select: { siglaLegado: true, nome: true } } },
+    }),
     prisma.historicoContrato.findMany({
       select: { id: true, contratoId: true, tipo: true, numero: true, valor: true, data: true, dataInicio: true, dataVencimento: true, situacao: true, createdAt: true },
     }),
@@ -85,6 +89,8 @@ export async function aplicarValoresProvados(prisma: PrismaClient, opcoes: { apl
       orderBy: [{ mesAno: 'desc' }, { mesMes: 'desc' }],
       select: { contratoId: true, termoTexto: true, previstoTotal: true, vigenciaInicio: true, vigenciaFim: true, mesAno: true, mesMes: true, arquivoId: true },
     }),
+    // Todo controle, lido ou não: o arquivo do mês existir já diz que o faturamento cobra o contrato.
+    prisma.controleContrato.findMany({ where: { contratoId: { not: null } }, select: { contratoId: true, mesAno: true, mesMes: true } }),
   ])
 
   const fichaTermo = new Map<string, Record<string, { valor?: string; trecho?: string | null; pagina?: number | null }>>()
@@ -94,6 +100,14 @@ export async function aplicarValoresProvados(prisma: PrismaClient, opcoes: { apl
   for (const p of planilha) if (p.chave) planilhaPorChave.set(p.chave, [...(planilhaPorChave.get(p.chave) ?? []), p])
   const controleVigente = new Map<string, (typeof controles)[number]>()
   for (const c of controles) if (!controleVigente.has(c.contratoId!)) controleVigente.set(c.contratoId!, c)
+  // Controlado "agora" = controle no último mês que a pasta do faturamento tem, ou no anterior.
+  const indice = (m: { mesAno: number; mesMes: number }) => m.mesAno * 12 + m.mesMes
+  const ultimoMes = Math.max(0, ...meses.map(indice))
+  const controleRecente = new Map<string, string>()
+  for (const m of meses) {
+    if (indice(m) < ultimoMes - 1 || controleRecente.has(m.contratoId!)) continue
+    controleRecente.set(m.contratoId!, `${m.mesAno}-${String(m.mesMes).padStart(2, '0')}`)
+  }
   const linhasDo = new Map<string, typeof historico>()
   for (const h of historico) linhasDo.set(h.contratoId, [...(linhasDo.get(h.contratoId) ?? []), h])
 
@@ -125,7 +139,7 @@ export async function aplicarValoresProvados(prisma: PrismaClient, opcoes: { apl
     const quando = (h: (typeof linhas)[number]) => (h.data ?? h.dataInicio ?? h.createdAt).getTime()
     const ordenadas = [...linhas].sort((a, b) => quando(a) - quando(b))
 
-    for (const h of ordenadas) {
+    const decididas = ordenadas.map((h) => {
       r.linhas++
       const termoH = termoDaLinha(h)
       const termo = fichaTermo.get(h.id)
@@ -160,9 +174,40 @@ export async function aplicarValoresProvados(prisma: PrismaClient, opcoes: { apl
         anterior: antes ? texto(antes.valor) : null,
       }
       const decisao = decidirLinha(entrada)
-      const rotuloLinha = h.numero ?? h.tipo
-      for (const aviso of decisao.avisos) r.avisos.push({ contrato: rotuloContrato, linha: rotuloLinha, aviso })
+      for (const aviso of decisao.avisos) r.avisos.push({ contrato: rotuloContrato, linha: h.numero ?? h.tipo, aviso })
+      return { h, decisao }
+    })
 
+    // Guarda do efeito: preencher o fim de uma linha antiga quando o termo mais novo está sem fim ENCERRA o
+    // contrato (vigência efetiva no passado). Só vale se nada indica que ele continua — o faturamento ainda o
+    // controla ou a planilha tem termo vigente; senão, nenhuma vigência do contrato é gravada nesta passada.
+    const todas = linhasDo.get(c.id) ?? []
+    const fimAntes = vigenciaEfetiva(c.dataVencimento, todas)
+    const fimDepois = vigenciaEfetiva(
+      c.dataVencimento,
+      todas.map((h) => {
+        const d = decididas.find((x) => x.h.id === h.id)?.decisao
+        return { ...h, dataVencimento: d?.vigencia?.dado.fim ?? h.dataVencimento, situacao: d?.assinatura?.dado ?? h.situacao }
+      })
+    )
+    if (!fimAntes && fimDepois && fimDepois.getTime() < hoje.getTime() && decididas.some((x) => x.decisao.vigencia)) {
+      const recente = controleRecente.get(c.id)
+      const vigenteNaPlanilha = (chave ? (planilhaPorChave.get(chave) ?? []) : []).map((p) => p.fim).filter((f): f is Date => !!f && f.getTime() >= hoje.getTime())
+      if (recente || vigenteNaPlanilha.length > 0) {
+        for (const x of decididas) delete x.decisao.vigencia
+        const porque = recente
+          ? `o faturamento ainda o controla (${nomeDoMes(recente)})`
+          : `a planilha de contratos tem termo até ${formatarData(new Date(Math.max(...vigenteNaPlanilha.map((f) => f.getTime()))).toISOString())}`
+        r.avisos.push({
+          contrato: rotuloContrato,
+          linha: 'contrato',
+          aviso: `vigência não gravada: o contrato ficaria encerrado em ${formatarData(fimDepois.toISOString())}, mas ${porque} — falta o fim do termo mais novo no histórico`,
+        })
+      }
+    }
+
+    for (const { h, decisao } of decididas) {
+      const rotuloLinha = h.numero ?? h.tipo
       const registrar = async (campo: 'valor' | 'vigencia' | 'assinatura', g: Gravacao<unknown>, mostrar: string, onde: Prisma.HistoricoContratoWhereInput, dados: Prisma.HistoricoContratoUpdateManyMutationInput) => {
         if (opcoes.aplicar) {
           const { count } = await prisma.historicoContrato.updateMany({ where: { id: h.id, ...onde }, data: dados })

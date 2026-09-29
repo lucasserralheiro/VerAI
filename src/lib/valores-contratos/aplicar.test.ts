@@ -14,18 +14,18 @@ function prismaFake() {
     { id: 'h2', contratoId: 'k1', tipo: 'PRORROGACAO', numero: 'TA 02', valor: null, data: null, dataInicio: null, dataVencimento: null, situacao: null, createdAt: d(2026, 9, 2) },
   ]
   return {
-    contrato: { findMany: jest.fn(async () => [{ id: 'k1', chaveSharepoint: 'SMDHC|68 2020', numeroTermo: 'TC 68/SMDHC/2020', cliente: { siglaLegado: 'SMDHC', nome: 'Direitos Humanos' } }]) },
+    contrato: { findMany: jest.fn(async (): Promise<any[]> => [{ id: 'k1', chaveSharepoint: 'SMDHC|68 2020', numeroTermo: 'TC 68/SMDHC/2020', cliente: { siglaLegado: 'SMDHC', nome: 'Direitos Humanos' } }]) },
     historicoContrato: { findMany: jest.fn(async () => historico), updateMany: jest.fn(async () => ({ count: 1 })) },
     fichaDocumento: {
-      findMany: jest.fn(async () => [{ origem: 'HISTORICO_TERMO', origemId: 'h2', campos: { valorTotal: { valor: 'R$ 3.151.984,05', trecho: TRECHO, pagina: 2 } } }]),
+      findMany: jest.fn(async (): Promise<any[]> => [{ origem: 'HISTORICO_TERMO', origemId: 'h2', campos: { valorTotal: { valor: 'R$ 3.151.984,05', trecho: TRECHO, pagina: 2 } } }]),
     },
     linhaPlanilhaContratos: {
-      findMany: jest.fn(async () => [
+      findMany: jest.fn(async (): Promise<any[]> => [
         { linha: 245, chave: 'SMDHC|68 2020', termoTexto: 'TA 02', termoNumero: 2, tipoTermo: 'Prorrogação', valor: { toString: () => '3151984.05' }, inicio: d(2025, 11, 1), fim: d(2026, 10, 31), statusFormalizacao: 'CONTRATAÇÃO CONCLUÍDA' },
       ]),
     },
     controleContrato: {
-      findMany: jest.fn(async () => [
+      findMany: jest.fn(async (): Promise<any[]> => [
         { contratoId: 'k1', termoTexto: 'T.A. 02', previstoTotal: { toString: () => '3151984.05' }, vigenciaInicio: d(2025, 11, 1), vigenciaFim: d(2026, 10, 31), mesAno: 2026, mesMes: 8, arquivoId: 'ab1' },
       ]),
     },
@@ -129,5 +129,43 @@ it('controle que não casa com nenhuma linha vira aviso', async () => {
     contrato: 'SMDHC TC 68/SMDHC/2020',
     linha: 'T.A. 02',
     aviso: 'o controle do faturamento de ago/2026 fala do T.A. 02 (fim 31/10/2026) e nenhuma linha do histórico confere',
+  })
+})
+
+describe('guarda: preencher linha antiga não encerra contrato que continua', () => {
+  // Contrato sem fim nenhum; a planilha dá o fim do contrato inicial (2021) e o termo mais novo (TA 05,
+  // assinado) está sem fim. Gravar só o de 2021 encerraria o contrato.
+  function cenario(prisma: ReturnType<typeof prismaFake>, controle: boolean) {
+    prisma.historicoContrato.findMany.mockResolvedValue([
+      { id: 'h0', contratoId: 'k1', tipo: 'CONTRATO', numero: 'TC 68/SMDHC/2020', valor: null, data: new Date(Date.UTC(2020, 10, 1)), dataInicio: null, dataVencimento: null, situacao: null, createdAt: new Date(Date.UTC(2026, 8, 1)) },
+      { id: 'h5', contratoId: 'k1', tipo: 'PRORROGACAO', numero: 'TA 05', valor: null, data: new Date(Date.UTC(2025, 10, 1)), dataInicio: null, dataVencimento: null, situacao: null, createdAt: new Date(Date.UTC(2026, 8, 2)) },
+    ])
+    prisma.fichaDocumento.findMany.mockResolvedValue([])
+    prisma.linhaPlanilhaContratos.findMany.mockResolvedValue([
+      { linha: 10, chave: 'SMDHC|68 2020', termoTexto: null, termoNumero: 0, tipoTermo: 'Contrato inicial', valor: null, inicio: new Date(Date.UTC(2020, 10, 1)), fim: new Date(Date.UTC(2021, 9, 31)), statusFormalizacao: 'CONTRATAÇÃO CONCLUÍDA' },
+    ])
+    prisma.controleContrato.findMany.mockResolvedValue(
+      controle ? [{ contratoId: 'k1', termoTexto: 'T.A. 09', previstoTotal: null, vigenciaInicio: null, vigenciaFim: null, mesAno: 2026, mesMes: 8, arquivoId: 'ab1' }] : []
+    )
+  }
+  const hoje = new Date(Date.UTC(2026, 8, 29))
+
+  it('o faturamento ainda controla o contrato: não grava vigência nenhuma e avisa', async () => {
+    const prisma = prismaFake()
+    cenario(prisma, true)
+    const r = await aplicarValoresProvados(prisma as any, { aplicar: false, hoje })
+    expect(r.gravacoes.filter((g) => g.campo === 'vigencia')).toEqual([])
+    expect(r.avisos).toContainEqual({
+      contrato: 'SMDHC TC 68/SMDHC/2020',
+      linha: 'contrato',
+      aviso: 'vigência não gravada: o contrato ficaria encerrado em 31/10/2021, mas o faturamento ainda o controla (ago/2026) — falta o fim do termo mais novo no histórico',
+    })
+  })
+
+  it('nada indica que continua: grava (o contrato se encerra de verdade)', async () => {
+    const prisma = prismaFake()
+    cenario(prisma, false)
+    const r = await aplicarValoresProvados(prisma as any, { aplicar: false, hoje })
+    expect(r.gravacoes).toContainEqual(expect.objectContaining({ linha: 'TC 68/SMDHC/2020', campo: 'vigencia', origem: 'PLANILHA' }))
   })
 })

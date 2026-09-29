@@ -184,6 +184,11 @@ linhas não contam; 152 têm o PDF do termo, 99 escaneados.
   `valor`, `inicio`, `fim`, `seiProdam`, `seiCliente`, `statusFormalizacao`, `protheus`, `lidaEm`.
   A planilha é a fonte da carga e da régua.
 - Migração escrita à mão (nunca `migrate diff` com o banco de dev de shadow).
+- **Ordem obrigatória por causa do agendador**: ele roda o código desta pasta contra produção a cada 30
+  min e usa `HistoricoContrato` (importador). Coluna nova no model entra no cliente do Prisma no
+  `prisma generate`, e toda consulta sem `select` passa a pedir a coluna — em produção, sem a migração,
+  a sincronização quebraria. Então: **a migração (colunas novas, todas opcionais) sobe em produção
+  antes** de gerar o cliente novo nesta pasta. Coluna opcional a mais não afeta o site no deploy antigo.
 
 ### 6.2 Código
 

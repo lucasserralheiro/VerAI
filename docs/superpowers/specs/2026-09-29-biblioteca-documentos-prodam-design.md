@@ -92,17 +92,26 @@ A área sai do primeiro nível do caminho (`areaDoCaminho()`, regra pura, tolera
 | PLANILHA DE CONTRATOS… | `PLANILHA_CONTRATOS` | spec do valor e vigência (carga da planilha) |
 | outra | `OUTRO` | nenhum — só guarda |
 
-Contrato de um leitor: `ler(arquivo, conteudo) → { status: 'ok' | 'parcial' | 'erro', avisos }`, gravando
-os próprios dados. É **idempotente por `sha256`**: o mesmo conteúdo lido duas vezes dá o mesmo
-resultado. Erro num arquivo não para os outros e fica em `leituraStatus`/`leituraMensagem`. Mudou a regra
-de um leitor → `--reler=<area>` relê só aquela área.
+Contrato de um leitor: é chamado **uma vez por área** quando algum arquivo dela entrou, mudou ou saiu,
+com `{ todos, mudados, ler }` — todos os arquivos ativos da área, os ids dos que mudaram e a leitura do
+conteúdo. Por área, e não por arquivo, porque a tabela de preços precisa do conjunto (planilha + PDF +
+informativo da mesma versão). Grava os próprios dados e devolve a linha do log. É **idempotente**: o
+mesmo conteúdo lido duas vezes dá o mesmo resultado. Erro num arquivo não para os outros e fica em
+`leituraStatus`/`leituraMensagem`. Mudou a regra de um leitor → `--reler=<area>` relê só aquela área.
 
 ### 5.4 Data na tela
 
-`AtualizacaoSharepoint` ganha `biblioteca` (`CONTRATOS_RECEITA` para o que já existe,
-`DOCUMENTOS` para esta). A regra de "passada completa" (spec `2026-09-28-sharepoint-atualizado-em`) vale
-para cada biblioteca separadamente. As três telas mostram "Atualizado em …" com o mesmo componente
-`<AtualizacaoSharepoint biblioteca="DOCUMENTOS" />` (laranja depois de 2 h).
+Tabela nova `AtualizacaoBiblioteca` (`biblioteca`, `iniciadaEm`, `concluidaEm`, `arquivos`), com a mesma
+regra de "passada completa" da ContratosReceita (spec `2026-09-28-sharepoint-atualizado-em`): aplicar,
+conferência sem divergência, sem remoção suspensa, sem falha de arquivo. As três telas mostram
+"Atualizado em …" com o componente que já existe, apontado para `GET /api/biblioteca/atualizacao`
+(laranja depois de 2 h).
+
+**Por que tabela nova e não uma coluna em `AtualizacaoSharepoint`:** o agendador roda o código da pasta
+contra produção. Coluna nova num model que ele já usa entra no cliente do Prisma assim que alguém roda
+`prisma generate`, e a consulta dele passa a pedir uma coluna que o banco de produção ainda não tem — a
+data das telas pararia de atualizar até a migração subir. Tabela nova não afeta consulta nenhuma que já
+existe. **Regra para esta base: só tabelas novas.**
 
 ## 6. Banco
 
@@ -113,7 +122,7 @@ para cada biblioteca separadamente. As três telas mostram "Atualizado em …" c
 - **Não é `ArquivoCliente`**: esses arquivos não são de um cliente (preço e calendário são de todos; o
   relatório de links pertence a um contrato, e isso fica no dado lido, não no arquivo). A regra "arquivo
   de cliente existe num lugar só" continua valendo para os arquivos de cliente.
-- `AtualizacaoSharepoint.biblioteca` (§5.4).
+- `AtualizacaoBiblioteca` (§5.4).
 - Migração escrita à mão (nunca `migrate diff` com o banco de dev como shadow).
 
 ## 7. Entrega do arquivo
@@ -121,7 +130,8 @@ para cada biblioteca separadamente. As três telas mostram "Atualizado em …" c
 `GET /api/biblioteca/[id]` — lê do R2 e devolve com `Content-Disposition: inline`. A chave do R2 nunca vai
 ao navegador (mesma regra de `urlBlob`). Permissão por área: `TABELA_PRECOS` e `CALENDARIO` para
 qualquer usuário logado; `LINKS_MPLS` pelo cliente do contrato do relatório (`verificarAcessoCliente`),
-sem contrato identificado só admin; `PLANILHA_CONTRATOS` e `OUTRO`, só admin.
+sem contrato identificado só admin — **até a entrega dos links, só admin**, porque o contrato ainda não
+foi lido; `PLANILHA_CONTRATOS` e `OUTRO`, só admin.
 
 ## 8. Padrão de tela (vale para as três)
 

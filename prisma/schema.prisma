@@ -803,6 +803,52 @@ model ItemTabelaPrecos {
   @@unique([tabelaId, codigo])
 }
 
+// Controle do faturamento por contrato (spec docs/superpowers/specs/2026-09-29-controles-de-contratos-design.md):
+// um por PDF de "FATURAMENTO SERVIÇOS PRODAM/Controles de Contratos/<MM.AAAA>/". O vigente de um contrato é o
+// do mês mais recente. Totais só valem com a prova "soma das linhas = TOTAL" (…Conferido).
+model ControleContrato {
+  id                String                  @id @default(cuid())
+  arquivoId         String                  @unique
+  // sha256 do arquivo lido: releitura só quando o conteúdo muda.
+  sha256            String
+  mesAno            Int
+  mesMes            Int
+  sigla             String
+  contratoTexto     String?
+  contratoId        String?
+  clienteId         String?
+  termoTexto        String?
+  vigenciaTexto     String?
+  vigenciaInicio    DateTime?
+  vigenciaFim       DateTime?
+  previstoTotal     Decimal?                @db.Decimal(14, 2)
+  faturadoTotal     Decimal?                @db.Decimal(14, 2)
+  saldoTotal        Decimal?                @db.Decimal(14, 2)
+  previstoConferido Boolean                 @default(false)
+  faturadoConferido Boolean                 @default(false)
+  avisos            Json
+  lidoEm            DateTime
+  linhas            ControleContratoLinha[]
+
+  @@index([contratoId, mesAno, mesMes])
+  @@index([mesAno, mesMes])
+}
+
+model ControleContratoLinha {
+  id         String           @id @default(cuid())
+  controleId String
+  controle   ControleContrato @relation(fields: [controleId], references: [id], onDelete: Cascade)
+  // previsto | faturado | saldo
+  tipo       String
+  posicao    Int
+  rotulo     String
+  inicio     DateTime?
+  fim        DateTime?
+  valor      Decimal          @db.Decimal(14, 2)
+
+  @@index([controleId])
+}
+
 model AcessoArquivo {
   id        String         @id @default(cuid())
   arquivoId String

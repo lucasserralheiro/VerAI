@@ -60,7 +60,7 @@ const agora = () => new Date('2026-09-29T13:00:00Z')
 
 it('grava a versão com os itens conferidos e devolve a linha do log', async () => {
   const prisma = prismaFake()
-  const linha = await criarLeitorDaTabela({ lerPlanilha, textoDoPdf, agora })({ prisma: prisma as any, todos: PASTA, mudados: ['p'], ler })
+  const linha = await criarLeitorDaTabela({ lerPlanilha, textoDoPdf, agora })({ prisma: prisma as any, todos: PASTA, mudados: ['p'], releitura: false, ler })
   expect(linha).toBe('tabela de preços 2026 v3.0: 2 serviços · conferem 1 · alterados pelo informativo 1 · fora do PDF 0 · divergem 0')
   expect(prisma.tx.tabelaPrecos.upsert).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -92,7 +92,7 @@ it('grava a versão com os itens conferidos e devolve a linha do log', async () 
 
 it('sem planilha na pasta: avisa e não grava', async () => {
   const prisma = prismaFake()
-  const linha = await criarLeitorDaTabela({ lerPlanilha, textoDoPdf, agora })({ prisma: prisma as any, todos: PASTA.slice(1), mudados: [], ler })
+  const linha = await criarLeitorDaTabela({ lerPlanilha, textoDoPdf, agora })({ prisma: prisma as any, todos: PASTA.slice(1), mudados: [], releitura: false, ler })
   expect(linha).toBe('tabela de preços: nenhuma "Memória de Cálculo <ano> v<n>.xlsx" na pasta — nada lido')
   expect(prisma.$transaction).not.toHaveBeenCalled()
 })
@@ -103,6 +103,7 @@ it('planilha ilegível: marca o arquivo com erro e a versão anterior continua v
     prisma: prisma as any,
     todos: PASTA,
     mudados: ['p'],
+    releitura: false,
     ler,
   })
   expect(linha).toBe('tabela de preços 2026 v3.0: planilha não lida — sem cabeçalho')

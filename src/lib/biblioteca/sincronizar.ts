@@ -87,6 +87,12 @@ export async function sincronizarBiblioteca(prisma: PrismaClient, opcoes: Opcoes
     if (ativo && ativo.tamanhoBytes === a.tamanhoBytes && ativo.modificadoEm.getTime() === a.modificadoEm.getTime()) {
       r.iguais++
       iguais.push(ativo.id)
+      const areaAgora = areaDoCaminho(a.caminho)
+      if (aplicar && ativo.area !== areaAgora) {
+        // A regra de área mudou (ex.: Controles de Contratos saiu de Links MPLS): corrige e chama o leitor novo.
+        await prisma.arquivoBiblioteca.update({ where: { id: ativo.id }, data: { area: areaAgora } })
+        tocadas.add(areaAgora)
+      }
       continue
     }
     if (!aplicar) {
@@ -161,7 +167,7 @@ export async function sincronizarBiblioteca(prisma: PrismaClient, opcoes: Opcoes
         where: { biblioteca: BIBLIOTECA_DOCUMENTOS, area, removidoNaOrigemEm: null },
         select: { id: true, caminho: true, nome: true, extensao: true, sha256: true, modificadoEm: true },
       })
-      r.leituras.push(await leitor({ prisma, todos, mudados, ler: (arquivo) => fonte.ler(arquivo.caminho) }))
+      r.leituras.push(await leitor({ prisma, todos, mudados, releitura: relerAreas.includes(area), ler: (arquivo) => fonte.ler(arquivo.caminho) }))
     } catch (erro) {
       r.leituras.push(`${area}: leitura falhou — ${mensagem(erro)}`)
     }

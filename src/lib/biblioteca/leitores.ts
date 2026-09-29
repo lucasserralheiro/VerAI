@@ -19,6 +19,8 @@ export interface EntradaLeitor {
   todos: ArquivoDaArea[]
   /** Ids dos arquivos que entraram ou mudaram nesta passada (de qualquer área). */
   mudados: string[]
+  /** Releitura pedida (--reler): o leitor relê tudo, não só o que mudou. */
+  releitura: boolean
   ler(arquivo: ArquivoDaArea): Promise<Buffer>
 }
 

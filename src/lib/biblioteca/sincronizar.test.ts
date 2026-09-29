@@ -171,6 +171,24 @@ it('--reler: o leitor roda mesmo sem nada mudado', async () => {
   expect(leitor).toHaveBeenCalledWith(expect.objectContaining({ mudados: [] }))
 })
 
+it('regra de área mudou: corrige a área do arquivo já registrado e o leitor da área nova roda', async () => {
+  const CONTROLE = 'FATURAMENTO SERVIÇOS PRODAM/Controles de Contratos/08.2026/CGM - CO-16-CGM-2024 - 2026.08.pdf'
+  const conteudo = Buffer.from('c')
+  const prisma = prismaFake([registrado(CONTROLE, conteudo, { area: 'LINKS_MPLS' })])
+  const leitor = jest.fn(async () => 'controles: 1')
+  await rodar(prisma, { aplicar: true, fonte: fonte({ [CONTROLE]: conteudo }), leitores: { CONTROLES_CONTRATOS: leitor } })
+  expect(prisma.linhas[0].area).toBe('CONTROLES_CONTRATOS')
+  expect(leitor).toHaveBeenCalledWith(expect.objectContaining({ releitura: false }))
+})
+
+it('--reler avisa o leitor que é releitura', async () => {
+  const conteudo = Buffer.from('igual')
+  const prisma = prismaFake([registrado(TABELA, conteudo)])
+  const leitor = jest.fn(async () => 'relido')
+  await rodar(prisma, { aplicar: true, fonte: fonte({ [TABELA]: conteudo }), leitores: { TABELA_PRECOS: leitor }, relerAreas: ['TABELA_PRECOS'] })
+  expect(leitor).toHaveBeenCalledWith(expect.objectContaining({ releitura: true }))
+})
+
 it('arquivo temporário do Office e desktop.ini ficam de fora', async () => {
   const prisma = prismaFake()
   const r = await rodar(prisma, {

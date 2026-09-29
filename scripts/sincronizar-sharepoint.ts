@@ -8,7 +8,9 @@
  *
  * Opções: --pasta="C:\...\rede.sp - ContratosReceita" (padrão: ~/rede.sp/rede.sp - ContratosReceita ou
  * SHAREPOINT_PASTA), --clientes=SMS,SGM (só esses — listagem e remoção), --reler-tudo (reprocessa todos
- * os contratos). Configuração: scripts/sharepoint-clientes.json. Os arquivos vão para o Cloudflare R2
+ * os contratos), --pasta-documentos="C:\...\rede.sp - Documentos" (padrão: ~/rede.sp/rede.sp - Documentos ou
+ * SHAREPOINT_PASTA_DOCUMENTOS), --sem-documentos (pula a biblioteca Documentos), --reler=TABELA_PRECOS (relê
+ * a área da biblioteca Documentos mesmo sem mudança). Configuração: scripts/sharepoint-clientes.json. Os arquivos vão para o Cloudflare R2
  * (variáveis R2_* no .env.local — spec §11). Antes da primeira vez: scripts/migrar-sharepoint-lugar-certo.ts.
  * Idempotente; o agendador roda scripts/sincronizar-sharepoint.bat. Com --aplicar, a passada completa grava
  * a data que as telas mostram ("Documentos do SharePoint atualizados em …") e termina indexando para o
@@ -20,7 +22,9 @@ import path from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import { config } from 'dotenv'
 import { registrarAtualizacao } from '../src/lib/arquivos/sharepoint/atualizacao'
-import { fonteDaPasta, pastaPadraoDaBiblioteca } from '../src/lib/arquivos/sharepoint/fonte-pasta'
+import { fonteDaPasta, pastaPadraoDaBiblioteca, pastaPadraoDosDocumentos } from '../src/lib/arquivos/sharepoint/fonte-pasta'
+import { AREAS_BIBLIOTECA, ehArea } from '../src/lib/biblioteca/areas'
+import { etapaDaBiblioteca } from '../src/lib/biblioteca/etapa'
 import { sincronizarSharepoint } from '../src/lib/arquivos/sharepoint/sincronizar'
 import { atualizarFichasDoAssistente, atualizarIndiceDoAssistente } from '../src/lib/assistente/indexacao/apos-sincronizacao'
 import { ROTULO_ACHADO } from '../src/lib/importacao-sharepoint/auditoria'
@@ -129,6 +133,20 @@ async function main() {
 
     // Data que as telas mostram (spec 2026-09-28-sharepoint-atualizado-em). Não muda o código de saída.
     if (aplicar) console.log(`\n${await registrarAtualizacao(prisma, r, { aplicar, clientes, iniciadaEm: new Date(inicio) })}`)
+
+    // Biblioteca "Documentos" — tabela de preços, links, calendário, planilha de contratos (spec
+    // 2026-09-29-biblioteca-documentos-prodam). Pulada com --clientes (teste parcial) e --sem-documentos.
+    if (!clientes && !process.argv.includes('--sem-documentos')) {
+      const relerAreas = argumento('reler')?.split(',').map((s) => s.trim().toUpperCase()).filter(ehArea)
+      if (argumento('reler') && !relerAreas?.length) throw new Error(`--reler aceita: ${AREAS_BIBLIOTECA.join(', ')}`)
+      const documentos = await etapaDaBiblioteca(prisma, {
+        aplicar,
+        raiz: argumento('pasta-documentos') ?? pastaPadraoDosDocumentos(),
+        relerAreas,
+      })
+      console.log(`\n${documentos.linhas.join('\n')}`)
+      if (documentos.problema && !process.exitCode) process.exitCode = 2
+    }
 
     if (aplicar) {
       // Índice do assistente (spec 2026-09-25-assistente-base-economica §7). Não muda o código de saída.

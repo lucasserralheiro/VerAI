@@ -8,6 +8,11 @@ export function pastaPadraoDaBiblioteca(): string {
   return process.env.SHAREPOINT_PASTA ?? path.join(homedir(), 'rede.sp', 'rede.sp - ContratosReceita')
 }
 
+/** Onde o OneDrive sincroniza a biblioteca "Documentos" (tabela de preços, links, calendário, planilha). */
+export function pastaPadraoDosDocumentos(): string {
+  return process.env.SHAREPOINT_PASTA_DOCUMENTOS ?? path.join(homedir(), 'rede.sp', 'rede.sp - Documentos')
+}
+
 /** A biblioteca lida da pasta local. Caminho relativo à raiz, com `/`. */
 export function fonteDaPasta(raiz: string): FonteArquivos {
   return {

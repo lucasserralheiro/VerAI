@@ -288,8 +288,31 @@ vale com a prova **soma das linhas = TOTAL**; o que não fecha fica "leitura nã
 número. Contrato pela chave `SIGLA|nº ano` do nome do arquivo (ano de 2 dígitos vira 4) ou do cabeçalho,
 só quando é único. Planilha feita à mão: erro de digitação do próprio documento vira aviso, nunca correção.
 **Régua**: `npx tsx scripts/regua-controles.ts` antes e depois de mexer na leitura (29/09: 219 de 269 com
-as duas tabelas conferidas). O controle fica **ao lado** do saldo do VerAI — usá-lo como fonte do
-valor/vigência do cadastro é do spec `2026-09-29-valor-vigencia-contratos-design.md`.
+as duas tabelas conferidas). O controle fica **ao lado** do saldo do VerAI; como prova do valor/vigência
+do cadastro, ver a seção abaixo.
+
+**Valor, vigência e assinatura com prova** (spec `2026-09-29-valor-vigencia-contratos-design.md`, o §0
+prevalece): etapa `etapaDosValores` no fim do agendador (depois das fichas e da biblioteca; guarda
+`MIGRACAO_DOS_VALORES`, nunca muda o código de saída). Fontes: ficha do termo (valor + trecho literal), planilha
+"Contratos Receita" (`LinhaPlanilhaContratos`, área `PLANILHA_CONTRATOS`), controle do faturamento. Regras em
+`src/lib/valores-contratos/` (`decidir.ts` é pura, `aplicar.ts` junta as fontes):
+- **Só campo vazio** (condição no `where` do update) e **só com prova**: valor do termo com categoria aceita
+  + uma segunda prova (extenso, planilha, controle, proposta, termo anterior), ou planilha = controle quando o
+  termo não tem leitura. Contradição (extenso, planilha × termo, controle × planilha, fim do termo diferente)
+  **não grava** — vira aviso. Vigência fora de 30 dias–10 anos não grava.
+- **Casamento termo × planilha × controle** pela identidade espécie + nº (`termoDoTexto`: `TA2`, `TAP3`,
+  contrato `TC0`), **única dos dois lados** — linha duplicada no histórico não recebe nada. Controle com
+  numeração do órgão diferente casa pela única linha com o mesmo fim. O início da vigência do controle é o do
+  contrato inteiro: dele só vale o fim.
+- **Guarda do efeito**: gravar o fim de linha antiga com o termo mais novo sem fim encerraria o contrato; se o
+  faturamento ainda o controla (último mês da pasta ou o anterior) ou a planilha tem termo vigente, nenhuma
+  vigência do contrato é gravada e sai aviso.
+- Origem em `OrigemCampoHistorico` (tabela nova, nada de coluna em `HistoricoContrato`), mostrada como escudo
+  verde no histórico do contrato (`GET /api/contratos/[id]/origens`). Linha assinada sem data ordena pelo
+  início da vigência (`resumirHistorico`).
+- **Régua**: `npx dotenv -e .env.development -- npx tsx scripts/valores-contratos.ts [--detalhe]` (simula; com
+  `--aplicar` grava) antes e depois de mexer em qualquer regra — compare gravações e avisos por tipo. Dev
+  29/09: ativos sem fim de vigência 63 → 18, ativos com valor 91 → 98 (de 104).
 
 ## Consistência de números e vínculos (varredura de 23/09/2026)
 

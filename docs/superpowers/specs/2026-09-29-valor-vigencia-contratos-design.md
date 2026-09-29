@@ -41,6 +41,23 @@ e apostilamento posteriores). Então:
    do período pelo faturamento; a tela `PATCH` marcando `DIGITADO` (a gravação automática só preenche campo
    vazio, então o digitado já está protegido).
 
+### 0.1 Decisões da execução (29/09, noite) — vieram da simulação e da conferência no dev
+
+7. **Identidade do termo** = espécie + nº (`TA2`, `TAP3`, contrato `TC0`), e o casamento com planilha e
+   controle só vale quando ela é **única dos dois lados**: o histórico tem linhas duplicadas do mesmo termo
+   ("TA 001/2025" do legado e "TA 01" do SharePoint) e apostilamento com o mesmo nº de um TA.
+8. **Controle**: quando o órgão numera diferente ("TA 185-SVMA-2025" × "T.A. 02"), casa pela única linha com
+   o mesmo fim; linha do mesmo termo com fim diferente não é a dele. O **início** do controle é o do contrato
+   inteiro — do controle só vale o fim (o início vem da planilha quando ela confirma o fim). Controle que não
+   casa com linha nenhuma vira aviso.
+9. **Vigência**: controle × planilha com fins diferentes não grava (o termo igual ao controle desempata); fim
+   antes do início ou fora de 30 dias–10 anos não grava (com o fim confirmado pelo termo, prorrogação curta vale).
+10. **Guarda do efeito**: gravar o fim de uma linha antiga com o termo mais novo sem fim **encerraria** o
+    contrato. Se o faturamento ainda o controla (último mês da pasta ou o anterior) ou a planilha tem termo
+    vigente, nenhuma vigência do contrato é gravada e sai aviso "falta o fim do termo mais novo no histórico".
+11. **Valor atual**: linha assinada sem data de assinatura (assinatura provada pelo controle/planilha) é
+    ordenada pelo início da vigência em `resumirHistorico`.
+
 ## 1. Pedido
 
 O usuário quer os valores e os dados dos contratos preenchidos a partir do que já está no SharePoint,

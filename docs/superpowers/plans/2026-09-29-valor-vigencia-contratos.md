@@ -10,7 +10,25 @@
 
 ## Andamento
 
-- (preencher ao executar)
+- 29/09 — Tasks 1–7 feitas no dev (commits `d310c7a`, `791d642`, `7499487`, `f71912d`, `8bff07e`, `0daf8b9`,
+  `2191b0b` e o de documentação). Planilha: 1.377 linhas. Aplicado no dev, 2ª passada 0 gravações.
+- Antes × depois no dev (122 ativos antes): ativos **122 → 104** (contratos sem fim de vigência contavam como
+  ativos para sempre); ativos com valor **91 → 98** (94%); ativos sem fim de vigência **63 → 18**;
+  "prorrogação em andamento" 6 → 1. Gravados: 145 valores, 247 vigências, 110 assinaturas; 69 avisos.
+- Nenhum contrato encerrado pela passada tem controle do faturamento recente nem termo vigente na planilha
+  (conferido por script contra as duas fontes).
+- Conferência contra o PDF: SMUL 17/2024 TA 26 (R$ 30.660.256,30 ✔ — antes mostrava R$ 364 mil, o
+  acréscimo de um aditivo), SMSU 007/2022 TA 02 (R$ 1.109.945,28 ✔), SMUL 09/2023 TA 21 (R$ 1.033.472,00 ✔).
+  SVMA 62/2023 TA 185 (R$ 4.746.600, planilha = controle): termo escaneado, não conferível sem OCR; a PA
+  diz R$ 4.526.600 de "valor principal" (proposta costuma vir sem tributos).
+- Decisões da execução (não estavam no plano): identidade espécie + nº única dos dois lados (linha
+  duplicada "TA 001/2025" × "TA 01" e "TAP 1" × "TA 1"); controle casa pelo fim quando a numeração do órgão
+  difere (SVMA); início do controle não vale para o termo; vigência fora de 30 dias–10 anos; controle ×
+  planilha com fim diferente não grava; guarda contra encerrar contrato em uso; aviso quando o controle não
+  casa com nenhuma linha.
+- Produção: a etapa roda no agendador e fica **pulada** até a migração `20260929170000_valor_vigencia` subir
+  (visto no log das 19:30: "valores dos contratos: pulado"). Subir a migração = a próxima rodada grava em
+  produção. Falta: ver a tela logado (escudo no histórico) e o OK do usuário para produção.
 
 ## Global Constraints
 
@@ -19,7 +37,7 @@
 - **Só tabelas novas** (agendador contra produção com o cliente Prisma da pasta). Migração `20260929170000_valor_vigencia`; `MIGRACAO_DA_BIBLIOTECA` e `MIGRACAO_DOS_VALORES` apontam para ela. Conferência do SQL só com banco descartável.
 - **Nunca troca campo preenchido**: toda gravação é `updateMany` com a condição "campo ainda vazio".
 - Dinheiro: string decimal; comparação em centavos.
-- Linha ↔ termo: CONTRATO = termo nº 0; ADITIVO/PRORROGACAO = primeiro número do `numero` ("TA 02", "TA 002/2025" → 2). Casamento só quando único.
+- Linha ↔ termo: identidade espécie + nº (`termoDoTexto`: contrato `TC0`, "TA 02"/"TA 002/2025" → `TA2`, "TAP 003-2023" → `TAP3`). Casamento só quando único dos dois lados (revisto na execução — ver Andamento).
 
 ---
 
@@ -27,7 +45,7 @@
 
 **Files:** `prisma/schema.prisma`; `prisma/migrations/20260929170000_valor_vigencia/migration.sql`; `src/lib/biblioteca/etapa.ts` (`MIGRACAO_DA_BIBLIOTECA`).
 
-- [ ] Models:
+- [x] Models:
 
 ```prisma
 // Planilha "Contratos Receita" (biblioteca Documentos, área PLANILHA_CONTRATOS) — uma linha por termo, como
@@ -69,9 +87,9 @@ model OrigemCampoHistorico {
 }
 ```
 
-- [ ] SQL correspondente (CREATE TABLE + índices; sem FK). `prisma validate`; `migrate diff` contra `verai_shadow_valores` (descartável) → vazio; `migrate deploy` no dev; `generate`.
-- [ ] `MIGRACAO_DA_BIBLIOTECA = '20260929170000_valor_vigencia'` (o leitor da planilha grava na tabela nova).
-- [ ] `npx jest src/lib/biblioteca` → PASS. Commit `feat(valores): tabelas da planilha de contratos e da origem dos campos do histórico`.
+- [x] SQL correspondente (CREATE TABLE + índices; sem FK). `prisma validate`; `migrate diff` contra `verai_shadow_valores` (descartável) → vazio; `migrate deploy` no dev; `generate`.
+- [x] `MIGRACAO_DA_BIBLIOTECA = '20260929170000_valor_vigencia'` (o leitor da planilha grava na tabela nova).
+- [x] `npx jest src/lib/biblioteca` → PASS. Commit `feat(valores): tabelas da planilha de contratos e da origem dos campos do histórico`.
 
 ### Task 2: Leitor da planilha de contratos
 
@@ -83,7 +101,7 @@ Regras: aba achada pelo cabeçalho (`CLIENTE`, `CONTRATO`, `TERMO ADITIVO`, `TIP
 
 Testes (planilha mínima montada com exceljs): contrato inicial (termo 0, chave "SMTUR|1 2023"), aditivo "TA 01" (termo 1, valor numérico), valor em texto brasileiro, "Cliente Antes" ignorado, aba achada pelo cabeçalho, erro sem cabeçalho. Leitor: grava as linhas do arquivo (apaga as anteriores do mesmo arquivo), relê só arquivo novo/mudado ou em releitura, apaga linhas de arquivo que saiu; linha do log `planilha de contratos: <n> linhas de <m> arquivo(s)`.
 
-- [ ] TDD; `npx jest src/lib/planilha-contratos`; carga real: a planilha real tem de dar **1.377 linhas**. Commit `feat(valores): leitor da planilha de contratos na biblioteca Documentos`.
+- [x] TDD; `npx jest src/lib/planilha-contratos`; carga real: a planilha real tem de dar **1.377 linhas**. Commit `feat(valores): leitor da planilha de contratos na biblioteca Documentos`.
 
 ### Task 3: Regras puras — categoria, extenso e decisão
 
@@ -103,7 +121,7 @@ Regras (spec §0 e §5):
 
 Testes com trechos reais (da varredura): "VALOR TOTAL ESTIMADO DA SUPRESSÃO: R$ 72.032,85" → diferenca (não grava); "o valor do contrato passa para R$ 97.181,62 (noventa e quatro mil…)" → novo-total mas extenso diferente → aviso e não grava; "O valor mensal … perfazendo o valor total de R$ 2.881.634,64" → total; "VALOR INICIAL DO CONTRATO: R$ 169.348,90" em prorrogação → inicial; prorrogação "para o período ora prorrogado … é de R$ 3.151.984,05" + planilha igual → grava `TERMO+PLANILHA`; controle diferente → aviso; escaneado com planilha = controle → `PLANILHA+CONTROLE`; vigência pelo controle; vigência bloqueada por fim diferente na ficha; assinatura pelo controle e pela planilha; campo preenchido nunca é decidido.
 
-- [ ] TDD. Commit `feat(valores): categoria do valor, extenso e decisão por linha`.
+- [x] TDD. Commit `feat(valores): categoria do valor, extenso e decisão por linha`.
 
 ### Task 4: Aplicação, simulação e etapa no agendador
 
@@ -115,20 +133,20 @@ Coleta (poucas consultas): contratos (chave `chaveSharepoint` ou sigla + nº do 
 
 Script: sem `--aplicar` = simulação (lista o que gravaria e os avisos); `--detalhe` lista linha a linha.
 
-- [ ] TDD (fake do prisma como nos leitores); simulação no dev; registrar os números; aplicar no dev; rodar de novo → 0 gravações. Etapa no script do agendador (um Edit só) + guarda. Commit `feat(valores): aplicação com prova no agendador e simulação por script`.
+- [x] TDD (fake do prisma como nos leitores); simulação no dev; registrar os números; aplicar no dev; rodar de novo → 0 gravações. Etapa no script do agendador (um Edit só) + guarda. Commit `feat(valores): aplicação com prova no agendador e simulação por script`.
 
 ### Task 5: Ordem do "valor atual" sem data de assinatura
 
 **Files:** `src/lib/relatorios-clientes/resumo-historico.ts` + teste; `contratos-consolidados.ts` (select `dataInicio`).
 
-- [ ] `LinhaResumoHistorico` ganha `dataInicio?: Date | null`; `maisRecenteQue` usa `data ?? dataInicio`. Teste: prorrogação sem data mas com início 2026 vence o contrato datado de 2024. Commit `fix(contratos): linha sem data de assinatura ordena pelo início da vigência`.
+- [x] `LinhaResumoHistorico` ganha `dataInicio?: Date | null`; `maisRecenteQue` usa `data ?? dataInicio`. Teste: prorrogação sem data mas com início 2026 vence o contrato datado de 2024. Commit `fix(contratos): linha sem data de assinatura ordena pelo início da vigência`.
 
 ### Task 6: Origem na tela
 
 **Files:** `src/app/api/contratos/[id]/origens/route.ts` + teste; `src/lib/valores-contratos/texto-origem.ts` + teste; `src/app/clientes/[id]/contratos/[contratoId]/secao-historico.tsx` (marca ao lado do valor e do vencimento).
 
-- [ ] `GET /api/contratos/[id]/origens` (acesso pelo contrato) → `{ [historicoId]: { valor?, vigencia?, assinatura? } }`. `textoDaOrigem(campo, origem, prova)` → "Lido do termo (pág. 2); confere com o extenso e com o controle do faturamento de ago/2026". Marca: ícone `ShieldCheck` pequeno com `title` e `aria-label`. Commit `feat(valores): origem do valor e da vigência no histórico do contrato`.
+- [x] `GET /api/contratos/[id]/origens` (acesso pelo contrato) → `{ [historicoId]: { valor?, vigencia?, assinatura? } }`. `textoDaOrigem(campo, origem, prova)` → "Lido do termo (pág. 2); confere com o extenso e com o controle do faturamento de ago/2026". Marca: ícone `ShieldCheck` pequeno com `title` e `aria-label`. Commit `feat(valores): origem do valor e da vigência no histórico do contrato`.
 
 ### Task 7: Conferência e documentação
 
-- [ ] Suítes tocadas + `tsc`; antes × depois no dev (ativos, ativos com valor, ativos sem fim de vigência, linhas assinadas); 3 contratos conferidos à mão contra o PDF; CLAUDE.md; Andamento. Commit `docs(valores): CLAUDE.md e andamento do valor e vigência com prova`.
+- [x] Suítes tocadas + `tsc`; antes × depois no dev (ativos, ativos com valor, ativos sem fim de vigência, linhas assinadas); 3 contratos conferidos à mão contra o PDF; CLAUDE.md; Andamento. Commit `docs(valores): CLAUDE.md e andamento do valor e vigência com prova`.

@@ -199,7 +199,9 @@ linhas não contam; 152 têm o PDF do termo, 99 escaneados.
   este arquivo), grava `LinhaPlanilhaContratos` e guarda uma cópia do `.xlsx` no R2
   (`fontes/planilha-contratos-receita/<sha256>.xlsx`, 578 KB) — a prova de "veio da linha N" não
   depende do SharePoint. Idempotente por `sha256`. Por padrão lê
-  `~/rede.sp/rede.sp - Documentos/PLANILHA DE CONTRATOS DE RECEITA PRODAM/`.
+  `~/rede.sp/rede.sp - Documentos/PLANILHA DE CONTRATOS DE RECEITA PRODAM/`. Se a base da biblioteca
+  Documentos (`2026-09-29-biblioteca-documentos-prodam-design.md`) já estiver pronta, a planilha já está
+  registrada lá (área `PLANILHA_CONTRATOS`) e esta carga vira o leitor dessa área, sem cópia própria.
 - `scripts/sincronizar-sharepoint.ts` — com `--aplicar`, depois das fichas: `aplicarValoresProvados()`,
   com guarda pela própria migração (`MIGRACAO_DOS_VALORES`), como o índice e as fichas: o agendador
   roda o código da pasta contra produção. Não muda o código de saída.

@@ -8,9 +8,26 @@
 
 **Tech Stack:** Prisma 6/Postgres, Next.js 15, React 19, Jest + Testing Library, `unpdf`.
 
-## Andamento
+## Andamento (29/09/2026)
 
-- (preencher ao executar)
+- ✅ Tasks 1–7 no dev, direto na `main`. Commits: 1 `340f2d2` · 2 `4ffb519` · 3 `496bf5c` (com a régua) ·
+  4 `cc905da` · 5 `7bd1bf8` · 6 `c420ef5` · 7 e 8 em seguida. A partir da Task 5 os commits saem **sem**
+  `Co-Authored-By` (regra do usuário na memória, 29/09) — os anteriores ainda têm; a limpeza antes do push é
+  decisão do usuário (201 dos 202 commits locais têm a linha).
+- **Régua nos 269 PDFs reais**: vigência 259 · previsto fecha 244 · faturado fecha 237 · **as duas 219 (81%)** —
+  acima do protótipo (212). Ganho da Task 3: mês digitado errado no rótulo ("MAR/6", "FEV/265") e o intervalo
+  depois do mês ("NOV/25 - 01/11/2025 a 20/11/2025").
+- **Carga no dev** (script do agendador, `--aplicar`, 23 s): `controles de contratos: 269 lidos · previsto
+  conferido 244 · faturado conferido 237 · sem contrato no VerAI 12`; a correção de área (os 269 estavam como
+  LINKS_MPLS) chamou o leitor sozinha; a rodada seguinte não releu nada. Código 0.
+- Conferido à mão contra o PDF: CGM CO 16/2024 (T.A. 02, 15/10/2025 a 14/10/2026) — previsto 6.110.655,80,
+  faturado 5.049.644,59 (82,6%), saldo 1.061.011,21, último AGO/2026 — igual ao documento. ago/2026: 93
+  controles, 75 conferidos, 88 com contrato.
+- Sem contrato no VerAI (só admin vê): ICI ("C.O. S.N", sem número), SPURB × SPURBANISMO, SUB-GUAINAZES ×
+  SUB-GUAIANASES, SUB-ITAIM, SEGES 24/2025 (junho) — diferença de sigla/digitação; um mapa de siglas resolveria
+  (fica para depois).
+- Desvio: `nomeDoMes` foi para `src/lib/controles-contratos/tipos.ts` (a tela não importa de outra rota).
+- Falta: ver as telas logado; produção só com o ok do usuário (migrações `20260929100000` e `20260929140000`).
 
 ## Global Constraints
 

@@ -280,6 +280,17 @@ cabeçalho), cada preço conferido com o PDF oficial (`precosNoPdf`: primeiro va
 com o informativo de alterações; diferença nunca é resolvida em silêncio — a tela mostra os dois valores.
 Assistente: `consultarTabelaDePrecos`. Links MPLS e calendário de faturamento: specs próprios, ainda a fazer.
 
+**Controles de Contratos** (`/controle-faturamento` e o cartão "Controle do faturamento" no detalhe do
+contrato, spec `2026-09-29-controles-de-contratos-design.md`): PDF mensal por contrato da equipe do
+faturamento (`FATURAMENTO SERVIÇOS PRODAM/Controles de Contratos/<MM.AAAA>/`, área `CONTROLES_CONTRATOS`).
+Leitura por posição (`src/lib/controles-contratos/leitura.ts`) — cada tabela (previsto, faturado, saldo) só
+vale com a prova **soma das linhas = TOTAL**; o que não fecha fica "leitura não conferida", com o PDF, sem
+número. Contrato pela chave `SIGLA|nº ano` do nome do arquivo (ano de 2 dígitos vira 4) ou do cabeçalho,
+só quando é único. Planilha feita à mão: erro de digitação do próprio documento vira aviso, nunca correção.
+**Régua**: `npx tsx scripts/regua-controles.ts` antes e depois de mexer na leitura (29/09: 219 de 269 com
+as duas tabelas conferidas). O controle fica **ao lado** do saldo do VerAI — usá-lo como fonte do
+valor/vigência do cadastro é do spec `2026-09-29-valor-vigencia-contratos-design.md`.
+
 ## Consistência de números e vínculos (varredura de 23/09/2026)
 
 - **Uma regra só pra ler valor digitado**: `src/lib/relatorios-clientes/numero.ts`

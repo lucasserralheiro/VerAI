@@ -29,6 +29,13 @@ describe('AtualizacaoSharepoint', () => {
     expect(await screen.findByText('Ainda não sincronizado com o SharePoint')).toHaveClass('text-orange-dark')
   })
 
+  it('busca na URL recebida — as telas da biblioteca Documentos usam a delas', async () => {
+    responder(true, { atualizadoEm: null })
+    render(<AtualizacaoSharepoint url="/api/biblioteca/atualizacao" />)
+    expect(global.fetch).toHaveBeenCalledWith('/api/biblioteca/atualizacao')
+    expect(await screen.findByText('Ainda não sincronizado com o SharePoint')).toBeInTheDocument()
+  })
+
   it('API com erro (ex.: produção antes da migração): não mostra nada', async () => {
     responder(false, { error: 'falhou' })
     const { container } = render(<AtualizacaoSharepoint />)

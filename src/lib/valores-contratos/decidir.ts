@@ -39,6 +39,9 @@ export interface DecisaoLinha {
 
 // Marcador que a importação do SharePoint grava enquanto o termo não está pronto (importar.ts) — conta como vazio.
 const EM_ELABORACAO = 'Em elaboração'
+// Vigência plausível de um termo: de 30 dias a 10 anos (limite dos serviços contínuos na Lei 14.133).
+const DIAS_MINIMOS = 30
+const DIAS_MAXIMOS = 3653
 
 const centavos = (v: string) => Math.round(Number(v) * 100)
 const iguais = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && centavos(a) === centavos(b)
@@ -97,14 +100,32 @@ function decidirValor(e: EntradaLinha, avisos: string[]): Gravacao<string> | und
 }
 
 function decidirVigencia(e: EntradaLinha, avisos: string[]): Gravacao<{ inicio: Date | null; fim: Date }> | undefined {
+  // O início do controle é o do contrato inteiro, não o do termo: com o controle, o início só vem da planilha do
+  // mesmo termo quando ela confirma o fim.
+  const planilhaConfirma = !!(e.controle?.fim && e.planilha?.fim && mesmoDia(e.planilha.fim, e.controle.fim))
   const fonte = e.controle?.fim
-    ? { nome: 'CONTROLE', rotulo: 'o controle do faturamento', inicio: e.controle.inicio, fim: e.controle.fim, prova: { mes: e.controle.mes, arquivoId: e.controle.arquivoId } }
+    ? {
+        nome: planilhaConfirma ? 'CONTROLE+PLANILHA' : 'CONTROLE',
+        rotulo: 'o controle do faturamento',
+        inicio: planilhaConfirma ? e.planilha!.inicio : null,
+        fim: e.controle.fim,
+        prova: { mes: e.controle.mes, arquivoId: e.controle.arquivoId, ...(planilhaConfirma ? { planilhaLinha: e.planilha!.linha } : {}) },
+      }
     : e.planilha?.fim
       ? { nome: 'PLANILHA', rotulo: 'a planilha de contratos', inicio: e.planilha.inicio, fim: e.planilha.fim, prova: { planilhaLinha: e.planilha.linha } }
       : null
   if (!fonte) return undefined
   if (e.fichaFim && !mesmoDia(e.fichaFim, fonte.fim)) {
     avisos.push(`o termo diz fim em ${data(e.fichaFim)} e ${fonte.rotulo} ${data(fonte.fim)}`)
+    return undefined
+  }
+  // Erro de digitação da fonte (fim antes do início, 18 dias, 30 anos) nunca vira vigência. Prorrogação curta
+  // existe ("até a nova contratação"): com o fim confirmado pelo termo, só o fim antes do início barra.
+  const inicio = e.atual.dataInicio ?? fonte.inicio ?? e.controle?.inicio ?? null
+  const dias = inicio ? (fonte.fim.getTime() - inicio.getTime()) / 86_400_000 : null
+  const minimo = e.fichaFim ? 1 : DIAS_MINIMOS
+  if (inicio && dias !== null && (dias < minimo || dias > DIAS_MAXIMOS)) {
+    avisos.push(`${fonte.rotulo} dá vigência fora do normal (${data(inicio)} a ${data(fonte.fim)}) — confira`)
     return undefined
   }
   return {

@@ -14,7 +14,8 @@
  * (variáveis R2_* no .env.local — spec §11). Antes da primeira vez: scripts/migrar-sharepoint-lugar-certo.ts.
  * Idempotente; o agendador roda scripts/sincronizar-sharepoint.bat. Com --aplicar, a passada completa grava
  * a data que as telas mostram ("Documentos do SharePoint atualizados em …") e termina indexando para o
- * assistente de IA até 200 arquivos novos/trocados (nada disso muda o código de saída).
+ * assistente de IA até 200 arquivos novos/trocados e preenchendo valor/vigência/assinatura vazios do histórico
+ * que tenham prova (scripts/valores-contratos.ts roda só essa parte) — nada disso muda o código de saída.
  */
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -31,6 +32,7 @@ import { ROTULO_ACHADO } from '../src/lib/importacao-sharepoint/auditoria'
 import { auditarNoBanco } from '../src/lib/importacao-sharepoint/auditoria-banco'
 import { textoDoPdf } from '../src/lib/importacao-sharepoint/pdf-texto'
 import { extrairCampos } from '../src/lib/importacao-sharepoint/texto'
+import { etapaDosValores } from '../src/lib/valores-contratos/etapa'
 
 // .env.local completa o que faltar (ex.: BLOB_READ_WRITE_TOKEN) sem sobrescrever o que o dotenv -e já trouxe.
 config({ path: '.env.local' })
@@ -157,6 +159,10 @@ async function main() {
       // Fichas dos PDFs do histórico (spec 2026-09-25-assistente-senior §5.3), depois do índice.
       console.log(await atualizarFichasDoAssistente())
     }
+
+    // Valor, vigência e assinatura do histórico com prova (spec 2026-09-29-valor-vigencia-contratos §0), depois das
+    // fichas e da biblioteca, que ela lê. Só em campo vazio; sem --aplicar simula. Não muda o código de saída.
+    if (!clientes) console.log(`\n${(await etapaDosValores(prisma, { aplicar })).join('\n')}`)
 
     mkdirSync('logs', { recursive: true })
     writeFileSync('logs/sharepoint-sincronizacao.json', JSON.stringify({ quando: new Date(), aplicar, resultado: r }, null, 1))

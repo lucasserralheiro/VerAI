@@ -105,11 +105,19 @@ describe('valor', () => {
 })
 
 describe('vigência', () => {
-  it('controle preenche início e fim vazios', () => {
-    expect(decidirLinha(base({ controle: controle('1.00') })).vigencia).toEqual({
-      dado: { inicio: d(2025, 11, 1), fim: d(2026, 10, 31) },
+  it('controle preenche só o fim — o início dele é o do contrato inteiro', () => {
+    expect(decidirLinha(base({ controle: controle('1.00', { inicio: d(2023, 12, 15) }) })).vigencia).toEqual({
+      dado: { inicio: null, fim: d(2026, 10, 31) },
       origem: 'CONTROLE',
       prova: { mes: '2026-08', arquivoId: 'ab1' },
+    })
+  })
+
+  it('controle + planilha do mesmo termo com o mesmo fim: o início vem da planilha', () => {
+    expect(decidirLinha(base({ controle: controle('1.00', { inicio: d(2023, 12, 15) }), planilha: planilha(null) })).vigencia).toEqual({
+      dado: { inicio: d(2025, 11, 1), fim: d(2026, 10, 31) },
+      origem: 'CONTROLE+PLANILHA',
+      prova: { mes: '2026-08', arquivoId: 'ab1', planilhaLinha: 245 },
     })
   })
 
@@ -126,6 +134,20 @@ describe('vigência', () => {
 
   it('sem controle, a planilha do mesmo termo preenche', () => {
     expect(decidirLinha(base({ planilha: planilha(null) })).vigencia?.origem).toBe('PLANILHA')
+  })
+
+  it('vigência fora do normal (fim antes do início, menos de 30 dias, mais de 10 anos): não grava e avisa', () => {
+    const invertida = decidirLinha(base({ planilha: planilha(null, { inicio: d(2026, 1, 16), fim: d(2026, 1, 15) }) }))
+    expect(invertida.vigencia).toBeUndefined()
+    expect(invertida.avisos).toEqual(['a planilha de contratos dá vigência fora do normal (16/01/2026 a 15/01/2026) — confira'])
+    expect(decidirLinha(base({ planilha: planilha(null, { inicio: d(2025, 11, 12), fim: d(2025, 11, 30) }) })).vigencia).toBeUndefined()
+    // Prorrogação curta com o fim confirmado pelo termo é de verdade.
+    const curta = decidirLinha(base({ fichaFim: d(2024, 12, 31), planilha: planilha(null, { inicio: d(2024, 12, 6), fim: d(2024, 12, 31) }) }))
+    expect(curta.vigencia?.origem).toBe('PLANILHA+TERMO')
+    // O início que já está na linha também vale para a conta.
+    const r = decidirLinha(base({ atual: { ...vazia, dataInicio: d(2014, 1, 1) }, controle: controle('1.00') }))
+    expect(r.vigencia).toBeUndefined()
+    expect(r.avisos).toContain('o controle do faturamento dá vigência fora do normal (01/01/2014 a 31/10/2026) — confira')
   })
 
   it('fim já preenchido nunca é decidido', () => {

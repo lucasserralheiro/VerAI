@@ -15,10 +15,10 @@ export function separarBlocos(texto: string): Bloco[] {
     if (limpo) blocos.push({ tipo, texto: limpo })
   }
   let resto = texto
-  // Abertura: aceita indent e bullet, mas :::geral sem espaço entre
-  // Fechamento: exatamente ::: em coluna 0
-  const regexAbertura = /^[ \t]*(?:[-*][ \t]+)?:::geral[ \t]*$/m
-  const regexFechamento = /^:::$/m
+  // Abertura: ^[ \t]*(?:[-*][ \t]+)?:::[ \t]*geral[ \t]*$ — tolerante a espaço/indent/bullet
+  // Fechamento: ^[ \t]*(?:[-*][ \t]+)?:::[ \t]*$ — tolerante a espaço e indentação
+  const regexAbertura = /^[ \t]*(?:[-*][ \t]+)?:::[ \t]*geral[ \t]*$/im
+  const regexFechamento = /^[ \t]*(?:[-*][ \t]+)?:::[ \t]*$/m
 
   for (;;) {
     const ini = resto.search(regexAbertura)
@@ -27,15 +27,25 @@ export function separarBlocos(texto: string): Bloco[] {
       break
     }
     empurrar('verai', resto.slice(0, ini))
-    // Remove a linha de abertura
-    const depois = resto.slice(ini).replace(regexAbertura, '')
+    // Remove a linha de abertura inteira (indent, delimitador, \n)
+    const comAbertura = resto.slice(ini)
+    const matchAbertura = comAbertura.match(regexAbertura)
+    if (!matchAbertura) break
+    const posAposAbertura = matchAbertura[0].length
+    const depois = comAbertura.slice(posAposAbertura).replace(/^\n/, '')
+
     const fim = depois.search(regexFechamento)
     if (fim < 0) {
       empurrar('geral', depois)
       break
     }
     empurrar('geral', depois.slice(0, fim))
-    resto = depois.slice(fim).replace(regexFechamento, '')
+    // Remove a linha de fechamento inteira (indent, delimitador, \n)
+    const comFechamento = depois.slice(fim)
+    const matchFechamento = comFechamento.match(regexFechamento)
+    if (!matchFechamento) break
+    const posAposFechamento = matchFechamento[0].length
+    resto = comFechamento.slice(posAposFechamento).replace(/^\n/, '')
   }
   return blocos
 }

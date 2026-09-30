@@ -30,9 +30,13 @@ it('resposta com 4 blocos (dois geral separados por texto do VerAI)', () => {
   ])
 })
 
-// Delimitadores com espaço, indent, bullet
-it('::: geral com espaço dentro do delimitador não abre bloco', () => {
-  expect(separarBlocos('::: geral\nTexto\n:::')).toEqual([{ tipo: 'verai', texto: '::: geral\nTexto\n:::' }])
+// Delimitadores com espaço, indent, bullet — tolerância a espaço/indentação
+it('::: geral (espaço entre ::: e geral) abre bloco', () => {
+  expect(separarBlocos('a\n::: geral\nx\n:::\nb')).toEqual([
+    { tipo: 'verai', texto: 'a' },
+    { tipo: 'geral', texto: 'x' },
+    { tipo: 'verai', texto: 'b' },
+  ])
 })
 
 it(':::geral indentado abre bloco', () => {
@@ -47,15 +51,19 @@ it(':::geral com bullet abre bloco', () => {
   expect(separarBlocos('- :::geral\nGeral\n:::')).toEqual([{ tipo: 'geral', texto: 'Geral' }])
 })
 
-it('fechamento indentado (  :::) não fecha, texto depois continua geral', () => {
-  expect(separarBlocos(':::geral\nGeral\n  :::\n\nTexto verai.')).toEqual([
-    { tipo: 'geral', texto: 'Geral\n  :::\n\nTexto verai.' },
+it('fechamento indentado (  :::) fecha, texto depois continua verai', () => {
+  expect(separarBlocos('a\n:::geral\nx\n  :::\nb')).toEqual([
+    { tipo: 'verai', texto: 'a' },
+    { tipo: 'geral', texto: 'x' },
+    { tipo: 'verai', texto: 'b' },
   ])
 })
 
-it('fechamento com espaço (::: ) não fecha, texto depois continua geral', () => {
-  expect(separarBlocos(':::geral\nGeral\n::: \n\nTexto verai.')).toEqual([
-    { tipo: 'geral', texto: 'Geral\n::: \n\nTexto verai.' },
+it('fechamento com espaço (::: ) fecha, texto depois continua verai', () => {
+  expect(separarBlocos('a\n:::geral\nx\n::: \nb')).toEqual([
+    { tipo: 'verai', texto: 'a' },
+    { tipo: 'geral', texto: 'x' },
+    { tipo: 'verai', texto: 'b' },
   ])
 })
 

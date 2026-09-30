@@ -20,6 +20,8 @@ export const PALAVRAS_DE_LIGACAO = new Set([
   'o', 'a', 'os', 'as', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'no', 'na', 'me', 'fale', 'fala', 'sobre', 'tudo', 'cliente',
   'resumo', 'mostra', 'mostre', 'ver', 'quero', 'como', 'esta', 'ta', 'situacao', 'geral', 'secretaria', 'por', 'favor',
   'saldo', 'contrato', 'contratos', 'quanto', 'falta', 'faturar', 'vence', 'valor', 'qual', 'quais',
+  'prazo', 'vigencia', 'aditivo', 'aditivos', 'termo', 'faturamento', 'faturado', 'municipal', 'total', 'quando', 'dados',
+  'informacao', 'informacoes', 'ativo', 'ativos', 'servico', 'servicos',
 ])
 
 export function apelidosDoCliente(c: { nome: string; siglaLegado: string | null }): string[] {

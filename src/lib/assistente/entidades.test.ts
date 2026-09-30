@@ -123,9 +123,31 @@ it('contrato pelo assunto: um só ativo com as palavras → identificado; vário
     { id: 'k3', numeroTermo: 'TC 60/SMIT/2025', clienteId: 'c1', descricao: 'Sustentação do portal', situacao: 'Ativo' },
   ])
   const um = await identificarEntidades({ pergunta: 'saldo do contrato de nuvem da SMIT', usuario, recentes: [] })
-  expect(um.contratos.map((c) => c.id)).toEqual(['k1'])
+  expect(um.contratos).toEqual([])
+  expect(um.provavel?.id).toBe('k1')
+  expect(um.texto).toContain('Contrato provável pelo assunto: TC 45/SMIT/2023 (contratoId: k1) – Serviços de nuvem pública. Use-o e diga na resposta qual contrato considerou.')
   const varios = await identificarEntidades({ pergunta: 'saldo da sustentação da SMIT', usuario, recentes: [] })
   expect(varios.contratos).toEqual([])
   expect(varios.possiveis.map((c) => c.id)).toEqual(['k2', 'k3'])
   expect(varios.texto).toContain('Contratos possíveis: TC 52/SMIT/2024 (contratoId: k2) – Sustentação de sistemas; TC 60/SMIT/2025 (contratoId: k3) – Sustentação do portal.')
+})
+
+it('palavra do nome completo do cliente não é assunto de contrato', async () => {
+  ;(prisma.cliente.findMany as jest.Mock).mockResolvedValue([{ id: 'c1', nome: 'Secretaria Municipal de Inovação e Tecnologia', siglaLegado: 'SMIT' }])
+  ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([
+    { id: 'k1', numeroTermo: 'TC 45/SMIT/2023', clienteId: 'c1', descricao: 'Sistema municipal de dados', situacao: 'Ativo' },
+  ])
+  const r = await identificarEntidades({ pergunta: 'fale do cliente Secretaria Municipal de Inovação e Tecnologia', usuario, recentes: [] })
+  expect(r.provavel).toBeNull()
+  expect(r.contratos).toEqual([])
+})
+
+it('sigla vence apelido: "saúde do faturamento da SMIT" → SMIT', async () => {
+  ;(prisma.cliente.findMany as jest.Mock).mockResolvedValue([
+    { id: 'c1', nome: 'Secretaria Municipal da Saúde', siglaLegado: 'SMS' },
+    { id: 'c2', nome: 'Secretaria Municipal de Inovação e Tecnologia', siglaLegado: 'SMIT' },
+  ])
+  ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([])
+  const r = await identificarEntidades({ pergunta: 'saúde do faturamento da SMIT', usuario, recentes: [] })
+  expect(r.clientes.map((c) => c.id)).toEqual(['c2'])
 })

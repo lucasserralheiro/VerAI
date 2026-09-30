@@ -9,6 +9,8 @@ export interface EntidadesIdentificadas {
   contratos: { id: string; numero: string; clienteId: string }[]
   /** Contratos que casam com o assunto mas não são únicos: a IA pergunta ou escolhe. */
   possiveis: { id: string; numero: string; descricao: string }[]
+  /** Único contrato achado pelo assunto (não por número): a IA usa e avisa qual considerou. */
+  provavel: { id: string; numero: string; descricao: string } | null
   texto: string | null
 }
 
@@ -66,13 +68,17 @@ export async function identificarEntidades(entrada: { pergunta: string; usuario:
     where: permitidos === null ? {} : { id: { in: permitidos } },
     select: { id: true, nome: true, siglaLegado: true },
   })
-  const citados = visiveis.filter((c) => cita(entrada.pergunta, c.siglaLegado) || cita(entrada.pergunta, apelido(c.nome)) || cita(entrada.pergunta, c.nome) || apelidosDoCliente(c).some((a) => cita(entrada.pergunta, a)))
+  // Sigla, apelido após " - " e nome completo valem mais que o apelido tirado do nome ("saúde"):
+  // se algum cliente foi citado por essas vias, os citados só por apelido são ignorados.
+  const fortes = visiveis.filter((c) => cita(entrada.pergunta, c.siglaLegado) || cita(entrada.pergunta, apelido(c.nome)) || cita(entrada.pergunta, c.nome))
+  const citados = fortes.length > 0 ? fortes : visiveis.filter((c) => apelidosDoCliente(c).some((a) => cita(entrada.pergunta, a)))
   const cliente = citados.length === 1 ? citados[0] : null
 
   const chaves = [...new Set((entrada.pergunta.match(NUMERO_DE_CONTRATO) ?? []).map(numeroEAno).filter((c): c is string => c !== null))]
   const filtroCliente = cliente ? cliente.id : permitidos === null ? undefined : { in: permitidos }
   let contrato: { id: string; numeroTermo: string | null; clienteId: string } | null = null
   let possiveis: EntidadesIdentificadas['possiveis'] = []
+  let provavel: EntidadesIdentificadas['provavel'] = null
   if (chaves.length === 1) {
     const candidatos = await prisma.contrato.findMany({
       where: filtroCliente ? { clienteId: filtroCliente } : {},
@@ -86,7 +92,7 @@ export async function identificarEntidades(entrada: { pergunta: string; usuario:
   if (cliente && !contrato && chaves.length === 0) {
     const termos = palavras(entrada.pergunta).trim().split(' ')
       .filter((t) => t.length >= 4 && !PALAVRAS_DE_LIGACAO.has(t))
-      .filter((t) => ![cliente.siglaLegado, ...apelidosDoCliente(cliente)].some((a) => a && palavras(a).includes(` ${t} `)))
+      .filter((t) => ![cliente.siglaLegado, cliente.nome, ...apelidosDoCliente(cliente)].some((a) => a && palavras(a).includes(` ${t} `)))
     if (termos.length > 0) {
       const doCliente = await prisma.contrato.findMany({
         where: { clienteId: cliente.id },
@@ -95,7 +101,7 @@ export async function identificarEntidades(entrada: { pergunta: string; usuario:
       const casados = doCliente.filter((c) => c.descricao && termos.some((t) => palavras(c.descricao!).includes(` ${t} `)))
       // "Ativo" aqui é só filtro de candidato: ativo de verdade continua sendo do consolidado.
       const ativos = casados.filter((c) => !/encerr|rescin|finaliz/i.test(c.situacao ?? ''))
-      if (ativos.length === 1) contrato = ativos[0]
+      if (ativos.length === 1) provavel = { id: ativos[0].id, numero: ativos[0].numeroTermo ?? '(sem número)', descricao: ativos[0].descricao! }
       else if (ativos.length > 1) possiveis = ativos.slice(0, 5).map((c) => ({ id: c.id, numero: c.numeroTermo ?? '(sem número)', descricao: c.descricao! }))
     }
   }
@@ -118,7 +124,8 @@ export async function identificarEntidades(entrada: { pergunta: string; usuario:
   ]
   const textos = [
     partes.length ? `Já identificados (use estes ids, não procure de novo): ${partes.join('; ')}.` : null,
+    provavel ? `Contrato provável pelo assunto: ${provavel.numero} (contratoId: ${provavel.id}) – ${provavel.descricao}. Use-o e diga na resposta qual contrato considerou.` : null,
     possiveis.length ? `Contratos possíveis: ${possiveis.map((c) => `${c.numero} (contratoId: ${c.id}) – ${c.descricao}`).join('; ')}.` : null,
   ].filter((t): t is string => t !== null)
-  return { clientes, contratos, possiveis, texto: textos.length ? textos.join(' ') : null }
+  return { clientes, contratos, possiveis, provavel, texto: textos.length ? textos.join(' ') : null }
 }

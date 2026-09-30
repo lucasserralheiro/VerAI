@@ -15,6 +15,8 @@ const controle = {
   vigenciaFim: null,
   previsto: '6110655.80',
   faturado: '5049644.59',
+  faturadoDocumento: '5049644.59',
+  aFrente: null as { total: string; periodos: string[] } | null,
   saldoCalculado: '1061011.21',
   saldoDocumento: '1061011.21',
   percentual: 82.6,
@@ -61,8 +63,25 @@ it('leitura não conferida: avisa e não mostra números', async () => {
   expect(screen.queryByText('R$ 6.110.655,80')).not.toBeInTheDocument()
 })
 
-it('saldo do documento diferente do calculado aparece como aviso', async () => {
-  responder(true, { controle: { ...controle, saldoDocumento: '9237.00', avisos: [] }, linhas: [] })
+it('lançado à frente: aparece à parte, marcado na tabela, e o faturado é só até o mês', async () => {
+  responder(true, {
+    controle: { ...controle, faturado: '11092.16', aFrente: { total: '37011.29', periodos: ['set/26', 'OUT/26-27DIAS'] }, avisos: [] },
+    linhas: [
+      { tipo: 'faturado', rotulo: 'ago/26', valor: '3755.20' },
+      { tipo: 'faturado', rotulo: 'set/26', valor: '12702.23' },
+      { tipo: 'faturado', rotulo: 'OUT/26-27DIAS', valor: '24309.06' },
+    ],
+  })
+  render(<CartaoControle contratoId="k1" />)
+  expect(await screen.findByText('Faturado até ago/2026')).toBeInTheDocument()
+  expect(screen.getByText('R$ 11.092,16')).toBeInTheDocument()
+  expect(screen.getByText(/\+ R\$ 37\.011,29 lançados na tabela para depois de ago\/2026 \(set\/26, OUT\/26-27DIAS\)/)).toBeInTheDocument()
+  expect(screen.getAllByText('à frente')).toHaveLength(2)
+})
+
+it('o saldo que o PDF informa, quando não bate com as contas do próprio PDF, vem como aviso do servidor', async () => {
+  responder(true, { controle: { ...controle, avisos: ['o controle informa saldo de R$ 9.237,00; previsto − faturado dá R$ 1.061.011,21'] }, linhas: [] })
   render(<CartaoControle contratoId="k1" />)
   expect(await screen.findByText(/o controle informa saldo de R\$ 9\.237,00/)).toBeInTheDocument()
+  expect(screen.getAllByText(/o controle informa saldo/)).toHaveLength(1)
 })

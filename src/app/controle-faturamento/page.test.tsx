@@ -10,7 +10,8 @@ const base = {
   vigenciaFim: null,
   saldoDocumento: null,
   ultimoFaturado: 'AGO/2026',
-  avisos: [],
+  avisos: [] as string[],
+  aFrente: null as { total: string; periodos: string[] } | null,
 }
 const controles = [
   {
@@ -22,6 +23,8 @@ const controles = [
     contratoId: 'k1',
     previsto: '1000',
     faturado: '830',
+    faturadoDocumento: '880',
+    aFrente: { total: '50.00', periodos: ['set/26'] },
     saldoCalculado: '170',
     percentual: 83,
     conferido: true,
@@ -35,6 +38,8 @@ const controles = [
     contratoId: 'k2',
     previsto: '100',
     faturado: '120',
+    faturadoDocumento: '120',
+    avisos: ['vigência com datas trocadas no documento: 18/11/2026 à 17/11/2026'],
     saldoCalculado: '-20',
     percentual: 120,
     conferido: true,
@@ -49,6 +54,7 @@ const controles = [
     contratoId: null,
     previsto: null,
     faturado: null,
+    faturadoDocumento: null,
     saldoCalculado: null,
     percentual: null,
     conferido: false,
@@ -76,6 +82,26 @@ it('resumo, tabela com %, faturado acima do previsto e não conferido', async ()
   expect(within(linhaXyz).getByText(/não conferida/i)).toBeInTheDocument()
   expect(within(linhaXyz).getByText(/sem contrato no VerAI/i)).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'CO 16/CGM/2024' })).toHaveAttribute('href', '/clientes/c1/contratos/k1')
+})
+
+it('faturado só até o mês do controle: o lançado à frente aparece à parte e fica fora da conta', async () => {
+  render(<ControleFaturamentoPage />)
+  await screen.findByText('CO 16/CGM/2024')
+  expect(screen.getByText('Faturado até ago/2026 (conferidos)')).toBeInTheDocument()
+  expect(screen.getByText('R$ 950,00')).toBeInTheDocument() // 830 + 120, sem os 50 à frente
+  expect(screen.getByText('+ R$ 50,00 lançados para depois de ago/2026 em 1 contrato(s) — previsão, fora da conta')).toBeInTheDocument()
+  expect(screen.getByRole('columnheader', { name: 'Faturado até ago/2026' })).toBeInTheDocument()
+  const linhaCgm = screen.getByText('CO 16/CGM/2024').closest('tr')!
+  expect(within(linhaCgm).getByText('+ R$ 50,00 à frente')).toHaveAttribute('title', expect.stringContaining('set/26'))
+})
+
+it('aviso do documento aparece na linha do contrato', async () => {
+  render(<ControleFaturamentoPage />)
+  await screen.findByText('CO 42/2024')
+  const linhaSf = screen.getByText('CO 42/2024').closest('tr')!
+  expect(within(linhaSf).getByRole('img', { name: /^1 aviso\(s\): vigência com datas trocadas/ })).toBeInTheDocument()
+  const linhaCgm = screen.getByText('CO 16/CGM/2024').closest('tr')!
+  expect(within(linhaCgm).queryByRole('img', { name: /aviso/ })).not.toBeInTheDocument()
 })
 
 it('troca o mês e busca', async () => {

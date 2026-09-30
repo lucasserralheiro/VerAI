@@ -17,7 +17,12 @@ export interface ControleSerializado {
   vigenciaFim: string | null
   /** Só de tabela conferida pela soma; `null` quando não fechou. */
   previsto: string | null
+  /** Faturado ATÉ o mês do controle (meses seguintes lançados na tabela são previsão — `aFrente`). */
   faturado: string | null
+  /** TOTAL da tabela do faturado como está no PDF (inclui o lançado à frente). */
+  faturadoDocumento: string | null
+  /** Lançado na tabela do faturado para depois do mês do controle: previsão, fora do faturado e do %. */
+  aFrente: { total: string; periodos: string[] } | null
   saldoCalculado: string | null
   saldoDocumento: string | null
   percentual: number | null

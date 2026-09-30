@@ -289,7 +289,10 @@ número. Contrato pela chave `SIGLA|nº ano` do nome do arquivo (ano de 2 dígit
 só quando é único. Planilha feita à mão: erro de digitação do próprio documento vira aviso, nunca correção.
 **Régua**: `npx tsx scripts/regua-controles.ts` antes e depois de mexer na leitura (29/09: 219 de 269 com
 as duas tabelas conferidas). O controle fica **ao lado** do saldo do VerAI; como prova do valor/vigência
-do cadastro, ver a seção abaixo.
+do cadastro, ver a seção abaixo. **Faturado = só até o mês da pasta do controle** (`separarFaturado`,
+`src/lib/controles-contratos/meses.ts`, spec §11): a tabela do PDF lança meses futuros (previsão) — esses vão
+"à frente", à parte, fora do faturado, do % e do saldo; mês digitado fora de ordem vira aviso, e se a ordem não
+fecha o faturado não é mostrado. Nunca somar a tabela do faturado inteira como faturado.
 
 **Valor, vigência e assinatura com prova** (spec `2026-09-29-valor-vigencia-contratos-design.md`, o §0
 prevalece): etapa `etapaDosValores` no fim do agendador (depois das fichas e da biblioteca; guarda

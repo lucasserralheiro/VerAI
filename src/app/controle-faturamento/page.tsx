@@ -2,11 +2,12 @@
 
 // "Controle de faturamento" (spec docs/superpowers/specs/2026-09-29-controles-de-contratos-design.md §6.2): o
 // controle mensal da equipe do faturamento, contrato por contrato, lido do SharePoint. Números só de leitura
-// conferida pela soma; o resto aparece com o PDF.
+// conferida pela soma; o resto aparece com o PDF. Faturado = só até o mês do controle: o que a tabela lança para
+// os meses seguintes é previsão e aparece à parte, fora do % e do saldo (spec §9).
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ChevronRight, FileText, Search } from 'lucide-react'
+import { AlertCircle, ChevronRight, FileText, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { INPUT_BASE } from '@/lib/ui'
 import { formatarMoeda } from '@/lib/relatorios-clientes/formatacao'
@@ -17,8 +18,7 @@ import { nomeDoMes, type ControleSerializado } from '@/lib/controles-contratos/t
 type Carga = { estado: 'carregando' } | { estado: 'erro' } | { estado: 'ok'; meses: string[]; mes: string | null; controles: ControleSerializado[] }
 
 const pct = (v: number) => `${v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
-const soma = (lista: ControleSerializado[], campo: 'previsto' | 'faturado') =>
-  (lista.reduce((s, c) => s + Math.round(Number(c[campo] ?? 0) * 100), 0) / 100).toFixed(2)
+const soma = (valores: (string | null | undefined)[]) => (valores.reduce((s, v) => s + Math.round(Number(v ?? 0) * 100), 0) / 100).toFixed(2)
 
 export default function ControleFaturamentoPage() {
   const [mes, setMes] = useState<string | null>(null)
@@ -48,8 +48,11 @@ export default function ControleFaturamentoPage() {
     return carga.controles.filter((c) => normalizarBusca(`${c.sigla} ${c.clienteNome ?? ''} ${c.contratoTexto ?? ''}`).includes(q))
   }, [carga, termo])
   const conferidos = visiveis.filter((c) => c.conferido)
-  const previstoTotal = soma(conferidos, 'previsto')
-  const faturadoTotal = soma(conferidos, 'faturado')
+  const previstoTotal = soma(conferidos.map((c) => c.previsto))
+  const faturadoTotal = soma(conferidos.map((c) => c.faturado))
+  const comAFrente = conferidos.filter((c) => c.aFrente)
+  const aFrenteTotal = soma(comAFrente.map((c) => c.aFrente?.total))
+  const ate = carga.estado === 'ok' && carga.mes ? nomeDoMes(carga.mes) : ''
 
   return (
     <main className="mx-auto max-w-[110rem] space-y-6 px-6 py-8 lg:px-8">
@@ -105,14 +108,21 @@ export default function ControleFaturamentoPage() {
 
           <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
-              ['Contratos no controle', `${visiveis.length} contratos`],
-              ['Previsto (conferidos)', formatarMoeda(previstoTotal)],
-              ['Faturado (conferidos)', formatarMoeda(faturadoTotal)],
-              ['Faturado do previsto', Number(previstoTotal) > 0 ? pct((Number(faturadoTotal) / Number(previstoTotal)) * 100) : '—'],
-            ].map(([rotulo, valor]) => (
+              ['Contratos no controle', `${visiveis.length} contratos`, null],
+              ['Previsto (conferidos)', formatarMoeda(previstoTotal), null],
+              [
+                `Faturado até ${ate} (conferidos)`,
+                formatarMoeda(faturadoTotal),
+                comAFrente.length > 0
+                  ? `+ ${formatarMoeda(aFrenteTotal)} lançados para depois de ${ate} em ${comAFrente.length} contrato(s) — previsão, fora da conta`
+                  : null,
+              ],
+              ['Faturado do previsto', Number(previstoTotal) > 0 ? pct((Number(faturadoTotal) / Number(previstoTotal)) * 100) : '—', null],
+            ].map(([rotulo, valor, nota]) => (
               <div key={rotulo} className="card">
                 <dt className="text-xs text-mid-grey">{rotulo}</dt>
                 <dd className="font-mono text-lg font-semibold text-navy">{valor}</dd>
+                {nota && <dd className="mt-1 text-xs text-orange-dark">{nota}</dd>}
               </div>
             ))}
           </dl>
@@ -125,7 +135,7 @@ export default function ControleFaturamentoPage() {
                   <th className="px-3 py-2 text-left">Contrato</th>
                   <th className="px-3 py-2 text-left">Vigência</th>
                   <th className="px-3 py-2 text-right">Previsto</th>
-                  <th className="px-3 py-2 text-right">Faturado</th>
+                  <th className="px-3 py-2 text-right">Faturado até {ate}</th>
                   <th className="px-3 py-2 text-right">%</th>
                   <th className="px-3 py-2 text-right">Saldo</th>
                   <th className="px-3 py-2 text-left">Último faturado</th>
@@ -138,7 +148,19 @@ export default function ControleFaturamentoPage() {
                 {visiveis.map((c) => (
                   <tr key={c.arquivoId} className="border-t border-border-grey/60">
                     <td className="px-3 py-2">
-                      <span className="font-semibold text-navy">{c.sigla}</span>
+                      <span className="inline-flex items-center gap-1 font-semibold text-navy">
+                        {c.sigla}
+                        {c.avisos.length > 0 && (
+                          <span
+                            role="img"
+                            aria-label={`${c.avisos.length} aviso(s): ${c.avisos.join(' · ')}`}
+                            title={c.avisos.join('\n')}
+                            className="text-orange-dark"
+                          >
+                            <AlertCircle className="size-3.5" aria-hidden="true" />
+                          </span>
+                        )}
+                      </span>
                       {c.clienteNome && <span className="block text-xs text-mid-grey">{c.clienteNome}</span>}
                     </td>
                     <td className="px-3 py-2">
@@ -156,7 +178,17 @@ export default function ControleFaturamentoPage() {
                     {c.conferido ? (
                       <>
                         <td className="px-3 py-2 text-right font-mono text-xs">{formatarMoeda(c.previsto)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs">{formatarMoeda(c.faturado)}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">
+                          {formatarMoeda(c.faturado)}
+                          {c.aFrente && (
+                            <span
+                              className="block font-sans text-[0.7rem] text-orange-dark"
+                              title={`Lançado na tabela para depois de ${ate} (previsão, fora do faturado): ${c.aFrente.periodos.join(', ')}`}
+                            >
+                              + {formatarMoeda(c.aFrente.total)} à frente
+                            </span>
+                          )}
+                        </td>
                         <td className={cn('px-3 py-2 text-right font-mono text-xs', (c.percentual ?? 0) > 100 ? 'text-orange-dark' : 'text-navy')}>
                           {c.percentual !== null ? pct(c.percentual) : '—'}
                         </td>

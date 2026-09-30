@@ -7,10 +7,10 @@ import { nomeDoMes, type ControleSerializado, type LinhaControle } from '@/lib/c
 
 // Cartão "Controle do faturamento" no detalhe do contrato (spec
 // docs/superpowers/specs/2026-09-29-controles-de-contratos-design.md §6.1): o controle mensal da equipe do
-// faturamento, lido do SharePoint. Sem controle, não aparece; leitura não conferida não mostra número.
+// faturamento, lido do SharePoint. Sem controle, não aparece; leitura não conferida não mostra número. Faturado =
+// até o mês do controle; o que a tabela lança para os meses seguintes é previsão e aparece à parte (spec §9).
 
 const pct = (v: number) => `${v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
-const centavos = (v: string) => Math.round(Number(v) * 100)
 
 export function CartaoControle({ contratoId }: { contratoId: string }) {
   const [dados, setDados] = useState<{ controle: ControleSerializado; linhas: LinhaControle[] } | null>(null)
@@ -33,8 +33,8 @@ export function CartaoControle({ contratoId }: { contratoId: string }) {
   const previstos = linhas.filter((l) => l.tipo === 'previsto')
   const faturados = linhas.filter((l) => l.tipo === 'faturado')
   const lado = previstos.length === faturados.length
-  const saldoDiferente = c.saldoCalculado !== null && c.saldoDocumento !== null && Math.abs(centavos(c.saldoCalculado) - centavos(c.saldoDocumento)) > 5
-  const avisos = [...c.avisos, ...(saldoDiferente ? [`o controle informa saldo de ${formatarMoeda(c.saldoDocumento)}; previsto − faturado dá ${formatarMoeda(c.saldoCalculado)}`] : [])]
+  const avisos = c.avisos
+  const aFrente = new Set(c.aFrente?.periodos ?? [])
 
   return (
     <section aria-label="Controle do faturamento" className="card space-y-3">
@@ -73,7 +73,7 @@ export function CartaoControle({ contratoId }: { contratoId: string }) {
               <dd className="font-mono text-sm font-semibold text-navy">{formatarMoeda(c.previsto)}</dd>
             </div>
             <div>
-              <dt className="text-xs text-mid-grey">Faturado</dt>
+              <dt className="text-xs text-mid-grey">Faturado até {nomeDoMes(c.mes)}</dt>
               <dd className="font-mono text-sm font-semibold text-navy">{formatarMoeda(c.faturado)}</dd>
               {c.percentual !== null && <dd className="text-xs text-mid-grey">{pct(c.percentual)}</dd>}
             </div>
@@ -87,6 +87,12 @@ export function CartaoControle({ contratoId }: { contratoId: string }) {
               <div className={c.percentual > 100 ? 'h-full bg-orange' : 'h-full bg-navy'} style={{ width: `${Math.min(100, c.percentual)}%` }} />
             </div>
           )}
+          {c.aFrente && (
+            <p className="text-xs text-orange-dark">
+              + {formatarMoeda(c.aFrente.total)} lançados na tabela para depois de {nomeDoMes(c.mes)} ({c.aFrente.periodos.join(', ')}) —
+              previsão, fora do faturado e do saldo.
+            </p>
+          )}
           {faturados.length > 0 && (
             <table className="w-full text-xs">
               <thead className="text-mid-grey">
@@ -98,8 +104,11 @@ export function CartaoControle({ contratoId }: { contratoId: string }) {
               </thead>
               <tbody>
                 {faturados.map((l, i) => (
-                  <tr key={`${l.rotulo}-${i}`} className={Number(l.valor) === 0 ? 'text-mid-grey' : 'text-foreground'}>
-                    <td className="py-1">{l.rotulo}</td>
+                  <tr key={`${l.rotulo}-${i}`} className={Number(l.valor) === 0 || aFrente.has(l.rotulo) ? 'text-mid-grey' : 'text-foreground'}>
+                    <td className="py-1">
+                      {l.rotulo}
+                      {aFrente.has(l.rotulo) && Number(l.valor) !== 0 && <span className="ml-1.5 text-[0.65rem] text-orange-dark">à frente</span>}
+                    </td>
                     {lado && <td className="py-1 text-right font-mono">{formatarMoeda(previstos[i].valor)}</td>}
                     <td className="py-1 text-right font-mono">{formatarMoeda(l.valor)}</td>
                   </tr>

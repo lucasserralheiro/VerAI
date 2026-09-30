@@ -136,3 +136,27 @@ Cartão **"Controle do faturamento"** ao lado do "Saldo":
 - **Formato novo de planilha** → a tabela não fecha e fica "não conferida" (seguro); a régua mostra a queda.
 - **Contrato casado errado** → só casa quando é único; na dúvida, "sem contrato no VerAI".
 - **Controle desatualizado** (a equipe deixa de mandar) → a tela mostra o mês do controle em destaque.
+
+## 11. Faturado só até o mês do controle (30/09/2026, pedido do usuário: "os dados sempre reais")
+
+A tabela do faturado do PDF traz, em parte dos controles, **meses que ainda não aconteceram** (previsão da
+equipe): no dev, 34 de 237 controles conferidos; em ago/2026, 8 contratos, R$ 189.840,03. Somar tudo como
+"faturado" inflava o faturado e o % e escondia o saldo real. Regra (`src/lib/controles-contratos/meses.ts`):
+
+- **Mês de cada linha** pelo rótulo como está no PDF: período com datas vale pelo **fim** (é como a própria
+  equipe nomeia: "MAR/26 - 21/02/2026 A 20/03/2026"); sem datas, o nome do mês com ano; "MÊS n" pelo início da
+  vigência do próprio controle. Rótulo ilegível ("FEV/265", "MAR/6") = mês desconhecido.
+- **Erro de digitação do documento** (a tabela é cronológica): vale a **maior sequência de meses em ordem**; a
+  linha fora dela vira mês desconhecido e é apontada como aviso ("mês fora de ordem no documento"). Mais de uma
+  sequência possível → faturado até o mês **não é mostrado** (aviso; a linha fica "leitura não conferida").
+- **Faturado** = linhas até o mês da pasta do controle (e desconhecidas no meio delas). Depois do mês →
+  **"à frente"**, mostrado à parte com valor e períodos, fora do faturado, do % e do saldo. Desconhecida depois
+  do último mês faturado, com valor → fora do faturado, com aviso (não dá pra provar que já aconteceu).
+- A prova da leitura não muda: a tabela inteira ainda tem de fechar pela soma = TOTAL; o faturado até o mês é
+  soma de linhas conferidas. O TOTAL do PDF segue guardado (`faturadoDocumento`).
+- Avisos do documento (vigência trocada, saldo que não bate com as contas do próprio PDF, mês fora de ordem)
+  aparecem na **lista** (ícone na linha) e no cartão do contrato. O cartão não recalcula mais o saldo por conta
+  própria (dava aviso falso quando há lançamento à frente).
+
+Medido no dev (237 controles): 34 com lançamento à frente, 18 com mês fora de ordem resolvido, 0 sem ordem
+identificável, 0 lançamento sem mês fora do faturado.

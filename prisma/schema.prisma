@@ -1097,6 +1097,12 @@ model MensagemAssistente {
   tokensEntrada Int?
   tokensSaida   Int?
   tokensCache   Int?
+  // ia | direta (resposta montada pelo código, sem IA — não conta no limite). Spec 2026-09-30-assistente-consultor §9.
+  origem        String?
+  // Tipos da resposta: verai | geral | recusa (§6).
+  tipos         String[]           @default([])
+  // Veredito da conferência de números: { conferidos, naoConfirmados[] } (§7).
+  conferencia   Json?
   createdAt     DateTime           @default(now())
 
   @@index([conversaId, createdAt])

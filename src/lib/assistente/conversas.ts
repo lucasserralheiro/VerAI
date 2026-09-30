@@ -21,7 +21,13 @@ export function tituloDaPergunta(pergunta: string): string {
 export async function excedeuLimite(usuarioId: string, agora: Date = new Date()): Promise<boolean> {
   const desde = new Date(agora.getTime() - 60 * 60 * 1000)
   const total = await prisma.mensagemAssistente.count({
-    where: { papel: 'usuario', createdAt: { gte: desde }, conversa: { usuarioId } },
+    // Só perguntas que foram à IA; origem null (antigas) conta. Não usar NOT: NULL escaparia.
+    where: {
+      papel: 'usuario',
+      createdAt: { gte: desde },
+      conversa: { usuarioId },
+      OR: [{ origem: null }, { origem: { not: 'direta' } }],
+    },
   })
   return total >= LIMITE_POR_HORA
 }

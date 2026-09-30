@@ -25,4 +25,5 @@ export const ROTULOS_FERRAMENTAS: Record<string, string> = {
   simularReajuste: 'Calculando o reajuste',
   reajustesCalculados: 'Consultando os reajustes calculados',
   controleDoFaturamento: 'Consultando o controle do faturamento',
+  linksMpls: 'Consultando os links MPLS',
 }

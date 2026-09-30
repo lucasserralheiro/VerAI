@@ -11,6 +11,7 @@ import { FormularioContrato, type Contrato } from '../formulario-contrato'
 import { SecaoHistorico, type LinhaHistorico } from './secao-historico'
 import { SecaoItens, type Item } from './secao-itens'
 import { CartaoControle } from './cartao-controle'
+import { CartaoLinks } from './cartao-links'
 
 interface ContratoDetalhe extends Contrato {
   historico: LinhaHistorico[]
@@ -231,6 +232,7 @@ export default function ContratoDetalhePage({ params }: { params: Promise<{ id: 
 
       <CartaoSaldo contrato={contrato} />
       <CartaoControle contratoId={contrato.id} />
+      <CartaoLinks contratoId={contrato.id} />
       <SecaoHistorico contratoId={contrato.id} historico={contrato.historico} aoMudar={carregar} />
       <SecaoItens contratoId={contrato.id} itens={contrato.itens} aoMudar={carregar} />
     </main>

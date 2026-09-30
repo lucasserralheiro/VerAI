@@ -1,7 +1,22 @@
 # Links MPLS no VerAI — design
 
-**Status:** rascunho para revisão do usuário (29/09/2026). Depende da base
+**Status:** implementado no dev em 30/09/2026 ("pode fazer todos"). Depende da base
 `2026-09-29-biblioteca-documentos-prodam-design.md`.
+
+**Decisões da execução (30/09):**
+- **Prova por seção**: um PDF pode ter "LINKS ATIVOS" e "LINKS CANCELADOS", cada um com o próprio "Total Geral"
+  e "TOTAL ="; cada seção confere com os seus códigos. O título da seção se repete no topo de cada página — seção
+  nova só quando a situação muda. Régua (`scripts/regua-links.ts`, 30/09): **601 de 628 (96%)** conferidos,
+  14.706 links; os 27 que não fecham são, em quase todos, o próprio PDF dizendo dois totais diferentes (ex.:
+  "Total Geral 110" e "TOTAL = 107"; resumo 86 e tabela com 53) — aparecem "leitura não conferida", sem número.
+- Campos por **formato** (código, contrato, Kbit/s, redundância, datas) e por **posição** só onde precisa
+  (entidade, tipo, endereço, número — pela posição do cabeçalho de cada página).
+- Contrato pela mesma regra dos controles (`acharContratoPorSigla`: sigla do arquivo + nº/ano das linhas, do
+  cabeçalho e do nome; sigla escrita de outro jeito e "S.N" casam; só único). Dev: 5 sem contrato, todos do SEGES
+  24/2025, que não está no cadastro. Religa a cada rodada sem reler o PDF.
+- Na ficha: cartão "Links MPLS: N ativos em <mês>" no **detalhe do contrato** (ao lado do controle do faturamento),
+  em vez de uma coluna na aba Contratos — uma chamada por contrato aberto, não uma por linha da lista.
+- PDF do relatório abre para quem vê o cliente do relatório (`/api/biblioteca/[id]`); sem cliente, só admin.
 
 ## 1. Pedido
 

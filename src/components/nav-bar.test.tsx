@@ -85,6 +85,7 @@ describe('NavBar', () => {
     render(<NavBar />)
     expect(screen.getByRole('link', { name: 'Tabela de preços' })).toHaveAttribute('href', '/tabela-de-precos')
     expect(screen.getByRole('link', { name: 'Controle de faturamento' })).toHaveAttribute('href', '/controle-faturamento')
+    expect(screen.getByRole('link', { name: 'Links MPLS' })).toHaveAttribute('href', '/links-mpls')
   })
 
   it('"Fornecedores", "Demandas" e "Solicitações" são sub-itens do grupo "Relatórios dos clientes"', () => {

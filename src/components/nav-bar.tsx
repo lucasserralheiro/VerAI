@@ -26,6 +26,7 @@ import {
   Sparkles,
   Tags,
   Receipt,
+  Network,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -60,6 +61,7 @@ const RELATORIOS_SUBLINKS = [
   // entram aqui, embaixo de "Relatórios dos clientes", a pedido do usuário (29/09/2026).
   { href: '/tabela-de-precos', label: 'Tabela de preços', icon: Tags },
   { href: '/controle-faturamento', label: 'Controle de faturamento', icon: Receipt },
+  { href: '/links-mpls', label: 'Links MPLS', icon: Network },
 ]
 
 // "Proposta Comercial (Conversão SEI)" é outro módulo à parte — mesmo padrão

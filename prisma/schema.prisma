@@ -888,6 +888,55 @@ model OrigemCampoHistorico {
   @@index([historicoId])
 }
 
+// Relatórios "Links MPLS - Relatórios para Faturamento" (biblioteca Documentos, área LINKS_MPLS) — spec
+// docs/superpowers/specs/2026-09-29-links-mpls-design.md. Um por PDF; competência = pasta do mês. Contagens só
+// valem com a prova "códigos lidos = Total Geral = TOTAL =" de cada seção (`conferido`).
+model RelatorioLinks {
+  id            String     @id @default(cuid())
+  arquivoId     String     @unique
+  sha256        String
+  ano           Int
+  mes           Int
+  // SOLUCAO | SOCIAL | GERENCIAMENTO | OUTRA
+  categoria     String
+  sigla         String
+  contratoTexto String?
+  contratoId    String?
+  clienteId     String?
+  servico       String?
+  ativos        Int?
+  cancelados    Int?
+  conferido     Boolean    @default(false)
+  avisos        Json
+  lidoEm        DateTime
+  links         LinkMpls[]
+
+  @@index([ano, mes])
+  @@index([contratoId, ano, mes])
+  @@index([clienteId])
+}
+
+model LinkMpls {
+  id               String         @id @default(cuid())
+  relatorioId      String
+  relatorio        RelatorioLinks @relation(fields: [relatorioId], references: [id], onDelete: Cascade)
+  posicao          Int
+  // ATIVO | CANCELADO
+  situacao         String
+  codigo           String
+  kbps             Int?
+  redundancia      String?
+  dataAceite       DateTime?
+  dataCancelamento DateTime?
+  entidade         String?
+  tipoLogradouro   String?
+  endereco         String?
+  numero           String?
+
+  @@index([relatorioId])
+  @@index([codigo])
+}
+
 model AcessoArquivo {
   id        String         @id @default(cuid())
   arquivoId String

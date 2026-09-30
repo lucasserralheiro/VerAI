@@ -23,12 +23,18 @@ export async function GET(request: NextRequest, { params }: Contexto) {
     select: { area: true, nome: true, contentType: true, chave: true },
   })
   if (!arquivo) return NextResponse.json({ error: 'não encontrado' }, { status: 404 })
-  // Controle de contrato é de um cliente: abre para quem vê esse cliente (sem cliente identificado, só admin).
+  // Controle de contrato e relatório de links são de um cliente: abrem para quem vê esse cliente (sem cliente
+  // identificado, só admin).
+  const clienteDoArquivo = async () =>
+    arquivo.area === 'CONTROLES_CONTRATOS'
+      ? (await prisma.controleContrato.findUnique({ where: { arquivoId: id }, select: { clienteId: true } }))?.clienteId
+      : (await prisma.relatorioLinks.findUnique({ where: { arquivoId: id }, select: { clienteId: true } }))?.clienteId
+  const porCliente = arquivo.area === 'CONTROLES_CONTRATOS' || arquivo.area === 'LINKS_MPLS'
   const permitido =
-    arquivo.area === 'CONTROLES_CONTRATOS' && usuario.role !== 'admin'
+    porCliente && usuario.role !== 'admin'
       ? await (async () => {
-          const controle = await prisma.controleContrato.findUnique({ where: { arquivoId: id }, select: { clienteId: true } })
-          return !!controle?.clienteId && (await podeVerCliente(usuario, controle.clienteId))
+          const clienteId = await clienteDoArquivo()
+          return !!clienteId && (await podeVerCliente(usuario, clienteId))
         })()
       : podeVerArea(usuario.role, arquivo.area)
   if (!permitido) return NextResponse.json({ error: 'não encontrado' }, { status: 404 })

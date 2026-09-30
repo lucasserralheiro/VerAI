@@ -59,6 +59,11 @@ export async function mapaDeContratos(prisma: PrismaClient): Promise<MapasDeCont
 export function acharContrato(nome: string, contratoTexto: string | null, mapas: MapasDeContratos): ContratoAchado | null {
   const { sigla, chave } = contratoDoNome(nome)
   const chaves = [chave, chaveDoContratoTexto(contratoTexto), chaveSemNumero(nome.replace(/\s*-\s*\d{4}\.\d{2}\.pdf$/i, '')), chaveSemNumero(contratoTexto)]
+  return acharContratoPorSigla(sigla, chaves, mapas)
+}
+
+/** O casamento em si, para quem já tem a sigla e as chaves "nº ano" candidatas (os relatórios de links usam). */
+export function acharContratoPorSigla(sigla: string, chaves: (string | null)[], mapas: MapasDeContratos): ContratoAchado | null {
   for (const k of chaves) {
     const achados = k ? mapas.porChave.get(`${sigla}|${k}`) : undefined
     if (achados?.length === 1) return achados[0]

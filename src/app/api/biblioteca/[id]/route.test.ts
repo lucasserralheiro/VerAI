@@ -2,7 +2,9 @@
 import { NextRequest } from 'next/server'
 
 jest.mock('@/lib/auth', () => ({ ...jest.requireActual('@/lib/auth'), getAuthUser: jest.fn() }))
-jest.mock('@/lib/prisma', () => ({ prisma: { arquivoBiblioteca: { findUnique: jest.fn() }, controleContrato: { findUnique: jest.fn() } } }))
+jest.mock('@/lib/prisma', () => ({
+  prisma: { arquivoBiblioteca: { findUnique: jest.fn() }, controleContrato: { findUnique: jest.fn() }, relatorioLinks: { findUnique: jest.fn() } },
+}))
 jest.mock('@/lib/storage', () => ({ abrirUpload: jest.fn() }))
 jest.mock('@/lib/visibilidade', () => ({ podeVerCliente: jest.fn() }))
 
@@ -73,4 +75,17 @@ it('controle de contrato: abre para quem vê o cliente do controle; sem cliente,
   expect((await GET(pedido(), ctx)).status).toBe(404)
   ;(getAuthUser as jest.Mock).mockResolvedValue(usuario('admin'))
   expect((await GET(pedido(), ctx)).status).toBe(200)
+})
+
+it('relatório de links: abre para quem vê o cliente do relatório; sem cliente, só admin', async () => {
+  ;(getAuthUser as jest.Mock).mockResolvedValue(usuario('responsavel'))
+  ;(prisma.arquivoBiblioteca.findUnique as jest.Mock).mockResolvedValue(arquivo('LINKS_MPLS'))
+  ;(prisma.relatorioLinks.findUnique as jest.Mock).mockResolvedValue({ clienteId: 'c1' })
+  ;(podeVerCliente as jest.Mock).mockResolvedValue(true)
+  expect((await GET(pedido(), ctx)).status).toBe(200)
+  expect(podeVerCliente).toHaveBeenCalledWith(expect.objectContaining({ id: 'u1' }), 'c1')
+  ;(podeVerCliente as jest.Mock).mockResolvedValue(false)
+  expect((await GET(pedido(), ctx)).status).toBe(404)
+  ;(prisma.relatorioLinks.findUnique as jest.Mock).mockResolvedValue({ clienteId: null })
+  expect((await GET(pedido(), ctx)).status).toBe(404)
 })

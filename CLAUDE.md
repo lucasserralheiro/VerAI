@@ -278,7 +278,15 @@ nova em model que ele já usa quebra a sincronização até a migração subir (
 `2026-09-29-tabela-de-precos-design.md`): itens da "Memória de Cálculo <ano> v<n>.xlsx" (aba achada pelo
 cabeçalho), cada preço conferido com o PDF oficial (`precosNoPdf`: primeiro valor em R$ depois do código) e
 com o informativo de alterações; diferença nunca é resolvida em silêncio — a tela mostra os dois valores.
-Assistente: `consultarTabelaDePrecos`. Links MPLS e calendário de faturamento: specs próprios, ainda a fazer.
+Assistente: `consultarTabelaDePrecos`. Calendário de faturamento: spec próprio, ainda a fazer.
+
+**Links MPLS** (`/links-mpls` e `/links-mpls/contrato/[id]`, subitem de "Relatórios dos clientes", cartão no detalhe
+do contrato; spec `2026-09-29-links-mpls-design.md`): relatórios "Links MPLS - Relatórios para Faturamento" (área
+`LINKS_MPLS`, tabelas `RelatorioLinks`/`LinkMpls`). Competência = pasta do mês (o nome do arquivo erra). Leitura por
+formato + posição (`src/lib/links-mpls/leitura.ts`); **prova por seção** (ativos e cancelados): códigos lidos =
+"Total Geral" = "TOTAL =". Sem prova, o relatório aparece com o PDF e fica fora das contas e da evolução.
+Entraram/saíram por código MPLS contra o mês anterior do mesmo contrato e categoria. **Régua**:
+`npx tsx scripts/regua-links.ts` antes e depois de mexer na leitura (30/09: 601 de 628 conferidos).
 
 **Controles de Contratos** (`/controle-faturamento` e o cartão "Controle do faturamento" no detalhe do
 contrato, spec `2026-09-29-controles-de-contratos-design.md`): PDF mensal por contrato da equipe do

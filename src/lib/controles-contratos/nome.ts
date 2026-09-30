@@ -31,6 +31,34 @@ export function chaveDoContratoTexto(texto: string | null): string | null {
   return texto ? numeroEAno(texto) : null
 }
 
+/** Contrato sem número ("CO-S.N-2024", "TC SN/2024", "S/N 2024") → "SN 2024"; com número → null. */
+export function chaveSemNumero(texto: string | null): string | null {
+  if (!texto || !/(?:^|[^A-Z])S\s*[./]?\s*N(?:[^A-Z]|$)/i.test(texto)) return null
+  const ano = /(?:^|\D)(20\d{2})(?!\d)/.exec(texto)
+  return ano ? `SN ${ano[1]}` : null
+}
+
+const termos = (texto: string) =>
+  texto
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .split(/[^A-Z]+/)
+    .filter((t) => t.length >= 3 && !GENERICOS.has(t))
+const GENERICOS = new Set(['SUB', 'SUBPREFEITURA', 'SECRETARIA', 'MUNICIPAL', 'DAS', 'DOS', 'SAO', 'PAULO', 'CIA', 'COMPANHIA', 'EMPRESA'])
+
+/**
+ * A sigla do nome do arquivo é deste cliente, escrita de outro jeito? ("SPURB" × SPURBANISMO, "SUB-Guainazes" ×
+ * Subprefeitura Guaianases, "SUB-ITAIM" × Subprefeitura Itaim Paulista). Um termo começa como o outro, ou os
+ * dois começam pelas mesmas 4 letras. Só serve de desempate quando a sigla do arquivo não é de cliente nenhum.
+ */
+export function siglaCompativel(siglaArquivo: string, cliente: { sigla: string | null; nome: string }): boolean {
+  const doCliente = [...termos(cliente.sigla ?? ''), ...termos(cliente.nome)]
+  return termos(siglaArquivo).some((a) =>
+    doCliente.some((c) => a.startsWith(c) || c.startsWith(a) || (a.length >= 4 && c.length >= 4 && a.slice(0, 4) === c.slice(0, 4)))
+  )
+}
+
 /** Pasta "08.2026" → agosto de 2026. */
 export function mesDoCaminho(caminho: string): { ano: number; mes: number } | null {
   for (const parte of caminho.split('/')) {

@@ -2,7 +2,7 @@ import type { PrismaClient } from '@prisma/client'
 import type { ArquivoDaArea, LeitorDeArea } from '@/lib/biblioteca/leitores'
 import { chaveNumerica } from '@/lib/relatorios-clientes/vincular-itens'
 import { lerControle, type ControleLido, type TabelaLida } from './leitura'
-import { chaveDoContratoTexto, contratoDoNome, mesDoCaminho } from './nome'
+import { chaveDoContratoTexto, chaveSemNumero, contratoDoNome, mesDoCaminho, siglaCompativel } from './nome'
 import { linhasDoPdf as linhasDoPdfPadrao } from './pdf'
 
 // Leitor da área CONTROLES_CONTRATOS (spec docs/superpowers/specs/2026-09-29-controles-de-contratos-design.md
@@ -15,35 +15,58 @@ interface Deps {
 }
 
 type ContratoAchado = { id: string; clienteId: string }
+type Candidato = ContratoAchado & { sigla: string | null; nome: string }
 
-/** Chave "SIGLA|nº ano" → contratos (a chave do SharePoint e, sem ela, sigla + nº do termo). */
-export async function mapaDeContratos(prisma: PrismaClient): Promise<Map<string, ContratoAchado[]>> {
+export interface MapasDeContratos {
+  /** "SIGLA|nº ano" → contratos (a chave do SharePoint e, sem ela, sigla + nº do termo). */
+  porChave: Map<string, ContratoAchado[]>
+  /** "nº ano" → contratos de qualquer cliente — para a sigla escrita de outro jeito no nome do arquivo. */
+  porNumero: Map<string, Candidato[]>
+  siglas: Set<string>
+}
+
+export async function mapaDeContratos(prisma: PrismaClient): Promise<MapasDeContratos> {
   const contratos = await prisma.contrato.findMany({
-    select: { id: true, clienteId: true, chaveSharepoint: true, numeroTermo: true, cliente: { select: { siglaLegado: true } } },
+    select: { id: true, clienteId: true, chaveSharepoint: true, numeroTermo: true, cliente: { select: { siglaLegado: true, nome: true } } },
   })
-  const mapa = new Map<string, ContratoAchado[]>()
-  const guardar = (chave: string | null, c: ContratoAchado) => {
+  const porChave = new Map<string, ContratoAchado[]>()
+  const porNumero = new Map<string, Candidato[]>()
+  const guardar = <T extends ContratoAchado>(mapa: Map<string, T[]>, chave: string | null, c: T) => {
     if (!chave) return
     const lista = mapa.get(chave) ?? []
     if (!lista.some((x) => x.id === c.id)) lista.push(c)
     mapa.set(chave, lista)
   }
+  const siglas = new Set<string>()
   for (const c of contratos) {
     const alvo = { id: c.id, clienteId: c.clienteId }
-    guardar(c.chaveSharepoint, alvo)
-    const sigla = c.cliente.siglaLegado?.toUpperCase()
-    const numero = chaveNumerica(c.numeroTermo)
-    if (sigla && numero) guardar(`${sigla}|${numero}`, alvo)
+    const sigla = c.cliente.siglaLegado?.toUpperCase() ?? null
+    if (sigla) siglas.add(sigla)
+    guardar(porChave, c.chaveSharepoint, alvo)
+    const numero = chaveNumerica(c.numeroTermo) ?? chaveSemNumero(c.numeroTermo)
+    if (sigla && numero) guardar(porChave, `${sigla}|${numero}`, alvo)
+    const doSharepoint = c.chaveSharepoint?.split('|')[1] ?? null
+    for (const n of [numero, doSharepoint]) guardar(porNumero, n, { ...alvo, sigla, nome: c.cliente.nome })
   }
-  return mapa
+  return { porChave, porNumero, siglas }
 }
 
-/** Só quando o casamento é único — na dúvida, "sem contrato no VerAI". */
-function acharContrato(a: ArquivoDaArea, lido: ControleLido, contratos: Map<string, ContratoAchado[]>): ContratoAchado | null {
-  const { sigla, chave } = contratoDoNome(a.nome)
-  for (const k of [chave, chaveDoContratoTexto(lido.contratoTexto)]) {
-    const achados = k ? contratos.get(`${sigla}|${k}`) : undefined
+/**
+ * Só quando o casamento é único — na dúvida, "sem contrato no VerAI". Primeiro pela sigla do nome do arquivo;
+ * se essa sigla não é de cliente nenhum ("SPURB", "SUB-Guainazes"), pelo nº e ano entre os clientes de sigla ou
+ * nome compatível (`siglaCompativel`).
+ */
+export function acharContrato(nome: string, contratoTexto: string | null, mapas: MapasDeContratos): ContratoAchado | null {
+  const { sigla, chave } = contratoDoNome(nome)
+  const chaves = [chave, chaveDoContratoTexto(contratoTexto), chaveSemNumero(nome.replace(/\s*-\s*\d{4}\.\d{2}\.pdf$/i, '')), chaveSemNumero(contratoTexto)]
+  for (const k of chaves) {
+    const achados = k ? mapas.porChave.get(`${sigla}|${k}`) : undefined
     if (achados?.length === 1) return achados[0]
+  }
+  if (mapas.siglas.has(sigla)) return null
+  for (const k of chaves) {
+    const achados = (k ? (mapas.porNumero.get(k) ?? []) : []).filter((c) => siglaCompativel(sigla, c))
+    if (achados.length === 1) return { id: achados[0].id, clienteId: achados[0].clienteId }
   }
   return null
 }
@@ -105,12 +128,12 @@ export function criarLeitorDosControles(deps: Deps): LeitorDeArea {
     const pdfs = todos.filter((a) => a.extensao === 'pdf' && mesDoCaminho(a.caminho))
     const existentes = new Map((await prisma.controleContrato.findMany({ select: { arquivoId: true, sha256: true } })).map((c) => [c.arquivoId, c.sha256]))
     const alvo = releitura ? pdfs : pdfs.filter((a) => existentes.get(a.id) !== a.sha256)
-    const contratos = alvo.length > 0 ? await mapaDeContratos(prisma) : new Map<string, ContratoAchado[]>()
-    const r = { lidos: 0, previsto: 0, faturado: 0, semContrato: 0, falhas: 0 }
+    const contratos = await mapaDeContratos(prisma)
+    const r = { lidos: 0, previsto: 0, faturado: 0, semContrato: 0, falhas: 0, religados: 0 }
     for (const a of alvo) {
       try {
         const lido = lerControle(await deps.linhasDoPdf(await ler(a)))
-        const contrato = acharContrato(a, lido, contratos)
+        const contrato = acharContrato(a.nome, lido.contratoTexto, contratos)
         await gravar(prisma, a, lido, contrato, deps.agora())
         r.lidos++
         if (lido.previsto?.conferida) r.previsto++
@@ -124,9 +147,21 @@ export function criarLeitorDosControles(deps: Deps): LeitorDeArea {
         })
       }
     }
+    // Controle já lido e ainda sem contrato: tenta de novo (o contrato pode ter entrado no VerAI depois, ou a
+    // regra de casamento melhorou) — sem reler o PDF.
+    const lidosAgora = new Set(alvo.map((a) => a.id))
+    const nomes = new Map(pdfs.map((a) => [a.id, a.nome]))
+    for (const s of await prisma.controleContrato.findMany({ where: { contratoId: null }, select: { id: true, arquivoId: true, contratoTexto: true } })) {
+      const nome = nomes.get(s.arquivoId)
+      if (!nome || lidosAgora.has(s.arquivoId)) continue
+      const contrato = acharContrato(nome, s.contratoTexto ?? null, contratos)
+      if (!contrato) continue
+      await prisma.controleContrato.update({ where: { id: s.id }, data: { contratoId: contrato.id, clienteId: contrato.clienteId } })
+      r.religados++
+    }
     // Controle de arquivo que saiu da pasta sai junto (o arquivo fica registrado como removido na origem).
     const removidos = (await prisma.controleContrato.deleteMany({ where: { arquivoId: { notIn: pdfs.map((a) => a.id) } } })).count
-    return `controles de contratos: ${r.lidos} lidos · previsto conferido ${r.previsto} · faturado conferido ${r.faturado} · sem contrato no VerAI ${r.semContrato} · removidos ${removidos}${r.falhas ? ` · falhas ${r.falhas}` : ''}`
+    return `controles de contratos: ${r.lidos} lidos · previsto conferido ${r.previsto} · faturado conferido ${r.faturado} · sem contrato no VerAI ${r.semContrato}${r.religados ? ` · religados ${r.religados}` : ''} · removidos ${removidos}${r.falhas ? ` · falhas ${r.falhas}` : ''}`
   }
 }
 

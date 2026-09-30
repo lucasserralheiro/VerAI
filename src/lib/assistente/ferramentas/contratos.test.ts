@@ -9,8 +9,10 @@ jest.mock('@/lib/prisma', () => ({
 }))
 jest.mock('@/lib/visibilidade', () => ({ clienteIdsPermitidos: jest.fn(), podeVerCliente: jest.fn() }))
 jest.mock('@/lib/relatorios-clientes/contratos-consolidados', () => ({ consolidarContratos: jest.fn() }))
+jest.mock('@/lib/valores-contratos/origens', () => ({ origensDoContrato: jest.fn(async () => ({})) }))
 
 import { prisma } from '@/lib/prisma'
+import { origensDoContrato } from '@/lib/valores-contratos/origens'
 import { clienteIdsPermitidos, podeVerCliente } from '@/lib/visibilidade'
 import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
 import type { Ferramenta, ContextoFerramenta } from './comum'
@@ -33,6 +35,7 @@ beforeEach(() => {
   ;(clienteIdsPermitidos as jest.Mock).mockResolvedValue(['c1'])
   ;(podeVerCliente as jest.Mock).mockImplementation(async (_u, id) => id === 'c1')
   ;(prisma.indiceDocumento.findMany as jest.Mock).mockResolvedValue([])
+  ;(origensDoContrato as jest.Mock).mockResolvedValue({})
 })
 
 describe('detalheDoContrato', () => {
@@ -65,6 +68,26 @@ describe('detalheDoContrato', () => {
     expect(r.historico).toEqual([
       { tipo: 'ADITIVO', numero: 'TA 02', assinadoEm: '01/05/2024', valor: 'R$ 150,50', objeto: 'Reajuste', proposta: 'PA 7', situacao: null, inicio: '—', vencimento: '—', observacao: null, pdfProposta: null, pdfTermo: { nome: 'TA_02.pdf', leitura: 'sem_texto' } },
     ])
+  })
+
+  it('prova do campo preenchido com prova entra na linha do histórico e no texto compacto', async () => {
+    ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([
+      {
+        ...contrato('k1'),
+        _count: { itens: 1 },
+        historico: [
+          {
+            id: 'h1', tipo: 'ADITIVO', numero: 'TA 02', data: null, valor: '150.5', objeto: null, proposta: null, situacao: null, dataInicio: null, dataVencimento: null, observacao: null,
+            propostaArquivo: null, termoArquivo: null, propostaDoSharepoint: false, termoDoSharepoint: false,
+          },
+        ],
+      },
+    ])
+    ;(consolidarContratos as jest.Mock).mockResolvedValue(new Map([['k1', consolidado()]]))
+    ;(origensDoContrato as jest.Mock).mockResolvedValue({ h1: { valor: 'termo p. 2 + planilha Contratos Receita', vigencia: 'controle do faturamento ago/2026' } })
+    const r = (await rodar(detalheDoContrato, { contratoId: 'k1' })) as { historico: { provas?: string }[] }
+    expect(r.historico[0].provas).toBe('valor: termo p. 2 + planilha Contratos Receita; vigencia: controle do faturamento ago/2026')
+    expect(detalheDoContrato.compactar!(r)).toContain('provas')
   })
 
   it('mais de um contrato casando: devolve opções em vez de escolher', async () => {

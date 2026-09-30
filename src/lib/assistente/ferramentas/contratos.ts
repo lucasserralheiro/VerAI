@@ -6,6 +6,7 @@ import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consoli
 import { SELECAO_ANEXOS } from '@/lib/relatorios-clientes/anexos-historico'
 import { digitosDoSei } from '@/lib/relatorios-clientes/sei'
 import { situacaoVencimento } from '@/lib/relatorios-clientes/vencimento'
+import { origensDoContrato } from '@/lib/valores-contratos/origens'
 import { SELECT_CONTRATO } from '@/app/api/contratos/esquema'
 import {
   avisosDoContrato,
@@ -24,7 +25,7 @@ import { compactar, tabela } from './compacto'
 
 export const detalheDoContrato = definirFerramenta({
   descricao:
-    'Detalhe completo de UM contrato: cabeçalho, SEI, valor/saldo consolidados e a linha do tempo do histórico (contrato, aditivos, prorrogações, rescisão, prospecção) com objeto, proposta, valor e datas, e se os PDFs anexados podem ser lidos. Informe contratoId, ou o número (parcial) + clienteId.',
+    'Detalhe completo de UM contrato: cabeçalho, SEI, valor/saldo consolidados e a linha do tempo do histórico (contrato, aditivos, prorrogações, rescisão, prospecção) com objeto, proposta, valor e datas, e se os PDFs anexados podem ser lidos. Cada linha traz "provas" quando valor/vigência foram preenchidos com prova (termo, planilha, controle) — use para "de onde veio esse valor?". Informe contratoId, ou o número (parcial) + clienteId. Serve para "quanto sobra", "saldo", "vai estourar", "quanto falta faturar", "quando vence".',
   entrada: z
     .object({
       contratoId: z.string().optional(),
@@ -64,8 +65,9 @@ export const detalheDoContrato = definirFerramenta({
       return { ambiguo: true, opcoes: contratos.map((c) => ({ id: c.id, numero: c.numeroTermo, cliente: c.cliente.nome })) }
     }
     const [contrato] = contratos
-    const [consolidados, indices] = await Promise.all([
+    const [consolidados, origens, indices] = await Promise.all([
       consolidarContratos([contrato], hoje),
+      origensDoContrato(contrato.id),
       prisma.indiceDocumento.findMany({
         where: { origem: { in: ['HISTORICO_PROPOSTA', 'HISTORICO_TERMO'] }, origemId: { in: contrato.historico.map((h) => h.id) } },
         select: { origem: true, origemId: true, status: true },
@@ -88,6 +90,7 @@ export const detalheDoContrato = definirFerramenta({
         observacao: h.observacao,
         pdfProposta: h.propostaArquivo ? { nome: h.propostaArquivo.nome, leitura: leitura('HISTORICO_PROPOSTA', h.id) } : null,
         pdfTermo: h.termoArquivo ? { nome: h.termoArquivo.nome, leitura: leitura('HISTORICO_TERMO', h.id) } : null,
+        ...(origens[h.id] ? { provas: Object.entries(origens[h.id]).map(([c, t]) => `${c}: ${t}`).join('; ') } : {}),
       })),
       itens: contrato._count.itens,
     }
@@ -135,7 +138,7 @@ export const itensDoContrato = definirFerramenta({
 
 export const contratosVencendo = definirFerramenta({
   descricao:
-    'Contratos (de todos os clientes que o usuário vê, ou de um cliente) cujo fim de vigência efetivo cai até a data informada, os que vencem primeiro no topo. Não inclui rescindidos.',
+    'Contratos (de todos os clientes que o usuário vê, ou de um cliente) cujo fim de vigência efetivo cai até a data informada, os que vencem primeiro no topo. Não inclui rescindidos. Serve para "o que vence", "vencimentos", "o que precisa renovar/prorrogar".',
   entrada: z.object({
     ate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('data limite AAAA-MM-DD'),
     clienteId: z.string().optional(),

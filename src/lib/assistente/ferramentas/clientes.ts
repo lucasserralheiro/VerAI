@@ -44,7 +44,7 @@ export const buscarClientes = definirFerramenta({
 
 export const resumoDoCliente = definirFerramenta({
   descricao:
-    'Visão geral de um cliente: endereço, responsáveis, TODOS os contratos (número, SEI, ativo, vigência, valor, saldo, % faturado) e totais. Ponto de partida para "me fale tudo do cliente X".',
+    'Visão geral de um cliente: endereço, responsáveis, TODOS os contratos (número, SEI, ativo, vigência, valor, saldo, % faturado) e totais. Ponto de partida para "me fale tudo do cliente X". Serve para "como está o cliente", "situação", "carteira do cliente".',
   entrada: z.object({ clienteId: z.string().min(1) }),
   async executar({ clienteId }, { usuario, hoje }) {
     if (!(await podeVerCliente(usuario, clienteId))) return NAO_ENCONTRADO

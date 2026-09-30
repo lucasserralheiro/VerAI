@@ -37,7 +37,7 @@ const contem = (valor: string) => ({ contains: valor, mode: 'insensitive' as con
 
 export const faturamentos = definirFerramenta({
   descricao:
-    'Faturamentos mensais de um cliente (opcionalmente de um contrato e de um período): valor, situação, SEI, se foi enviado ao cliente/GFP e as notas fiscais. Mais recentes primeiro, com a soma do período.',
+    'Faturamentos mensais de um cliente (opcionalmente de um contrato e de um período): valor, situação, SEI, se foi enviado ao cliente/GFP e as notas fiscais. Mais recentes primeiro, com a soma do período. Serve para "quanto faturou", "notas emitidas", "o que foi faturado no mês".',
   entrada: z.object({
     clienteId: z.string().min(1),
     contratoId: z.string().optional(),

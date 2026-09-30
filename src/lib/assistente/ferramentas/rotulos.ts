@@ -21,4 +21,7 @@ export const ROTULOS_FERRAMENTAS: Record<string, string> = {
   fichasDoContrato: 'Lendo as fichas do contrato',
   consultarTabelaDePrecos: 'Consultando a tabela de preços',
   calendarioFaturamento: 'Consultando o calendário de faturamento',
+  indiceIpcFipe: 'Consultando o IPC-Fipe',
+  simularReajuste: 'Calculando o reajuste',
+  reajustesCalculados: 'Consultando os reajustes calculados',
 }

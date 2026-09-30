@@ -28,6 +28,7 @@ const req = (corpo: unknown) =>
 
 beforeEach(() => {
   jest.clearAllMocks()
+  ;(respostaDireta as jest.Mock).mockResolvedValue(null)
   ;(getAuthUser as jest.Mock).mockResolvedValue({ id: 'u1', nome: 'U', email: 'u@x', role: 'responsavel' })
   ;(configuracaoDoAssistente as jest.Mock).mockReturnValue({ provedor: 'deepseek', modelo: 'deepseek-chat', apiKey: 'k' })
   ;(prisma.conversaAssistente.findUnique as jest.Mock).mockResolvedValue({ usuarioId: 'u1' })

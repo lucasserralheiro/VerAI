@@ -20,4 +20,5 @@ export const ROTULOS_FERRAMENTAS: Record<string, string> = {
   buscarNasNormas: 'Consultando as normas',
   fichasDoContrato: 'Lendo as fichas do contrato',
   consultarTabelaDePrecos: 'Consultando a tabela de preços',
+  calendarioFaturamento: 'Consultando o calendário de faturamento',
 }

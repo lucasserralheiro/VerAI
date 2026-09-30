@@ -16,7 +16,7 @@ type FerramentaStub = { description: string; inputSchema: unknown; execute: (ent
 it('registra as ferramentas, todas com rótulo de progresso', () => {
   expect(Object.keys(FERRAMENTAS).sort()).toEqual(
     [
-      'analisesDeDocumentos', 'buscarClientes', 'buscarNosDocumentos', 'buscarPorSei', 'contratosVencendo', 'demandas',
+      'analisesDeDocumentos', 'buscarClientes', 'buscarNosDocumentos', 'buscarPorSei', 'calendarioFaturamento', 'contratosVencendo', 'demandas',
       'detalheDoContrato', 'execucoesConfere', 'faturamentos', 'fornecedores', 'itensDoContrato', 'propostasComerciais',
       'resumoDoCliente', 'solicitacoes', 'tramitesDaDemanda', 'alertas', 'consultarManual', 'buscarNasNormas', 'fichasDoContrato',
       'consultarTabelaDePrecos',

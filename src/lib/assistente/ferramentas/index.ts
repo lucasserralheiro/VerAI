@@ -10,6 +10,7 @@ import { consultarManual } from './manual'
 import { buscarNasNormas } from './normas'
 import { fichasDoContrato } from './fichas'
 import { consultarTabelaDePrecos } from './precos'
+import { calendarioFaturamento } from './calendario'
 
 export { ROTULOS_FERRAMENTAS } from './rotulos'
 
@@ -34,6 +35,7 @@ export const FERRAMENTAS: Record<string, Ferramenta> = {
   buscarNasNormas,
   fichasDoContrato,
   consultarTabelaDePrecos,
+  calendarioFaturamento,
 } as Record<string, Ferramenta>
 
 export async function executarComSeguranca(

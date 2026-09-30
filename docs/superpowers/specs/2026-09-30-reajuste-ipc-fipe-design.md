@@ -26,11 +26,13 @@ Decisões tomadas na conversa:
 
 API pública do Banco Central (SGS), sem cadastro:
 `https://api.bcb.gov.br/dados/serie/bcdata.sgs.<codigo>/dados?formato=json` → `[{ data: "01/08/2026",
-valor: "0.35" }]` (variação % do mês). O código esperado é **193** (IPC-Fipe, variação mensal), mas
-em 30/09 a API não respondeu da rede da empresa nem de fora — **a primeira tarefa do plano confirma o
-código e o acesso a partir da Vercel**, conferindo 3 meses contra os divulgados pela Fipe. Se o SGS
-não servir, a alternativa é o Ipeadata (OData público); se nenhum servir, o plano para e volta ao
-usuário. O código da série fica numa constante só.
+valor: "0.35" }]` (variação % do mês). Série **193** = IPC-Fipe, variação mensal — **confirmada em
+30/09/2026**: começa em 02/1939 (início do IPC-Fipe) e os 13 meses de ago/2025 a ago/2026 batem um a
+um com os divulgados pela Fipe; acumulado set/2025–ago/2026 = fator 1,035543 (3,55 %), que vira caso de
+teste. Não precisa de chave. A API exige `User-Agent` (sem ele devolve página de bloqueio em HTML) e
+já oscilou (502 na mesma manhã) — por isso a tabela local e a recusa de resposta que não é JSON. A
+primeira tarefa do plano ainda confirma o acesso **a partir da Vercel**. O código da série fica numa
+constante só.
 
 ### 1.2 Tabela `IndiceIpcFipe` (nova)
 

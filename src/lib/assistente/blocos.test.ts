@@ -19,7 +19,7 @@ it('tipos: verai, geral, recusa', () => {
   expect(tiposDaResposta(RECUSA)).toEqual(['recusa'])
 })
 
-it('resposta com dois blocos :::geral separados por texto do VerAI → 3 ou mais blocos na ordem certa', () => {
+it('resposta com 4 blocos (dois geral separados por texto do VerAI)', () => {
   expect(
     separarBlocos('Contexto 1.\n\n:::geral\nGeral 1\n:::\n\nTexto do VerAI.\n\n:::geral\nGeral 2\n:::'),
   ).toEqual([
@@ -28,4 +28,50 @@ it('resposta com dois blocos :::geral separados por texto do VerAI → 3 ou mais
     { tipo: 'verai', texto: 'Texto do VerAI.' },
     { tipo: 'geral', texto: 'Geral 2' },
   ])
+})
+
+// Delimitadores com espaço, indent, bullet
+it('::: geral com espaço dentro do delimitador não abre bloco', () => {
+  expect(separarBlocos('::: geral\nTexto\n:::')).toEqual([{ tipo: 'verai', texto: '::: geral\nTexto\n:::' }])
+})
+
+it(':::geral indentado abre bloco', () => {
+  expect(separarBlocos('Antes.\n\n  :::geral\nGeral\n:::\n\nDepois.')).toEqual([
+    { tipo: 'verai', texto: 'Antes.' },
+    { tipo: 'geral', texto: 'Geral' },
+    { tipo: 'verai', texto: 'Depois.' },
+  ])
+})
+
+it(':::geral com bullet abre bloco', () => {
+  expect(separarBlocos('- :::geral\nGeral\n:::')).toEqual([{ tipo: 'geral', texto: 'Geral' }])
+})
+
+it('fechamento indentado (  :::) não fecha, texto depois continua geral', () => {
+  expect(separarBlocos(':::geral\nGeral\n  :::\n\nTexto verai.')).toEqual([
+    { tipo: 'geral', texto: 'Geral\n  :::\n\nTexto verai.' },
+  ])
+})
+
+it('fechamento com espaço (::: ) não fecha, texto depois continua geral', () => {
+  expect(separarBlocos(':::geral\nGeral\n::: \n\nTexto verai.')).toEqual([
+    { tipo: 'geral', texto: 'Geral\n::: \n\nTexto verai.' },
+  ])
+})
+
+// Recusa com normalização
+it('frase de recusa exata → ["recusa"]', () => {
+  expect(tiposDaResposta(RECUSA)).toEqual(['recusa'])
+})
+
+it('frase de recusa em bold → ["recusa"]', () => {
+  expect(tiposDaResposta(`**${RECUSA}**`)).toEqual(['recusa'])
+})
+
+it('frase de recusa com bloco geral → ["recusa", "geral"]', () => {
+  expect(tiposDaResposta(`${RECUSA}\n\n:::geral\nConhecimento\n:::`)).toEqual(['recusa', 'geral'])
+})
+
+it('só o começo da frase de recusa não é recusa', () => {
+  expect(tiposDaResposta('Isso está fora do que o assistente do VerAI atende.')).toEqual(['verai'])
 })

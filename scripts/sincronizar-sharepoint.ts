@@ -9,7 +9,8 @@
  * Opções: --pasta="C:\...\rede.sp - ContratosReceita" (padrão: ~/rede.sp/rede.sp - ContratosReceita ou
  * SHAREPOINT_PASTA), --clientes=SMS,SGM (só esses — listagem e remoção), --reler-tudo (reprocessa todos
  * os contratos), --pasta-documentos="C:\...\rede.sp - Documentos" (padrão: ~/rede.sp/rede.sp - Documentos ou
- * SHAREPOINT_PASTA_DOCUMENTOS), --sem-documentos (pula a biblioteca Documentos), --reler=TABELA_PRECOS (relê
+ * SHAREPOINT_PASTA_DOCUMENTOS), --sem-documentos (pula a biblioteca Documentos), --sem-valores (pula a junção de
+ * linhas duplicadas e o valor/vigência com prova), --reler=TABELA_PRECOS (relê
  * a área da biblioteca Documentos mesmo sem mudança). Configuração: scripts/sharepoint-clientes.json. Os arquivos vão para o Cloudflare R2
  * (variáveis R2_* no .env.local — spec §11). Antes da primeira vez: scripts/migrar-sharepoint-lugar-certo.ts.
  * Idempotente; o agendador roda scripts/sincronizar-sharepoint.bat. Com --aplicar, a passada completa grava
@@ -163,10 +164,12 @@ async function main() {
 
     // Linhas duplicadas do histórico (spec 2026-09-30-juntar-linhas-duplicadas), antes dos valores: o termo que
     // estava em duas linhas passa a casar com a planilha e o controle. Só com prova. Não muda o código de saída.
-    if (!clientes) console.log(`\n${(await etapaDasDuplicatas(prisma, { aplicar })).join('\n')}`)
+    // --sem-valores pula as duas (primeira carga num banco novo: simular antes com os scripts próprios).
+    const comValores = !clientes && !process.argv.includes('--sem-valores')
+    if (comValores) console.log(`\n${(await etapaDasDuplicatas(prisma, { aplicar })).join('\n')}`)
     // Valor, vigência e assinatura do histórico com prova (spec 2026-09-29-valor-vigencia-contratos §0), depois das
     // fichas e da biblioteca, que ela lê. Só em campo vazio; sem --aplicar simula. Não muda o código de saída.
-    if (!clientes) console.log(`\n${(await etapaDosValores(prisma, { aplicar })).join('\n')}`)
+    if (comValores) console.log(`\n${(await etapaDosValores(prisma, { aplicar })).join('\n')}`)
 
     mkdirSync('logs', { recursive: true })
     writeFileSync('logs/sharepoint-sincronizacao.json', JSON.stringify({ quando: new Date(), aplicar, resultado: r }, null, 1))

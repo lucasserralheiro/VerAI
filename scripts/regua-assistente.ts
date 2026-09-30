@@ -15,6 +15,7 @@ import type { AuthUser } from '../src/lib/auth'
 import { executarComSeguranca, FERRAMENTAS, textoParaModelo } from '../src/lib/assistente/ferramentas'
 import { executarAgente, type MensagemHistorico, type ResultadoAgente } from '../src/lib/assistente/agente'
 import { prepararContexto } from '../src/lib/assistente/preparar'
+import { respostaDireta } from '../src/lib/assistente/resposta-cliente'
 import { emMb, tamanhoDoIndice } from '../src/lib/assistente/indexacao/tamanho'
 import { CASOS } from './regua-assistente-casos'
 import { avaliarCaso } from '../src/lib/assistente/regua-acerto'
@@ -95,11 +96,9 @@ async function comIa(): Promise<MedidaComIa[]> {
     const recentes = continua ? [anterior!.ferramentas] : []
     const contexto = await prepararContexto({ usuario, pergunta, rota: null, recentes })
     let final: ResultadoAgente | undefined
-    const resposta = executarAgente({ usuario, historico, pergunta, contexto }, async (r) => {
+    await executarAgente({ usuario, historico, pergunta, contexto }, async (r) => {
       final = r
-    })
-    await resposta.consumeStream()
-    await new Promise((r) => setTimeout(r, 0))
+    }).resposta.text()
     if (!final) throw new Error(`sem resposta para "${pergunta}"`)
     const f: ResultadoAgente = final
     medidas.push({
@@ -124,16 +123,22 @@ async function acerto(usuario: AuthUser): Promise<MedidaAcerto[]> {
   for (const caso of CASOS) {
     const chave = caso.chave ? await caso.chave() : null
     for (const pergunta of caso.perguntas) {
-      const contexto = await prepararContexto({ usuario, pergunta, rota: null, recentes: [] })
-      let final: ResultadoAgente | undefined
-      const resposta = executarAgente({ usuario, historico: [], pergunta, contexto }, async (r) => { final = r })
-      await resposta.consumeStream()
-      await new Promise((r) => setTimeout(r, 0))
-      const obs = {
-        texto: final?.texto ?? '',
-        ferramentas: (final?.ferramentas ?? []).map((f) => f.nome),
-        direta: false,
-        naoConfirmados: [] as string[], // Task 15 troca por final.conferencia.naoConfirmados
+      // Mesma ordem da rota: mensagem que é só um cliente responde sem IA.
+      const direta = await respostaDireta(pergunta, usuario, new Date())
+      let obs: { texto: string; ferramentas: string[]; direta: boolean; naoConfirmados: string[] }
+      if (direta) {
+        obs = { texto: direta.texto, ferramentas: [], direta: true, naoConfirmados: [] }
+      } else {
+        const contexto = await prepararContexto({ usuario, pergunta, rota: null, recentes: [] })
+        let final: ResultadoAgente | undefined
+        await executarAgente({ usuario, historico: [], pergunta, contexto }, async (r) => { final = r }).resposta.text()
+        const f = final as ResultadoAgente | undefined
+        obs = {
+          texto: f?.texto ?? '',
+          ferramentas: (f?.ferramentas ?? []).map((x) => x.nome),
+          direta: false,
+          naoConfirmados: f?.conferencia.naoConfirmados ?? [],
+        }
       }
       const { ok, motivos } = avaliarCaso(caso, chave, obs)
       medidas.push({ intencao: caso.intencao, pergunta, ok, motivos, ferramentas: obs.ferramentas, resposta: obs.texto.slice(0, 300) })

@@ -20,7 +20,7 @@ import { prisma } from '@/lib/prisma'
 import { configuracaoDoAssistente } from '@/lib/assistente/configuracao'
 import { executarAgente } from '@/lib/assistente/agente'
 import { prepararContexto } from '@/lib/assistente/preparar'
-import { POST } from './route'
+import { maxDuration, POST } from './route'
 
 const params = { params: Promise.resolve({ id: 'conv' }) }
 const req = (corpo: unknown) =>
@@ -37,7 +37,7 @@ beforeEach(() => {
     { papel: 'assistente', conteudo: 'resposta antiga', ferramentas: [{ nome: 'resumoDoCliente', entrada: { clienteId: 'c1' } }] },
     { papel: 'usuario', conteudo: 'pergunta antiga', ferramentas: null },
   ])
-  ;(executarAgente as jest.Mock).mockReturnValue({ toUIMessageStreamResponse: () => new Response('stream') })
+  ;(executarAgente as jest.Mock).mockImplementation(() => ({ resposta: new Response('stream') }))
 })
 
 it('503 sem configuração', async () => {
@@ -82,9 +82,13 @@ it('grava a pergunta, chama o agente com histórico em ordem e contexto, e grava
     recentes: [[{ nome: 'resumoDoCliente', entrada: { clienteId: 'c1' } }]],
   })
 
-  await aoTerminar({ texto: 'R$ 10,00', ferramentas: [{ nome: 'resumoDoCliente', entrada: {} }], tokensEntrada: 5, tokensSaida: 2, tokensCache: 1 })
+  const conferencia = { conferidos: 1, naoConfirmados: [] }
+  await aoTerminar({ texto: 'R$ 10,00', ferramentas: [{ nome: 'resumoDoCliente', entrada: {} }], conferencia, tipos: ['verai'], bloqueada: false, tokensEntrada: 5, tokensSaida: 2, tokensCache: 1 })
   expect(prisma.mensagemAssistente.create).toHaveBeenLastCalledWith({
-    data: { conversaId: 'conv', papel: 'assistente', conteudo: 'R$ 10,00', ferramentas: [{ nome: 'resumoDoCliente', entrada: {} }], tokensEntrada: 5, tokensSaida: 2, tokensCache: 1 },
+    data: {
+      conversaId: 'conv', papel: 'assistente', conteudo: 'R$ 10,00', origem: 'ia', tipos: ['verai'], conferencia,
+      ferramentas: [{ nome: 'resumoDoCliente', entrada: {} }], tokensEntrada: 5, tokensSaida: 2, tokensCache: 1,
+    },
   })
   expect(prisma.conversaAssistente.update).toHaveBeenCalledWith({ where: { id: 'conv' }, data: { atualizadaEm: expect.any(Date) } })
 })
@@ -118,4 +122,12 @@ it('resposta vazia (provedor abortou) não é gravada', async () => {
   ;(prisma.mensagemAssistente.create as jest.Mock).mockClear()
   await aoTerminar({ texto: '', ferramentas: [] })
   expect(prisma.mensagemAssistente.create).not.toHaveBeenCalled()
+})
+
+it('limites de tempo: 90 s na função e no aborto do agente', async () => {
+  const timeout = jest.spyOn(AbortSignal, 'timeout')
+  await POST(req({ pergunta: 'oi' }), params)
+  expect(maxDuration).toBe(90)
+  expect(timeout).toHaveBeenCalledWith(90_000)
+  timeout.mockRestore()
 })

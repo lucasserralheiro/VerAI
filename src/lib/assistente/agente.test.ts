@@ -6,8 +6,9 @@ jest.mock('unpdf', () => ({})) // ESM; carregado pela cadeia das ferramentas, n�
 jest.mock('@/lib/prisma', () => ({ prisma: { cliente: { findMany: jest.fn(async () => [{ id: 'c1', nome: 'SMIT', siglaLegado: 'SMIT', _count: { contratos: 1 } }]) } } }))
 jest.mock('@/lib/visibilidade', () => ({ clienteIdsPermitidos: jest.fn(async () => null), podeVerCliente: jest.fn(async () => true), documentosVisiveisWhere: jest.fn(async () => ({})) }))
 
-import { executarAgente, montarMensagens, MAX_HISTORICO, type ResultadoAgente } from './agente'
+import { executarAgente, finalizarResposta, montarMensagens, MAX_HISTORICO, type ResultadoAgente } from './agente'
 import { INSTRUCOES_SISTEMA } from './instrucoes'
+import { NAO_ENCONTREI, RECUSA } from './blocos'
 
 const usuario = { id: 'u', nome: 'U', email: 'u@x', role: 'admin' as const }
 const uso = (entrada: number, cache: number, saida: number) => ({
@@ -22,6 +23,38 @@ describe('montarMensagens', () => {
     expect(msgs).toHaveLength(MAX_HISTORICO + 1)
     expect(msgs[0]).toEqual({ role: 'user', content: 'm4' })
     expect(msgs.at(-1)).toEqual({ role: 'user', content: 'Hoje é 23/09/2026.\n\nPergunta: e o saldo?' })
+  })
+})
+
+describe('finalizarResposta', () => {
+  it('confere só o que está fora de :::geral, contra saídas e contexto', () => {
+    const r = finalizarResposta({
+      texto: 'Vence em 31/12/2026, saldo R$ 5,00.\n:::geral\nEm geral o prazo é de 60 meses, R$ 7,00.\n:::',
+      saidas: ['fim: 31/12/2026'],
+      contexto: 'Hoje é 30/09/2026.',
+      houveFerramenta: true,
+    })
+    expect(r.conferencia).toEqual({ conferidos: 1, naoConfirmados: ['R$ 5,00'] })
+    expect(r.tipos).toEqual(['verai', 'geral'])
+    expect(r.bloqueada).toBe(false)
+  })
+
+  it('número do VerAI sem nenhuma consulta: troca por "Não encontrei" e mantém o bloco geral', () => {
+    const r = finalizarResposta({ texto: 'O saldo é R$ 5,00.\n:::geral\nDica geral.\n:::', saidas: [], contexto: 'Hoje é 30/09/2026.', houveFerramenta: false })
+    expect(r.bloqueada).toBe(true)
+    expect(r.texto).toBe(`${NAO_ENCONTREI}\n\n:::geral\nDica geral.\n:::`)
+    expect(r.conferencia).toEqual({ conferidos: 0, naoConfirmados: [] })
+    expect(r.tipos).toEqual(['verai', 'geral'])
+  })
+
+  it('sem consulta mas número do contexto (data de hoje) não bloqueia', () => {
+    expect(finalizarResposta({ texto: 'Hoje é 30/09/2026.', saidas: [], contexto: 'Hoje é 30/09/2026.', houveFerramenta: false }).bloqueada).toBe(false)
+  })
+
+  it('recusa com bloco geral sobrando: os tipos vêm de tiposDaResposta', () => {
+    const r = finalizarResposta({ texto: `${RECUSA}\n:::geral\nx\n:::`, saidas: [], contexto: null, houveFerramenta: false })
+    expect(r.tipos).toEqual(['recusa', 'geral'])
+    expect(r.bloqueada).toBe(false)
   })
 })
 
@@ -52,20 +85,78 @@ describe('executarAgente', () => {
       ],
     })
     let final: ResultadoAgente | undefined
-    const resultado = executarAgente({ usuario, historico: [], pergunta: 'fale do smit', contexto: null, modelo }, async (r) => {
+    const { resposta } = executarAgente({ usuario, historico: [], pergunta: 'fale do smit', contexto: null, modelo }, async (r) => {
       final = r
     })
-    await resultado.consumeStream()
-    await new Promise((r) => setTimeout(r, 0))
+    const corpo = await resposta.text()
+    // O texto do modelo chega inteiro antes da conferência, e a conferência antes do fim.
+    const iTexto = corpo.indexOf('O SMIT tem 1 contrato.')
+    const iConferencia = corpo.indexOf('"type":"data-conferencia"')
+    expect(iTexto).toBeGreaterThan(-1)
+    expect(iConferencia).toBeGreaterThan(iTexto)
+    expect(corpo.lastIndexOf('"type":"text-end"')).toBeLessThan(iConferencia)
+    expect(corpo.indexOf('"type":"finish"')).toBeGreaterThan(iConferencia)
+    expect(corpo).toContain('"data":{"naoConfirmados":[],"bloqueada":false}')
     expect(final).toEqual({
       texto: 'O SMIT tem 1 contrato.',
       ferramentas: [{ nome: 'buscarClientes', entrada: { termo: 'smit' } }],
+      conferencia: { conferidos: 0, naoConfirmados: [] },
+      tipos: ['verai'],
+      bloqueada: false,
       tokensEntrada: 250,
       tokensSaida: 18,
       tokensCache: 120,
     })
     // A 2ª chamada recebeu o resultado da ferramenta, em texto compacto.
     expect(JSON.stringify(modelo.doStreamCalls[1].prompt)).toContain('c1|SMIT|SMIT|1')
+  })
+})
+
+describe('executarAgente — conferência e falha', () => {
+  const soTexto = (texto: string) =>
+    new MockLanguageModelV4({
+      doStream: [
+        {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'stream-start', warnings: [] },
+              { type: 'text-start', id: '1' },
+              { type: 'text-delta', id: '1', delta: texto },
+              { type: 'text-end', id: '1' },
+              { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage: uso(1, 0, 1) },
+            ],
+          }),
+        },
+      ],
+    })
+
+  it('número sem nenhuma consulta: a parte data-conferencia leva o texto de bloqueio e a gravação também', async () => {
+    let final: ResultadoAgente | undefined
+    const { resposta } = executarAgente({ usuario, historico: [], pergunta: 'saldo?', contexto: 'Hoje é 30/09/2026.', modelo: soTexto('O saldo é R$ 5,00.') }, async (r) => {
+      final = r
+    })
+    const corpo = await resposta.text()
+    expect(corpo).toContain(`"data":{"naoConfirmados":[],"bloqueada":true,"texto":"${NAO_ENCONTREI}"}`)
+    expect(final).toMatchObject({ texto: NAO_ENCONTREI, bloqueada: true, tipos: ['verai'], ferramentas: [] })
+  })
+
+  it('falha do provedor: mensagem fixa no stream e aoTerminar com texto vazio', async () => {
+    const erro = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const modelo = new MockLanguageModelV4({
+      doStream: async () => {
+        throw new Error('provedor fora')
+      },
+    })
+    let final: ResultadoAgente | undefined
+    const { resposta } = executarAgente({ usuario, historico: [], pergunta: 'oi', contexto: null, modelo }, async (r) => {
+      final = r
+    })
+    const corpo = await resposta.text()
+    expect(corpo).toContain('O assistente não respondeu. Tente de novo.')
+    expect(corpo).not.toContain('provedor fora')
+    expect(corpo).not.toContain('data-conferencia')
+    expect(final).toMatchObject({ texto: '', ferramentas: [] })
+    erro.mockRestore()
   })
 })
 
@@ -87,7 +178,7 @@ describe('contexto da pergunta', () => {
       ],
     })
     const contexto = 'Hoje é 25/09/2026. Já identificados (use estes ids, não procure de novo): cliente SMIT (clienteId: c1).'
-    await executarAgente({ usuario, historico: [], pergunta: 'saldo?', contexto, modelo }, async () => {}).consumeStream()
+    await executarAgente({ usuario, historico: [], pergunta: 'saldo?', contexto, modelo }, async () => {}).resposta.text()
     const prompt = modelo.doStreamCalls[0].prompt
     // A regra 4 da instrução cita o rótulo "Já identificados"; o que não pode ir ao system é o conteúdo.
     expect(JSON.stringify(prompt.filter((m) => m.role === 'system'))).not.toContain('clienteId: c1')
@@ -97,8 +188,11 @@ describe('contexto da pergunta', () => {
 
 describe('instrução do sistema', () => {
   it('cabe no teto e cita as ferramentas de analista, o formato e as regras da fase 1', () => {
-    expect(INSTRUCOES_SISTEMA.length).toBeLessThanOrEqual(4000)
-    for (const termo of ['alertas', 'consultarManual', 'buscarNasNormas', 'fichasDoContrato', 'buscarNosDocumentos', 'Atenção', 'Próximo passo', 'Já identificados', '(tipo:id)', 'sei:', '"|"']) {
+    expect(INSTRUCOES_SISTEMA.length).toBeLessThanOrEqual(6000)
+    for (const termo of [
+      'alertas', 'consultarManual', 'buscarNasNormas', 'fichasDoContrato', 'buscarNosDocumentos', 'Atenção', 'Próximo passo', 'Já identificados', '(tipo:id)', 'sei:', '"|"',
+      ':::geral', 'calendarioFaturamento', 'simularReajuste', 'controleDoFaturamento', 'Período citado', 'Contratos possíveis', 'Contrato provável', RECUSA,
+    ]) {
       expect(INSTRUCOES_SISTEMA).toContain(termo)
     }
   })

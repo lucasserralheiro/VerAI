@@ -8,8 +8,8 @@ import { respostaDireta } from '@/lib/assistente/resposta-cliente'
 import { streamDeTexto } from '@/lib/assistente/stream-texto'
 import { esquemaPergunta, excedeuLimite, LIMITE_POR_HORA } from '@/lib/assistente/conversas'
 
-export const maxDuration = 60
-const TIMEOUT_MS = 60_000
+export const maxDuration = 90
+const TIMEOUT_MS = 90_000
 
 type Contexto = { params: Promise<{ id: string }> }
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest, { params }: Contexto) {
 
   const contexto = await prepararContexto({ usuario, pergunta, rota: rota ?? null, recentes })
 
-  const resultado = executarAgente(
+  const { resposta } = executarAgente(
     { usuario, historico, pergunta, contexto, abortSignal: AbortSignal.any([request.signal, AbortSignal.timeout(TIMEOUT_MS)]) },
     async (final) => {
       // Sem texto = abortado/falhou: a pergunta fica, a resposta não é gravada como se fosse completa.
@@ -74,6 +74,9 @@ export async function POST(request: NextRequest, { params }: Contexto) {
           conversaId: id,
           papel: 'assistente',
           conteudo: final.texto,
+          origem: 'ia',
+          tipos: final.tipos,
+          conferencia: final.conferencia as never,
           ferramentas: final.ferramentas as never,
           tokensEntrada: final.tokensEntrada,
           tokensSaida: final.tokensSaida,
@@ -84,10 +87,6 @@ export async function POST(request: NextRequest, { params }: Contexto) {
     }
   )
 
-  return resultado.toUIMessageStreamResponse({
-    onError: (erro) => {
-      console.error('[assistente] falha ao responder', erro)
-      return 'O assistente não respondeu. Tente de novo.'
-    },
-  })
+  // Stream do modelo + parte data-conferencia no fim; a mensagem de falha fica em executarAgente.
+  return resposta
 }

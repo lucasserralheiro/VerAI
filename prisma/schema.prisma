@@ -1021,3 +1021,12 @@ model MensagemAssistente {
 
   @@index([conversaId, createdAt])
 }
+
+// IPC-Fipe mensal (Banco Central, SGS 193) — spec 2026-09-30-reajuste-ipc-fipe-design §1.2.
+// Mês já gravado nunca é sobrescrito pela sincronização: valor diferente vira divergência.
+model IndiceIpcFipe {
+  mes       DateTime @id @db.Date
+  variacao  Decimal  @db.Decimal(9, 4)
+  fonte     String
+  buscadoEm DateTime
+}

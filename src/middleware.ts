@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verificarSessao, AUTH_COOKIE_NAME } from '@/lib/auth'
 
 const PUBLIC_PATHS = ['/login']
-const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/assistente/indexar/cron']
+const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/assistente/indexar/cron', '/api/reajuste/indice/cron']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl

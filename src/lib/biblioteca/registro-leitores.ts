@@ -1,3 +1,4 @@
+import { lerCalendarioDeFaturamento } from '@/lib/calendario/leitor'
 import { lerControlesDeContratos } from '@/lib/controles-contratos/leitor'
 import { lerLinksMpls } from '@/lib/links-mpls/leitor'
 import { lerPlanilhaDeContratosArea } from '@/lib/planilha-contratos/leitor'
@@ -11,4 +12,5 @@ export const LEITORES: Partial<Record<AreaBiblioteca, LeitorDeArea>> = {
   CONTROLES_CONTRATOS: lerControlesDeContratos,
   PLANILHA_CONTRATOS: lerPlanilhaDeContratosArea,
   LINKS_MPLS: lerLinksMpls,
+  CALENDARIO: lerCalendarioDeFaturamento,
 }

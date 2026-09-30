@@ -27,6 +27,7 @@ import {
   Tags,
   Receipt,
   Network,
+  CalendarDays,
   TrendingUp,
   Table2,
   type LucideIcon,
@@ -72,6 +73,7 @@ const RELATORIOS_SUBLINKS = [
   { href: '/tabela-de-precos', label: 'Tabela de preços', icon: Tags },
   { href: '/controle-faturamento', label: 'Controle de faturamento', icon: Receipt },
   { href: '/links-mpls', label: 'Links MPLS', icon: Network },
+  { href: '/calendario-faturamento', label: 'Calendário de faturamento', icon: CalendarDays },
 ]
 
 // "Proposta Comercial (Conversão SEI)" é outro módulo à parte — mesmo padrão

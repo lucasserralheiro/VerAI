@@ -292,7 +292,17 @@ nova em model que ele já usa quebra a sincronização até a migração subir (
 `2026-09-29-tabela-de-precos-design.md`): itens da "Memória de Cálculo <ano> v<n>.xlsx" (aba achada pelo
 cabeçalho), cada preço conferido com o PDF oficial (`precosNoPdf`: primeiro valor em R$ depois do código) e
 com o informativo de alterações; diferença nunca é resolvida em silêncio — a tela mostra os dois valores.
-Assistente: `consultarTabelaDePrecos`. Calendário de faturamento: spec próprio, ainda a fazer.
+Assistente: `consultarTabelaDePrecos`.
+
+**Calendário de faturamento** (`/calendario-faturamento`, subitem de "Relatórios dos clientes", linha "Próximo prazo
+do faturamento" na tela Relatórios; spec `2026-09-29-calendario-faturamento-design.md`): o PDF anual (área
+`CALENDARIO`, tabelas `CalendarioFaturamento`/`DataFaturamento`). Os prazos só existem como **cor de fundo** do dia:
+`src/lib/calendario/pdf.ts` tira as áreas pintadas **respeitando os recortes (W\*) do PDF** — sem isso, retângulos
+largos "pintam" dias que não aparecem pintados; o significado da cor vem da **legenda do próprio PDF** (nenhuma cor
+no código). Prova (`leitura.ts`): dia da semana da data = coluna da grade; um encerramento por mês; toda cor de dia
+na legenda; cada prazo em ≥ 10 meses; nenhum prazo em fim de semana ou feriado; todos os dias do mês lidos. Mês com
+a grade errada no PDF sai inteiro, com aviso (o de 2026 desenhou janeiro/2027 com o 1º na quinta); falhou a prova →
+só feriados + PDF. Conferido mês a mês contra a imagem do PDF em 30/09/2026.
 
 **Links MPLS** (`/links-mpls` e `/links-mpls/contrato/[id]`, subitem de "Relatórios dos clientes", cartão no detalhe
 do contrato; spec `2026-09-29-links-mpls-design.md`): relatórios "Links MPLS - Relatórios para Faturamento" (área

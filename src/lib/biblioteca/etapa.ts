@@ -11,8 +11,8 @@ import { sincronizarBiblioteca, type ResultadoBiblioteca } from './sincronizar'
 // e nunca desfaz a passada dos contratos; `problema` vira código de saída 2 no script.
 
 /** A mais recente das migrações de que a etapa depende (biblioteca, tabela de preços, controles de contratos, planilha de
- *  contratos, links MPLS): aplicada ela, as anteriores também estão. */
-export const MIGRACAO_DA_BIBLIOTECA = '20260930120000_links_mpls'
+ *  contratos, links MPLS, calendário de faturamento): aplicada ela, as anteriores também estão. */
+export const MIGRACAO_DA_BIBLIOTECA = '20260930130000_calendario_faturamento'
 
 /** Mesma regra de "passada completa" da ContratosReceita; `null` = vale para a data das telas. */
 export function motivoIncompletaBiblioteca(r: ResultadoBiblioteca, aplicar: boolean): string | null {

@@ -937,6 +937,36 @@ model LinkMpls {
   @@index([codigo])
 }
 
+// Calendário de faturamento da PRODAM (biblioteca Documentos, área CALENDARIO) — spec
+// docs/superpowers/specs/2026-09-29-calendario-faturamento-design.md. Um por ano. Prazos só com a prova da leitura
+// (status "ok"); sem ela, só os feriados ("so-feriados") e o PDF.
+model CalendarioFaturamento {
+  id        String            @id @default(cuid())
+  ano       Int               @unique
+  arquivoId String
+  sha256    String
+  // ok | so-feriados
+  status    String
+  avisos    Json
+  lidoEm    DateTime
+  datas     DataFaturamento[]
+}
+
+model DataFaturamento {
+  id           String                @id @default(cuid())
+  calendarioId String
+  calendario   CalendarioFaturamento @relation(fields: [calendarioId], references: [id], onDelete: Cascade)
+  inicio       DateTime
+  fim          DateTime
+  // EMISSAO_NFSE | ENCERRAMENTO | ENVIO_RELATORIO | RECEBIMENTO_CONTRATOS | RECEBIMENTO_PROCESSOS_SEI |
+  // EXPEDIENTE_SUSPENSO | FERIADO | OUTRO
+  tipo         String
+  descricao    String
+
+  @@index([calendarioId])
+  @@index([inicio])
+}
+
 model AcessoArquivo {
   id        String         @id @default(cuid())
   arquivoId String

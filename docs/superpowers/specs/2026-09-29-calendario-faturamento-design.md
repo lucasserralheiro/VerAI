@@ -1,8 +1,20 @@
 # Calendário de faturamento no VerAI — design
 
-**Status:** rascunho para revisão do usuário (29/09/2026). Depende da base
-`2026-09-29-biblioteca-documentos-prodam-design.md`. **A leitura dos prazos depende de um teste**
-(§4) antes do plano definitivo.
+**Status:** implementado no dev em 30/09/2026 ("pode fazer todos"). Depende da base
+`2026-09-29-biblioteca-documentos-prodam-design.md`.
+
+**Teste da tarefa 1 (30/09) — resultado:** a leitura do PDF de 2026 bate **dia a dia com a imagem do PDF nos 12
+meses de 2026** (conferido na tela, página renderizada com pdf.js). Decisões que saíram do teste:
+- O PDF pinta retângulos largos (às vezes atravessando dois meses) e **recorta** o que aparece com máscaras (W\*):
+  a área que vale é pintura ∩ recorte, e vale a pintura de cima. Sem isso, a leitura marcava dias errados.
+- Legenda de duas linhas ao lado do mesmo quadradinho é um item só.
+- **Prova extra**: o dia da semana da data tem de ser a coluna da grade. Ela achou um erro do documento: o
+  "janeiro/2027" do PDF de 2026 tem o dia 1º na quinta (é sexta — a própria lista de feriados do PDF diz sexta).
+  **Mês com a grade errada sai inteiro, com aviso**; os demais seguem (em vez de derrubar o ano todo).
+- Falha de prova (encerramento, cor sem legenda, prazo em dia não útil, prazo em < 10 meses, dia não lido) →
+  `so-feriados`. Aviso (mês fora) só informa.
+- "Próximos prazos" conta o prazo em curso (faixa que começou e ainda não terminou) e os dias úteis sem feriado e
+  expediente suspenso; hoje é a data de Brasília.
 
 ## 1. Pedido
 

@@ -15,6 +15,7 @@ import type { SituacaoVencimento } from '@/lib/relatorios-clientes/vencimento'
 import { BarraFaturado, PillVencimento } from '@/components/relatorios-clientes/indicadores-contrato'
 import { rotuloCliente, type OpcaoCliente } from '@/components/relatorios-clientes/formulario-demanda'
 import { SeiLink } from '@/components/relatorios-clientes/sei-link'
+import { ProximoPrazoFaturamento } from '@/components/calendario/proximo-prazo'
 
 type ClienteResumo = Pick<OpcaoCliente, 'id' | 'nome' | 'siglaLegado'>
 
@@ -663,6 +664,7 @@ export default function RelatoriosPage() {
         <div>
           <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">Relatórios</h1>
           <p className="text-sm text-mid-grey">Consultas sobre todos os clientes que você acompanha</p>
+          <ProximoPrazoFaturamento />
         </div>
       </div>
 

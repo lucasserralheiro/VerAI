@@ -16,6 +16,8 @@ import { executarComSeguranca, FERRAMENTAS, textoParaModelo } from '../src/lib/a
 import { executarAgente, type MensagemHistorico, type ResultadoAgente } from '../src/lib/assistente/agente'
 import { prepararContexto } from '../src/lib/assistente/preparar'
 import { emMb, tamanhoDoIndice } from '../src/lib/assistente/indexacao/tamanho'
+import { CASOS } from './regua-assistente-casos'
+import { avaliarCaso } from '../src/lib/assistente/regua-acerto'
 
 const PASTA = '.superpowers/regua-assistente'
 const CORTADO = /"truncado":true|… mostrando \d+ de \d+ linhas/
@@ -38,7 +40,8 @@ const PERGUNTAS = [
 
 interface MedidaSemIa { cliente: string; ferramenta: string; caracteres: number; cortado: boolean }
 interface MedidaComIa { pergunta: string; ferramentas: string[]; tokensEntrada: number; tokensCache: number; tokensSaida: number; resposta: string }
-interface Rodada { tipo: 'sem-ia' | 'com-ia'; quando: string; medidas: (MedidaSemIa | MedidaComIa)[] }
+interface MedidaAcerto { intencao: string; pergunta: string; ok: boolean; motivos: string[]; ferramentas: string[]; resposta: string }
+interface Rodada { tipo: 'sem-ia' | 'com-ia' | 'acerto'; quando: string; medidas: (MedidaSemIa | MedidaComIa | MedidaAcerto)[] }
 
 function argumento(nome: string): string | undefined {
   return process.argv.find((a) => a.startsWith(`--${nome}=`))?.slice(nome.length + 3)
@@ -116,6 +119,39 @@ async function comIa(): Promise<MedidaComIa[]> {
   return medidas
 }
 
+async function acerto(usuario: AuthUser): Promise<MedidaAcerto[]> {
+  const medidas: MedidaAcerto[] = []
+  for (const caso of CASOS) {
+    const chave = caso.chave ? await caso.chave() : null
+    for (const pergunta of caso.perguntas) {
+      const contexto = await prepararContexto({ usuario, pergunta, rota: null, recentes: [] })
+      let final: ResultadoAgente | undefined
+      const resposta = executarAgente({ usuario, historico: [], pergunta, contexto }, async (r) => { final = r })
+      await resposta.consumeStream()
+      await new Promise((r) => setTimeout(r, 0))
+      const obs = {
+        texto: final?.texto ?? '',
+        ferramentas: (final?.ferramentas ?? []).map((f) => f.nome),
+        direta: false,
+        naoConfirmados: [] as string[], // Task 15 troca por final.conferencia.naoConfirmados
+      }
+      const { ok, motivos } = avaliarCaso(caso, chave, obs)
+      medidas.push({ intencao: caso.intencao, pergunta, ok, motivos, ferramentas: obs.ferramentas, resposta: obs.texto.slice(0, 300) })
+      console.log(`${ok ? '✔' : '✘'} [${caso.intencao}] ${pergunta}${motivos.length ? ` — ${motivos.join('; ')}` : ''}`)
+    }
+  }
+  const porIntencao = new Map<string, { ok: number; total: number }>()
+  for (const m of medidas) {
+    const p = porIntencao.get(m.intencao) ?? { ok: 0, total: 0 }
+    p.total++
+    if (m.ok) p.ok++
+    porIntencao.set(m.intencao, p)
+  }
+  for (const [i, p] of porIntencao) console.log(`${i}: ${p.ok}/${p.total}`)
+  console.log(`TOTAL: ${medidas.filter((m) => m.ok).length}/${medidas.length}`)
+  return medidas
+}
+
 function comparar(rodada: Rodada, arquivo: string) {
   const antes = JSON.parse(readFileSync(arquivo, 'utf8')) as Rodada
   if (antes.tipo !== rodada.tipo) throw new Error(`--comparar com rodada ${antes.tipo}, esta é ${rodada.tipo}`)
@@ -133,6 +169,21 @@ function comparar(rodada: Rodada, arquivo: string) {
     const cortados = (ms: MedidaSemIa[]) => ms.filter((m) => m.cortado).length
     const soma = (ms: MedidaSemIa[]) => ms.reduce((a, m) => a + m.caracteres, 0)
     console.log(`  cortados ${cortados(antes.medidas as MedidaSemIa[])} → ${cortados(novas)} · caracteres ${soma(antes.medidas as MedidaSemIa[])} → ${soma(novas)}`)
+  } else if (rodada.tipo === 'acerto') {
+    const agrupar = (ms: MedidaAcerto[]) => {
+      const p = new Map<string, { ok: number; total: number }>()
+      for (const m of ms) {
+        const x = p.get(m.intencao) ?? { ok: 0, total: 0 }
+        x.total++
+        if (m.ok) x.ok++
+        p.set(m.intencao, x)
+      }
+      return p
+    }
+    const [a, d] = [agrupar(antes.medidas as MedidaAcerto[]), agrupar(rodada.medidas as MedidaAcerto[])]
+    for (const [i, n] of d) console.log(`  ${i.padEnd(24)} ${a.get(i)?.ok ?? 0}/${a.get(i)?.total ?? 0} → ${n.ok}/${n.total}`)
+    const tot = (ms: MedidaAcerto[]) => `${ms.filter((m) => m.ok).length}/${ms.length}`
+    console.log(`  TOTAL ${tot(antes.medidas as MedidaAcerto[])} → ${tot(rodada.medidas as MedidaAcerto[])}`)
   } else {
     const velhas = antes.medidas as MedidaComIa[]
     const novas = rodada.medidas as MedidaComIa[]
@@ -151,7 +202,7 @@ function comparar(rodada: Rodada, arquivo: string) {
 
 async function main() {
   const hoje = new Date()
-  const tipo = process.argv.includes('--com-ia') ? 'com-ia' : 'sem-ia'
+  const tipo: Rodada['tipo'] = process.argv.includes('--acerto') ? 'acerto' : process.argv.includes('--com-ia') ? 'com-ia' : 'sem-ia'
   let medidas: Rodada['medidas']
   if (tipo === 'sem-ia') {
     const m = await semIa(hoje)
@@ -159,6 +210,10 @@ async function main() {
     console.log(`\ncortados: ${m.filter((x) => x.cortado).length} de ${m.length}`)
     await mostrarIndice()
     medidas = m
+  } else if (tipo === 'acerto') {
+    const admin = await prisma.usuario.findFirst({ where: { role: 'admin' }, select: { id: true, nome: true, email: true, role: true } })
+    if (!admin) throw new Error('nenhum usuário admin no banco')
+    medidas = await acerto(admin as AuthUser)
   } else {
     medidas = await comIa()
   }

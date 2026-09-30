@@ -1945,5 +1945,5 @@ export function RespostaMarkdown({ texto, naoConfirmados }: { texto: string; nao
 
 ## Andamento
 
-- Linha de base (Task 1): _preencher_
+- Linha de base (Task 1, 30/09, dev): TOTAL 17/47. Por intenção: cliente-direto 0/3, saldo-contrato 3/3, vencimentos 3/3, faturamento-periodo 3/3, proximo-prazo 0/3, ipc-12-meses 0/3, simular-reajuste 0/3, controle-x-verai 0/3, links-mpls 0/3, prova-valor 3/3, reajustes-calculados 0/3, manual 2/3, fora-do-assunto 0/4, duvida-geral 0/4, sem-dado 3/3.
 - Depois (Task 17): _preencher_

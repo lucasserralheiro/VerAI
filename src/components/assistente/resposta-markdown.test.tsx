@@ -51,3 +51,17 @@ it('não marca dentro da caixa geral', () => {
   render(<RespostaMarkdown texto={':::geral\nvale R$ 5,00.\n:::'} naoConfirmados={['R$ 5,00']} />)
   expect(screen.queryByText(/aviso:nao-confirmado/)).toBeNull()
 })
+
+it('marcarNaoConfirmados: número dentro de outro número não é marcado', () => {
+  expect(marcarNaoConfirmados('a 11.50 b 1.5', ['1.5'])).toBe('a 11.50 b 1.5 [⚠](aviso:nao-confirmado)')
+  expect(marcarNaoConfirmados('R$ 1.500,00 e 500,00', ['500,00'])).toBe('R$ 1.500,00 e 500,00 [⚠](aviso:nao-confirmado)')
+})
+
+it('marcarNaoConfirmados: em link, marca depois do link inteiro e não toca o destino', () => {
+  expect(marcarNaoConfirmados('[R$ 5,00](contrato:k1)', ['R$ 5,00'])).toBe('[R$ 5,00](contrato:k1) [⚠](aviso:nao-confirmado)')
+  expect(marcarNaoConfirmados('[ver](contrato:5,00)', ['5,00'])).toBe('[ver](contrato:5,00)')
+})
+
+it('marcarNaoConfirmados: entradas sobrepostas dão uma marca só', () => {
+  expect(marcarNaoConfirmados('R$ 5,00', ['R$ 5,00', '5,00'])).toBe('R$ 5,00 [⚠](aviso:nao-confirmado)')
+})

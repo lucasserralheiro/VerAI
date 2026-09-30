@@ -44,9 +44,25 @@ export const componentesMarkdown: Components = {
 
 const escaparRegex = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-/** Acrescenta ⚠ (link `aviso:`) depois de cada ocorrência de número não confirmado. */
+const MARCA = '[⚠](aviso:nao-confirmado)'
+const LINK_MARKDOWN = /(\[[^\]]*\]\([^)]*\))/
+
+/** Acrescenta ⚠ (link `aviso:`) depois de cada ocorrência de número não confirmado. Uma passada só
+ *  (maior primeiro, sem marca dupla); o número precisa estar isolado (não dentro de outro número);
+ *  dentro de link markdown o destino não é tocado e a marca vai depois do link inteiro. */
 export function marcarNaoConfirmados(texto: string, naoConfirmados: string[] = []): string {
-  return naoConfirmados.reduce((t, n) => (n ? t.replace(new RegExp(escaparRegex(n), 'g'), `${n} [⚠](aviso:nao-confirmado)`) : t), texto)
+  const numeros = [...new Set(naoConfirmados.filter(Boolean))].sort((a, b) => b.length - a.length)
+  if (numeros.length === 0) return texto
+  const alternado = numeros.map(escaparRegex).join('|')
+  const achar = () => new RegExp(`(?<![\\d.,])(?:${alternado})(?![\\d]|[.,]\\d)`, 'g')
+  return texto
+    .split(LINK_MARKDOWN)
+    .map((parte, i) => {
+      if (i % 2 === 0) return parte.replace(achar(), (m) => `${m} ${MARCA}`)
+      const rotulo = parte.slice(1, parte.indexOf(']('))
+      return achar().test(rotulo) ? `${parte} ${MARCA}` : parte
+    })
+    .join('')
 }
 
 function Markdown({ texto }: { texto: string }) {

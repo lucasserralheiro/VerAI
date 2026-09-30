@@ -26,3 +26,16 @@ it('texto pronto para o contexto e nada quando não há período', () => {
   expect(p('qual o saldo do TC 45/SMIT/2023?')).toBeNull()
   expect(p('SEI 6018.2023/0122629-0')).toBeNull()
 })
+
+it('número de contrato (TC, TA, PC, PA, TAP, termo, aditivo, proposta) não vira período', () => {
+  expect(p('saldo do TC 12/2023')).toBeNull()
+  expect(p('contrato 5/2024')).toBeNull()
+  expect(p('PA 3/2025 foi assinada?')).toBeNull()
+})
+
+it('faturamento de MM/AAAA vira período', () => {
+  expect(p('faturamento de 08/2026')).toMatchObject({
+    inicio: '2026-08-01',
+    fim: '2026-08-31',
+  })
+})

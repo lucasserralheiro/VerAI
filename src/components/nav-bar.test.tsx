@@ -62,6 +62,16 @@ describe('NavBar', () => {
     expect(hrefsDoHistorico()).toContain('/confere/historico')
   })
 
+  it('"Reajuste IPC-Fipe" é um grupo depois do ConfereAI, com Histórico e Tabela do índice', () => {
+    render(<NavBar />)
+    const links = screen.getAllByRole('link')
+    const reajuste = screen.getByRole('link', { name: 'Reajuste IPC-Fipe' })
+    expect(reajuste).toHaveAttribute('href', '/reajuste')
+    expect(links.indexOf(screen.getByRole('link', { name: 'ConfereAI' }))).toBeLessThan(links.indexOf(reajuste))
+    expect(hrefsDoHistorico()).toContain('/reajuste/historico')
+    expect(screen.getByRole('link', { name: 'Tabela do índice' })).toHaveAttribute('href', '/reajuste/indice')
+  })
+
   it('a marca no topo leva para /confere, a nova porta de entrada', () => {
     render(<NavBar />)
     expect(screen.getByRole('link', { name: /Ver\s*AI/ })).toHaveAttribute('href', '/confere')

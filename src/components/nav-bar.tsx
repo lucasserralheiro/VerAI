@@ -27,6 +27,8 @@ import {
   Tags,
   Receipt,
   Network,
+  TrendingUp,
+  Table2,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -49,6 +51,14 @@ const CONFERE_LINK = { href: '/confere', label: 'ConfereAI', icon: Search }
 // passou por ela. A geração continua sem estado — o histórico guarda só o
 // nome dos arquivos submetidos e os dois relatórios gerados.
 const CONFERE_SUBLINKS = [{ href: '/confere/historico', label: 'Histórico', icon: History }]
+
+// Reajuste por IPC-Fipe (spec docs/superpowers/specs/2026-09-30-reajuste-ipc-fipe-design.md): grupo
+// próprio depois do ConfereAI — o cabeçalho abre a correção, os sub-itens o histórico e o índice.
+const REAJUSTE_LINK = { href: '/reajuste', label: 'Reajuste IPC-Fipe', icon: TrendingUp }
+const REAJUSTE_SUBLINKS = [
+  { href: '/reajuste/historico', label: 'Histórico', icon: History },
+  { href: '/reajuste/indice', label: 'Tabela do índice', icon: Table2 },
+]
 
 const RELATORIOS_LINK = { href: '/clientes', label: 'Relatórios dos clientes', icon: Building2 }
 const RELATORIOS_SUBLINKS = [
@@ -254,6 +264,7 @@ export function NavBar() {
   // coisa dentro do grupo hoje, não faz sentido esconder por padrão.
   const [propostaComercialAberto, setPropostaComercialAberto] = useState(true)
   const [confereAberto, setConfereAberto] = useState(true)
+  const [reajusteAberto, setReajusteAberto] = useState(true)
 
   const naLoginPage = pathname === '/login'
 
@@ -318,6 +329,12 @@ export function NavBar() {
     }
   }, [pathname])
 
+  useEffect(() => {
+    if (REAJUSTE_SUBLINKS.some((link) => link.href === pathname)) {
+      setReajusteAberto(true)
+    }
+  }, [pathname])
+
   if (pathname === '/login') {
     return null
   }
@@ -368,6 +385,16 @@ export function NavBar() {
       return
     }
     setConfereAberto((aberto) => !aberto)
+  }
+
+  function alternarReajuste() {
+    if (!expandida) {
+      setExpandida(true)
+      localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
+      setReajusteAberto(true)
+      return
+    }
+    setReajusteAberto((aberto) => !aberto)
   }
 
   async function handleLogout() {
@@ -447,6 +474,15 @@ export function NavBar() {
             sublinks={CONFERE_SUBLINKS}
             aberto={confereAberto}
             onToggle={alternarConfere}
+            pathname={pathname}
+            expandida={expandida}
+          />
+
+          <GrupoMenu
+            link={REAJUSTE_LINK}
+            sublinks={REAJUSTE_SUBLINKS}
+            aberto={reajusteAberto}
+            onToggle={alternarReajuste}
             pathname={pathname}
             expandida={expandida}
           />

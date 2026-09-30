@@ -20,6 +20,7 @@ model Usuario {
   conversasAssistente ConversaAssistente[]
   arquivosEnviados   ArquivoCliente[]  @relation("ArquivosEnviados")
   acessosArquivo     AcessoArquivo[]   @relation("AcessosArquivo")
+  reajustes          ReajusteExecucao[]
 }
 
 model Cliente {
@@ -1029,4 +1030,25 @@ model IndiceIpcFipe {
   variacao  Decimal  @db.Decimal(9, 4)
   fonte     String
   buscadoEm DateTime
+}
+
+// Histórico do reajuste por IPC-Fipe (spec 2026-09-30-reajuste-ipc-fipe-design §3). `meses` guarda os
+// meses e variações usados — prova do cálculo mesmo se a tabela do índice mudar depois.
+model ReajusteExecucao {
+  id                String   @id @default(cuid())
+  usuarioId         String
+  usuario           Usuario  @relation(fields: [usuarioId], references: [id])
+  nomeArquivo       String
+  tipoArquivo       String
+  chaveOriginal     String
+  chaveResultado    String
+  mesInicial        DateTime @db.Date
+  mesFinal          DateTime @db.Date
+  fator             Decimal  @db.Decimal(12, 8)
+  acumuladoPct      Decimal  @db.Decimal(9, 2)
+  meses             Json
+  quantidadeValores Int
+  createdAt         DateTime @default(now())
+
+  @@index([createdAt])
 }

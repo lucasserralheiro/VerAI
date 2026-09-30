@@ -313,6 +313,10 @@ prevalece): etapa `etapaDosValores` no fim do agendador (depois das fichas e da 
 - Origem em `OrigemCampoHistorico` (tabela nova, nada de coluna em `HistoricoContrato`), mostrada como escudo
   verde no histórico do contrato (`GET /api/contratos/[id]/origens`). Linha assinada sem data ordena pelo
   início da vigência (`resumirHistorico`).
+- **Linhas duplicadas** (mesmo termo do legado "TA 001/2025" e da pasta "TA 01"): `etapaDasDuplicatas`, antes
+  dos valores, junta só com prova — mesma identidade, nada se contradiz, e campo igual, PDF do termo ou período
+  da planilha confirmando. Fica a linha do SharePoint; a outra leva o que falta e sai. O resto vira aviso
+  "possível duplicata". `scripts/juntar-duplicatas.ts` simula (spec `2026-09-30-juntar-linhas-duplicadas-design.md`).
 - **Régua**: `npx dotenv -e .env.development -- npx tsx scripts/valores-contratos.ts [--detalhe]` (simula; com
   `--aplicar` grava) antes e depois de mexer em qualquer regra — compare gravações e avisos por tipo. Dev
   29/09: ativos sem fim de vigência 63 → 18, ativos com valor 91 → 98 (de 104).

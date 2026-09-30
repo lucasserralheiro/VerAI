@@ -32,6 +32,7 @@ import { ROTULO_ACHADO } from '../src/lib/importacao-sharepoint/auditoria'
 import { auditarNoBanco } from '../src/lib/importacao-sharepoint/auditoria-banco'
 import { textoDoPdf } from '../src/lib/importacao-sharepoint/pdf-texto'
 import { extrairCampos } from '../src/lib/importacao-sharepoint/texto'
+import { etapaDasDuplicatas } from '../src/lib/historico/duplicatas'
 import { etapaDosValores } from '../src/lib/valores-contratos/etapa'
 
 // .env.local completa o que faltar (ex.: BLOB_READ_WRITE_TOKEN) sem sobrescrever o que o dotenv -e já trouxe.
@@ -160,6 +161,9 @@ async function main() {
       console.log(await atualizarFichasDoAssistente())
     }
 
+    // Linhas duplicadas do histórico (spec 2026-09-30-juntar-linhas-duplicadas), antes dos valores: o termo que
+    // estava em duas linhas passa a casar com a planilha e o controle. Só com prova. Não muda o código de saída.
+    if (!clientes) console.log(`\n${(await etapaDasDuplicatas(prisma, { aplicar })).join('\n')}`)
     // Valor, vigência e assinatura do histórico com prova (spec 2026-09-29-valor-vigencia-contratos §0), depois das
     // fichas e da biblioteca, que ela lê. Só em campo vazio; sem --aplicar simula. Não muda o código de saída.
     if (!clientes) console.log(`\n${(await etapaDosValores(prisma, { aplicar })).join('\n')}`)

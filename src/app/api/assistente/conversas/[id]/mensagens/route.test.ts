@@ -12,6 +12,9 @@ jest.mock('@/lib/assistente/configuracao', () => ({ configuracaoDoAssistente: je
 jest.mock('@/lib/assistente/agente', () => ({ MAX_HISTORICO: 6, executarAgente: jest.fn() }))
 jest.mock('@/lib/assistente/preparar', () => ({ prepararContexto: jest.fn(async () => 'Hoje é 25/09/2026. Tela aberta: SMIT') }))
 
+jest.mock('@/lib/assistente/resposta-cliente', () => ({ respostaDireta: jest.fn(async () => null) }))
+
+import { respostaDireta } from '@/lib/assistente/resposta-cliente'
 import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { configuracaoDoAssistente } from '@/lib/assistente/configuracao'
@@ -63,7 +66,7 @@ it('429 acima de 30 perguntas na hora', async () => {
 it('grava a pergunta, chama o agente com histórico em ordem e contexto, e grava a resposta ao terminar', async () => {
   const r = await POST(req({ pergunta: 'qual o saldo?', rota: '/clientes/c1' }), params)
   expect(await r.text()).toBe('stream')
-  expect(prisma.mensagemAssistente.create).toHaveBeenCalledWith({ data: { conversaId: 'conv', papel: 'usuario', conteudo: 'qual o saldo?' } })
+  expect(prisma.mensagemAssistente.create).toHaveBeenCalledWith({ data: { conversaId: 'conv', papel: 'usuario', conteudo: 'qual o saldo?', origem: 'ia' } })
 
   const [entrada, aoTerminar] = (executarAgente as jest.Mock).mock.calls[0]
   expect(entrada.historico).toEqual([
@@ -83,6 +86,29 @@ it('grava a pergunta, chama o agente com histórico em ordem e contexto, e grava
     data: { conversaId: 'conv', papel: 'assistente', conteudo: 'R$ 10,00', ferramentas: [{ nome: 'resumoDoCliente', entrada: {} }], tokensEntrada: 5, tokensSaida: 2, tokensCache: 1 },
   })
   expect(prisma.conversaAssistente.update).toHaveBeenCalledWith({ where: { id: 'conv' }, data: { atualizadaEm: expect.any(Date) } })
+})
+
+it('mensagem que é só o cliente: responde sem IA, grava origem direta e não conta no limite', async () => {
+  ;(respostaDireta as jest.Mock).mockResolvedValue({ texto: '**SMS**: 2 contratos ativos', clienteId: 'c1' })
+  ;(prisma.mensagemAssistente.count as jest.Mock).mockResolvedValue(30) // limite estourado não importa
+  const r = await POST(req({ pergunta: 'saúde' }), params)
+  expect(r.status).toBe(200)
+  expect(await r.text()).toContain('**SMS**: 2 contratos ativos')
+  expect(executarAgente).not.toHaveBeenCalled()
+  expect(prisma.mensagemAssistente.create).toHaveBeenCalledWith({ data: { conversaId: 'conv', papel: 'usuario', conteudo: 'saúde', origem: 'direta' } })
+  expect(prisma.mensagemAssistente.create).toHaveBeenCalledWith({
+    data: { conversaId: 'conv', papel: 'assistente', conteudo: '**SMS**: 2 contratos ativos', origem: 'direta', tipos: ['verai'], ferramentas: [{ nome: 'resumoDoCliente', entrada: { clienteId: 'c1' } }] },
+  })
+})
+
+it('respostaDireta que lança exceção: segue para a IA', async () => {
+  const erro = jest.spyOn(console, 'error').mockImplementation(() => {})
+  ;(respostaDireta as jest.Mock).mockRejectedValue(new Error('banco fora'))
+  const r = await POST(req({ pergunta: 'saúde' }), params)
+  expect(await r.text()).toBe('stream')
+  expect(executarAgente).toHaveBeenCalled()
+  expect(erro).toHaveBeenCalled()
+  erro.mockRestore()
 })
 
 it('resposta vazia (provedor abortou) não é gravada', async () => {

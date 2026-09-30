@@ -4,6 +4,8 @@ import { exigirUsuario } from '@/lib/relatorios-clientes/acesso'
 import { configuracaoDoAssistente } from '@/lib/assistente/configuracao'
 import { executarAgente, MAX_HISTORICO, type MensagemHistorico } from '@/lib/assistente/agente'
 import { prepararContexto } from '@/lib/assistente/preparar'
+import { respostaDireta } from '@/lib/assistente/resposta-cliente'
+import { streamDeTexto } from '@/lib/assistente/stream-texto'
 import { esquemaPergunta, excedeuLimite, LIMITE_POR_HORA } from '@/lib/assistente/conversas'
 
 export const maxDuration = 60
@@ -26,6 +28,25 @@ export async function POST(request: NextRequest, { params }: Contexto) {
   const conversa = await prisma.conversaAssistente.findUnique({ where: { id }, select: { usuarioId: true } })
   if (!conversa || conversa.usuarioId !== usuario.id) return NextResponse.json({ error: 'conversa não encontrada' }, { status: 404 })
 
+  // Mensagem que é só um cliente: texto montado pelo código, sem IA e fora do limite por hora.
+  let direta: Awaited<ReturnType<typeof respostaDireta>> = null
+  try {
+    direta = await respostaDireta(pergunta, usuario, new Date())
+  } catch (erro) {
+    console.error('[assistente] resposta direta falhou; seguindo para a IA', erro)
+  }
+  if (direta) {
+    await prisma.mensagemAssistente.create({ data: { conversaId: id, papel: 'usuario', conteudo: pergunta, origem: 'direta' } })
+    await prisma.mensagemAssistente.create({
+      data: {
+        conversaId: id, papel: 'assistente', conteudo: direta.texto, origem: 'direta', tipos: ['verai'],
+        ...(direta.clienteId ? { ferramentas: [{ nome: 'resumoDoCliente', entrada: { clienteId: direta.clienteId } }] } : {}),
+      },
+    })
+    await prisma.conversaAssistente.update({ where: { id }, data: { atualizadaEm: new Date() } })
+    return streamDeTexto(direta.texto)
+  }
+
   if (await excedeuLimite(usuario.id)) {
     return NextResponse.json({ error: `Limite de ${LIMITE_POR_HORA} perguntas por hora atingido. Tente de novo mais tarde.` }, { status: 429 })
   }
@@ -39,7 +60,7 @@ export async function POST(request: NextRequest, { params }: Contexto) {
   // Da mais recente para a mais antiga, antes do reverse() (que muda o array no lugar).
   const recentes = anteriores.filter((m) => m.papel === 'assistente').slice(0, 3).map((m) => m.ferramentas)
   const historico = anteriores.reverse().map(({ papel, conteudo }) => ({ papel, conteudo })) as MensagemHistorico[]
-  await prisma.mensagemAssistente.create({ data: { conversaId: id, papel: 'usuario', conteudo: pergunta } })
+  await prisma.mensagemAssistente.create({ data: { conversaId: id, papel: 'usuario', conteudo: pergunta, origem: 'ia' } })
 
   const contexto = await prepararContexto({ usuario, pergunta, rota: rota ?? null, recentes })
 

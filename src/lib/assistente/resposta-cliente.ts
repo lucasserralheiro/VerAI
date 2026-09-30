@@ -8,6 +8,7 @@ import { proximosDoFaturamento } from '@/lib/calendario/consultas'
 import { quandoTexto, ROTULO_TIPO } from '@/lib/calendario/tipos'
 import { formatarData } from '@/lib/relatorios-clientes/formatacao'
 import { SELECT_CONTRATO } from '@/app/api/contratos/esquema'
+import type { AuthUser } from '@/lib/auth'
 import { apelidosDoCliente } from './apelidos'
 import { moeda, resumirContrato, type ContextoFerramenta, type ContratoResumido } from './ferramentas/comum'
 
@@ -95,4 +96,17 @@ export async function dadosDoCliente(clienteId: string, { usuario, hoje }: Conte
     alertas,
     proximoPrazo: p ? { tipo: ROTULO_TIPO[p.tipo], data: formatarData(p.inicio), quando: quandoTexto(p) } : null,
   }
+}
+
+/** Texto pronto quando a mensagem é só um cliente (ou candidatos quando ambíguo); `null` = vai à IA.
+ *  `clienteId` vai gravado como `resumoDoCliente` nas ferramentas da mensagem: a memória da conversa
+ *  (ids das últimas respostas) pega o cliente na pergunta seguinte. */
+export async function respostaDireta(pergunta: string, usuario: AuthUser, hoje: Date): Promise<{ texto: string; clienteId: string | null } | null> {
+  const permitidos = await clienteIdsPermitidos(usuario)
+  const visiveis = await prisma.cliente.findMany({ where: permitidos === null ? {} : { id: { in: permitidos } }, select: { id: true, nome: true, siglaLegado: true } })
+  const alvos = visiveis.filter((c) => mensagemSoCliente(pergunta, c))
+  if (alvos.length === 0) return null
+  if (alvos.length > 1) return { texto: respostaDeAmbiguidade(alvos.map((c) => ({ nome: c.nome, sigla: c.siglaLegado }))), clienteId: null }
+  const dados = await dadosDoCliente(alvos[0].id, { usuario, hoje })
+  return dados ? { texto: respostaDoCliente(dados), clienteId: dados.id } : null
 }

@@ -24,3 +24,7 @@ it('o markdown deixa passar os esquemas próprios', () => {
   expect(ESQUEMA_PROPRIO.test('contrato:ck1')).toBe(true)
   expect(ESQUEMA_PROPRIO.test('javascript:alert(1)')).toBe(false)
 })
+
+it('aviso:nao-confirmado é destino próprio, não link de registro', () => {
+  expect(destinoDoLink('aviso:nao-confirmado')).toEqual({ tipo: 'aviso' })
+})

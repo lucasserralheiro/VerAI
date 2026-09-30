@@ -12,11 +12,11 @@ it('junta os textos e aponta a ferramenta ainda em andamento', () => {
       { type: 'text', text: 'tem 3 contratos.' },
     ],
   }
-  expect(lerMensagemDoStream(msg as never)).toEqual({ texto: 'O SMIT tem 3 contratos.', ferramenta: 'resumoDoCliente' })
+  expect(lerMensagemDoStream(msg as never)).toEqual({ texto: 'O SMIT tem 3 contratos.', ferramenta: 'resumoDoCliente', conferencia: null })
 })
 
 it('sem ferramenta pendente', () => {
-  expect(lerMensagemDoStream({ id: 'm', role: 'assistant', parts: [{ type: 'text', text: 'ok' }] } as never)).toEqual({ texto: 'ok', ferramenta: null })
+  expect(lerMensagemDoStream({ id: 'm', role: 'assistant', parts: [{ type: 'text', text: 'ok' }] } as never)).toEqual({ texto: 'ok', ferramenta: null, conferencia: null })
 })
 
 it('mensagemDeErro tira o { error } do corpo JSON das rotas', () => {
@@ -24,4 +24,22 @@ it('mensagemDeErro tira o { error } do corpo JSON das rotas', () => {
     'Limite de 30 perguntas por hora atingido. Tente de novo mais tarde.'
   )
   expect(mensagemDeErro(new Error('rede caiu'))).toBe('O assistente não respondeu. Tente de novo.')
+})
+
+it('lê a parte data-conferencia; bloqueada troca o texto', () => {
+  const r = lerMensagemDoStream({ id: 'm', role: 'assistant', parts: [
+    { type: 'text', text: 'O saldo é R$ 5,00.' },
+    { type: 'data-conferencia', data: { naoConfirmados: [], bloqueada: true, texto: 'Não encontrei isso no VerAI.' } },
+  ] } as never)
+  expect(r.texto).toBe('Não encontrei isso no VerAI.')
+  expect(r.conferencia).toEqual({ naoConfirmados: [], bloqueada: true, texto: 'Não encontrei isso no VerAI.' })
+})
+
+it('conferencia não bloqueada mantém o texto e devolve os não confirmados', () => {
+  const r = lerMensagemDoStream({ id: 'm', role: 'assistant', parts: [
+    { type: 'text', text: 'Saldo R$ 5,00.' },
+    { type: 'data-conferencia', data: { naoConfirmados: ['R$ 5,00'], bloqueada: false } },
+  ] } as never)
+  expect(r.texto).toBe('Saldo R$ 5,00.')
+  expect(r.conferencia?.naoConfirmados).toEqual(['R$ 5,00'])
 })

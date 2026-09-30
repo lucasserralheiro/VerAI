@@ -24,9 +24,16 @@ it('404 para conversa de outro usuário (mesmo sendo admin não vê a dos outros
 
 it('GET devolve as mensagens em ordem', async () => {
   ;(prisma.conversaAssistente.findUnique as jest.Mock).mockResolvedValue({
-    id: 'c1', usuarioId: 'u1', titulo: 't', mensagens: [{ id: 'm1', papel: 'usuario', conteudo: 'oi' }],
+    id: 'c1', usuarioId: 'u1', titulo: 't', mensagens: [
+      { id: 'm1', papel: 'usuario', conteudo: 'oi', conferencia: null },
+      { id: 'm2', papel: 'assistente', conteudo: 'R$ 5,00', conferencia: { conferidos: [], naoConfirmados: ['R$ 5,00'] } },
+    ],
   })
-  expect(await (await GET(req(), params)).json()).toEqual({ id: 'c1', titulo: 't', mensagens: [{ id: 'm1', papel: 'usuario', conteudo: 'oi' }] })
+  expect(await (await GET(req(), params)).json()).toEqual({ id: 'c1', titulo: 't', mensagens: [
+      { id: 'm1', papel: 'usuario', conteudo: 'oi', naoConfirmados: [] },
+      { id: 'm2', papel: 'assistente', conteudo: 'R$ 5,00', naoConfirmados: ['R$ 5,00'] },
+    ],
+  })
 })
 
 it('DELETE apaga a própria', async () => {

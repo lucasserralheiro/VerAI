@@ -147,7 +147,7 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
             </div>
           ) : (
             <div key={m.id} className="mr-4">
-              <RespostaMarkdown texto={m.conteudo} />
+              <RespostaMarkdown texto={m.conteudo} naoConfirmados={m.naoConfirmados} />
             </div>
           )
         )}

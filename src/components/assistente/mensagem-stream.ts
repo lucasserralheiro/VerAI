@@ -1,16 +1,25 @@
 import type { UIMessage } from 'ai'
 
-export function lerMensagemDoStream(mensagem: UIMessage): { texto: string; ferramenta: string | null } {
+export interface Conferencia {
+  naoConfirmados: string[]
+  bloqueada: boolean
+  texto?: string
+}
+
+export function lerMensagemDoStream(mensagem: UIMessage): { texto: string; ferramenta: string | null; conferencia: Conferencia | null } {
   let texto = ''
   let ferramenta: string | null = null
+  let conferencia: Conferencia | null = null
   for (const parte of mensagem.parts) {
     if (parte.type === 'text') texto += parte.text
+    else if (parte.type === 'data-conferencia') conferencia = (parte as unknown as { data: Conferencia }).data
     else if (parte.type.startsWith('tool-') && 'state' in parte) {
       const estado = (parte as { state: string }).state
       ferramenta = estado === 'output-available' || estado === 'output-error' ? null : parte.type.slice(5)
     }
   }
-  return { texto, ferramenta }
+  if (conferencia?.bloqueada && conferencia.texto) texto = conferencia.texto
+  return { texto, ferramenta, conferencia }
 }
 
 const PADRAO = 'O assistente não respondeu. Tente de novo.'

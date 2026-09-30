@@ -8,7 +8,7 @@ type Conversa = {
   id: string
   usuarioId: string
   titulo: string
-  mensagens: { id: string; papel: string; conteudo: string }[]
+  mensagens: { id: string; papel: string; conteudo: string; conferencia: unknown }[]
 }
 
 // Anotado explicitamente: sem isso, o TS 5.9 infere um tipo com `conversa?: undefined` no ramo
@@ -28,7 +28,7 @@ async function carregar(request: NextRequest, { params }: Contexto): Promise<Con
       id: true,
       usuarioId: true,
       titulo: true,
-      mensagens: { orderBy: { createdAt: 'asc' }, select: { id: true, papel: true, conteudo: true } },
+      mensagens: { orderBy: { createdAt: 'asc' }, select: { id: true, papel: true, conteudo: true, conferencia: true } },
     },
   })
   // Conversa é pessoal: nem admin vê a de outro usuário.
@@ -40,7 +40,12 @@ export async function GET(request: NextRequest, contexto: Contexto) {
   const r = await carregar(request, contexto)
   if ('erro' in r) return r.erro
   const { id, titulo, mensagens } = r.conversa
-  return NextResponse.json({ id, titulo, mensagens })
+  // Reabrir mostra as mesmas marcas ⚠ da resposta ao vivo.
+  const comMarcas = mensagens.map(({ conferencia, ...m }) => ({
+    ...m,
+    naoConfirmados: (conferencia as { naoConfirmados?: string[] } | null)?.naoConfirmados ?? [],
+  }))
+  return NextResponse.json({ id, titulo, mensagens: comMarcas })
 }
 
 export async function DELETE(request: NextRequest, contexto: Contexto) {

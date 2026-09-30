@@ -8,6 +8,8 @@ export interface MensagemTela {
   id: string
   papel: 'usuario' | 'assistente'
   conteudo: string
+  /** Números da resposta que nenhuma consulta confirmou (marcados com ⚠ na tela). */
+  naoConfirmados?: string[]
 }
 
 export type EstadoConversa = 'pronto' | 'respondendo' | 'erro'
@@ -57,9 +59,9 @@ export function useConversaAssistente() {
         })
         for await (const parcial of readUIMessageStream({ stream })) {
           if (geracao.current !== minhaGeracao) return
-          const { texto, ferramenta } = lerMensagemDoStream(parcial)
+          const { texto, ferramenta, conferencia } = lerMensagemDoStream(parcial)
           setFerramentaAtual(ferramenta)
-          setMensagens((atual) => atual.map((m) => (m.id === idResposta ? { ...m, conteudo: texto } : m)))
+          setMensagens((atual) => atual.map((m) => (m.id === idResposta ? { ...m, conteudo: texto, naoConfirmados: conferencia?.naoConfirmados } : m)))
         }
         if (geracao.current !== minhaGeracao) return
         setEstado('pronto')

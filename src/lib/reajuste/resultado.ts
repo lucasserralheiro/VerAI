@@ -1,0 +1,93 @@
+// Resultado do reajuste (spec §2.3): planilha com colunas "corrigido" depois da última usada (nada
+// muda de lugar, fórmula existente não quebra) ou planilha de comparação pra PDF/DOCX. Sempre com a
+// aba "Reajuste IPC-Fipe" provando o cálculo.
+import Decimal from 'decimal.js'
+import ExcelJS from 'exceljs'
+import { corrigirValor, fatorCompleto } from './calculo'
+import { valorDaCelula } from './leitura'
+import { nomeDoMes } from './meses'
+import type { ValorNoTexto } from './tipos'
+
+export const ABA_RESUMO = 'Reajuste IPC-Fipe'
+const MOEDA_BR = '#,##0.00'
+
+export interface Resumo {
+  meses: Array<{ mes: string; variacao: string }>
+  fator: string
+  acumuladoPct: string
+  usuario: string
+  geradoEm: Date
+  arquivo: string
+}
+
+function abaDeResumo(wb: ExcelJS.Workbook, resumo: Resumo) {
+  const existente = wb.getWorksheet(ABA_RESUMO)
+  if (existente) wb.removeWorksheet(existente.id)
+  const aba = wb.addWorksheet(ABA_RESUMO)
+  aba.addRow(['Índice', 'IPC-Fipe (Banco Central, série 193)'])
+  aba.addRow(['Arquivo', resumo.arquivo])
+  aba.addRow(['Período', `${nomeDoMes(resumo.meses[0].mes)} a ${nomeDoMes(resumo.meses.at(-1)!.mes)}`])
+  aba.addRow(['Acumulado (%)', resumo.acumuladoPct])
+  aba.addRow(['Fator', resumo.fator])
+  aba.addRow(['Gerado por', resumo.usuario])
+  aba.addRow(['Gerado em', resumo.geradoEm.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })])
+  aba.addRow([])
+  aba.addRow(['Mês', 'Variação (%)'])
+  for (const m of resumo.meses) aba.addRow([nomeDoMes(m.mes), m.variacao])
+  aba.getColumn(1).width = 16
+  aba.getColumn(2).width = 40
+}
+
+const paraBuffer = async (wb: ExcelJS.Workbook) => Buffer.from(await wb.xlsx.writeBuffer())
+
+export async function planilhaCorrigida(
+  wb: ExcelJS.Workbook,
+  colunas: Array<{ aba: string; coluna: number; linhaCabecalho: number }>,
+  resumo: Resumo
+) {
+  const fator = fatorCompleto(resumo.meses)
+  let quantidade = 0
+  const porAba = new Map<string, typeof colunas>()
+  for (const c of colunas) porAba.set(c.aba, [...(porAba.get(c.aba) ?? []), c])
+  for (const [nome, lista] of porAba) {
+    const aba = wb.getWorksheet(nome)
+    if (!aba) continue
+    let destino = aba.columnCount
+    for (const c of lista) {
+      destino += 1
+      const titulo = aba.getRow(c.linhaCabecalho).getCell(c.coluna).text || `Coluna ${c.coluna}`
+      aba.getRow(c.linhaCabecalho).getCell(destino).value = `${titulo} corrigido`
+      for (let linha = c.linhaCabecalho + 1; linha <= aba.rowCount; linha++) {
+        const original = valorDaCelula(aba.getRow(linha).getCell(c.coluna).value)
+        if (original === null) continue
+        const celula = aba.getRow(linha).getCell(destino)
+        celula.value = Number(corrigirValor(original, fator))
+        celula.numFmt = MOEDA_BR
+        quantidade++
+      }
+    }
+  }
+  abaDeResumo(wb, resumo)
+  return { buffer: await paraBuffer(wb), quantidade }
+}
+
+export async function planilhaDeComparacao(valores: ValorNoTexto[], resumo: Resumo) {
+  const fator = fatorCompleto(resumo.meses)
+  const wb = new ExcelJS.Workbook()
+  const aba = wb.addWorksheet('Valores')
+  aba.addRow(['Página', 'Trecho', 'Valor original', 'Valor corrigido', 'Diferença'])
+  for (const v of valores) {
+    const corrigido = corrigirValor(v.original, fator)
+    aba.addRow([
+      v.pagina ?? '',
+      `${v.antes} [${v.bruto}] ${v.depois}`.trim(),
+      Number(v.original),
+      Number(corrigido),
+      Number(new Decimal(corrigido).minus(v.original).toFixed(2)),
+    ])
+  }
+  for (const c of [3, 4, 5]) aba.getColumn(c).numFmt = MOEDA_BR
+  aba.getColumn(2).width = 80
+  abaDeResumo(wb, resumo)
+  return { buffer: await paraBuffer(wb), quantidade: valores.length }
+}

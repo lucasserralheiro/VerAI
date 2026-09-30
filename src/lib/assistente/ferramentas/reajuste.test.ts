@@ -57,3 +57,9 @@ it('reajustesCalculados: não-admin só vê os seus', async () => {
   await rodar(reajustesCalculados, {}, 'admin')
   expect((prisma.reajusteExecucao.findMany as jest.Mock).mock.calls[1][0].where).toEqual({})
 })
+
+it('mês fora de 01–12 é recusado pelo esquema', () => {
+  expect(indiceIpcFipe.entrada.safeParse({ mesInicial: '2026-13' }).success).toBe(false)
+  expect(indiceIpcFipe.entrada.safeParse({ mesInicial: '2026-00' }).success).toBe(false)
+  expect(indiceIpcFipe.entrada.safeParse({ mesInicial: '2026-12' }).success).toBe(true)
+})

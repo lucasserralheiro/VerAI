@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import Decimal from 'decimal.js'
 import { prisma } from '@/lib/prisma'
 import { podeVerCliente } from '@/lib/visibilidade'
 import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
@@ -14,7 +15,7 @@ import { data, definirFerramenta, esquemaLimite, moeda, NAO_ENCONTRADO } from '.
 const mesBr = (m: string) => `${m.slice(5, 7)}/${m.slice(0, 4)}`
 const pct = (v: string) => `${v.replace('.', ',')}%`
 const fatorBr = (v: string) => v.replace('.', ',')
-const esquemaMes = z.string().regex(/^\d{4}-\d{2}$/)
+const esquemaMes = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)
 
 async function periodo(mesInicial?: string, mesFinal?: string) {
   const { meses, atualizadoEm } = await lerIndiceGravado()
@@ -85,7 +86,7 @@ export const simularReajuste = definirFerramenta({
       acumulado: pct(p.calculo.acumuladoPct),
       fator: fatorBr(p.calculo.fator),
       valorCorrigido: moeda(corrigido),
-      diferenca: moeda((Number(corrigido) - Number(original)).toFixed(2)),
+      diferenca: moeda(new Decimal(corrigido).minus(original).toFixed(2)),
     }
   },
 })

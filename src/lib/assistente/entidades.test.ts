@@ -104,3 +104,28 @@ it('texto pronto para o contexto', async () => {
   )
   expect((await identificarEntidades({ pergunta: 'oi', usuario, recentes: [] })).texto).toBeNull()
 })
+
+it('apelido do nome identifica o cliente ("saúde" → SMS), só quando é único', async () => {
+  ;(prisma.cliente.findMany as jest.Mock).mockResolvedValue([
+    { id: 'c1', nome: 'Secretaria Municipal da Saúde', siglaLegado: 'SMS' },
+    { id: 'c2', nome: 'Secretaria Municipal de Educação', siglaLegado: 'SME' },
+  ])
+  ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([])
+  const r = await identificarEntidades({ pergunta: 'quanto falta faturar da saúde?', usuario, recentes: [] })
+  expect(r.clientes.map((c) => c.id)).toEqual(['c1'])
+})
+
+it('contrato pelo assunto: um só ativo com as palavras → identificado; vários → possíveis', async () => {
+  ;(prisma.cliente.findMany as jest.Mock).mockResolvedValue([{ id: 'c1', nome: 'Secretaria Municipal de Inovação e Tecnologia', siglaLegado: 'SMIT' }])
+  ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([
+    { id: 'k1', numeroTermo: 'TC 45/SMIT/2023', clienteId: 'c1', descricao: 'Serviços de nuvem pública', situacao: 'Ativo' },
+    { id: 'k2', numeroTermo: 'TC 52/SMIT/2024', clienteId: 'c1', descricao: 'Sustentação de sistemas', situacao: 'Ativo' },
+    { id: 'k3', numeroTermo: 'TC 60/SMIT/2025', clienteId: 'c1', descricao: 'Sustentação do portal', situacao: 'Ativo' },
+  ])
+  const um = await identificarEntidades({ pergunta: 'saldo do contrato de nuvem da SMIT', usuario, recentes: [] })
+  expect(um.contratos.map((c) => c.id)).toEqual(['k1'])
+  const varios = await identificarEntidades({ pergunta: 'saldo da sustentação da SMIT', usuario, recentes: [] })
+  expect(varios.contratos).toEqual([])
+  expect(varios.possiveis.map((c) => c.id)).toEqual(['k2', 'k3'])
+  expect(varios.texto).toContain('Contratos possíveis: TC 52/SMIT/2024 (contratoId: k2) – Sustentação de sistemas; TC 60/SMIT/2025 (contratoId: k3) – Sustentação do portal.')
+})

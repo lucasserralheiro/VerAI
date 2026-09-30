@@ -25,3 +25,31 @@ it('texto sem número: nada a conferir', () => {
 it('inteiro solto da fonte (o "30" de uma data) não confirma "R$ 30,00"', () => {
   expect(conferirResposta({ textoVerai: 'Custa R$ 30,00.', fontes: ['Hoje é 30/09/2026.'] })).toEqual({ conferidos: 0, naoConfirmados: ['R$ 30,00'] })
 })
+
+describe('fix round 1', () => {
+  const c = (textoVerai: string, fonte: string) => conferirResposta({ textoVerai, fontes: [fonte] })
+  it('moeda sem milhar ou com 1 casa não é cortada', () => {
+    expect(extrairNumeros('R$ 1234,56 e R$ 1.234,5 e R$ 1000,00')).toEqual(['R$ 1234,56', 'R$ 1.234,5', 'R$ 1000,00'])
+    expect(c('Valor R$ 1234,56.', 'R$ 1.234,56')).toEqual({ conferidos: 1, naoConfirmados: [] })
+  })
+  it('fonte com inteiro cru ou decimal longo confirma o arredondado', () => {
+    expect(c('Valor R$ 1.000,00.', 'valor 1000')).toEqual({ conferidos: 1, naoConfirmados: [] })
+    expect(c('Taxa 33,33%.', 'acumulado 33.333333%')).toEqual({ conferidos: 1, naoConfirmados: [] })
+  })
+  it('moeda e percentual não se confirmam entre si', () => {
+    expect(c('Foi 40%.', 'R$ 40,00').naoConfirmados).toEqual(['40%'])
+  })
+  it('percentual com 3 casas não vira "175%"', () => {
+    expect(extrairNumeros('taxa 6,175%')).toEqual([])
+  })
+  it('competência em qualquer formato', () => {
+    expect(c('Competência 08/2026.', 'ago/2026')).toEqual({ conferidos: 1, naoConfirmados: [] })
+    expect(c('Competência 08/2026.', '2026-08')).toEqual({ conferidos: 1, naoConfirmados: [] })
+    expect(c('Competência ago/2026.', 'sem nada')).toEqual({ conferidos: 0, naoConfirmados: ['ago/2026'] })
+    expect(extrairNumeros('vence 31/12/2026')).toEqual(['31/12/2026'])
+  })
+  it('sinal: negativo não confirma positivo', () => {
+    expect(c('Saldo -R$ 5,00.', 'R$ 5,00').naoConfirmados).toEqual(['-R$ 5,00'])
+    expect(c('Saldo R$ -5,00.', 'R$ 5,00').naoConfirmados).toEqual(['R$ -5,00'])
+  })
+})

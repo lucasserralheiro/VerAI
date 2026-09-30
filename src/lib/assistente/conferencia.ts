@@ -6,13 +6,18 @@ export interface Conferencia {
   naoConfirmados: string[]
 }
 
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+
+// Sobreposição é tratada por `ocupado`: quem chega primeiro fica com o trecho (SEI e data antes de mm/aaaa).
 const PADROES = [
-  /R\$\s?-?\d{1,3}(?:\.\d{3})*(?:,\d{2})?|R\$\s?-?\d+(?:,\d{2})?/g, // moeda
+  /-?R\$\s?-?\d+(?:\.\d{3})*(?:,\d{1,2})?(?!\d)/g, // moeda, com ou sem milhar, 1–2 casas, com sinal
   /\b\d{4}\.\d{4}\/\d{7}-\d\b/g, // SEI
-  /\b\d{1,3}(?:[.,]\d{1,2})?%/g, // percentual
+  /(?<![\d.,])-?\d{1,3}(?:[.,]\d{1,2})?%/g, // percentual
   /\b\d{2}\/\d{2}\/\d{4}\b/g, // data
   /\b\d{1,4}\/[A-Za-zÀ-ú]+\/\d{4}\b/g, // contrato NN/SIGLA/AAAA
-  /(?<![\d/])\b(?:0[1-9]|1[0-2])\/20\d{2}\b(?![\d/])/g, // competência mm/aaaa
+  /(?<![\d/])(?:0[1-9]|1[0-2])\/20\d{2}(?![\d/])/g, // competência mm/aaaa
+  /(?<!\p{L})(?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\/20\d{2}(?!\d)/giu, // competência "ago/2026"
+  /(?<![\d-])20\d{2}-(?:0[1-9]|1[0-2])(?![\d-])/g, // competência AAAA-MM
 ]
 
 export function extrairNumeros(texto: string): string[] {
@@ -30,10 +35,22 @@ export function extrairNumeros(texto: string): string[] {
   return achados.sort((a, b) => a.i - b.i).map((a) => a.v)
 }
 
-/** Forma canônica para comparar: moeda e percentual viram número com 2 casas; o resto, só dígitos e letras. */
+const fixo = (n: number) => (n === 0 ? 0 : n).toFixed(2)
+
+/** Forma canônica: moeda (m:) e percentual (p:) viram número com 2 casas, competência vira c:AAAA-MM; o resto, texto sem espaço. */
 function canonico(v: string): string {
-  if (/^R\$/.test(v)) return `n:${Number(v.replace(/R\$\s?/, '').replace(/\./g, '').replace(',', '.')).toFixed(2)}`
-  if (v.endsWith('%')) return `n:${Number(v.slice(0, -1).replace(',', '.')).toFixed(2)}`
+  if (v.includes('R$')) {
+    const neg = v.includes('-')
+    const n = Number(v.replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.'))
+    return `m:${fixo(neg ? -n : n)}`
+  }
+  if (v.endsWith('%')) return `p:${fixo(Number(v.slice(0, -1).replace(',', '.')))}`
+  let m = v.match(/^(0[1-9]|1[0-2])\/(20\d{2})$/)
+  if (m) return `c:${m[2]}-${m[1]}`
+  m = v.match(/^(20\d{2})-(0[1-9]|1[0-2])$/)
+  if (m) return `c:${m[1]}-${m[2]}`
+  m = v.match(/^([A-Za-z]{3})\/(20\d{2})$/)
+  if (m) return `c:${m[2]}-${String(MESES.indexOf(m[1].toLowerCase()) + 1).padStart(2, '0')}`
   return `t:${v.toUpperCase().replace(/\s/g, '')}`
 }
 
@@ -41,9 +58,16 @@ function canonicosDasFontes(fontes: string[]): Set<string> {
   const s = new Set<string>()
   const texto = fontes.join('\n')
   for (const v of extrairNumeros(texto)) s.add(canonico(v))
-  // Decimal cru das ferramentas ("1000.00", "6.17") também vale como moeda/percentual. Só com ponto e 1–2
-  // casas: inteiro solto ("30" de uma data) não pode confirmar "R$ 30,00".
-  for (const m of texto.matchAll(/(?<![\d.,])-?\d+\.\d{1,2}(?![\d%])/g)) s.add(`n:${Number(m[0]).toFixed(2)}`)
+  // Número cru das ferramentas ("1000.00", "33.333333", "1000") vale como moeda e como percentual, arredondado
+  // a 2 casas. Inteiro só com 3+ dígitos e fora de data/competência: o "30" de "30/09/2026" não confirma "R$ 30,00".
+  const crus = [/(?<![\d.,/-])-?\d+\.\d+(?![\d/]|,\d)/g, /(?<![\d.,/-])-?\d{3,}(?![\d/]|[.,]\d|-\d)/g]
+  for (const p of crus) {
+    for (const m of texto.matchAll(p)) {
+      const f = fixo(Number(m[0]))
+      s.add(`m:${f}`)
+      s.add(`p:${f}`)
+    }
+  }
   return s
 }
 

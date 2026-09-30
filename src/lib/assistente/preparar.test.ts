@@ -28,3 +28,15 @@ it('acrescenta os já identificados ao fim da linha', async () => {
   expect(texto).toBe('Hoje é 25/09/2026. Tela aberta: SMIT Já identificados (…): cliente SMIT.')
   expect(identificarEntidades).toHaveBeenCalledWith({ pergunta: 'saldo do SMIT', usuario, recentes: [['x']] })
 })
+
+it('acrescenta o período citado depois da data de hoje', async () => {
+  const r = await prepararContexto({ usuario, pergunta: 'faturamento do mês passado', rota: null, recentes: [], hoje: new Date('2026-09-30T12:00:00Z') })
+  expect(r).toContain('Hoje é 30/09/2026. ')
+  expect(r).toContain('Período citado: 01/08/2026 a 31/08/2026 (competência 2026-08).')
+})
+
+it('período reconhece data de Brasília (UTC−3)', async () => {
+  const r = await prepararContexto({ usuario, pergunta: 'mês passado', rota: null, recentes: [], hoje: new Date('2026-10-01T01:00:00Z') })
+  expect(r).toContain('Hoje é 30/09/2026. ')
+  expect(r).toContain('Período citado: 01/08/2026 a 31/08/2026 (competência 2026-08).')
+})

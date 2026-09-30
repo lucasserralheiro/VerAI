@@ -12,6 +12,7 @@ import { fichasDoContrato } from './fichas'
 import { consultarTabelaDePrecos } from './precos'
 import { calendarioFaturamento } from './calendario'
 import { indiceIpcFipe, reajustesCalculados, simularReajuste } from './reajuste'
+import { controleDoFaturamento } from './controles'
 
 export { ROTULOS_FERRAMENTAS } from './rotulos'
 
@@ -40,6 +41,7 @@ export const FERRAMENTAS: Record<string, Ferramenta> = {
   indiceIpcFipe,
   simularReajuste,
   reajustesCalculados,
+  controleDoFaturamento,
 } as Record<string, Ferramenta>
 
 export async function executarComSeguranca(

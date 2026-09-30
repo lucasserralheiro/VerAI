@@ -151,6 +151,20 @@ são a fonte de verdade sobre o que já foi decidido e o que falta. Ao avançar 
 os dois (marque tarefa concluída, registre decisão nova) em vez de deixar o código divergir do que
 está escrito ali.
 
+## Reajuste por IPC-Fipe
+
+Grupo próprio no menu, depois do ConfereAI (`/reajuste`, `/reajuste/historico`, `/reajuste/indice`).
+Índice: série **193** do SGS do Banco Central (pública, sem chave, mas pede `User-Agent` — sem ele volta
+HTML de bloqueio), guardada em `IndiceIpcFipe` pelo cron diário (`/api/reajuste/indice/cron`) e pelo botão
+"Atualizar agora"; mês já gravado **nunca** é sobrescrito (valor diferente vira divergência na tela).
+Período editável (sugestão: últimos 12 publicados); mês sem índice não calcula; conta em `decimal.js`,
+arredonda só o valor final. Planilha volta com colunas "corrigido" **depois da última usada** (fórmula
+existente não se mexe) e aba "Reajuste IPC-Fipe"; PDF/DOCX **nunca é reescrito** — volta planilha de
+comparação (só valor com centavos entra). Envio pelo mesmo PUT pré-assinado da Nova conversão; original e
+resultado no R2 (`reajustes/<id>/`), histórico em `ReajusteExecucao`. Regras em `src/lib/reajuste/`.
+Spec `docs/superpowers/specs/2026-09-30-reajuste-ipc-fipe-design.md`, plano
+`docs/superpowers/plans/2026-09-30-reajuste-ipc-fipe.md`.
+
 ## Relatórios dos clientes — regra única de contrato e SEI
 
 **Contrato tem UMA definição, em `src/lib/relatorios-clientes/contratos-consolidados.ts`.** Ficha do

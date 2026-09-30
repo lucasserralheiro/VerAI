@@ -1,6 +1,6 @@
 # Reajuste por IPC-Fipe — design
 
-Data: 30/09/2026. Status: aprovado em conversa com o usuário (seções 1 e 2), falta revisão do texto.
+Data: 30/09/2026. Status: implementado no dev em 30/09/2026 (testes verdes; sem verificação no navegador, a pedido do usuário). Produção: subir as migrações `20260930100000_indice_ipc_fipe` e `20260930110000_reajuste_execucao` e fazer deploy.
 
 ## 0. O que o usuário quer
 
@@ -79,7 +79,7 @@ Grupo novo em `src/components/nav-bar.tsx`, no mesmo formato de ConfereAI/Propos
 ### 2.2 `/reajuste` — corrigir
 
 1. **Arquivo** — XLSX, CSV, PDF ou DOCX do computador, até 50 MB, subido direto ao R2 com
-   `enviarParaR2` (rota `POST /api/reajuste/envio`, mesmo desenho de `/api/propostas-comerciais/envio`,
+   `enviarParaR2` (rota `POST /api/reajuste/envio`, que reexporta `/api/propostas-comerciais/envio`,
    caminho `tmp-uploads/`).
 2. **Período** — mês da renovação e período sugeridos; seletores de mês inicial e final; tabela dos
    meses com % de cada um, acumulado e fator, recalculados na hora (a tela recebe o índice inteiro da

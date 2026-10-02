@@ -158,7 +158,7 @@ export const compararAnexoComContrato = definirFerramenta({
         const repetido = (codigo: string) => {
           if (repetidos.has(codigo)) return
           repetidos.add(codigo)
-          avisos.push(`código ${codigo} repetido; comparado o primeiro`)
+          // vira um aviso só, depois dos mais graves
         }
         const porCodigo = new Map<string, (typeof doContrato)[number]>()
         let semCodigo = 0
@@ -204,6 +204,10 @@ export const compararAnexoComContrato = definirFerramenta({
         }
         if (ilegiveis > 0) avisos.push(`${ilegiveis} item(ns) do anexo com valor ilegível`)
         if (semCodigo > 0) avisos.push(`${semCodigo} item(ns) do contrato no VerAI sem código de serviço na descrição não entraram na comparação`)
+        if (repetidos.size > 0) {
+          const lista = [...repetidos]
+          avisos.push(`${lista.length} códigos repetidos (comparado o primeiro): ${lista.slice(0, 10).join(', ')}${lista.length > 10 ? '…' : ''}`)
+        }
         saida.itensIguais = itens.filter((i) => i.situacao === 'igual').length
         saida.itensDivergentes = ORDEM_DIVERGENCIA.flatMap((s) => itens.filter((i) => i.situacao === s))
       } catch (erro) {

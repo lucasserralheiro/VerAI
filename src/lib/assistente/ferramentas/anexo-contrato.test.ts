@@ -146,6 +146,7 @@ describe('compararAnexoComContrato', () => {
     expect(por('01.001.00002.01')).toMatchObject({ anexo: 'R$ 50,00', verai: 'R$ 60,00', situacao: 'diferente' })
     expect(por('01.001.00003.01').situacao).toBe('só no VerAI')
     expect(por('01.001.00004.01').situacao).toBe('só no anexo')
+    expect(r.itensIguais).toBe(1)
   })
   it('sem itens na ficha não lê o R2', async () => {
     acesso.mockResolvedValue(anexo())
@@ -160,35 +161,56 @@ describe('compararAnexoComContrato', () => {
     expect(r.itensDivergentes).toBeUndefined()
     expect(r.avisos).toContain('itens não comparados')
   })
-  it('300 itens (200 iguais, 100 divergentes): modelo vê avisos e as primeiras divergências', async () => {
+  it('corte em 8.000: avisos reais e primeira divergência ficam; o fim é cortado', async () => {
     const cod = (n: number) => `01.001.${String(n).padStart(5, '0')}.01`
-    acesso.mockResolvedValue(anexo(ficha({ itens: 300 })))
+    acesso.mockResolvedValue(anexo(ficha({ itens: 502 })))
     r2.mockResolvedValue({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) })
     html.mockResolvedValue('<table/>')
-    const doAnexo = Array.from({ length: 300 }, (_, i) => ({ codigo: cod(i), descricao: 'x', quantidade: '1', unitario: i < 200 ? '10.00' : '11.00', total: null, linha: i + 1 }))
-    itensAnexo.mockReturnValue(doAnexo)
-    itensDb.mockResolvedValue(Array.from({ length: 300 }, (_, i) => ({ descricao: `${cod(i)} - item`, valorUnitario: '10', quantidade: '1', valorTotal: '10' })))
-    const r = (await compararAnexoComContrato.executar({ anexoId: 'a1' }, ctx)) as any
-    expect(r.itensIguais).toBe(200)
-    expect(r.itensDivergentes).toHaveLength(100)
-    expect(Object.keys(r).slice(0, 4)).toEqual(['anexo', 'contrato', 'avisos', 'linhas'])
-    const texto = textoParaModelo('compararAnexoComContrato', { ...r, avisos: ['aviso importante'] })
-    expect(texto).toContain('aviso importante')
-    expect(texto).toContain('itensDivergentes')
-    expect(texto).toContain(cod(200))
-    expect(texto.indexOf('avisos:')).toBeLessThan(texto.indexOf('linhas'))
-  })
-  it('valor de item ilegível vira null com aviso; código repetido avisa', async () => {
-    acesso.mockResolvedValue(anexo(ficha({ itens: 2 })))
-    r2.mockResolvedValue({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) })
-    html.mockResolvedValue('<table/>')
+    const item = (n: number, unitario: string | null) => ({ codigo: cod(n), descricao: 'Descrição longa do serviço '.repeat(5), quantidade: '1', unitario, total: null, linha: n + 1 })
     itensAnexo.mockReturnValue([
-      { codigo: '01.001.00001.01', descricao: 'a', quantidade: '1', unitario: null, total: null, linha: 1 },
-      { codigo: '01.001.00001.01', descricao: 'a', quantidade: '1', unitario: '5.00', total: null, linha: 2 },
+      ...Array.from({ length: 500 }, (_, i) => item(i, i < 400 ? '11.00' : '10.00')),
+      item(0, '11.00'), // código repetido no anexo
+      item(1000, null), // valor ilegível
     ])
+    itensDb.mockResolvedValue(Array.from({ length: 500 }, (_, i) => ({ descricao: `${cod(i)} - item`, valorUnitario: '10', quantidade: '1', valorTotal: '10' })))
+    const r = (await compararAnexoComContrato.executar({ anexoId: 'a1' }, ctx)) as any
+    expect(r.itensDivergentes.length).toBeGreaterThanOrEqual(400)
+    expect(r.avisos).toEqual(expect.arrayContaining([`1 códigos repetidos (comparado o primeiro): ${cod(0)}`, '1 item(ns) do anexo com valor ilegível']))
+    // os mais graves vêm antes do aviso de código repetido
+    expect(r.avisos.findIndex((a: string) => a.includes('ilegível'))).toBeLessThan(r.avisos.findIndex((a: string) => a.includes('repetidos')))
+
+    const completo = compararAnexoComContrato.compactar!(r)
+    expect(completo.length).toBeGreaterThan(8000)
+    const texto = textoParaModelo('compararAnexoComContrato', r)
+    expect(texto.length).toBeLessThanOrEqual(8000)
+    expect(texto).toContain('1 item(ns) do anexo com valor ilegível')
+    expect(texto).toContain(`1 códigos repetidos (comparado o primeiro): ${cod(0)}`)
+    expect(texto).toContain(`\n${cod(0)}|`)
+    expect(texto).not.toContain(`\n${cod(399)}|`)
+    expect(texto).toMatch(/mostrando \d+ de \d+ linhas/)
+  })
+  it('código repetido do lado do VerAI avisa e usa o primeiro', async () => {
+    acesso.mockResolvedValue(anexo(ficha({ itens: 1 })))
+    r2.mockResolvedValue({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) })
+    html.mockResolvedValue('<table/>')
+    itensAnexo.mockReturnValue([{ codigo: '01.001.00001.01', descricao: 'a', quantidade: '1', unitario: '5.00', total: null, linha: 1 }])
+    itensDb.mockResolvedValue([
+      { descricao: '01.001.00001.01 - x', valorUnitario: '5', quantidade: '1', valorTotal: '5' },
+      { descricao: '01.001.00001.01 - y', valorUnitario: '9', quantidade: '1', valorTotal: '9' },
+    ])
+    const r = (await compararAnexoComContrato.executar({ anexoId: 'a1' }, ctx)) as any
+    expect(r.itensIguais).toBe(1)
+    expect(r.itensDivergentes).toEqual([])
+    expect(r.avisos).toContain('1 códigos repetidos (comparado o primeiro): 01.001.00001.01')
+  })
+  it('valor de item ilegível vira null com aviso', async () => {
+    acesso.mockResolvedValue(anexo(ficha({ itens: 1 })))
+    r2.mockResolvedValue({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) })
+    html.mockResolvedValue('<table/>')
+    itensAnexo.mockReturnValue([{ codigo: '01.001.00001.01', descricao: 'a', quantidade: '1', unitario: null, total: null, linha: 1 }])
     itensDb.mockResolvedValue([{ descricao: '01.001.00001.01 - x', valorUnitario: '5', quantidade: '1', valorTotal: '5' }])
     const r = (await compararAnexoComContrato.executar({ anexoId: 'a1' }, ctx)) as any
     expect(r.itensDivergentes[0]).toMatchObject({ anexo: null, situacao: 'diferente' })
-    expect(r.avisos).toEqual(expect.arrayContaining(['código 01.001.00001.01 repetido; comparado o primeiro', '1 item(ns) do anexo com valor ilegível']))
+    expect(r.avisos).toContain('1 item(ns) do anexo com valor ilegível')
   })
 })

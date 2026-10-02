@@ -8,6 +8,17 @@ import type { FichaAnexo, FormatoAnexo, ItemDocumento, TipoDocumento } from './t
 
 const semAcento = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
+const SIGLA = (n: string, ...siglas: string[]) => new RegExp(`(?<![a-z])(${siglas.join('|')})(?![a-z])`).test(n)
+
+function tipoPeloNome(n: string): TipoDocumento | null {
+  if (SIGLA(n, 'pc', 'pa') || /proposta/.test(n)) return 'proposta'
+  if (SIGLA(n, 'tc', 'ta', 'tap') || /termo|aditivo|prorroga|apostil|rescis/.test(n)) return 'termo'
+  if (/controle/.test(n)) return 'controle'
+  if (/of[ií]cio|memorando|despacho/.test(n)) return 'oficio'
+  return null
+}
+
+/** O nome do arquivo decide primeiro; o texto só quando o nome não tem pista. */
 export function tipoDoDocumento(nome: string, texto: string, formato: FormatoAnexo): TipoDocumento {
   if (formato === 'eml') return 'email'
   const n = semAcento(nome)
@@ -16,12 +27,28 @@ export function tipoDoDocumento(nome: string, texto: string, formato: FormatoAne
     const f = lerConversa(texto).formato
     if (f) return f === 'email' ? 'email' : 'conversa'
   }
-  if (/\b(pc|pa)\b|proposta/.test(n) || /proposta comercial/.test(t)) return 'proposta'
-  if (/\b(tc|ta|tap)\b|termo|aditivo|prorroga|apostil/.test(n) || /termo (aditivo|de contrato)|apostilamento/.test(t)) return 'termo'
-  if (/controle/.test(n) || /controle de contratos/.test(t)) return 'controle'
-  if (/of[ií]cio|memorando|despacho/.test(n) || /^\s*(oficio|memorando|despacho)\b/m.test(t)) return 'oficio'
+  const pelaNome = tipoPeloNome(n)
+  if (pelaNome) return pelaNome
+  if (/proposta comercial/.test(t)) return 'proposta'
+  if (/termo (aditivo|de contrato)|apostilamento/.test(t)) return 'termo'
+  if (/controle de contratos/.test(t)) return 'controle'
+  if (/^s*(oficio|memorando|despacho)/m.test(t)) return 'oficio'
   if (formato === 'xlsx' || formato === 'csv') return 'planilha'
   return 'outro'
+}
+
+/** Tipo de linha do histórico, que escolhe os padrões de leitura (`extrairCampos`). Apostilamento não tem regra própria. */
+function tipoDaLinha(nome: string, texto: string): 'CONTRATO' | 'ADITIVO' | 'PRORROGACAO' | 'RESCISAO' {
+  const n = semAcento(nome)
+  const t = semAcento(texto.slice(0, 1500))
+  const de = (x: string) => {
+    if (/rescis/.test(x)) return 'RESCISAO' as const
+    if (/prorroga/.test(x) || SIGLA(x, 'tap')) return 'PRORROGACAO' as const
+    if (/aditivo|apostil/.test(x) || SIGLA(x, 'ta')) return 'ADITIVO' as const
+    if (SIGLA(x, 'tc') || /termo de contrato/.test(x)) return 'CONTRATO' as const
+    return null
+  }
+  return de(n) ?? de(t) ?? 'CONTRATO'
 }
 
 const ROTULO: Record<TipoDocumento, string> = {
@@ -67,7 +94,7 @@ export function fichaDoAnexo(e: {
 }): FichaAnexo {
   const texto = e.paginas.map((p) => p.texto).join('\n')
   const tipo = tipoDoDocumento(e.nome, texto, e.formato)
-  const camposLidos = tipo === 'proposta' || tipo === 'termo' ? camposPorRegra(e.paginas, 'CONTRATO') : {}
+  const camposLidos = tipo === 'proposta' || tipo === 'termo' ? camposPorRegra(e.paginas, tipoDaLinha(e.nome, texto)) : {}
   const campos = Object.fromEntries(Object.entries(camposLidos).map(([k, c]) => [k, { valor: c!.valor, pagina: c!.pagina }]))
   const totais = e.itens.map((i) => i.total).filter((t): t is string => t !== null)
   const conv = lerConversa(texto)

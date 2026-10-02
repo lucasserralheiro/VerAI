@@ -11,6 +11,20 @@ it.each([
   ['msg.eml', '', 'eml', 'email'],
   ['conversa-2026-10-02-1000.txt', '01/10/2026 09:12 - Ana: oi\n01/10/2026 09:13 - Lucas: oi', 'txt', 'conversa'],
   ['x.pdf', 'texto sem pista', 'pdf', 'outro'],
+  ['PA 001-2025 SMS - Proposta Comercial.pdf', '', 'pdf', 'proposta'],
+  ['TA 03 - Prorrogação.pdf', '', 'pdf', 'termo'],
+  ['TC 52-SMIT-2024 assinado.pdf', '', 'pdf', 'termo'],
+  ['Apostilamento 02.pdf', '', 'pdf', 'termo'],
+  ['PC Proposta.docx', '', 'docx', 'proposta'],
+  ['Controle de Contratos 08.2026 SMIT.pdf', '', 'pdf', 'controle'],
+  ['TA 03.pdf', 'Proposta Comercial nº 12', 'pdf', 'termo'],
+  ['Controle 08.2026.pdf', 'proposta comercial', 'pdf', 'controle'],
+  ['TA03.pdf', '', 'pdf', 'termo'],
+  ['PC012-2025.pdf', '', 'pdf', 'proposta'],
+  ['PA_001.pdf', '', 'pdf', 'proposta'],
+  ['TC_52.pdf', '', 'pdf', 'termo'],
+  ['Pagamento 08.pdf', '', 'pdf', 'outro'],
+  ['Tabela de preços.pdf', '', 'pdf', 'outro'],
 ] as const)('%s → %s', (nome, texto, formato, tipo) => {
   expect(tipoDoDocumento(nome, texto, formato)).toBe(tipo)
 })
@@ -48,4 +62,10 @@ it('e-mail colado: "(texto colado)" não é participante', () => {
   })
   expect(f.conversa?.participantes).toEqual(['Ana <a@x.com>'])
   expect(f.conversa?.participantes).not.toContain('(texto colado)')
+})
+
+it('aditivo lê o valor pelo padrão de aditivo, não o do contrato original', () => {
+  const texto = 'TERMO ADITIVO Nº 03\nO valor estimado do presente contrato é de R$ 1.000,00.\nO valor total do contrato passa a ser de R$ 1.234.567,89.'
+  const f = fichaDoAnexo({ nome: 'TA 03.pdf', formato: 'pdf', itens: [], entidades: sem, paginas: [{ pagina: 1, texto }] })
+  expect(f.campos.valorTotal?.valor).toBe('R$ 1.234.567,89')
 })

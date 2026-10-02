@@ -16,27 +16,57 @@ function separar(bruto: string): Parte {
   return { cabecalhos, corpo }
 }
 
-function decodificarPalavras(valor: string): string {
-  return valor.replace(/=\?([^?]+)\?([QqBb])\?([^?]*)\?=/g, (_, _charset, cod: string, texto: string) =>
-    cod.toUpperCase() === 'B'
-      ? Buffer.from(texto, 'base64').toString('utf8')
-      : Buffer.from(texto.replace(/_/g, ' ').replace(/=([0-9A-F]{2})/gi, (_m, h: string) => String.fromCharCode(parseInt(h, 16))), 'latin1').toString('utf8')
-  )
+// Decodifica bytes no charset informado; charset desconhecido cai para UTF-8.
+function bytesParaTexto(bytes: Buffer, charset: string | undefined): string {
+  const nome = (charset ?? 'utf-8').trim().replace(/^"|"$/g, '').toLowerCase() || 'utf-8'
+  try {
+    return new TextDecoder(nome).decode(bytes)
+  } catch {
+    return new TextDecoder('utf-8').decode(bytes)
+  }
 }
 
-function decodificarCorpo(corpo: string, encoding: string | undefined): string {
-  const enc = (encoding ?? '').toLowerCase()
-  if (enc === 'base64') return Buffer.from(corpo.replace(/\s/g, ''), 'base64').toString('utf8')
-  if (enc === 'quoted-printable') {
-    const bytes = corpo.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/gi, (_m, h: string) => String.fromCharCode(parseInt(h, 16)))
-    return Buffer.from(bytes, 'latin1').toString('utf8')
+const bytesQuotedPrintable = (texto: string): Buffer =>
+  Buffer.from(texto.replace(/=([0-9A-F]{2})/gi, (_m, h: string) => String.fromCharCode(parseInt(h, 16))), 'latin1')
+
+// RFC 2047: cada palavra codificada traz o seu charset; o espaço entre duas adjacentes é descartado.
+// O que não está codificado chegou como bytes crus (latin1) e é lido como UTF-8.
+function decodificarPalavras(valor: string): string {
+  const semEspacos = valor.replace(/(\?=)\s+(?==\?[^?]+\?[QqBb]\?)/g, '$1')
+  let fim = 0
+  let saida = ''
+  for (const m of semEspacos.matchAll(/=\?([^?]+)\?([QqBb])\?([^?]*)\?=/g)) {
+    const ini = m.index ?? 0
+    saida += bytesParaTexto(Buffer.from(semEspacos.slice(fim, ini), 'latin1'), 'utf-8')
+    const bytes = m[2].toUpperCase() === 'B' ? Buffer.from(m[3], 'base64') : bytesQuotedPrintable(m[3].replace(/_/g, ' '))
+    saida += bytesParaTexto(bytes, m[1].replace(/\*.*$/, ''))
+    fim = ini + m[0].length
   }
-  // 7bit/8bit: o bruto foi lido como latin1 para preservar bytes; reconstrói o UTF-8.
-  return Buffer.from(corpo, 'latin1').toString('utf8')
+  return saida + bytesParaTexto(Buffer.from(semEspacos.slice(fim), 'latin1'), 'utf-8')
+}
+
+function decodificarCorpo(parte: Parte): string {
+  const enc = (parte.cabecalhos['content-transfer-encoding'] ?? '').toLowerCase()
+  const charset = /charset="?([^";\s]+)"?/i.exec(parte.cabecalhos['content-type'] ?? '')?.[1]
+  const bytes =
+    enc === 'base64'
+      ? Buffer.from(parte.corpo.replace(/\s/g, ''), 'base64')
+      : enc === 'quoted-printable'
+        ? bytesQuotedPrintable(parte.corpo.replace(/=\r?\n/g, ''))
+        : Buffer.from(parte.corpo, 'latin1') // 7bit/8bit: o bruto foi lido como latin1 para preservar bytes
+  return bytesParaTexto(bytes, charset)
 }
 
 const nomeDoAnexo = (c: Record<string, string>) => {
-  const m = /filename\*?="?([^";]+)"?/i.exec(c['content-disposition'] ?? '') ?? /name="?([^";]+)"?/i.exec(c['content-type'] ?? '')
+  const rfc2231 = /filename\*=([^']*)'[^']*'([^;]+)/i.exec(c['content-disposition'] ?? '')
+  if (rfc2231) {
+    const bytes = Buffer.from(
+      rfc2231[2].trim().replace(/^"|"$/g, '').replace(/%([0-9A-F]{2})/gi, (_m, h: string) => String.fromCharCode(parseInt(h, 16))),
+      'latin1'
+    )
+    return bytesParaTexto(bytes, rfc2231[1] || 'utf-8')
+  }
+  const m = /filename="?([^";]+)"?/i.exec(c['content-disposition'] ?? '') ?? /name="?([^";]+)"?/i.exec(c['content-type'] ?? '')
   return m ? decodificarPalavras(m[1]) : null
 }
 
@@ -57,13 +87,8 @@ export function lerEml(conteudo: Buffer) {
   const texto = (tipo: RegExp) => todas.find((p) => tipo.test(p.cabecalhos['content-type'] ?? 'text/plain') && !/attachment/i.test(p.cabecalhos['content-disposition'] ?? ''))
   const plain = texto(/text\/plain/i)
   const html = texto(/text\/html/i)
-  const corpo = plain
-    ? decodificarCorpo(plain.corpo, plain.cabecalhos['content-transfer-encoding'])
-    : html
-      ? htmlParaTexto(decodificarCorpo(html.corpo, html.cabecalhos['content-transfer-encoding']))
-      : ''
+  const corpo = plain ? decodificarCorpo(plain) : html ? htmlParaTexto(decodificarCorpo(html)) : ''
   const c = raiz.cabecalhos
-  // Cabeçalhos também chegam como bytes latin1 quando o e-mail traz UTF-8 cru.
-  const h = (k: string) => (c[k] ? decodificarPalavras(Buffer.from(c[k], 'latin1').toString('utf8')) : null)
+  const h = (k: string) => (c[k] ? decodificarPalavras(c[k]) : null)
   return { de: h('from'), para: h('to'), data: h('date'), assunto: h('subject'), corpo: corpo.replace(/\r\n/g, '\n').trim(), anexos }
 }

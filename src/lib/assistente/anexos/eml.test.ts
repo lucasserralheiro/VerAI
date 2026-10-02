@@ -20,3 +20,21 @@ it('corpo e assunto em UTF-8 cru (8bit) mantêm o acento', () => {
   expect(r.corpo).toBe('Execução até sexta.')
   expect(r.assunto).toBe('Prorrogação')
 })
+
+const eml1252 = (s: string) => Buffer.from(s.replace(/\n/g, '\r\n'), 'latin1')
+
+it('charset windows-1252 no corpo html em quoted-printable e no assunto encoded-word', () => {
+  const r = lerEml(eml1252(`From: x@y\nSubject: =?iso-8859-1?Q?Execu=E7=E3o?=\nContent-Type: text/html; charset=windows-1252\nContent-Transfer-Encoding: quoted-printable\n\n<p>Execu=E7=E3o at=E9 sexta</p>\n`))
+  expect(r.corpo).toBe('Execução até sexta')
+  expect(r.assunto).toBe('Execução')
+})
+
+it('encoded-words adjacentes descartam o espaço entre eles', () => {
+  const r = lerEml(eml(`From: x@y\nSubject: =?UTF-8?Q?Presta=C3=A7=C3=A3o?=\n =?UTF-8?Q?_de_servi=C3=A7o?=\n\ncorpo\n`))
+  expect(r.assunto).toBe('Prestação de serviço')
+})
+
+it('nome de anexo RFC 2231 é percent-decodificado', () => {
+  const r = lerEml(eml(`From: x@y\nContent-Type: multipart/mixed; boundary="B"\n\n--B\nContent-Type: text/plain\n\noi\n--B\nContent-Type: application/pdf\nContent-Disposition: attachment; filename*=UTF-8''TA%2003.pdf\nContent-Transfer-Encoding: base64\n\nJVBERi0=\n--B--\n`))
+  expect(r.anexos).toEqual(['TA 03.pdf'])
+})

@@ -34,11 +34,21 @@ export const linksMpls = definirFerramenta({
     const lidos = await Promise.all(contratos.map(async (c) => ({ c, l: await linksDoContrato(c.id, competencia) })))
     const comLinks = lidos.filter(({ l }) => l.relatorios.length > 0)
     if (comLinks.length === 0) return { erro: 'nenhum relatório de links MPLS lido para este contrato ou cliente' }
-    const comp = comLinks[0].l.competencia
+    // Cada contrato vem do seu mês mais recente (ou do pedido, se existir nele): o mês vai em cada item.
+    const itens = comLinks.map(({ c, l }) => {
+      const mes = l.competencia ? nomeDaCompetencia(l.competencia) : null
+      if (competencia && l.competencia !== competencia) return { item: { contrato: c.numeroTermo, competencia: mes, aviso: `sem relatório em ${nomeDaCompetencia(competencia)}` }, numerico: null }
+      return { item: { contrato: c.numeroTermo, competencia: mes, relatorios: l.relatorios.map(doRelatorio) }, numerico: { mes: l.competencia, relatorios: l.relatorios } }
+    })
+    const comNumero = itens.flatMap((i) => (i.numerico ? [i.numerico] : []))
+    const meses = new Set(comNumero.map((n) => n.mes))
+    const mesmoMes = meses.size <= 1
+    const total = comNumero.flatMap((n) => n.relatorios).reduce((s, r) => s + (r.conferido && r.ativos !== null ? r.ativos : 0), 0)
+    const topo = [...new Set(itens.map((i) => i.item.competencia))]
     return {
-      competencia: comp ? nomeDaCompetencia(comp) : null,
-      contratos: comLinks.map(({ c, l }) => ({ contrato: c.numeroTermo, relatorios: l.relatorios.map(doRelatorio) })),
-      totalAtivosConferidos: comLinks.flatMap(({ l }) => l.relatorios).reduce((s, r) => s + (r.conferido && r.ativos !== null ? r.ativos : 0), 0),
+      competencia: topo.length === 1 ? topo[0] : null,
+      contratos: itens.map((i) => i.item),
+      ...(mesmoMes ? { totalAtivosConferidos: total } : { aviso: 'contratos em meses diferentes — sem total' }),
     }
   },
 })

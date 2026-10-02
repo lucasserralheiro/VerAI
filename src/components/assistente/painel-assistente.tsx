@@ -1,12 +1,19 @@
 'use client'
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { History, Loader2, Plus, RotateCcw, Send, Sparkles, Square, X } from 'lucide-react'
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
+import { History, Loader2, Paperclip, Plus, RotateCcw, Send, Sparkles, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BTN_OUTLINE_SM, BTN_PRIMARY, INPUT_BASE } from '@/lib/ui'
 import { ROTULOS_FERRAMENTAS } from '@/lib/assistente/ferramentas/rotulos'
 import { RespostaMarkdown } from './resposta-markdown'
+import { CartaoAnexo } from './anexos/cartao-anexo'
+import { LIMITE_DA_PERGUNTA, arquivoDoTextoColado, perguntaDoTextoColado } from './anexos/enviar-anexo'
 import { useConversaAssistente } from './use-conversa-assistente'
+
+/** Mesmos formatos de `FORMATOS_ANEXO` (`lib/assistente/anexos/tipos.ts`). */
+const ACEITOS = '.pdf,.docx,.xlsx,.csv,.txt,.eml'
+
+const temArquivos = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files')
 
 interface ConversaResumo {
   id: string
@@ -31,7 +38,9 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
   const [usarContexto, setUsarContexto] = useState(true)
   const [historicoAberto, setHistoricoAberto] = useState(false)
   const [conversas, setConversas] = useState<ConversaResumo[]>([])
+  const [arrastando, setArrastando] = useState(false)
   const fim = useRef<HTMLDivElement>(null)
+  const seletor = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setUsarContexto(true)
@@ -54,8 +63,40 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
 
   function enviar(pergunta: string) {
     if (!pergunta.trim()) return
-    conversa.enviar(pergunta, rotaEnviada)
     setTexto('')
+    // Texto colado longo (e-mail, conversa) não cabe na pergunta: vira anexo .txt e a pergunta,
+    // curta, só sai depois que o anexo ficou pronto — senão a IA responderia sem ele.
+    if (pergunta.trim().length > LIMITE_DA_PERGUNTA) {
+      void conversa.anexar([arquivoDoTextoColado(pergunta)], rotaEnviada).then((ok) => {
+        if (ok) conversa.enviar(perguntaDoTextoColado(pergunta), rotaEnviada)
+      })
+      return
+    }
+    conversa.enviar(pergunta, rotaEnviada)
+  }
+
+  function anexar(arquivos: FileList | File[] | null | undefined) {
+    const lista = Array.from(arquivos ?? [])
+    if (lista.length) void conversa.anexar(lista, rotaEnviada)
+  }
+
+  function aoArrastarSobre(e: DragEvent<HTMLElement>) {
+    if (!temArquivos(e)) return
+    e.preventDefault()
+    setArrastando(true)
+  }
+
+  function aoSairDoArraste(e: DragEvent<HTMLElement>) {
+    // Passar por cima de um filho também dispara "leave": só some quando sai do painel.
+    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
+    setArrastando(false)
+  }
+
+  function aoSoltar(e: DragEvent<HTMLElement>) {
+    if (!temArquivos(e)) return
+    e.preventDefault()
+    setArrastando(false)
+    anexar(e.dataTransfer.files)
   }
 
   function aoTeclar(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -81,7 +122,17 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
       role="dialog"
       aria-label="Assistente VerAI"
       className="fixed inset-0 z-50 flex flex-col bg-white shadow-2xl sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[420px] sm:border-l sm:border-border-grey"
+      onDragOver={aoArrastarSobre}
+      onDragLeave={aoSairDoArraste}
+      onDrop={aoSoltar}
     >
+      {arrastando && (
+        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-orange bg-orange/[0.06]">
+          <p className="flex items-center gap-2 text-sm font-medium text-navy">
+            <Paperclip className="size-4 text-orange" aria-hidden /> Solte os arquivos para anexar
+          </p>
+        </div>
+      )}
       <header className="flex items-center gap-2 border-b border-border-grey px-4 py-3">
         <Sparkles className="size-4 text-orange" aria-hidden />
         <h2 className="flex-1 text-sm font-semibold text-navy">Assistente VerAI</h2>
@@ -128,10 +179,18 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
         </div>
       )}
 
+      {conversa.anexos.length > 0 && (
+        <section className="max-h-48 space-y-1.5 overflow-y-auto border-b border-border-grey px-4 py-2" aria-label="Anexos da conversa">
+          {conversa.anexos.map((a) => (
+            <CartaoAnexo key={a.id} anexo={a} />
+          ))}
+        </section>
+      )}
+
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {conversa.mensagens.length === 0 && (
           <div className="space-y-2">
-            <p className="text-sm text-mid-grey">Pergunte sobre clientes, contratos, SEI, faturamento, demandas ou o conteúdo dos documentos.</p>
+            <p className="text-sm text-mid-grey">Pergunte sobre clientes, contratos, SEI, faturamento, demandas ou o conteúdo dos documentos — ou anexe um arquivo (PDF, Word, Excel, CSV, texto, e-mail).</p>
             {sugestoes(rota, comContexto).map((s) => (
               <button key={s} type="button" className="block w-full rounded-xl border border-navy/15 px-3 py-2 text-left text-sm text-navy hover:border-navy/35 hover:bg-navy/[0.04]" onClick={() => enviar(s)}>
                 {s}
@@ -171,10 +230,30 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
       </div>
 
       <footer className="flex items-end gap-2 border-t border-border-grey px-4 py-3">
+        <input
+          ref={seletor}
+          type="file"
+          multiple
+          accept={ACEITOS}
+          hidden
+          data-testid="seletor-de-anexos"
+          onChange={(e) => {
+            anexar(e.target.files)
+            e.target.value = '' // o mesmo arquivo pode ser escolhido de novo
+          }}
+        />
+        <button
+          type="button"
+          className={cn(BTN_OUTLINE_SM, 'h-[42px] px-2.5')}
+          onClick={() => seletor.current?.click()}
+          aria-label="Anexar arquivo"
+          title="Anexar arquivo (ou arraste para o painel)"
+        >
+          <Paperclip className="size-3.5" aria-hidden />
+        </button>
         <textarea
           className={cn(INPUT_BASE, 'max-h-40 min-h-[42px] flex-1 resize-none')}
           rows={1}
-          maxLength={2000}
           placeholder="Pergunte ao assistente…"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}

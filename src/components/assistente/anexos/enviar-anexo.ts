@@ -50,54 +50,50 @@ export async function ocrSeEscaneado(arquivo: File, aoProgredir: (p: ProgressoOc
   const { getDocumentProxy, extractTextItems } = await import('unpdf')
   pararSeCancelado(signal)
   const pdf = await getDocumentProxy(new Uint8Array(await arquivo.arrayBuffer()))
-  try {
-    const { items } = await extractTextItems(pdf)
-    const temTexto = items.some(
-      (pagina) => pagina.map((item) => item.str ?? '').join('').replace(/\s/g, '').length >= MINIMO_DE_CARACTERES
-    )
-    if (temTexto) return null
-    pararSeCancelado(signal)
+  const { items } = await extractTextItems(pdf)
+  const temTexto = items.some(
+    (pagina) => pagina.map((item) => item.str ?? '').join('').replace(/\s/g, '').length >= MINIMO_DE_CARACTERES
+  )
+  if (temTexto) return null
+  pararSeCancelado(signal)
 
-    const { createWorker } = await import('tesseract.js')
-    const worker = await createWorker('por')
-    let encerrado = false
-    const encerrar = () => {
-      if (encerrado) return
-      encerrado = true
-      void worker.terminate().catch(() => {})
+  const { createWorker } = await import('tesseract.js')
+  const worker = await createWorker('por')
+  let encerrado = false
+  const encerrar = () => {
+    if (encerrado) return
+    encerrado = true
+    void worker.terminate().catch(() => {})
+  }
+  signal?.addEventListener('abort', encerrar)
+  try {
+    const paginas: PaginaOcr[] = []
+    const total = pdf.numPages
+    for (let numero = 1; numero <= total; numero++) {
+      pararSeCancelado(signal)
+      aoProgredir({ pagina: numero, total })
+      const pagina = await pdf.getPage(numero)
+      const viewport = pagina.getViewport({ scale: ESCALA_RENDER_OCR })
+      const canvas = document.createElement('canvas')
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      const contexto = canvas.getContext('2d')
+      if (!contexto) throw new Error('não foi possível criar o contexto de canvas')
+      await pagina.render({ canvas, canvasContext: contexto, viewport }).promise
+      const imagem = contexto.getImageData(0, 0, canvas.width, canvas.height)
+      binarizarEContrastar(imagem)
+      contexto.putImageData(imagem, 0, 0)
+      const { data } = await worker.recognize(canvas.toDataURL('image/png'))
+      pararSeCancelado(signal)
+      paginas.push({ pagina: numero, texto: data.text.trim() })
+      // Libera o bitmap da página antes da próxima (PDF grande em escala 4 pesa).
+      canvas.width = 0
+      canvas.height = 0
     }
-    signal?.addEventListener('abort', encerrar)
-    try {
-      const paginas: PaginaOcr[] = []
-      const total = pdf.numPages
-      for (let numero = 1; numero <= total; numero++) {
-        pararSeCancelado(signal)
-        aoProgredir({ pagina: numero, total })
-        const pagina = await pdf.getPage(numero)
-        const viewport = pagina.getViewport({ scale: ESCALA_RENDER_OCR })
-        const canvas = document.createElement('canvas')
-        canvas.width = viewport.width
-        canvas.height = viewport.height
-        const contexto = canvas.getContext('2d')
-        if (!contexto) throw new Error('não foi possível criar o contexto de canvas')
-        await pagina.render({ canvas, canvasContext: contexto, viewport }).promise
-        const imagem = contexto.getImageData(0, 0, canvas.width, canvas.height)
-        binarizarEContrastar(imagem)
-        contexto.putImageData(imagem, 0, 0)
-        const { data } = await worker.recognize(canvas.toDataURL('image/png'))
-        pararSeCancelado(signal)
-        paginas.push({ pagina: numero, texto: data.text.trim() })
-        // Libera o bitmap da página antes da próxima (PDF grande em escala 4 pesa).
-        canvas.width = 0
-        canvas.height = 0
-      }
-      return paginas
-    } finally {
-      signal?.removeEventListener('abort', encerrar)
-      encerrar()
-    }
+    return paginas
   } finally {
-    void Promise.resolve(pdf.destroy?.()).catch(() => {})
+    signal?.removeEventListener('abort', encerrar)
+    encerrar()
   }
 }
 

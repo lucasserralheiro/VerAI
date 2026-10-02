@@ -34,7 +34,7 @@ async function periodo(mesInicial?: string, mesFinal?: string) {
 
 export const indiceIpcFipe = definirFerramenta({
   descricao:
-    'IPC-Fipe mensal (Banco Central, série 193) guardado no VerAI: variação de cada mês e o acumulado do período ("quanto deu o IPC", "índice de reajuste", "inflação acumulada"). Sem período: os últimos 12 meses publicados.',
+    'IPC-Fipe mensal (Banco Central, série 193) guardado no VerAI: variação de cada mês e o acumulado do período ("quanto deu o IPC", "índice de reajuste", "inflação acumulada"). Sem período: os últimos 12 meses publicados. "Últimos N meses" = os N últimos publicados: omita mesInicial e mesFinal e a ferramenta escolhe; só passe período com meses explícitos do usuário.',
   entrada: z.object({ mesInicial: esquemaMes.optional().describe('AAAA-MM'), mesFinal: esquemaMes.optional().describe('AAAA-MM') }),
   async executar({ mesInicial, mesFinal }) {
     const p = await periodo(mesInicial, mesFinal)
@@ -52,7 +52,7 @@ export const indiceIpcFipe = definirFerramenta({
 
 export const simularReajuste = definirFerramenta({
   descricao:
-    'Simula o reajuste pelo IPC-Fipe ("quanto fica reajustado", "quanto sobe o contrato"): informe o valor (ex.: "R$ 250.000,00") OU o contratoId (usa o valor contratado consolidado) e o período; sem período, os últimos 12 meses publicados. A conta é do mesmo código da tela de Reajuste. Não grava nada.',
+    'Simula o reajuste pelo IPC-Fipe ("quanto fica reajustado", "quanto sobe o contrato"): informe o valor (ex.: "R$ 250.000,00") OU o contratoId (usa o valor contratado consolidado) e o período; sem período, os últimos 12 meses publicados. "Últimos N meses" = os N últimos publicados: omita mesInicial e mesFinal e a ferramenta escolhe; só passe período com meses explícitos do usuário. A conta é do mesmo código da tela de Reajuste. Não grava nada.',
   entrada: z
     .object({
       valor: z.string().optional().describe('valor com vírgula nos centavos, ex.: "250.000,00"'),

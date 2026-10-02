@@ -63,3 +63,10 @@ it('mês fora de 01–12 é recusado pelo esquema', () => {
   expect(indiceIpcFipe.entrada.safeParse({ mesInicial: '2026-00' }).success).toBe(false)
   expect(indiceIpcFipe.entrada.safeParse({ mesInicial: '2026-12' }).success).toBe(true)
 })
+
+it('descrições orientam: "últimos N meses" de IPC = os N últimos publicados, sem período', () => {
+  for (const f of [indiceIpcFipe, simularReajuste]) {
+    expect(f.descricao).toMatch(/publicados/)
+    expect(f.descricao).toMatch(/omita mesInicial e mesFinal/)
+  }
+})

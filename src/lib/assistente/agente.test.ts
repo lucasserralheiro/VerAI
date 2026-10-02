@@ -267,3 +267,15 @@ describe('instrução do sistema', () => {
     }
   })
 })
+
+describe('instrução do sistema — ajustes da régua', () => {
+  it('IPC "últimos N meses" = os N últimos publicados, sem passar período', () => {
+    expect(INSTRUCOES_SISTEMA).toMatch(/últimos N meses.*publicados/)
+    expect(INSTRUCOES_SISTEMA).toContain('omita mesInicial e mesFinal')
+  })
+  it('dúvida de Excel, Word, e-mail, SEI e ferramentas do escritório é trabalho (:::geral); recusa só para lazer', () => {
+    expect(INSTRUCOES_SISTEMA).toMatch(/Excel.*Word.*e-mail.*SEI.*:::geral/s)
+    expect(INSTRUCOES_SISTEMA).toContain('assunto pessoal')
+    expect(INSTRUCOES_SISTEMA.length).toBeLessThanOrEqual(6000)
+  })
+})

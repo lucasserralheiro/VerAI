@@ -34,6 +34,9 @@ export function operacoesExcluirCliente(clienteId: string) {
     // Índice do assistente (sem FK — ficaria órfão e ainda apareceria na busca por permissão).
     prisma.indiceDocumento.deleteMany({ where: doCliente }),
     prisma.responsavelCliente.deleteMany({ where: doCliente }),
+    // Gerência e carteira (spec 2026-10-02-gerencias): a FK já é Cascade; explícito para a regra ficar à vista.
+    prisma.movimentoCarteira.deleteMany({ where: doCliente }),
+    prisma.carteiraCliente.deleteMany({ where: doCliente }),
     prisma.cliente.delete({ where: { id: clienteId } }),
   ]
 }

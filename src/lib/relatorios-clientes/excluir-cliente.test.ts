@@ -5,6 +5,7 @@ jest.mock('@/lib/prisma', () => {
     'notaFiscal', 'faturamento', 'historicoContrato', 'itemContrato', 'termoConfirmacao', 'tramiteDemanda',
     'demanda', 'solicitacao', 'notificacao', 'acessoDocumento', 'analise', 'analiseConsolidada', 'documento',
     'analiseEvolucao', 'acessoArquivo', 'arquivoCliente', 'contrato', 'indiceDocumento', 'responsavelCliente',
+    'carteiraCliente', 'movimentoCarteira',
   ]
   const ordem: string[] = []
   const prisma: Record<string, unknown> = {
@@ -42,4 +43,12 @@ it('roda numa transação e limpa os blobs dos documentos depois', async () => {
   await excluirCliente('c1')
   expect(prisma.$transaction).toHaveBeenCalledTimes(1)
   expect(deleteUploadPrefix).toHaveBeenCalledWith('p/')
+})
+
+it('apaga movimentos e carteira antes do cliente', () => {
+  operacoesExcluirCliente('c1')
+  expect(prisma.carteiraCliente.deleteMany).toHaveBeenCalledWith({ where: { clienteId: 'c1' } })
+  expect(prisma.movimentoCarteira.deleteMany).toHaveBeenCalledWith({ where: { clienteId: 'c1' } })
+  expect(ordem.indexOf('movimentoCarteira')).toBeLessThan(ordem.indexOf('cliente'))
+  expect(ordem.indexOf('carteiraCliente')).toBeLessThan(ordem.indexOf('cliente'))
 })

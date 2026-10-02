@@ -29,6 +29,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // demanda o delete da origem estourava). Quem via a origem passa a ver o destino; a sigla do
   // legado vai junto quando o destino não tem — é ela que liga os itens do GRC-1 que esperam o cliente.
   const mover = { where: { clienteId: id }, data: { clienteId: destinoClienteId } }
+  // Carteira: o destino mantém a dele; se não tem, herda a da origem. Os movimentos vão pro destino
+  // e a carteira da origem some no Cascade do delete (por isso tudo isso vem antes dele).
+  const [carteiraOrigem, carteiraDestino] = await Promise.all([
+    prisma.carteiraCliente.findUnique({ where: { clienteId: id } }),
+    prisma.carteiraCliente.findUnique({ where: { clienteId: destinoClienteId } }),
+  ])
   try {
     await prisma.$transaction([
       prisma.documento.updateMany(mover),
@@ -47,6 +53,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         where: { id: destinoClienteId },
         data: { usuariosPermitidos: { connect: origem.usuariosPermitidos.map((u) => ({ id: u.id })) } },
       }),
+      prisma.movimentoCarteira.updateMany(mover),
+      ...(carteiraOrigem && !carteiraDestino
+        ? [
+            prisma.carteiraCliente.create({
+              data: { clienteId: destinoClienteId, gerenciaId: carteiraOrigem.gerenciaId, movidoPorId: null },
+            }),
+          ]
+        : []),
       prisma.cliente.delete({ where: { id } }),
       ...(origem.siglaLegado && !destino.siglaLegado
         ? [prisma.cliente.update({ where: { id: destinoClienteId }, data: { siglaLegado: origem.siglaLegado } })]

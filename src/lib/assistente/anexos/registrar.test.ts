@@ -1,15 +1,17 @@
 /** @jest-environment node */
 jest.mock('@/lib/prisma', () => ({ prisma: { anexoAssistente: { create: jest.fn(), findMany: jest.fn() } } }))
 jest.mock('@/lib/r2', () => ({ PREFIXO_R2: 'r2:', getR2: jest.fn(), deleteR2: jest.fn() }))
-jest.mock('./extrair', () => ({ paginasDoAnexo: jest.fn(), htmlDoAnexo: jest.fn() }))
+jest.mock('./extrair', () => ({ ...jest.requireActual('./extrair'), paginasDoAnexo: jest.fn(), htmlDoAnexo: jest.fn() }))
 jest.mock('../entidades', () => ({ identificarEntidades: jest.fn() }))
 
 import { prisma } from '@/lib/prisma'
 import { deleteR2, getR2 } from '@/lib/r2'
 import { identificarEntidades } from '../entidades'
-import { htmlDoAnexo, paginasDoAnexo } from './extrair'
+import { ZipGrandeDemais, htmlDoAnexo, paginasDoAnexo } from './extrair'
 import { textoDaFicha } from './ficha'
-import { AnexoForaDoR2, apagarAnexosDaConversa, chaveDoAnexo, enderecoValido, registrarAnexo } from './registrar'
+import {
+  AnexoForaDoR2, MAX_CARACTERES_ANEXO, MAX_PAGINAS_ANEXO, apagarAnexosDaConversa, chaveDoAnexo, enderecoValido, registrarAnexo,
+} from './registrar'
 
 const UUID = '0b1c2d3e-4f50-4617-8899-aabbccddeeff'
 const usuario = { id: 'u1', nome: 'U', email: 'u@x', role: 'responsavel' } as never
@@ -39,6 +41,12 @@ describe('chaveDoAnexo / enderecoValido', () => {
     expect(enderecoValido(`r2:assistente/../${UUID}.pdf`, '..')).toBeNull()
     expect(enderecoValido(`r2:assistente/conv1/x.pdf`, 'conv1')).toBeNull()
     expect(enderecoValido(`assistente/conv1/${UUID}.pdf`, 'conv1')).toBeNull()
+    expect(enderecoValido(`r2:assistente/%2e%2e/${UUID}.pdf`, '%2e%2e')).toBeNull()
+    expect(enderecoValido(`r2:assistente/conv1/%2e%2e/${UUID}.pdf`, 'conv1')).toBeNull()
+    expect(enderecoValido(`r2:assistente/conv1/${UUID}.PDF`, 'conv1')).toBeNull()
+    expect(enderecoValido(`r2:assistente/con v1/${UUID}.pdf`, 'con v1')).toBeNull()
+    expect(enderecoValido(`r2:assistente/conv1é/${UUID}.pdf`, 'conv1é')).toBeNull()
+    expect(enderecoValido(`r2:assistente/conv1/${UUID}.pdf\n`, 'conv1')).toBeNull()
   })
 })
 
@@ -133,6 +141,93 @@ describe('registrarAnexo', () => {
     })
     const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
     expect(r.anexo.ficha).toMatchObject({ clienteId: null, cliente: null, contratoId: null, contrato: null })
+  })
+})
+
+describe('tetos e limpeza do texto', () => {
+  const docx = `r2:assistente/conv1/${UUID}.docx`
+  const dados = () => (prisma.anexoAssistente.create as jest.Mock).mock.calls[0][0].data
+
+  it('páginas em branco não são gravadas', async () => {
+    const paginas = [{ pagina: 1, texto: textoLongo }, ...Array.from({ length: 50 }, (_, i) => ({ pagina: i + 2, texto: ' \n ' }))]
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas, anexosDoEmail: [] })
+    await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
+    expect(dados()).toMatchObject({ status: 'ok', paginas: 1, paginasTexto: { create: [{ pagina: 1, texto: textoLongo }] } })
+  })
+
+  it('NUL é removido do texto antes de gravar', async () => {
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: `${textoLongo}\u0000fim\u0000` }], anexosDoEmail: [] })
+    await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
+    expect(dados().paginasTexto.create[0].texto).toBe(`${textoLongo}fim`)
+  })
+
+  it('texto acima do teto: corta no limite, avisa e não lê itens', async () => {
+    const pagina = 'x'.repeat(1_000_000)
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({
+      paginas: Array.from({ length: 6 }, (_, i) => ({ pagina: i + 1, texto: pagina })), anexosDoEmail: [],
+    })
+    const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco: docx, nome: 'grande.docx' })
+    const gravadas = dados().paginasTexto.create as { texto: string }[]
+    expect(gravadas.reduce((s, p) => s + p.texto.length, 0)).toBe(MAX_CARACTERES_ANEXO)
+    expect(gravadas).toHaveLength(5)
+    expect(r.anexo.ficha!.avisos.some((a) => a.startsWith('documento grande: lidas só as primeiras 5 páginas'))).toBe(true)
+    expect(r.anexo.ficha!.avisos).toContain('itens não lidos (documento grande)')
+    expect(htmlDoAnexo).not.toHaveBeenCalled()
+  })
+
+  it('páginas acima do teto: corta em MAX_PAGINAS_ANEXO', async () => {
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({
+      paginas: Array.from({ length: MAX_PAGINAS_ANEXO + 10 }, (_, i) => ({ pagina: i + 1, texto: textoLongo })), anexosDoEmail: [],
+    })
+    const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
+    expect(dados().paginas).toBe(MAX_PAGINAS_ANEXO)
+    expect(r.anexo.ficha!.avisos.some((a) => a.startsWith(`documento grande: lidas só as primeiras ${MAX_PAGINAS_ANEXO} páginas`))).toBe(true)
+  })
+
+  it('PDF com mais de 300 páginas: pula os itens com aviso', async () => {
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({
+      paginas: Array.from({ length: 301 }, (_, i) => ({ pagina: i + 1, texto: textoLongo })), anexosDoEmail: [],
+    })
+    const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
+    expect(htmlDoAnexo).not.toHaveBeenCalled()
+    expect(r.anexo.ficha!.avisos).toContain('itens não lidos (documento grande)')
+    expect(dados().paginas).toBe(301)
+  })
+
+  it('anexo dentro do teto: lê os itens com o buffer original', async () => {
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }], anexosDoEmail: [] })
+    await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
+    expect(htmlDoAnexo).toHaveBeenCalledWith(Buffer.from('%PDF-1.4 conteudo'), 'pdf')
+  })
+
+  it('zip descomprimido grande demais: status erro com ficha', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {})
+    ;(paginasDoAnexo as jest.Mock).mockRejectedValue(new ZipGrandeDemais())
+    const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco: docx, nome: 'bomba.docx' })
+    expect(dados()).toMatchObject({ status: 'erro', paginas: 0 })
+    expect(dados().ficha.avisos).toEqual(['arquivo compactado grande demais'])
+    expect(r.anexo.status).toBe('erro')
+    expect(r.anexo.ficha!.avisos).toEqual(['arquivo compactado grande demais'])
+    expect(r.texto).toBe('Não consegui ler bomba.docx: arquivo compactado grande demais.')
+  })
+})
+
+describe('falha de banco não vira "ilegível"', () => {
+  beforeEach(() => {
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }], anexosDoEmail: [] })
+  })
+
+  it('create que lança: a promessa rejeita e não grava status erro', async () => {
+    ;(prisma.anexoAssistente.create as jest.Mock).mockRejectedValue(new Error('banco fora'))
+    await expect(registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })).rejects.toThrow('banco fora')
+    expect(prisma.anexoAssistente.create).toHaveBeenCalledTimes(1)
+    expect((prisma.anexoAssistente.create as jest.Mock).mock.calls[0][0].data.status).toBe('ok')
+  })
+
+  it('identificarEntidades que lança: rejeita sem gravar', async () => {
+    ;(identificarEntidades as jest.Mock).mockRejectedValue(new Error('banco fora'))
+    await expect(registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })).rejects.toThrow('banco fora')
+    expect(prisma.anexoAssistente.create).not.toHaveBeenCalled()
   })
 })
 

@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { PREFIXO_R2, deleteR2, getR2 } from '@/lib/r2'
 import { identificarEntidades } from '../entidades'
 import { semCamadaDeTexto } from '../indexacao/extrair'
-import { htmlDoAnexo, paginasDoAnexo } from './extrair'
+import type { PaginaDeTexto } from '../indexacao/trechos'
+import { ZipGrandeDemais, htmlDoAnexo, paginasDoAnexo } from './extrair'
 import { fichaDoAnexo, textoDaFicha } from './ficha'
 import { itensDasTabelas } from './itens'
 import { FORMATOS_ANEXO, type FichaAnexo, type FormatoAnexo } from './tipos'
@@ -57,25 +58,60 @@ export async function registrarAnexo(e: {
   if (!resposta?.ok) throw new AnexoForaDoR2()
   const buffer = Buffer.from(await resposta.arrayBuffer())
   const nome = nomeDoArquivo(e.nome)
+  const semEntidades = { clienteId: null, cliente: null, contratoId: null, contrato: null }
+
+  // Erro de LEITURA vira anexo com status 'erro'; erro de banco (create, entidades) fica fora deste
+  // caminho e propaga — não é "arquivo ilegível".
+  const gravarErro = async (erro: unknown) => {
+    console.error('[assistente] falha ao ler anexo', erro)
+    const motivo = erro instanceof ZipGrandeDemais ? erro.message : null
+    const ficha: FichaAnexo | null = motivo
+      ? { ...fichaDoAnexo({ nome, formato: alvo.formato, paginas: [], itens: [], entidades: semEntidades }), avisos: [motivo] }
+      : null
+    const anexo = await prisma.anexoAssistente.create({
+      data: {
+        conversaId: e.conversaId, nome, formato: alvo.formato, tamanhoBytes: buffer.length, chaveR2: alvo.chave, status: 'erro', paginas: 0,
+        ...(ficha ? { ficha: ficha as never } : {}),
+      },
+      select: { id: true },
+    })
+    return { anexo: { id: anexo.id, nome, status: 'erro', ficha }, texto: motivo ? `Não consegui ler ${nome}: ${motivo}.` : `Não consegui ler ${nome}.` }
+  }
+
+  let lido: Awaited<ReturnType<typeof paginasDoAnexo>>
   try {
-    const lido = await paginasDoAnexo(buffer, alvo.formato)
-    let paginas = lido.paginas
-    let ocr = false
-    let paginasIlegiveis: number[] = []
-    if (alvo.formato === 'pdf' && semCamadaDeTexto(paginas)) {
-      // PDF escaneado: o OCR roda no navegador e chega junto com o registro.
-      if (e.paginasOcr?.length) {
-        ocr = true
-        paginasIlegiveis = e.paginasOcr.filter((p) => !p.texto.trim()).map((p) => p.pagina)
-        paginas = e.paginasOcr.filter((p) => p.texto.trim()).map((p) => ({ pagina: p.pagina, texto: p.texto }))
-      } else paginas = []
-    }
-    const html = paginas.length ? await htmlDoAnexo(buffer, alvo.formato).catch(() => '') : ''
-    // A ficha só afirma cliente/contrato únicos; o "provável pelo assunto" não entra.
-    const ent = await identificarEntidades({ pergunta: paginas.map((p) => p.texto).join('\n').slice(0, 3000), usuario: e.usuario, recentes: [] })
-    const cliente = ent.clientes.length === 1 ? ent.clientes[0] : null
-    const contrato = ent.contratos.length === 1 ? ent.contratos[0] : null
-    const ficha = fichaDoAnexo({
+    lido = await paginasDoAnexo(buffer, alvo.formato)
+  } catch (erro) {
+    return gravarErro(erro)
+  }
+
+  let brutas = lido.paginas
+  let ocr = false
+  let paginasIlegiveis: number[] = []
+  if (alvo.formato === 'pdf' && semCamadaDeTexto(brutas)) {
+    // PDF escaneado: o OCR roda no navegador e chega junto com o registro.
+    if (e.paginasOcr?.length) {
+      ocr = true
+      paginasIlegiveis = e.paginasOcr.filter((p) => !p.texto.trim()).map((p) => p.pagina)
+      brutas = e.paginasOcr
+    } else brutas = []
+  }
+  const { paginas, cortado, avisos: avisosDoTeto } = dentroDoTeto(brutas)
+
+  // Itens só com o anexo inteiro no teto; PDF grande demais para reprocessar fica sem itens.
+  const totalDePaginas = alvo.formato === 'pdf' ? Math.max(lido.paginas.length, e.paginasOcr?.length ?? 0) : paginas.length
+  const pularItens = paginas.length > 0 && (cortado || (alvo.formato === 'pdf' && totalDePaginas > MAX_PAGINAS_PDF_COM_ITENS))
+  const avisos = [...avisosDoTeto, ...(pularItens ? ['itens não lidos (documento grande)'] : [])]
+
+  // A ficha só afirma cliente/contrato únicos; o "provável pelo assunto" não entra.
+  const ent = await identificarEntidades({ pergunta: paginas.map((p) => p.texto).join('\n').slice(0, 3000), usuario: e.usuario, recentes: [] })
+  const cliente = ent.clientes.length === 1 ? ent.clientes[0] : null
+  const contrato = ent.contratos.length === 1 ? ent.contratos[0] : null
+
+  let ficha: FichaAnexo
+  try {
+    const html = paginas.length && !pularItens ? await htmlDoAnexo(buffer, alvo.formato).catch(() => '') : ''
+    const lida = fichaDoAnexo({
       nome, formato: alvo.formato, paginas, itens: itensDasTabelas(html), anexosDoEmail: lido.anexosDoEmail, paginasIlegiveis,
       entidades: {
         clienteId: cliente?.id ?? null,
@@ -84,24 +120,51 @@ export async function registrarAnexo(e: {
         contrato: contrato?.numero ?? null,
       },
     })
-    const status = paginas.length ? 'ok' : 'sem_texto'
-    const anexo = await prisma.anexoAssistente.create({
-      data: {
-        conversaId: e.conversaId, nome, formato: alvo.formato, tamanhoBytes: buffer.length, chaveR2: alvo.chave,
-        status, ocr, paginas: paginas.length, ficha: ficha as never,
-        paginasTexto: { create: paginas.map((p) => ({ pagina: p.pagina, texto: p.texto })) },
-      },
-      select: { id: true },
-    })
-    return { anexo: { id: anexo.id, nome, status, ficha }, texto: textoDaFicha(nome, ficha) }
+    ficha = { ...lida, avisos: [...lida.avisos, ...avisos] }
   } catch (erro) {
-    console.error('[assistente] falha ao ler anexo', erro)
-    const anexo = await prisma.anexoAssistente.create({
-      data: { conversaId: e.conversaId, nome, formato: alvo.formato, tamanhoBytes: buffer.length, chaveR2: alvo.chave, status: 'erro' },
-      select: { id: true },
-    })
-    return { anexo: { id: anexo.id, nome, status: 'erro', ficha: null }, texto: `Não consegui ler ${nome}.` }
+    return gravarErro(erro)
   }
+
+  const status = paginas.length ? 'ok' : 'sem_texto'
+  const anexo = await prisma.anexoAssistente.create({
+    data: {
+      conversaId: e.conversaId, nome, formato: alvo.formato, tamanhoBytes: buffer.length, chaveR2: alvo.chave,
+      status, ocr, paginas: paginas.length, ficha: ficha as never,
+      paginasTexto: { create: paginas.map((p) => ({ pagina: p.pagina, texto: p.texto })) },
+    },
+    select: { id: true },
+  })
+  return { anexo: { id: anexo.id, nome, status, ficha }, texto: textoDaFicha(nome, ficha) }
+}
+
+/** Teto do que se grava de um anexo (páginas e caracteres no total). */
+export const MAX_PAGINAS_ANEXO = 2_000
+export const MAX_CARACTERES_ANEXO = 5_000_000
+/** PDF acima disto não é reprocessado para tirar os itens das tabelas. */
+const MAX_PAGINAS_PDF_COM_ITENS = 300
+
+/**
+ * Tira NUL (o Postgres recusa em `text`), descarta página em branco e corta no teto — primeiro em
+ * páginas, depois em caracteres no total. Cortou → aviso na ficha.
+ */
+function dentroDoTeto(brutas: PaginaDeTexto[]): { paginas: PaginaDeTexto[]; cortado: boolean; avisos: string[] } {
+  const limpas = brutas.map((p) => ({ pagina: p.pagina, texto: p.texto.replace(/\u0000/g, '') })).filter((p) => p.texto.trim())
+  const paginas: PaginaDeTexto[] = []
+  let caracteres = 0
+  let cortado = false
+  for (const p of limpas) {
+    if (paginas.length >= MAX_PAGINAS_ANEXO || caracteres >= MAX_CARACTERES_ANEXO) { cortado = true; break }
+    const resto = MAX_CARACTERES_ANEXO - caracteres
+    const texto = p.texto.length > resto ? p.texto.slice(0, resto) : p.texto
+    if (texto.length < p.texto.length) cortado = true
+    paginas.push({ pagina: p.pagina, texto })
+    caracteres += texto.length
+    if (cortado) break
+  }
+  const avisos = cortado
+    ? [`documento grande: lidas só as primeiras ${paginas.length} páginas / ${caracteres.toLocaleString('pt-BR')} caracteres`]
+    : []
+  return { paginas, cortado, avisos }
 }
 
 /** Remove do R2 os arquivos da conversa (best-effort; as linhas saem pelo Cascade do banco). */

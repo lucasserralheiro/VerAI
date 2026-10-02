@@ -40,7 +40,7 @@ const esquemaCliente = z.object({
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ clienteId: string }> }) {
   const { clienteId } = await params
-  const acesso = await exigirAcessoCliente(request, clienteId)
+  const acesso = await exigirAcessoCliente(request, clienteId, 'editar')
   if ('erro' in acesso) return acesso.erro
 
   const corpo = await lerCorpo(request, esquemaCliente)

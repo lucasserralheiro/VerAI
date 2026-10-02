@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { podeVerCliente } from '@/lib/visibilidade'
+import { verificarAcessoCliente } from '@/lib/relatorios-clientes/acesso'
 import { parseCompetencia, formatarCompetencia } from '@/lib/competencia'
 import { calcularEvolucao, type MetricaDocumento } from '@/lib/analiseEvolucao/calcularEvolucao'
 import { analisarEvolucao } from '@/lib/ia/evoluir'
@@ -77,10 +78,8 @@ export async function POST(
     return NextResponse.json({ error: 'competência inválida (esperado AAAA-MM)' }, { status: 400 })
   }
 
-  const podeVer = await podeVerCliente(usuario, clienteId)
-  if (!podeVer) {
-    return NextResponse.json({ error: 'acesso negado' }, { status: 403 })
-  }
+  const negado = await verificarAcessoCliente(usuario, clienteId, 'editar')
+  if (negado) return negado
 
   const competenciaAnterior = await prisma.documento.findFirst({
     where: {

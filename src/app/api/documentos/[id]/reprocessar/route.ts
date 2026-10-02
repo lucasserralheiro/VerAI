@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
+import { verificarAcessoCliente } from '@/lib/relatorios-clientes/acesso'
 import { getUpload } from '@/lib/storage'
 import { extrairConteudo } from '@/lib/extracao'
 import { analisarDocumento, PROMPT_VERSION_ATUAL } from '@/lib/ia/analisar'
@@ -17,6 +18,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!documento) {
     return NextResponse.json({ error: 'documento não encontrado' }, { status: 404 })
   }
+
+  const negado = await verificarAcessoCliente(usuario, documento.clienteId, 'editar')
+  if (negado) return negado
 
   await prisma.documento.update({ where: { id }, data: { status: 'processando', mensagemErro: null } })
 

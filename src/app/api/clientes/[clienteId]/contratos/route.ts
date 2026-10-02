@@ -45,7 +45,7 @@ export async function GET(request: NextRequest, { params }: Contexto) {
 
 export async function POST(request: NextRequest, { params }: Contexto) {
   const { clienteId } = await params
-  const acesso = await exigirAcessoCliente(request, clienteId)
+  const acesso = await exigirAcessoCliente(request, clienteId, 'editar')
   if ('erro' in acesso) return acesso.erro
   if (!(await clienteExiste(clienteId))) return clienteNaoEncontrado()
 

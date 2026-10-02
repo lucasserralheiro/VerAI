@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
 import { podeVerDocumento } from '@/lib/visibilidade'
+import { verificarAcessoCliente } from '@/lib/relatorios-clientes/acesso'
 import { buildDocumentoPrefix, deleteUploadPrefix } from '@/lib/storage'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -55,6 +56,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!podeVer) {
     return NextResponse.json({ error: 'acesso negado' }, { status: 403 })
   }
+
+  const negado = await verificarAcessoCliente(usuario, documento.clienteId, 'editar')
+  if (negado) return negado
 
   const podeExcluir = usuario.role === 'admin' || documento.uploadedById === usuario.id
   if (!podeExcluir) {

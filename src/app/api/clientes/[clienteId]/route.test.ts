@@ -192,3 +192,15 @@ describe('DELETE /api/clientes/[clienteId]', () => {
     expect(excluirCliente).not.toHaveBeenCalled()
   })
 })
+
+describe('PATCH /api/clientes/[clienteId] — somente leitura', () => {
+  it('PATCH 403 com motivo para quem vê mas não é da gerência', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+    const resposta = await PATCH(new NextRequest('http://localhost/api/clientes/c1', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome: 'X' }) }), contexto)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+  })
+})

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
+import { verificarAcessoCliente } from '@/lib/relatorios-clientes/acesso'
 import { documentosVisiveisWhere, podeVerCliente } from '@/lib/visibilidade'
 import { buildUploadPath, putUpload } from '@/lib/storage'
 import { extrairConteudo } from '@/lib/extracao'
@@ -114,10 +115,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'cliente não encontrado' }, { status: 404 })
   }
 
-  const podeVer = await podeVerCliente(usuario, clienteId)
-  if (!podeVer) {
-    return NextResponse.json({ error: 'acesso negado a esse cliente' }, { status: 403 })
-  }
+  const negado = await verificarAcessoCliente(usuario, clienteId, 'editar')
+  if (negado) return negado
 
   const buffer = Buffer.from(await arquivo.arrayBuffer())
 

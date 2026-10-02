@@ -127,3 +127,15 @@ describe('POST /api/clientes/[clienteId]/arquivos', () => {
     await expect(resposta.json()).resolves.toEqual({ error: 'não foi possível ler o arquivo enviado — envie de novo' })
   })
 })
+
+describe('POST /api/clientes/[clienteId]/arquivos — somente leitura', () => {
+  it('POST 403 com motivo para quem vê mas não é da gerência', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+    const resposta = await POST(post({}), contexto())
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+  })
+})

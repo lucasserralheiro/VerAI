@@ -16,6 +16,7 @@ import { controleDoFaturamento } from './controles'
 import { linksMpls } from './links'
 import { anexosDaConversa, lerAnexo } from './anexos'
 import { compararAnexoComContrato } from './anexo-contrato'
+import { conferirPrecosDoAnexo } from './anexo-precos'
 
 export { ROTULOS_FERRAMENTAS } from './rotulos'
 
@@ -49,6 +50,7 @@ export const FERRAMENTAS: Record<string, Ferramenta> = {
   anexosDaConversa,
   lerAnexo,
   compararAnexoComContrato,
+  conferirPrecosDoAnexo,
 } as Record<string, Ferramenta>
 
 export async function executarComSeguranca(

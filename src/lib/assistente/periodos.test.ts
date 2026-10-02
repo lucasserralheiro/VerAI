@@ -31,6 +31,15 @@ it('número de contrato (TC, TA, PC, PA, TAP, termo, aditivo, proposta) não vir
   expect(p('saldo do TC 12/2023')).toBeNull()
   expect(p('contrato 5/2024')).toBeNull()
   expect(p('PA 3/2025 foi assinada?')).toBeNull()
+  expect(p('saldo do contrato 52/2024')).toBeNull()
+  expect(p('TC 52/2024')).toBeNull()
+  expect(p('contrato 052/2024')).toBeNull()
+  expect(p('TA 15/2023')).toBeNull()
+})
+
+it('palavra que só termina em sigla (nota, consulta) não bloqueia o período', () => {
+  expect(p('nota 08/2026')).toMatchObject({ inicio: '2026-08-01', fim: '2026-08-31' })
+  expect(p('consulta 08/2026')).toMatchObject({ inicio: '2026-08-01', fim: '2026-08-31' })
 })
 
 it('faturamento de MM/AAAA vira período', () => {

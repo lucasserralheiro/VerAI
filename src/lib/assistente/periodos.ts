@@ -46,11 +46,11 @@ export function periodoDaPergunta(pergunta: string, hoje: Date): { inicio: strin
     const [af, mf] = somar(a, m, 3)
     return entre(ai, mi, 1, af, mf, ultimoDia(af, mf))
   }
-  const mmaaaa = q.match(/(0?[1-9]|1[0-2])\/(20\d{2})(?![\d/])/)
+  const mmaaaa = q.match(/(?<![\d/.])(0?[1-9]|1[0-2])\/(20\d{2})(?![\d/])/)
   if (mmaaaa) {
     // Conferir se mm/aaaa não vem logo depois de TC, TA, PC, PA, TAP, contrato, termo, aditivo, proposta
     const beforeMatch = q.substring(0, mmaaaa.index)
-    const isAfterDocType = /(?:tc|ta|pc|pa|tap|contrato|termo|aditivo|proposta)\s*$/.test(beforeMatch)
+    const isAfterDocType = /\b(?:tc|ta|pc|pa|tap|contrato|termo|aditivo|proposta)\s*$/.test(beforeMatch)
     if (!isAfterDocType) return doMes(Number(mmaaaa[2]), Number(mmaaaa[1]))
   }
   const nome = MESES.findIndex((n) => new RegExp(`\\b${n}\\b`).test(q))

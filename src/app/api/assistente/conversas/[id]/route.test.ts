@@ -29,12 +29,12 @@ it('GET devolve as mensagens em ordem', async () => {
     id: 'c1', usuarioId: 'u1', titulo: 't', mensagens: [
       { id: 'm1', papel: 'usuario', conteudo: 'oi', conferencia: null },
       { id: 'm2', papel: 'assistente', conteudo: 'R$ 5,00', conferencia: { conferidos: [], naoConfirmados: ['R$ 5,00'] } },
-    ],
+    ], anexos: [],
   })
   expect(await (await GET(req(), params)).json()).toEqual({ id: 'c1', titulo: 't', mensagens: [
       { id: 'm1', papel: 'usuario', conteudo: 'oi', naoConfirmados: [] },
       { id: 'm2', papel: 'assistente', conteudo: 'R$ 5,00', naoConfirmados: ['R$ 5,00'] },
-    ],
+    ], anexos: [],
   })
 })
 
@@ -55,4 +55,18 @@ it('DELETE apaga os arquivos dos anexos no R2 antes de apagar a conversa; de out
   ;(prisma.conversaAssistente.findUnique as jest.Mock).mockResolvedValue({ id: 'c1', usuarioId: 'u2', titulo: 't', mensagens: [] })
   await DELETE(req(), params)
   expect(apagarAnexosDaConversa).not.toHaveBeenCalled()
+})
+
+it('GET devolve também os anexos da conversa, na ordem em que entraram', async () => {
+  const ficha = { tipo: 'proposta', avisos: [] }
+  ;(prisma.conversaAssistente.findUnique as jest.Mock).mockResolvedValue({
+    id: 'c1', usuarioId: 'u1', titulo: 't', mensagens: [],
+    anexos: [{ id: 'a1', nome: 'proposta.pdf', formato: 'pdf', status: 'ok', paginas: 3, ocr: false, ficha }],
+  })
+  const corpo = await (await GET(req(), params)).json()
+  expect(corpo.anexos).toEqual([{ id: 'a1', nome: 'proposta.pdf', formato: 'pdf', status: 'ok', paginas: 3, ocr: false, ficha }])
+  expect((prisma.conversaAssistente.findUnique as jest.Mock).mock.calls[0][0].select.anexos).toEqual({
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, nome: true, formato: true, status: true, paginas: true, ocr: true, ficha: true },
+  })
 })

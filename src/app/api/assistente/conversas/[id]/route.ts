@@ -10,6 +10,7 @@ type Conversa = {
   usuarioId: string
   titulo: string
   mensagens: { id: string; papel: string; conteudo: string; conferencia: unknown }[]
+  anexos: { id: string; nome: string; formato: string; status: string; paginas: number; ocr: boolean; ficha: unknown }[]
 }
 
 // Anotado explicitamente: sem isso, o TS 5.9 infere um tipo com `conversa?: undefined` no ramo
@@ -30,6 +31,8 @@ async function carregar(request: NextRequest, { params }: Contexto): Promise<Con
       usuarioId: true,
       titulo: true,
       mensagens: { orderBy: { createdAt: 'asc' }, select: { id: true, papel: true, conteudo: true, conferencia: true } },
+      // Mesma forma do GET de …/anexos: reabrir a conversa mostra os cartões dos anexos.
+      anexos: { orderBy: { createdAt: 'asc' }, select: { id: true, nome: true, formato: true, status: true, paginas: true, ocr: true, ficha: true } },
     },
   })
   // Conversa é pessoal: nem admin vê a de outro usuário.
@@ -40,13 +43,13 @@ async function carregar(request: NextRequest, { params }: Contexto): Promise<Con
 export async function GET(request: NextRequest, contexto: Contexto) {
   const r = await carregar(request, contexto)
   if ('erro' in r) return r.erro
-  const { id, titulo, mensagens } = r.conversa
+  const { id, titulo, mensagens, anexos } = r.conversa
   // Reabrir mostra as mesmas marcas ⚠ da resposta ao vivo.
   const comMarcas = mensagens.map(({ conferencia, ...m }) => ({
     ...m,
     naoConfirmados: (conferencia as { naoConfirmados?: string[] } | null)?.naoConfirmados ?? [],
   }))
-  return NextResponse.json({ id, titulo, mensagens: comMarcas })
+  return NextResponse.json({ id, titulo, mensagens: comMarcas, anexos })
 }
 
 export async function DELETE(request: NextRequest, contexto: Contexto) {

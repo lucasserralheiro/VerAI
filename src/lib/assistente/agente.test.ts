@@ -158,6 +158,43 @@ describe('executarAgente — conferência e falha', () => {
     expect(final).toMatchObject({ texto: '', ferramentas: [] })
     erro.mockRestore()
   })
+
+  it('erro no meio do stream: resposta parcial não é gravada (texto vazio, tokens seguem)', async () => {
+    const erro = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const modelo = new MockLanguageModelV4({
+      doStream: [
+        {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'stream-start', warnings: [] },
+              { type: 'text-start', id: '1' },
+              { type: 'text-delta', id: '1', delta: 'Resposta pela metade' },
+              { type: 'error', error: new Error('conexão caiu') },
+            ],
+          }),
+        },
+      ],
+    })
+    let final: ResultadoAgente | undefined
+    const { resposta } = executarAgente({ usuario, historico: [], pergunta: 'oi', contexto: null, modelo }, async (r) => {
+      final = r
+    })
+    await resposta.text()
+    expect(final).toBeDefined()
+    expect(final!.texto).toBe('')
+    erro.mockRestore()
+  })
+
+  it('falha em aoTerminar (banco) não vira erro na tela', async () => {
+    const erro = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const { resposta } = executarAgente({ usuario, historico: [], pergunta: 'oi', contexto: null, modelo: soTexto('ok') }, async () => {
+      throw new Error('banco fora')
+    })
+    const corpo = await resposta.text()
+    expect(corpo).not.toContain('"type":"error"')
+    expect(erro).toHaveBeenCalled()
+    erro.mockRestore()
+  })
 })
 
 describe('contexto da pergunta', () => {

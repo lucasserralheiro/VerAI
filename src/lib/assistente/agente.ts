@@ -144,16 +144,22 @@ export function executarAgente(
         writer.write({ type: 'finish' })
       }
 
-      await aoTerminar({
-        texto: final.texto, // vazio quando abortou/falhou sem resposta: a rota não grava
-        ferramentas,
-        conferencia: final.conferencia,
-        tipos: final.tipos,
-        bloqueada: final.bloqueada,
-        tokensEntrada: uso?.inputTokens,
-        tokensSaida: uso?.outputTokens,
-        tokensCache: uso?.inputTokenDetails?.cacheReadTokens,
-      })
+      try {
+        await aoTerminar({
+          // Vazio quando abortou/falhou (mesmo com passos prontos): a rota não grava resposta parcial como completa.
+          texto: interrompida ? '' : final.texto,
+          ferramentas,
+          conferencia: final.conferencia,
+          tipos: final.tipos,
+          bloqueada: final.bloqueada,
+          tokensEntrada: uso?.inputTokens,
+          tokensSaida: uso?.outputTokens,
+          tokensCache: uso?.inputTokenDetails?.cacheReadTokens,
+        })
+      } catch (erro) {
+        // O `finish` já foi: falha de gravação não pode virar erro na tela.
+        console.error('[assistente] falha ao registrar o fim da resposta', erro)
+      }
     },
     onError: aoErrar,
   })

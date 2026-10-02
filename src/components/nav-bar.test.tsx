@@ -8,8 +8,13 @@ jest.mock('next/navigation', () => ({
   usePathname: () => pathnameMock,
 }))
 
-function mockFetch(role: 'admin' | 'usuario' | null) {
+type Vinculo = { gerenciaId: string; papel: 'manager' | 'usuario'; nome: string }
+
+function mockFetch(role: 'admin' | 'usuario' | null, minhas: Vinculo[] = []) {
   global.fetch = jest.fn((url: RequestInfo | URL) => {
+    if (url === '/api/gerencias/minhas') {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(minhas) }) as unknown as Promise<Response>
+    }
     if (url === '/api/auth/me') {
       return Promise.resolve({
         ok: role !== null,
@@ -176,12 +181,79 @@ describe('NavBar', () => {
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).toBeInTheDocument()
   })
 
-  it('não mostra a seção Configuração para quem não é admin', async () => {
+  it('admin vê o grupo "Administração" com os cinco sublinks, na ordem, mesmo com MENU_SIMPLIFICADO', async () => {
+    render(<NavBar />)
+    const grupo = await screen.findByRole('link', { name: 'Administração' })
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir Administração' }))
+    expect(grupo).toHaveAttribute('href', '/admin')
+    const esperados: Array<[string, string]> = [
+      ['Usuários', '/admin/usuarios'],
+      ['Gerências e carteiras', '/admin/gerencias'],
+      ['Clientes', '/admin/clientes'],
+      ['Regras de notificação', '/admin/regras-notificacao'],
+      ['Assistente de IA', '/admin/assistente'],
+    ]
+    const links = screen.getAllByRole('link')
+    let anterior = links.indexOf(grupo)
+    for (const [nome, href] of esperados) {
+      const link = screen.getByRole('link', { name: nome })
+      expect(link).toHaveAttribute('href', href)
+      const pos = links.indexOf(link)
+      expect(pos).toBeGreaterThan(anterior)
+      anterior = pos
+    }
+  })
+
+  it('o grupo "Administração" nasce aberto em rota /admin', async () => {
+    pathnameMock = '/admin/gerencias/g1'
+    render(<NavBar />)
+    expect(await screen.findByRole('button', { name: 'Recolher Administração' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('não mostra "Administração" para quem não é admin', async () => {
     mockFetch('usuario')
     render(<NavBar />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/auth/me'))
     await act(async () => {})
-    expect(screen.queryByRole('button', { name: 'Configuração' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Administração' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Usuários' })).not.toBeInTheDocument()
+  })
+
+  it('admin continua vendo todos os links que o menu já tinha', async () => {
+    render(<NavBar />)
+    await screen.findByRole('link', { name: 'Administração' })
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir Administração' }))
+    const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))
+    const antes = [
+      '/confere', '/clientes', '/fornecedores', '/demandas', '/solicitacoes', '/relatorios', '/',
+      '/tabela-de-precos', '/controle-faturamento', '/calendario-faturamento', '/propostas-comerciais',
+      '/confere/historico', '/reajuste', '/reajuste/historico', '/reajuste/indice',
+      '/admin/usuarios', '/admin/clientes', '/admin/regras-notificacao', '/admin/assistente',
+    ]
+    for (const href of antes) expect(hrefs).toContain(href)
+  })
+
+  it('manager de uma gerência vê "Minha gerência" apontando pra /gerencias', async () => {
+    mockFetch('usuario', [{ gerenciaId: 'g1', papel: 'manager', nome: 'GCR' }])
+    render(<NavBar />)
+    expect(await screen.findByRole('link', { name: 'Minha gerência' })).toHaveAttribute('href', '/gerencias')
+  })
+
+  it('com duas gerências o rótulo vai pro plural', async () => {
+    mockFetch('usuario', [
+      { gerenciaId: 'g1', papel: 'manager', nome: 'GCR' },
+      { gerenciaId: 'g2', papel: 'usuario', nome: 'GTI' },
+    ])
+    render(<NavBar />)
+    expect(await screen.findByRole('link', { name: 'Minhas gerências' })).toHaveAttribute('href', '/gerencias')
+  })
+
+  it('quem é só "usuario" de gerência não vê "Minha gerência"', async () => {
+    mockFetch('usuario', [{ gerenciaId: 'g1', papel: 'usuario', nome: 'GCR' }])
+    render(<NavBar />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/gerencias/minhas'))
+    await act(async () => {})
+    expect(screen.queryByRole('link', { name: /Minh[ao]s? gerências?/ })).not.toBeInTheDocument()
   })
 
   it('faz logout e redireciona para /login ao clicar em Sair', async () => {

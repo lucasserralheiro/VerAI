@@ -17,6 +17,7 @@ interface Usuario {
   role: string
   createdAt: string
   clientesPermitidos: Cliente[]
+  gerencias?: Array<{ papel: string; gerencia: { nome: string } }>
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -154,6 +155,7 @@ export default function AdminUsuariosPage() {
                 <th>Nome</th>
                 <th>E-mail</th>
                 <th>Perfil</th>
+                <th>Gerências</th>
                 <th>Clientes permitidos</th>
                 <th>Ações</th>
               </tr>
@@ -165,6 +167,11 @@ export default function AdminUsuariosPage() {
                   <td className="py-3 text-mid-grey">{usuario.email}</td>
                   <td className="py-3">
                     <Badge variant={ROLE_BADGE[usuario.role] ?? 'outline'}>{ROLE_LABEL[usuario.role] ?? usuario.role}</Badge>
+                  </td>
+                  <td className="py-3 text-xs text-mid-grey">
+                    {(usuario.gerencias ?? []).length === 0
+                      ? '—'
+                      : (usuario.gerencias ?? []).map((g) => `${g.gerencia.nome} — ${g.papel}`).join(', ')}
                   </td>
                   <td className="py-3">
                     {usuario.role === 'admin' ? (

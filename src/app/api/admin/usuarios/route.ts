@@ -12,6 +12,7 @@ export async function GET() {
       role: true,
       createdAt: true,
       clientesPermitidos: { select: { id: true, nome: true } },
+      gerencias: { select: { papel: true, gerencia: { select: { nome: true } } } },
     },
   })
   return NextResponse.json(usuarios)

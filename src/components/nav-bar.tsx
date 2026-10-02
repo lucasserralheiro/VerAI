@@ -8,13 +8,14 @@ import {
   Users,
   Bell,
   UserCog,
+  Building,
   Building2,
+  ShieldCheck,
   BellRing,
   LogOut,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Settings,
   ArrowLeftRight,
   ClipboardCopy,
   History,
@@ -89,9 +90,13 @@ const PROPOSTA_COMERCIAL_SUBLINKS = [{ href: '/propostas-comerciais', label: 'Hi
 // Fora de qualquer solução — utilitário do produto como um todo.
 const NOTIFICACOES_LINK = { href: '/notificacoes', label: 'Notificações', icon: Bell }
 
-const CONFIG_LINKS = [
+// Administração: grupo próprio, só para admin, FORA do MENU_SIMPLIFICADO. O cabeçalho é o painel
+// (/admin) e os sub-itens são as telas de cadastro.
+const ADMIN_LINK = { href: '/admin', label: 'Administração', icon: ShieldCheck }
+const ADMIN_SUBLINKS = [
   { href: '/admin/usuarios', label: 'Usuários', icon: UserCog },
-  { href: '/admin/clientes', label: 'Gerenciar clientes', icon: Users },
+  { href: '/admin/gerencias', label: 'Gerências e carteiras', icon: Building },
+  { href: '/admin/clientes', label: 'Clientes', icon: Users },
   { href: '/admin/regras-notificacao', label: 'Regras de notificação', icon: BellRing },
   { href: '/admin/assistente', label: 'Assistente de IA', icon: Sparkles },
 ]
@@ -258,7 +263,8 @@ export function NavBar() {
   // Por padrão a barra já mostra ícone + nome — nada fica escondido atrás de hover.
   // Recolher é uma ação explícita de quem quer mais espaço de tela.
   const [expandida, setExpandida] = useState(true)
-  const [configAberta, setConfigAberta] = useState(false)
+  const [adminAberto, setAdminAberto] = useState(false)
+  const [minhasGerencias, setMinhasGerencias] = useState<Array<{ papel: string }>>([])
   // O grupo "Relatórios dos clientes" nasce aberto — é a solução em uso hoje.
   const [relatoriosAberto, setRelatoriosAberto] = useState(true)
   // Nasce aberto pelo mesmo motivo que "Relatórios dos clientes": é a única
@@ -274,6 +280,14 @@ export function NavBar() {
     fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
       .then((usuario: { nome: string; role: string } | null) => setUsuarioAtual(usuario))
+      .catch(() => {})
+  }, [naLoginPage])
+
+  useEffect(() => {
+    if (naLoginPage) return
+    fetch('/api/gerencias/minhas')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((lista: Array<{ papel: string }>) => setMinhasGerencias(Array.isArray(lista) ? lista : []))
       .catch(() => {})
   }, [naLoginPage])
 
@@ -304,10 +318,9 @@ export function NavBar() {
     }
   }, [])
 
-  // A seção Configuração nasce aberta quando a rota atual é uma das páginas
-  // admin — assim quem chega direto em /admin/usuarios já vê onde está.
+  // O grupo Administração abre quando a rota é /admin ou uma página dentro dele.
   useEffect(() => {
-    setConfigAberta(CONFIG_LINKS.some((link) => link.href === pathname))
+    if (pathname === '/admin' || pathname.startsWith('/admin/')) setAdminAberto(true)
   }, [pathname])
 
   // Se por algum motivo o grupo Relatórios estiver fechado e a navegação cair
@@ -346,16 +359,14 @@ export function NavBar() {
     localStorage.setItem(NAV_EXPANDIDA_KEY, String(proximoEstado))
   }
 
-  function alternarConfig() {
+  function alternarAdmin() {
     if (!expandida) {
-      // Com a barra recolhida não há espaço para os sublinks: expande a
-      // barra inteira e já deixa a seção aberta, num único clique.
       setExpandida(true)
       localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
-      setConfigAberta(true)
+      setAdminAberto(true)
       return
     }
-    setConfigAberta((aberta) => !aberta)
+    setAdminAberto((aberto) => !aberto)
   }
 
   function alternarRelatorios() {
@@ -419,6 +430,8 @@ export function NavBar() {
   }
 
   const ehAdmin = usuarioAtual?.role === 'admin'
+  const souManager = minhasGerencias.some((g) => g.papel === 'manager')
+  const rotuloMinhaGerencia = minhasGerencias.length > 1 ? 'Minhas gerências' : 'Minha gerência'
 
   return (
     <nav
@@ -487,6 +500,16 @@ export function NavBar() {
             pathname={pathname}
             expandida={expandida}
           />
+
+          {souManager && (
+            <LinkMenu
+              href="/gerencias"
+              label={rotuloMinhaGerencia}
+              icon={Building}
+              ativo={rotaAtiva(pathname, '/gerencias')}
+              expandida={expandida}
+            />
+          )}
         </div>
 
         {!MENU_SIMPLIFICADO && (
@@ -502,44 +525,16 @@ export function NavBar() {
           </div>
         )}
 
-        {!MENU_SIMPLIFICADO && ehAdmin && (
+        {ehAdmin && (
           <div className="flex flex-col gap-1 border-t border-white/[0.08] pt-3">
-            <button
-              type="button"
-              onClick={alternarConfig}
-              aria-label="Configuração"
-              aria-expanded={configAberta}
-              className={cn(
-                'flex items-center gap-2 rounded-lg py-1.5 pl-1.5 pr-2 text-[13px] font-medium text-light-blue transition-all duration-150 hover:bg-white/[0.07] hover:text-white',
-                !expandida && 'justify-center'
-              )}
-            >
-              <IconeMenu icon={Settings} expandida={expandida} />
-              {expandida && (
-                <>
-                  <span className="min-w-0 flex-1 truncate text-left leading-tight">Configuração</span>
-                  <ChevronDown
-                    className={cn('size-3.5 shrink-0 transition-transform duration-200', configAberta && 'rotate-180')}
-                    strokeWidth={2.25}
-                  />
-                </>
-              )}
-            </button>
-
-            {expandida && configAberta && (
-              <div className="ml-4 flex flex-col gap-0.5 border-l border-white/[0.08] pl-3">
-                {CONFIG_LINKS.map((link) => (
-                  <LinkMenu
-                    key={link.href}
-                    href={link.href}
-                    label={link.label}
-                    icon={link.icon}
-                    ativo={pathname === link.href}
-                    expandida={expandida}
-                  />
-                ))}
-              </div>
-            )}
+            <GrupoMenu
+              link={ADMIN_LINK}
+              sublinks={ADMIN_SUBLINKS}
+              aberto={adminAberto}
+              onToggle={alternarAdmin}
+              pathname={pathname}
+              expandida={expandida}
+            />
           </div>
         )}
       </div>

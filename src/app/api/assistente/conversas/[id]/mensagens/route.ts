@@ -65,7 +65,7 @@ export async function POST(request: NextRequest, { params }: Contexto) {
   const contexto = await prepararContexto({ usuario, pergunta, rota: rota ?? null, recentes })
 
   const { resposta } = executarAgente(
-    { usuario, historico, pergunta, contexto, abortSignal: AbortSignal.any([request.signal, AbortSignal.timeout(TIMEOUT_MS)]) },
+    { usuario, historico, pergunta, contexto, conversaId: id, abortSignal: AbortSignal.any([request.signal, AbortSignal.timeout(TIMEOUT_MS)]) },
     async (final) => {
       // Sem texto = abortado/falhou: a pergunta fica, a resposta não é gravada como se fosse completa.
       if (!final.texto.trim()) return

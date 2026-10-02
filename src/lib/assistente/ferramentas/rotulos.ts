@@ -26,4 +26,6 @@ export const ROTULOS_FERRAMENTAS: Record<string, string> = {
   reajustesCalculados: 'Consultando os reajustes calculados',
   controleDoFaturamento: 'Consultando o controle do faturamento',
   linksMpls: 'Consultando os links MPLS',
+  anexosDaConversa: 'Conferindo os anexos',
+  lerAnexo: 'Lendo o anexo',
 }

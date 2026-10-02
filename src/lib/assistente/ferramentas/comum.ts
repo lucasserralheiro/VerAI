@@ -10,6 +10,8 @@ import { SELECT_CONTRATO } from '@/app/api/contratos/esquema'
 export interface ContextoFerramenta {
   usuario: AuthUser
   hoje: Date
+  /** Conversa em andamento (ausente na régua, que roda sem conversa). */
+  conversaId?: string
 }
 
 export interface Ferramenta<E extends z.ZodType = z.ZodType> {

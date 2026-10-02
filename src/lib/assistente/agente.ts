@@ -90,6 +90,7 @@ export function executarAgente(
     pergunta: string
     contexto: string | null
     hoje?: Date
+    conversaId?: string
     modelo?: LanguageModel
     abortSignal?: AbortSignal
   },
@@ -99,7 +100,7 @@ export function executarAgente(
     model: entrada.modelo ?? modeloDoAssistente(),
     system: INSTRUCOES_SISTEMA,
     messages: montarMensagens(entrada.historico, entrada.pergunta, entrada.contexto),
-    tools: criarFerramentas({ usuario: entrada.usuario, hoje: entrada.hoje ?? new Date() }),
+    tools: criarFerramentas({ usuario: entrada.usuario, hoje: entrada.hoje ?? new Date(), conversaId: entrada.conversaId }),
     stopWhen: stepCountIs(MAX_PASSOS),
     // No último passo permitido, sem ferramenta: força a IA a responder com o que já tem.
     prepareStep: ({ stepNumber }) => (stepNumber >= MAX_PASSOS - 1 ? { toolChoice: 'none' } : {}),

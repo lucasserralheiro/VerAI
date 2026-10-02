@@ -14,6 +14,7 @@ import { calendarioFaturamento } from './calendario'
 import { indiceIpcFipe, reajustesCalculados, simularReajuste } from './reajuste'
 import { controleDoFaturamento } from './controles'
 import { linksMpls } from './links'
+import { anexosDaConversa, lerAnexo } from './anexos'
 
 export { ROTULOS_FERRAMENTAS } from './rotulos'
 
@@ -44,6 +45,8 @@ export const FERRAMENTAS: Record<string, Ferramenta> = {
   reajustesCalculados,
   controleDoFaturamento,
   linksMpls,
+  anexosDaConversa,
+  lerAnexo,
 } as Record<string, Ferramenta>
 
 export async function executarComSeguranca(

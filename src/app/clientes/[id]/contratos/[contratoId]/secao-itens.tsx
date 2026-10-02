@@ -1,5 +1,6 @@
 'use client'
 
+import { usePermissaoCliente } from '../../permissao-cliente'
 import { useState, type FormEvent } from 'react'
 import { AlertCircle, FileSpreadsheet, Link2, Package, Plus, Search } from 'lucide-react'
 import { BTN_OUTLINE, BTN_OUTLINE_SM, BTN_PRIMARY, INPUT_BASE, LINK_DANGER } from '@/lib/ui'
@@ -139,6 +140,7 @@ function VincularItens({ contratoId, aoVincular }: { contratoId: string; aoVincu
 }
 
 export function SecaoItens({ contratoId, itens, aoMudar }: { contratoId: string; itens: Item[]; aoMudar: () => Promise<void> }) {
+  const { podeEditar } = usePermissaoCliente()
   // null = formulário fechado; 'novo' = criando; id = editando aquele item
   const [editando, setEditando] = useState<string | null>(null)
   const [vinculando, setVinculando] = useState(false)
@@ -210,7 +212,7 @@ export function SecaoItens({ contratoId, itens, aoMudar }: { contratoId: string;
           <h2 className="text-[0.95rem] font-semibold text-navy">Itens</h2>
           <p className="text-xs text-mid-grey">Sem valor no histórico, a soma dos itens vira o valor contratado</p>
         </div>
-        {editando === null && (
+        {podeEditar && editando === null && (
           <div className="flex gap-2">
             <button type="button" onClick={() => setVinculando((atual) => !atual)} className={BTN_OUTLINE}>
               <Link2 className="size-3.5" strokeWidth={2.25} />
@@ -317,7 +319,7 @@ export function SecaoItens({ contratoId, itens, aoMudar }: { contratoId: string;
                   <td className="font-mono text-xs font-semibold whitespace-nowrap text-navy">{formatarMoeda(item.valorTotal)}</td>
                   <td>
                     <div className="flex items-center justify-end gap-3 text-xs">
-                      {confirmandoExclusao === item.id ? (
+                      {!podeEditar ? null : confirmandoExclusao === item.id ? (
                         <>
                           <span className="font-medium text-red-crit">Excluir?</span>
                           <button type="button" onClick={() => handleExcluir(item.id)} className={LINK_DANGER}>

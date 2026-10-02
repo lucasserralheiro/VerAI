@@ -1,5 +1,6 @@
 'use client'
 
+import { usePermissaoCliente } from '../../permissao-cliente'
 import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { AlertCircle, Download, FileText, Loader2, X } from 'lucide-react'
@@ -20,6 +21,7 @@ export function PainelArquivo({
   aoRemover: (id: string) => void
   aoFechar: () => void
 }) {
+  const { podeEditar } = usePermissaoCliente()
   const [categoria, setCategoria] = useState(arquivo.categoria)
   const [confirmando, setConfirmando] = useState(false)
   const { converter, convertendoId, erro, setErro } = useConverterArquivo()
@@ -73,6 +75,7 @@ export function PainelArquivo({
         />
       )}
 
+      {podeEditar ? (
       <form onSubmit={salvar} className="space-y-2">
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-xs font-medium text-mid-grey">Categoria</span>
@@ -88,6 +91,11 @@ export function PainelArquivo({
           Salvar categoria
         </button>
       </form>
+      ) : (
+        <p className="text-xs text-mid-grey">
+          Categoria: {CATEGORIAS.find((c) => c.valor === arquivo.categoria)?.rotulo ?? arquivo.categoria}
+        </p>
+      )}
 
       <p className="text-xs text-mid-grey">
         Contrato: {rotuloContratos(arquivo)} · Competência: {rotuloCompetencias(arquivo)}
@@ -139,7 +147,7 @@ export function PainelArquivo({
             </button>
           )
         )}
-        {confirmando ? (
+        {!podeEditar ? null : confirmando ? (
           <span className="flex items-center gap-2 text-sm">
             Remover?
             <button type="button" onClick={remover} className={LINK_DANGER}>

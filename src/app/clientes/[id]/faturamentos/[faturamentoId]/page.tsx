@@ -1,5 +1,6 @@
 'use client'
 
+import { usePermissaoCliente } from '../../permissao-cliente'
 import { use, useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { AlertCircle, ChevronRight, Loader2, Pencil } from 'lucide-react'
@@ -19,6 +20,7 @@ function simNao(valor: boolean | null) {
 
 export default function FaturamentoDetalhePage({ params }: { params: Promise<{ id: string; faturamentoId: string }> }) {
   const { id: clienteId, faturamentoId } = use(params)
+  const { podeEditar } = usePermissaoCliente()
   const [faturamento, setFaturamento] = useState<FaturamentoDetalhe | null>(null)
   const [contratos, setContratos] = useState<OpcaoContrato[] | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -111,7 +113,7 @@ export default function FaturamentoDetalhePage({ params }: { params: Promise<{ i
             <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">{titulo}</h1>
             {faturamento.servicos.length > 0 && <p className="text-sm text-mid-grey">{faturamento.servicos.join(', ')}</p>}
           </div>
-          {!editando && (
+          {podeEditar && !editando && (
             <button type="button" onClick={abrirEdicao} className={BTN_OUTLINE}>
               <Pencil className="size-3.5" strokeWidth={2.25} />
               Editar faturamento

@@ -22,11 +22,21 @@ describe('GET /api/clientes', () => {
 
   it('lista com a sigla do legado', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue({ id: 'u1', nome: 'A', email: 'a@x', role: 'admin' })
-    ;(prisma.cliente.findMany as jest.Mock).mockResolvedValue([{ id: 'c1', nome: 'Saúde', siglaLegado: 'SMS' }])
+    ;(prisma.cliente.findMany as jest.Mock).mockResolvedValue([
+      { id: 'c1', nome: 'Saúde', siglaLegado: 'SMS', carteira: { gerencia: { id: 'g1', nome: 'GCR' } } },
+      { id: 'c2', nome: 'Obras', siglaLegado: 'SMUL', carteira: null },
+    ])
     const resposta = await GET(new NextRequest('http://localhost/api/clientes'))
-    await expect(resposta.json()).resolves.toEqual([{ id: 'c1', nome: 'Saúde', siglaLegado: 'SMS' }])
+    await expect(resposta.json()).resolves.toEqual([
+      { id: 'c1', nome: 'Saúde', siglaLegado: 'SMS', gerencia: { id: 'g1', nome: 'GCR' } },
+      { id: 'c2', nome: 'Obras', siglaLegado: 'SMUL', gerencia: null },
+    ])
     expect(prisma.cliente.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ select: { id: true, nome: true, siglaLegado: true } })
+      expect.objectContaining({
+        select: expect.objectContaining({
+          carteira: { select: { gerencia: { select: { id: true, nome: true } } } },
+        }),
+      })
     )
   })
 })

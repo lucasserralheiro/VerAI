@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AbaFaturamento } from './aba-faturamento'
+import { PermissaoContext } from '../permissao-cliente'
 
 const FAT = {
   id: 'f1',
@@ -160,5 +161,21 @@ describe('AbaFaturamento', () => {
     fireEvent.change(within(form).getByLabelText('Ano'), { target: { value: '2026' } })
     fireEvent.click(within(form).getByRole('button', { name: 'Salvar' }))
     expect(await screen.findByText('Contrato: não pertence a este cliente')).toBeInTheDocument()
+  })
+})
+
+describe('AbaFaturamento somente leitura', () => {
+  it('sem permissão de edição não mostra "Novo faturamento" nem "Lançamento", e a linha não abre o editor', async () => {
+    mockApi()
+    render(
+      <PermissaoContext.Provider value={{ carregando: false, podeEditar: false, gerencia: null }}>
+        <AbaFaturamento clienteId="c1" />
+      </PermissaoContext.Provider>,
+    )
+    expect(await screen.findByText('7010.2026/0009363-0')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Novo faturamento/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Adicionar lançamento/ })).toBeNull()
+    fireEvent.click(screen.getByText('7010.2026/0009363-0'))
+    expect(screen.queryByText('Excluir faturamento')).toBeNull()
   })
 })

@@ -5,6 +5,7 @@
 // de competência + análise por IA saiu da ficha, mas as páginas /clientes/[id]/[competencia]
 // continuam existindo — o painel do arquivo leva até elas pelo "onde é usado".
 
+import { usePermissaoCliente } from '../permissao-cliente'
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Loader2, Upload } from 'lucide-react'
 import { BTN_PRIMARY } from '@/lib/ui'
@@ -16,6 +17,7 @@ import { EnvioArquivos } from './documentos/envio-arquivos'
 import type { ArquivoRepositorio } from './documentos/tipos'
 
 export function AbaDocumentos({ clienteId }: { clienteId: string }) {
+  const { podeEditar } = usePermissaoCliente()
   const [arquivos, setArquivos] = useState<ArquivoRepositorio[]>([])
   const [resumo, setResumo] = useState({ total: 0, bytes: 0 })
   const [selecionado, setSelecionado] = useState<ArquivoRepositorio | null>(null)
@@ -59,7 +61,7 @@ export function AbaDocumentos({ clienteId }: { clienteId: string }) {
           </p>
           <AtualizacaoSharepoint className="mt-0.5" />
         </div>
-        {!enviando && (
+        {podeEditar && !enviando && (
           <button type="button" onClick={() => setEnviando(true)} className={BTN_PRIMARY}>
             <Upload className="size-3.5" strokeWidth={2.25} />
             Enviar arquivos
@@ -67,7 +69,7 @@ export function AbaDocumentos({ clienteId }: { clienteId: string }) {
         )}
       </div>
 
-      {enviando && (
+      {podeEditar && enviando && (
         <EnvioArquivos
           clienteId={clienteId}
           aoCancelar={() => setEnviando(false)}

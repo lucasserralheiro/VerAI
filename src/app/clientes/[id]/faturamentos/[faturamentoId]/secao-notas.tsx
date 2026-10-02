@@ -1,5 +1,6 @@
 'use client'
 
+import { usePermissaoCliente } from '../../permissao-cliente'
 import { useState, type FormEvent } from 'react'
 import { AlertCircle, FileText, Plus } from 'lucide-react'
 import { BTN_OUTLINE, BTN_OUTLINE_SM, BTN_PRIMARY, INPUT_BASE, LINK_DANGER } from '@/lib/ui'
@@ -34,6 +35,7 @@ async function mensagemDeErro(response: Response, padrao: string) {
 
 /** Notas fiscais do faturamento. `aoMudar` recarrega a página (o valor exibido depende da soma). */
 export function SecaoNotas({ faturamentoId, notas, aoMudar }: { faturamentoId: string; notas: Nota[]; aoMudar: () => Promise<void> }) {
+  const { podeEditar } = usePermissaoCliente()
   // null = formulário fechado; 'novo' = criando; id = editando aquela nota
   const [editando, setEditando] = useState<string | null>(null)
   const [formulario, setFormulario] = useState(FORMULARIO_VAZIO)
@@ -104,7 +106,7 @@ export function SecaoNotas({ faturamentoId, notas, aoMudar }: { faturamentoId: s
           <h2 className="text-[0.95rem] font-semibold text-navy">Notas fiscais</h2>
           <p className="text-xs text-mid-grey">A soma das notas é o valor do faturamento quando ele não tem valor próprio</p>
         </div>
-        {editando === null && (
+        {podeEditar && editando === null && (
           <button type="button" onClick={() => abrirFormulario()} className={BTN_PRIMARY}>
             <Plus className="size-3.5" strokeWidth={2.25} />
             Nova nota
@@ -188,7 +190,7 @@ export function SecaoNotas({ faturamentoId, notas, aoMudar }: { faturamentoId: s
                   <td className="font-mono text-xs font-semibold whitespace-nowrap text-navy">{formatarMoeda(nota.valor)}</td>
                   <td>
                     <div className="flex items-center justify-end gap-3 text-xs">
-                      {confirmandoExclusao === nota.id ? (
+                      {!podeEditar ? null : confirmandoExclusao === nota.id ? (
                         <>
                           <span className="font-medium text-red-crit">Excluir?</span>
                           <button type="button" onClick={() => handleExcluir(nota.id)} className={LINK_DANGER}>

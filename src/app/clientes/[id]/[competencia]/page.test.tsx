@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { Suspense } from 'react'
 import ClienteCompetenciaPage from './page'
+import { PermissaoContext } from '../permissao-cliente'
 
 type MockOverrides = {
   documentos?: Array<Record<string, unknown>>
@@ -232,5 +233,45 @@ describe('ClienteCompetenciaPage', () => {
 
     fireEvent.click(screen.getByText(/Baseado em:/))
     expect(await screen.findAllByRole('checkbox')).toHaveLength(2)
+  })
+})
+
+describe('ClienteCompetenciaPage somente leitura', () => {
+  const DOC = {
+    id: 'doc-1',
+    nomeArquivo: 'a.xlsx',
+    tipo: 'xlsx',
+    status: 'concluido',
+    createdAt: '2026-08-01T00:00:00Z',
+    uploadedById: 'u1',
+    uploadedBy: { nome: 'Ana' },
+    analise: { id: 'an-1' },
+  }
+
+  async function renderizar(podeEditar: boolean) {
+    mockFetchCompetencia({ documentos: [DOC] })
+    await act(async () => {
+      render(
+        <PermissaoContext.Provider value={{ carregando: false, podeEditar, gerencia: null }}>
+          <Suspense fallback={null}>
+            <ClienteCompetenciaPage params={Promise.resolve({ id: 'cliente-1', competencia: '2026-08' })} />
+          </Suspense>
+        </PermissaoContext.Provider>,
+      )
+    })
+    await screen.findByRole('heading', { name: 'Agosto/2026' })
+  }
+
+  it('com permissão: autor vê "Excluir" e o envio', async () => {
+    await renderizar(true)
+    expect(await screen.findByTitle('Excluir')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Enviar documento/ })).toBeInTheDocument()
+  })
+
+  it('sem permissão: sem "Excluir" nem envio', async () => {
+    await renderizar(false)
+    expect(await screen.findByText('a.xlsx')).toBeInTheDocument()
+    expect(screen.queryByTitle('Excluir')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Enviar documento/ })).toBeNull()
   })
 })

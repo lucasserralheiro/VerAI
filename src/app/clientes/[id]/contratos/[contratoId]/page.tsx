@@ -1,5 +1,6 @@
 'use client'
 
+import { usePermissaoCliente } from '../../permissao-cliente'
 import { use, useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { AlertCircle, ChevronRight, Info, Loader2, Pencil } from 'lucide-react'
@@ -97,6 +98,7 @@ function CartaoSaldo({ contrato }: { contrato: Contrato }) {
 
 export default function ContratoDetalhePage({ params }: { params: Promise<{ id: string; contratoId: string }> }) {
   const { id: clienteId, contratoId } = use(params)
+  const { podeEditar } = usePermissaoCliente()
   const [contrato, setContrato] = useState<ContratoDetalhe | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
@@ -206,7 +208,7 @@ export default function ContratoDetalhePage({ params }: { params: Promise<{ id: 
             </div>
             {contrato.descricao && <p className="text-sm text-foreground">{contrato.descricao}</p>}
           </div>
-          {!editando && (
+          {podeEditar && !editando && (
             <button type="button" onClick={() => setEditando(true)} className={BTN_OUTLINE}>
               <Pencil className="size-3.5" strokeWidth={2.25} />
               Editar contrato

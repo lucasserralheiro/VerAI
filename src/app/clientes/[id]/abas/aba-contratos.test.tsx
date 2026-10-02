@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { AbaContratos } from './aba-contratos'
+import { PermissaoContext } from '../permissao-cliente'
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push: jest.fn() }) }))
 
 function contrato(parcial: Record<string, unknown>) {
@@ -158,5 +159,20 @@ describe('AbaContratos', () => {
     fireEvent.change(screen.getByLabelText('Nº do termo'), { target: { value: 'x' } })
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
     expect(await screen.findByText('Nº do termo: campo obrigatório')).toBeInTheDocument()
+  })
+})
+
+describe('AbaContratos somente leitura', () => {
+  it('sem permissão de edição não mostra "Novo contrato" e a linha não abre o editor', async () => {
+    mockApi()
+    render(
+      <PermissaoContext.Provider value={{ carregando: false, podeEditar: false, gerencia: null }}>
+        <AbaContratos clienteId="c1" />
+      </PermissaoContext.Provider>,
+    )
+    expect(await screen.findByText('TC 105/2025/SI')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Novo contrato/ })).toBeNull()
+    fireEvent.click(screen.getByText('Data Center'))
+    expect(screen.queryByText('Excluir contrato')).toBeNull()
   })
 })

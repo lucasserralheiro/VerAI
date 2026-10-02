@@ -6,6 +6,7 @@
 // O seletor "Contrato ligado" lista os contratos do cliente do termo (a API recusa contrato de
 // outro cliente).
 
+import { usePermissaoCliente } from '@/app/clientes/[id]/permissao-cliente'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { fetchComPreCarga } from '@/lib/relatorios-clientes/prefetch'
 import { AlertCircle, FileSignature, Loader2, Plus, Search, Trash2 } from 'lucide-react'
@@ -89,6 +90,7 @@ async function mensagemDeErro(response: Response, padrao: string) {
 }
 
 export function SecaoTermos({ por, id }: { por: 'cliente' | 'fornecedor'; id: string }) {
+  const { podeEditar } = usePermissaoCliente()
   const [termos, setTermos] = useState<Termo[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erroLista, setErroLista] = useState<string | null>(null)
@@ -161,10 +163,12 @@ export function SecaoTermos({ por, id }: { por: 'cliente' | 'fornecedor'; id: st
               className={`${INPUT_BASE} w-64 py-1.5 pl-8 text-sm`}
             />
           </label>
-          <button type="button" onClick={() => setModalTermo('novo')} className={BTN_PRIMARY}>
-            <Plus className="size-3.5" strokeWidth={2.25} />
-            Novo termo de confirmação
-          </button>
+          {podeEditar && (
+            <button type="button" onClick={() => setModalTermo('novo')} className={BTN_PRIMARY}>
+              <Plus className="size-3.5" strokeWidth={2.25} />
+              Novo termo de confirmação
+            </button>
+          )}
         </div>
       </div>
 
@@ -202,7 +206,11 @@ export function SecaoTermos({ por, id }: { por: 'cliente' | 'fornecedor'; id: st
             </thead>
             <tbody>
               {termosFiltrados.map((termo) => (
-                <tr key={termo.id} onClick={() => setModalTermo(termo)} className="cursor-pointer">
+                <tr
+                  key={termo.id}
+                  onClick={podeEditar ? () => setModalTermo(termo) : undefined}
+                  className={podeEditar ? 'cursor-pointer' : undefined}
+                >
                   <td className="font-semibold text-navy">{rotuloOutroLadoDoTermo(termo, por)}</td>
                   <td className="font-mono text-xs">{termo.numero ?? '—'}</td>
                   <td className="font-mono text-xs">{termo.contrato?.numeroTermo ?? '—'}</td>
@@ -218,6 +226,7 @@ export function SecaoTermos({ por, id }: { por: 'cliente' | 'fornecedor'; id: st
         </div>
       )}
 
+      {podeEditar && (
       <ModalTermo
         estado={modalTermo}
         por={por}
@@ -233,6 +242,7 @@ export function SecaoTermos({ por, id }: { por: 'cliente' | 'fornecedor'; id: st
           await carregar()
         }}
       />
+      )}
     </div>
   )
 }

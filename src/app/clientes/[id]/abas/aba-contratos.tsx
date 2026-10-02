@@ -12,6 +12,7 @@ import { SeiLink } from '@/components/relatorios-clientes/sei-link'
 import { FormularioContrato, type Contrato } from '../contratos/formulario-contrato'
 import { DocumentosDoContrato } from '../contratos/documentos-do-contrato'
 import type { ColunaDoContrato } from './documentos/derivados'
+import { usePermissaoCliente } from '../permissao-cliente'
 import type { GrupoItensAguardando } from '@/lib/relatorios-clientes/itens-aguardando'
 
 /** "2 aditivos · 1 prorrog." embaixo do nº do termo; some quando o contrato não tem nenhum. */
@@ -84,6 +85,7 @@ function CodigoSei({ rotulo, valor, link }: { rotulo: string; valor: string | nu
 }
 
 export function AbaContratos({ clienteId }: { clienteId: string }) {
+  const { podeEditar } = usePermissaoCliente()
   const [contratos, setContratos] = useState<Contrato[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
@@ -165,21 +167,23 @@ export function AbaContratos({ clienteId }: { clienteId: string }) {
               className={`${INPUT_BASE} w-72 py-1.5 pl-8 text-sm`}
             />
           </label>
-          <button
-            type="button"
-            onClick={() => {
-              setNumeroSugerido(null)
-              setModalContrato('novo')
-            }}
-            className={BTN_PRIMARY}
-          >
-            <Plus className="size-3.5" strokeWidth={2.25} />
-            Novo contrato
-          </button>
+          {podeEditar && (
+            <button
+              type="button"
+              onClick={() => {
+                setNumeroSugerido(null)
+                setModalContrato('novo')
+              }}
+              className={BTN_PRIMARY}
+            >
+              <Plus className="size-3.5" strokeWidth={2.25} />
+              Novo contrato
+            </button>
+          )}
         </div>
       </div>
 
-      {aguardando.length > 0 && (
+      {podeEditar && aguardando.length > 0 && (
         <section aria-label="Itens do legado aguardando contrato" className="space-y-2 rounded-xl border border-orange/30 bg-orange-light/60 px-4 py-3">
           <p className="text-sm font-semibold text-orange-dark">
             {aguardando.reduce((soma, g) => soma + g.itens, 0)} itens do legado deste cliente aguardam contrato
@@ -253,7 +257,11 @@ export function AbaContratos({ clienteId }: { clienteId: string }) {
             </thead>
             <tbody>
               {contratosFiltrados.map((contrato) => (
-                <tr key={contrato.id} onClick={() => setModalContrato(contrato)} className="cursor-pointer">
+                <tr
+                  key={contrato.id}
+                  onClick={podeEditar ? () => setModalContrato(contrato) : undefined}
+                  className={podeEditar ? 'cursor-pointer' : undefined}
+                >
                   <td className="font-mono text-xs whitespace-nowrap">
                     <Link
                       href={`/clientes/${clienteId}/contratos/${contrato.id}`}
@@ -339,6 +347,7 @@ export function AbaContratos({ clienteId }: { clienteId: string }) {
         aoFechar={() => setDocumentosDe(null)}
       />
 
+      {podeEditar && (
       <ModalContrato
         estado={modalContrato}
         clienteId={clienteId}
@@ -355,6 +364,7 @@ export function AbaContratos({ clienteId }: { clienteId: string }) {
           avisarMudancaDeDados()
         }}
       />
+      )}
     </div>
   )
 }

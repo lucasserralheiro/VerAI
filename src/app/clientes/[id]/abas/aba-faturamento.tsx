@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePermissaoCliente } from '../permissao-cliente'
 import { fetchComPreCarga } from '@/lib/relatorios-clientes/prefetch'
 import Link from 'next/link'
 import { AlertCircle, FileText, Loader2, Plus, Receipt, Search, Trash2, Upload, X } from 'lucide-react'
@@ -51,6 +52,7 @@ function Indicador({ rotulo, valor, detalhe, alerta }: { rotulo: string; valor: 
 const ANO_INICIAL_FILTRO = 2015
 
 export function AbaFaturamento({ clienteId }: { clienteId: string }) {
+  const { podeEditar } = usePermissaoCliente()
   const [faturamentos, setFaturamentos] = useState<Faturamento[]>([])
   const [contratos, setContratos] = useState<OpcaoContrato[] | null>(null)
   const [filtros, setFiltros] = useState({ ano: '', mes: '', contratoId: '' })
@@ -162,14 +164,16 @@ export function AbaFaturamento({ clienteId }: { clienteId: string }) {
               className={`${INPUT_BASE} w-64 py-1.5 pl-8 text-sm`}
             />
           </label>
-          <button type="button" onClick={() => {
-              setModelo(undefined)
-              setModalFaturamento('novo')
-            }}
-            className={BTN_PRIMARY}>
-            <Plus className="size-3.5" strokeWidth={2.25} />
-            Novo faturamento
-          </button>
+          {podeEditar && (
+            <button type="button" onClick={() => {
+                setModelo(undefined)
+                setModalFaturamento('novo')
+              }}
+              className={BTN_PRIMARY}>
+              <Plus className="size-3.5" strokeWidth={2.25} />
+              Novo faturamento
+            </button>
+          )}
         </div>
       </div>
 
@@ -297,7 +301,7 @@ export function AbaFaturamento({ clienteId }: { clienteId: string }) {
                             </>
                           )}
                         </p>
-                        {grupo.chave !== 'sem-competencia' && (
+                        {podeEditar && grupo.chave !== 'sem-competencia' && (
                           <button
                             type="button"
                             onClick={() => {
@@ -326,8 +330,8 @@ export function AbaFaturamento({ clienteId }: { clienteId: string }) {
                 {grupo.itens.map((faturamento) => (
                   <tr
                     key={faturamento.id}
-                    onClick={() => setModalFaturamento(faturamento)}
-                    className="cursor-pointer bg-white! hover:bg-orange-light/40!"
+                    onClick={podeEditar ? () => setModalFaturamento(faturamento) : undefined}
+                    className={podeEditar ? 'cursor-pointer bg-white! hover:bg-orange-light/40!' : 'bg-white!'}
                   >
                     <td className="font-mono text-xs font-semibold whitespace-nowrap">
                       {faturamento.contrato.numeroTermo ? (
@@ -435,6 +439,7 @@ export function AbaFaturamento({ clienteId }: { clienteId: string }) {
         </div>
       )}
 
+      {podeEditar && (
       <ModalFaturamento
         estado={modalFaturamento}
         modelo={modelo}
@@ -456,6 +461,7 @@ export function AbaFaturamento({ clienteId }: { clienteId: string }) {
           avisarMudancaDeDados()
         }}
       />
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import { usePermissaoCliente } from '../../permissao-cliente'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { AlertCircle, Download, ExternalLink, FileText, FolderSearch, History, Loader2, Paperclip, Plus, ShieldCheck, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -187,6 +188,7 @@ function CelulaPdf({
   aoErro: (mensagem: string | null) => void
 }) {
   const rotulo = ROTULO_PDF[tipo]
+  const { podeEditar } = usePermissaoCliente()
   const { ocupado, enviar } = useAnexoPdf(linhaId, tipo, aoMudar, aoErro)
 
   if (ocupado) return <Loader2 className="mx-auto size-4 animate-spin text-mid-grey" strokeWidth={2.25} aria-label="Enviando" />
@@ -205,6 +207,8 @@ function CelulaPdf({
       </button>
     )
   }
+
+  if (!podeEditar) return <span className="block text-center text-mid-grey/60">—</span>
 
   return (
     <div className="flex items-center justify-center gap-0.5">
@@ -246,6 +250,7 @@ function ModalPdf({
   aoErro: (mensagem: string | null) => void
 }) {
   const dialogoRef = useRef<HTMLDialogElement>(null)
+  const { podeEditar } = usePermissaoCliente()
   const [confirmando, setConfirmando] = useState(false)
   const tipo = alvo?.tipo ?? 'proposta'
   const { ocupado, enviar, remover } = useAnexoPdf(alvo?.linhaId ?? '', tipo, aoMudar, aoErro)
@@ -318,7 +323,7 @@ function ModalPdf({
 
           <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-grey bg-light-grey/50 px-5 py-3">
             <div>
-              {confirmando ? (
+              {!podeEditar ? null : confirmando ? (
                 <span className="flex items-center gap-2 text-xs">
                   <span className="font-medium text-red-crit">Remover este PDF?</span>
                   <button type="button" disabled={ocupado} onClick={() => void remover()} className={LINK_DANGER}>
@@ -336,14 +341,16 @@ function ModalPdf({
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <BotaoAnexar
-                rotulo={`${rotulo} (substituir)`}
-                aoEscolher={(arquivo) => void enviar(arquivo)}
-                className={cn(BTN_OUTLINE, ocupado && 'pointer-events-none opacity-60')}
-              >
-                <Paperclip className="size-3.5" strokeWidth={2.25} aria-hidden />
-                {ocupado ? 'Enviando...' : 'Substituir'}
-              </BotaoAnexar>
+              {podeEditar && (
+                <BotaoAnexar
+                  rotulo={`${rotulo} (substituir)`}
+                  aoEscolher={(arquivo) => void enviar(arquivo)}
+                  className={cn(BTN_OUTLINE, ocupado && 'pointer-events-none opacity-60')}
+                >
+                  <Paperclip className="size-3.5" strokeWidth={2.25} aria-hidden />
+                  {ocupado ? 'Enviando...' : 'Substituir'}
+                </BotaoAnexar>
+              )}
               <a href={urlDownload} className={BTN_OUTLINE}>
                 <Download className="size-3.5" strokeWidth={2.25} aria-hidden />
                 Baixar
@@ -384,6 +391,7 @@ export function SecaoHistorico({
   historico: LinhaHistorico[]
   aoMudar: () => Promise<void>
 }) {
+  const { podeEditar } = usePermissaoCliente()
   // null = formulário fechado; 'novo' = criando; id = editando aquela linha
   const [editando, setEditando] = useState<string | null>(null)
   const [formulario, setFormulario] = useState<Formulario>(paraFormulario())
@@ -473,10 +481,12 @@ export function SecaoHistorico({
           <h2 className="text-[0.95rem] font-semibold text-navy">Histórico</h2>
           <p className="text-xs text-mid-grey">Contrato, aditivos, prorrogações e rescisão numa linha do tempo, com a proposta (PC/PA) e o termo (TC/TA) de cada uma</p>
         </div>
-        <button type="button" onClick={() => abrirFormulario()} className={BTN_PRIMARY}>
-          <Plus className="size-3.5" strokeWidth={2.25} />
-          Nova linha
-        </button>
+        {podeEditar && (
+          <button type="button" onClick={() => abrirFormulario()} className={BTN_PRIMARY}>
+            <Plus className="size-3.5" strokeWidth={2.25} />
+            Nova linha
+          </button>
+        )}
       </div>
 
       <dialog
@@ -642,7 +652,7 @@ export function SecaoHistorico({
                   </td>
                   <td className="whitespace-nowrap">
                     <div className="flex items-center justify-end gap-3 text-xs">
-                      {confirmandoExclusao === linha.id ? (
+                      {!podeEditar ? null : confirmandoExclusao === linha.id ? (
                         <>
                           <span className="font-medium text-red-crit">Excluir?</span>
                           <button type="button" onClick={() => handleExcluir(linha.id)} className={LINK_DANGER}>
@@ -675,7 +685,7 @@ export function SecaoHistorico({
         </div>
       )}
 
-      <SeletorPdf alvo={escolhendo} aoFechar={() => setEscolhendo(null)} aoEscolhido={aoMudar} />
+      {podeEditar && <SeletorPdf alvo={escolhendo} aoFechar={() => setEscolhendo(null)} aoEscolhido={aoMudar} />}
 
       <ModalPdf
         alvo={visualizando}

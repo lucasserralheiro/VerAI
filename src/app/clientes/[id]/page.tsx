@@ -9,6 +9,7 @@ import { BTN_OUTLINE } from '@/lib/ui'
 import { ABAS, abaPorId } from './abas/abas'
 import { IndicadoresCliente } from './indicadores-cliente'
 import { ModalCliente } from '../modal-cliente'
+import { SeloCarteira, usePermissaoCliente } from './permissao-cliente'
 import { preCarregar } from '@/lib/relatorios-clientes/prefetch'
 
 interface Cliente {
@@ -31,6 +32,7 @@ function linhaEndereco(cliente: Cliente): string {
 export default function ClienteDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
+  const { podeEditar, gerencia } = usePermissaoCliente()
   const searchParams = useSearchParams()
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -124,15 +126,20 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
                 </span>
               )}
               <div className="min-w-0">
-                <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">{cliente.nome}</h1>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">{cliente.nome}</h1>
+                  <SeloCarteira gerencia={gerencia} />
+                </div>
                 {endereco && <p className="text-sm text-mid-grey">{endereco}</p>}
               </div>
             </div>
 
-            <button onClick={() => setEditando(true)} className={BTN_OUTLINE}>
-              <Pencil className="size-3.5" strokeWidth={2.25} />
-              Editar cliente
-            </button>
+            {podeEditar && (
+              <button onClick={() => setEditando(true)} className={BTN_OUTLINE}>
+                <Pencil className="size-3.5" strokeWidth={2.25} />
+                Editar cliente
+              </button>
+            )}
           </div>
         ) : (
           // Cabeçalho ainda carregando: esqueleto (sem spinner) — o único spinner da tela é o da aba,

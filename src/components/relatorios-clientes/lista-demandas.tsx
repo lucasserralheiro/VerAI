@@ -3,6 +3,7 @@
 // Lista de demandas: a mesma tela serve à aba "Demandas" da ficha do cliente (`clienteId` fixo) e
 // à lista geral /demandas (cross-cliente, com coluna e filtro de cliente).
 
+import { usePermissaoCliente } from '@/app/clientes/[id]/permissao-cliente'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { fetchComPreCarga } from '@/lib/relatorios-clientes/prefetch'
 import Link from 'next/link'
@@ -24,6 +25,7 @@ interface DemandaNaLista extends Demanda {
 
 export function ListaDemandas({ clienteId }: { clienteId?: string }) {
   const geral = !clienteId
+  const { podeEditar } = usePermissaoCliente()
   const [demandas, setDemandas] = useState<DemandaNaLista[]>([])
   const [sugestoes, setSugestoes] = useState<SugestoesDemanda | null>(null)
   const [clientes, setClientes] = useState<OpcaoCliente[] | null>(null)
@@ -96,10 +98,12 @@ export function ListaDemandas({ clienteId }: { clienteId?: string }) {
           <h2 className="text-[0.95rem] font-semibold text-navy">Demandas</h2>
           <p className="text-xs text-mid-grey">Assuntos em aberto, com trâmite (posição/ação/retorno)</p>
         </div>
-        <button type="button" onClick={() => setModalDemanda('novo')} className={BTN_PRIMARY}>
-          <Plus className="size-3.5" strokeWidth={2.25} />
-          Nova demanda
-        </button>
+        {podeEditar && (
+          <button type="button" onClick={() => setModalDemanda('novo')} className={BTN_PRIMARY}>
+            <Plus className="size-3.5" strokeWidth={2.25} />
+            Nova demanda
+          </button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -184,7 +188,11 @@ export function ListaDemandas({ clienteId }: { clienteId?: string }) {
             </thead>
             <tbody>
               {demandas.map((demanda) => (
-                <tr key={demanda.id} onClick={() => setModalDemanda(demanda)} className="cursor-pointer">
+                <tr
+                  key={demanda.id}
+                  onClick={podeEditar ? () => setModalDemanda(demanda) : undefined}
+                  className={podeEditar ? 'cursor-pointer' : undefined}
+                >
                   {geral && <td className="font-mono text-xs font-semibold">{demanda.cliente.siglaLegado ?? demanda.cliente.nome}</td>}
                   <td>
                     <span className="flex items-start gap-1.5">
@@ -214,6 +222,7 @@ export function ListaDemandas({ clienteId }: { clienteId?: string }) {
         </div>
       )}
 
+      {podeEditar && (
       <ModalDemanda
         estado={modalDemanda}
         clienteFixo={clienteId}
@@ -231,6 +240,7 @@ export function ListaDemandas({ clienteId }: { clienteId?: string }) {
           avisarMudancaDeDados()
         }}
       />
+      )}
     </div>
   )
 }

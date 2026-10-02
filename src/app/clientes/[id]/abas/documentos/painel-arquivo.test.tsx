@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { PermissaoContext } from '../../permissao-cliente'
 import { PainelArquivo } from './painel-arquivo'
 import type { ArquivoRepositorio } from './tipos'
 
@@ -67,4 +68,15 @@ it('extensão que o conversor não aceita não mostra o botão', () => {
   painel({ ...arquivo, nome: 'foto.png', extensao: 'png' })
 
   expect(screen.queryByRole('button', { name: /converter em markdown/i })).not.toBeInTheDocument()
+})
+
+it('somente leitura: sem salvar categoria nem remover, mas baixa e converte', () => {
+  render(
+    <PermissaoContext.Provider value={{ carregando: false, podeEditar: false, gerencia: null }}>
+      <PainelArquivo arquivo={arquivo} aoAtualizar={jest.fn()} aoRemover={jest.fn()} aoFechar={jest.fn()} />
+    </PermissaoContext.Provider>,
+  )
+  expect(screen.queryByRole('button', { name: 'Salvar categoria' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Remover' })).toBeNull()
+  expect(screen.getByRole('link', { name: /Baixar/ })).toBeInTheDocument()
 })

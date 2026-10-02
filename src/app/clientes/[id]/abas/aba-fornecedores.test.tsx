@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { PermissaoContext } from '../permissao-cliente'
 import { AbaFornecedores } from './aba-fornecedores'
 
 const TERMO = {
@@ -126,5 +127,20 @@ describe('AbaFornecedores', () => {
     fireEvent.click(within(modal).getByRole('button', { name: /Excluir termo de confirmação/ }))
     fireEvent.click(within(modal).getByRole('button', { name: 'Sim' }))
     await waitFor(() => expect(screen.queryByText('ALMAVIVA')).not.toBeInTheDocument())
+  })
+})
+
+describe('AbaFornecedores somente leitura', () => {
+  it('sem permissão de edição esconde "Novo termo de confirmação" e a linha não abre o editor', async () => {
+    mockApi()
+    render(
+      <PermissaoContext.Provider value={{ carregando: false, podeEditar: false, gerencia: null }}>
+        <AbaFornecedores clienteId="c1" />
+      </PermissaoContext.Provider>,
+    )
+    expect(await screen.findByText('TC-0192')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Novo termo de confirmação/ })).toBeNull()
+    fireEvent.click(screen.getByText('TC-0192'))
+    expect(screen.queryByText('Excluir termo')).toBeNull()
   })
 })

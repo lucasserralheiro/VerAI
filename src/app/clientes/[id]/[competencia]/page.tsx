@@ -1,5 +1,6 @@
 'use client'
 
+import { usePermissaoCliente } from '../permissao-cliente'
 import { use, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react'
 import Link from 'next/link'
 import {
@@ -141,6 +142,7 @@ export default function ClienteCompetenciaPage({
   params: Promise<{ id: string; competencia: string }>
 }) {
   const { id, competencia } = use(params)
+  const { podeEditar } = usePermissaoCliente()
   const parsed = parseCompetencia(competencia)
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [documentos, setDocumentos] = useState<Documento[]>([])
@@ -423,6 +425,7 @@ export default function ClienteCompetenciaPage({
 
           {aba === 'documentos' && (
             <div className="space-y-4">
+              {podeEditar && (
               <Card className="p-0">
                 <form onSubmit={handleUpload} className="p-4">
                   {arquivo ? (
@@ -510,6 +513,7 @@ export default function ClienteCompetenciaPage({
                   </div>
                 </form>
               </Card>
+              )}
 
               {documentos.length > 0 && (
                 <div className="card-flush">
@@ -563,7 +567,7 @@ export default function ClienteCompetenciaPage({
                                     <FileDown className="size-4" strokeWidth={2.25} />
                                   </a>
                                 )}
-                                {usuario && (usuario.role === 'admin' || usuario.id === doc.uploadedById) && (
+                                {podeEditar && usuario && (usuario.role === 'admin' || usuario.id === doc.uploadedById) && (
                                   <button onClick={() => handleExcluirDocumento(doc)} title="Excluir" className={LINK_DANGER}>
                                     <Trash2 className="size-4" strokeWidth={2.25} />
                                   </button>
@@ -588,7 +592,7 @@ export default function ClienteCompetenciaPage({
                 divergência antes de fechar a competência.
               </p>
 
-              {(analisesConsolidadas.length === 0 || seletorConsolidadaAberto) && (
+              {podeEditar && (analisesConsolidadas.length === 0 || seletorConsolidadaAberto) && (
                 <Card className="space-y-3">
                   <p className="text-sm font-medium text-navy">Marque os documentos que devem bater entre si</p>
 
@@ -714,13 +718,19 @@ export default function ClienteCompetenciaPage({
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-grey pt-3 text-xs text-mid-grey">
-                      <button
-                        onClick={() => setSeletorConsolidadaAberto(true)}
-                        className="text-left font-medium text-mid-grey hover:text-navy"
-                      >
-                        Baseado em: {analiseAtual.documentos.map((d) => d.nomeArquivo).join(', ')} · Gerar novo
-                        relatório
-                      </button>
+                      {podeEditar ? (
+                        <button
+                          onClick={() => setSeletorConsolidadaAberto(true)}
+                          className="text-left font-medium text-mid-grey hover:text-navy"
+                        >
+                          Baseado em: {analiseAtual.documentos.map((d) => d.nomeArquivo).join(', ')} · Gerar novo
+                          relatório
+                        </button>
+                      ) : (
+                        <span className="text-left font-medium text-mid-grey">
+                          Baseado em: {analiseAtual.documentos.map((d) => d.nomeArquivo).join(', ')}
+                        </span>
+                      )}
                       <div className="flex shrink-0 items-center gap-3">
                         <span>{new Date(analiseAtual.createdAt).toLocaleString('pt-BR')}</span>
                         <a
@@ -789,7 +799,12 @@ export default function ClienteCompetenciaPage({
               {!analiseEvolucao ? (
                 <div className="card flex flex-col items-center gap-3 py-10 text-center">
                   <GitCompare className="size-6 text-mid-grey" strokeWidth={1.75} />
-                  <p className="text-sm text-mid-grey">Compare os números deste mês com os do mês anterior.</p>
+                  <p className="text-sm text-mid-grey">
+                    {podeEditar
+                      ? 'Compare os números deste mês com os do mês anterior.'
+                      : 'Ainda não há comparação com o mês anterior.'}
+                  </p>
+                  {podeEditar && (
                   <button onClick={handleGerarEvolucao} disabled={gerandoEvolucao} className={BTN_OUTLINE}>
                     {gerandoEvolucao ? (
                       <Loader2 className="size-3.5 animate-spin" strokeWidth={2.25} />
@@ -798,6 +813,7 @@ export default function ClienteCompetenciaPage({
                     )}
                     {gerandoEvolucao ? 'Comparando...' : 'Comparar com mês anterior'}
                   </button>
+                  )}
                   {erroEvolucao && (
                     <span className="flex items-center gap-1 text-sm text-red-crit">
                       <AlertCircle className="size-3.5 shrink-0" strokeWidth={2.25} />
@@ -895,6 +911,7 @@ export default function ClienteCompetenciaPage({
                       <FileDown className="size-3.5" strokeWidth={2.25} />
                       Baixar PDF
                     </a>
+                    {podeEditar && (
                     <button
                       onClick={handleGerarEvolucao}
                       disabled={gerandoEvolucao}
@@ -903,6 +920,7 @@ export default function ClienteCompetenciaPage({
                       <RefreshCw className={`size-3.5 ${gerandoEvolucao ? 'animate-spin' : ''}`} strokeWidth={2.25} />
                       {gerandoEvolucao ? 'Atualizando...' : 'Atualizar comparação'}
                     </button>
+                    )}
                     {erroEvolucao && (
                       <span className="flex items-center gap-1 text-red-crit">
                         <AlertCircle className="size-3.5 shrink-0" strokeWidth={2.25} />

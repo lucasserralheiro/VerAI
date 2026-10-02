@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { PermissaoContext } from '../../permissao-cliente'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import FaturamentoDetalhePage from './page'
 
@@ -131,5 +132,25 @@ describe('FaturamentoDetalhePage', () => {
     fireEvent.change(within(form).getByLabelText('Unidade destino'), { target: { value: 'SMS/ATTI' } })
     fireEvent.click(within(form).getByRole('button', { name: 'Salvar' }))
     expect(await screen.findByText('SMS/ATTI')).toBeInTheDocument()
+  })
+})
+
+describe('FaturamentoDetalhePage somente leitura', () => {
+  it('sem permissão de edição esconde editar, nova nota e ações da nota', async () => {
+    mockApi()
+    await act(async () => {
+      render(
+        <PermissaoContext.Provider value={{ carregando: false, podeEditar: false, gerencia: null }}>
+          <Suspense fallback={null}>
+            <FaturamentoDetalhePage params={Promise.resolve({ id: 'c1', faturamentoId: 'f1' })} />
+          </Suspense>
+        </PermissaoContext.Provider>,
+      )
+    })
+    expect(await screen.findByRole('heading', { level: 1, name: 'Faturamento 05/2022' })).toBeInTheDocument()
+    expect(screen.getByText('37619')).toBeInTheDocument()
+    for (const nome of ['Editar faturamento', 'Nova nota', 'Editar', 'Excluir']) {
+      expect(screen.queryByRole('button', { name: nome })).toBeNull()
+    }
   })
 })

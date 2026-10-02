@@ -3,7 +3,7 @@ import { ListaClientes } from './lista-clientes'
 
 function mockFetch(options: {
   role: 'admin' | 'usuario' | null
-  clientes?: Array<{ id: string; nome: string; siglaLegado?: string | null }>
+  clientes?: Array<{ id: string; nome: string; siglaLegado?: string | null; gerencia?: { id: string; nome: string } | null }>
   criarOk?: boolean
   criarErro?: string
   atualizadoEm?: string | null
@@ -41,6 +41,24 @@ function mockFetch(options: {
 }
 
 describe('ListaClientes', () => {
+  it('filtra por gerência e por "Sem gerência"', async () => {
+    mockFetch({
+      role: 'usuario',
+      clientes: [
+        { id: 'c1', nome: 'Saúde', gerencia: { id: 'g1', nome: 'GCR' } },
+        { id: 'c2', nome: 'Obras', gerencia: null },
+      ],
+    })
+    render(<ListaClientes />)
+    expect(await screen.findByText('Carteira: GCR')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Gerência'), { target: { value: 'sem' } })
+    expect(screen.queryByText('Saúde')).toBeNull()
+    expect(screen.getByText('Obras')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Gerência'), { target: { value: 'g1' } })
+    expect(screen.getByText('Saúde')).toBeInTheDocument()
+    expect(screen.queryByText('Obras')).toBeNull()
+  })
+
   it('usa font-semibold no título (não font-bold) e o nome "Relatórios dos clientes"', async () => {
     mockFetch({ role: 'usuario', clientes: [{ id: 'c1', nome: 'Prefeitura X' }] })
     render(<ListaClientes />)

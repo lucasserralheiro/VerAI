@@ -12,7 +12,14 @@ export async function GET(request: NextRequest) {
   const clientes = await prisma.cliente.findMany({
     where: await clientesVisiveisWhere(usuario),
     orderBy: { nome: 'asc' },
-    select: { id: true, nome: true, siglaLegado: true },
+    select: {
+      id: true,
+      nome: true,
+      siglaLegado: true,
+      carteira: { select: { gerencia: { select: { id: true, nome: true } } } },
+    },
   })
-  return NextResponse.json(clientes)
+  return NextResponse.json(
+    clientes.map(({ carteira, ...cliente }) => ({ ...cliente, gerencia: carteira?.gerencia ?? null })),
+  )
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import { usePermissaoCliente } from '../permissao-cliente'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { fetchComPreCarga } from '@/lib/relatorios-clientes/prefetch'
 import { AlertCircle, Loader2, Mail, Phone, Plus, Search, Smartphone, Trash2, Users } from 'lucide-react'
@@ -27,6 +28,7 @@ const CAMPOS: Array<{ campo: keyof Formulario; rotulo: string; tipo?: string }> 
 ]
 
 export function AbaResponsaveis({ clienteId }: { clienteId: string }) {
+  const { podeEditar } = usePermissaoCliente()
   const [responsaveis, setResponsaveis] = useState<Responsavel[]>([])
   const [carregando, setCarregando] = useState(true)
   const [busca, setBusca] = useState('')
@@ -81,10 +83,12 @@ export function AbaResponsaveis({ clienteId }: { clienteId: string }) {
               className={`${INPUT_BASE} w-64 py-1.5 pl-8 text-sm`}
             />
           </label>
-          <button type="button" onClick={() => setModalResponsavel('novo')} className={BTN_PRIMARY}>
-            <Plus className="size-3.5" strokeWidth={2.25} />
-            Novo responsável
-          </button>
+          {podeEditar && (
+            <button type="button" onClick={() => setModalResponsavel('novo')} className={BTN_PRIMARY}>
+              <Plus className="size-3.5" strokeWidth={2.25} />
+              Novo responsável
+            </button>
+          )}
         </div>
       </div>
 
@@ -107,8 +111,8 @@ export function AbaResponsaveis({ clienteId }: { clienteId: string }) {
           {responsaveisFiltrados.map((responsavel) => (
             <li
               key={responsavel.id}
-              onClick={() => setModalResponsavel(responsavel)}
-              className="card flex cursor-pointer flex-col gap-1"
+              onClick={podeEditar ? () => setModalResponsavel(responsavel) : undefined}
+              className={`card flex flex-col gap-1 ${podeEditar ? 'cursor-pointer' : ''}`}
             >
               <span className="text-sm font-semibold text-navy">{responsavel.nome}</span>
               {responsavel.area && <span className="text-xs text-mid-grey">{responsavel.area}</span>}
@@ -147,6 +151,7 @@ export function AbaResponsaveis({ clienteId }: { clienteId: string }) {
         </ul>
       )}
 
+      {podeEditar && (
       <ModalResponsavel
         estado={modalResponsavel}
         clienteId={clienteId}
@@ -160,6 +165,7 @@ export function AbaResponsaveis({ clienteId }: { clienteId: string }) {
           await carregar()
         }}
       />
+      )}
     </div>
   )
 }

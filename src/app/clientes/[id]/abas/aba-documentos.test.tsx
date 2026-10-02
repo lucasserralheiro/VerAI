@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { PermissaoContext } from '../permissao-cliente'
 import { AbaDocumentos } from './aba-documentos'
 
 jest.mock('./documentos/envio-arquivos', () => ({ EnvioArquivos: () => null }))
@@ -161,5 +162,19 @@ describe('AbaDocumentos', () => {
     render(<AbaDocumentos clienteId="c1" />)
     fireEvent.click(await screen.findByRole('button', { name: 'Enviar arquivos' }))
     expect(screen.queryByRole('button', { name: 'Enviar arquivos' })).not.toBeInTheDocument()
+  })
+})
+
+describe('AbaDocumentos somente leitura', () => {
+  beforeEach(mockApi)
+
+  it('sem permissão de edição esconde "Enviar arquivos"', async () => {
+    render(
+      <PermissaoContext.Provider value={{ carregando: false, podeEditar: false, gerencia: null }}>
+        <AbaDocumentos clienteId="c1" />
+      </PermissaoContext.Provider>,
+    )
+    expect(await screen.findByText('PC_SMS_012.pdf')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Enviar arquivos' })).toBeNull()
   })
 })

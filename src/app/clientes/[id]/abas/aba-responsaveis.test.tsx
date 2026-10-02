@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { PermissaoContext } from '../permissao-cliente'
 import { AbaResponsaveis } from './aba-responsaveis'
 
 interface Responsavel {
@@ -132,5 +133,20 @@ describe('AbaResponsaveis', () => {
       expect(global.fetch).toHaveBeenCalledWith('/api/responsaveis/r1', expect.objectContaining({ method: 'DELETE' }))
     )
     expect(await screen.findByText('Nenhum responsável cadastrado.')).toBeInTheDocument()
+  })
+})
+
+describe('AbaResponsaveis somente leitura', () => {
+  it('sem permissão de edição não mostra "Novo responsável" e o cartão não abre o editor', async () => {
+    mockApi()
+    render(
+      <PermissaoContext.Provider value={{ carregando: false, podeEditar: false, gerencia: null }}>
+        <AbaResponsaveis clienteId="c1" />
+      </PermissaoContext.Provider>,
+    )
+    expect(await screen.findByText('Ana Souza')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Novo responsável/ })).toBeNull()
+    fireEvent.click(screen.getByText('Ana Souza'))
+    expect(screen.queryByText('Excluir responsável')).toBeNull()
   })
 })

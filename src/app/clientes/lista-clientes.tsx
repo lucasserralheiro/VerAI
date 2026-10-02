@@ -10,11 +10,13 @@ import { Loader2, Inbox, Plus, Search } from 'lucide-react'
 import { BTN_OUTLINE, INPUT_BASE } from '@/lib/ui'
 import { AtualizacaoSharepoint } from '@/components/sharepoint/atualizacao-sharepoint'
 import { ModalCliente } from './modal-cliente'
+import { SeloCarteira } from './[id]/permissao-cliente'
 
 interface Cliente {
   id: string
   nome: string
   siglaLegado?: string | null
+  gerencia?: { id: string; nome: string } | null
 }
 
 interface UsuarioLogado {
@@ -37,6 +39,8 @@ export function ListaClientes() {
   const [usuario, setUsuario] = useState<UsuarioLogado | null>(null)
   const [modalAberto, setModalAberto] = useState(false)
   const [busca, setBusca] = useState('')
+  // '' = todas, 'sem' = sem gerência, senão o id da gerência.
+  const [filtroGerencia, setFiltroGerencia] = useState('')
 
   async function carregar() {
     const response = await fetch('/api/clientes')
@@ -56,13 +60,21 @@ export function ListaClientes() {
 
   const ehAdmin = usuario?.role === 'admin'
 
+  const gerencias = useMemo(() => {
+    const porId = new Map<string, string>()
+    for (const c of clientes) if (c.gerencia) porId.set(c.gerencia.id, c.gerencia.nome)
+    return [...porId].map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }, [clientes])
+
   const clientesFiltrados = useMemo(() => {
     const termo = normalizar(busca)
-    if (!termo) return clientes
-    return clientes.filter(
-      (c) => normalizar(c.nome).includes(termo) || normalizar(c.siglaLegado ?? '').includes(termo),
-    )
-  }, [clientes, busca])
+    return clientes.filter((c) => {
+      if (filtroGerencia === 'sem' && c.gerencia) return false
+      if (filtroGerencia && filtroGerencia !== 'sem' && c.gerencia?.id !== filtroGerencia) return false
+      if (!termo) return true
+      return normalizar(c.nome).includes(termo) || normalizar(c.siglaLegado ?? '').includes(termo)
+    })
+  }, [clientes, busca, filtroGerencia])
 
   return (
     <main className="mx-auto max-w-[110rem] space-y-6 px-6 py-8 lg:px-8">
@@ -84,19 +96,35 @@ export function ListaClientes() {
       </div>
 
       {!carregando && clientes.length > 0 && (
-        <div className="relative max-w-md">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-mid-grey"
-            strokeWidth={2.25}
-          />
-          <input
-            type="search"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar cliente por nome ou sigla"
-            aria-label="Buscar cliente"
-            className={`${INPUT_BASE} w-full pl-9`}
-          />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-full max-w-md">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-mid-grey"
+              strokeWidth={2.25}
+            />
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar cliente por nome ou sigla"
+              aria-label="Buscar cliente"
+              className={`${INPUT_BASE} w-full pl-9`}
+            />
+          </div>
+          <select
+            value={filtroGerencia}
+            onChange={(e) => setFiltroGerencia(e.target.value)}
+            aria-label="Gerência"
+            className={INPUT_BASE}
+          >
+            <option value="">Gerência: todas</option>
+            <option value="sem">Sem gerência</option>
+            {gerencias.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.nome}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
@@ -111,7 +139,9 @@ export function ListaClientes() {
             <span className="flex size-11 items-center justify-center rounded-full bg-light-grey text-mid-grey">
               <Inbox className="size-5" strokeWidth={1.75} />
             </span>
-            <p className="text-sm text-mid-grey">Nenhum cliente cadastrado ainda. Use o botão &ldquo;Novo cliente&rdquo;.</p>
+            <p className="text-sm text-mid-grey">
+              Nenhum cliente cadastrado ainda. Use o botão &ldquo;Novo cliente&rdquo;.
+            </p>
           </div>
         ) : (
           <div className="card-flush flex flex-col items-center gap-2 p-10 text-center">
@@ -152,9 +182,8 @@ export function ListaClientes() {
                     </span>
                   )}
                 </span>
-                <span className="line-clamp-2 text-[13px] leading-tight font-semibold text-navy">
-                  {cliente.nome}
-                </span>
+                <span className="line-clamp-2 text-[13px] leading-tight font-semibold text-navy">{cliente.nome}</span>
+                {cliente.gerencia && <SeloCarteira gerencia={cliente.gerencia} />}
               </Link>
             </li>
           ))}

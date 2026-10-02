@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import ContratoDetalhePage from './page'
+import { PermissaoContext } from '../../permissao-cliente'
 
 const HISTORICO = [
   { id: 'h1', contratoId: 'k1', tipo: 'CONTRATO', numero: 'TC 203/2023', data: '2023-12-28T00:00:00.000Z', valor: '1000000', objeto: null, proposta: null, situacao: 'Assinada', dataInicio: null, dataVencimento: null, dataEnvio: null, observacao: null },
@@ -280,5 +281,26 @@ describe('ContratoDetalhePage', () => {
     // Espera o formulário fechar (senão "Finalizado" casa com a opção do combo) e confere o cabeçalho recarregado.
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Salvar' })).not.toBeInTheDocument())
     expect(screen.getByText('Finalizado')).toBeInTheDocument()
+  })
+})
+
+describe('ContratoDetalhePage somente leitura', () => {
+  it('sem permissão de edição esconde editar contrato, nova linha, itens e ações de linha', async () => {
+    mockApi()
+    await act(async () => {
+      render(
+        <PermissaoContext.Provider value={{ carregando: false, podeEditar: false, gerencia: null }}>
+          <Suspense fallback={null}>
+            <ContratoDetalhePage params={Promise.resolve({ id: 'c1', contratoId: 'k1' })} />
+          </Suspense>
+        </PermissaoContext.Provider>,
+      )
+    })
+    expect(await screen.findByRole('heading', { level: 1, name: 'TC 203/2023' })).toBeInTheDocument()
+    expect(screen.getByText('Ponto de acesso Wi-fi')).toBeInTheDocument()
+    for (const nome of ['Editar contrato', 'Nova linha', 'Novo item', 'Importar planilha', 'Editar', 'Excluir']) {
+      expect(screen.queryByRole('button', { name: nome })).toBeNull()
+    }
+    expect(screen.queryByRole('button', { name: /Anexar|Escolher PDF/ })).toBeNull()
   })
 })

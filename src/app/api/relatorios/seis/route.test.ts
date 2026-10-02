@@ -35,20 +35,20 @@ describe('GET /api/relatorios/seis', () => {
     expect((await GET(get())).status).toBe(401)
   })
 
-  it('filtra pelos clientes visíveis e pelo cliente pedido, só com SEI preenchido', async () => {
+  it('filtra só pelo cliente pedido (leitura liberada), só com SEI preenchido', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     await GET(get('?clienteId=c1'))
     expect(prisma.contrato.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          cliente: { id: { in: ['c1'] } },
+          cliente: {},
           clienteId: 'c1',
           OR: [{ seiCliente: { not: null } }, { seiProdam: { not: null } }, { linkSei: { not: null } }],
         },
       })
     )
     expect(prisma.faturamento.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { cliente: { id: { in: ['c1'] } }, clienteId: 'c1', sei: { not: null } } })
+      expect.objectContaining({ where: { cliente: {}, clienteId: 'c1', sei: { not: null } } })
     )
   })
 

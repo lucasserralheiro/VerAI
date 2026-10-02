@@ -85,12 +85,12 @@ describe('GET /api/clientes/[clienteId]', () => {
     expect(resposta.status).toBe(404)
   })
 
-  it('403 sem permissão no cliente', async () => {
+  it('200 para usuário logado sem vínculo com o cliente (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue(clienteCompleto)
     ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [] })
     const resposta = await GET(new NextRequest('http://localhost/api/clientes/c1'), contexto)
-    expect(resposta.status).toBe(403)
+    expect(resposta.status).toBe(200)
   })
 
   it('devolve nome, sigla e endereço', async () => {

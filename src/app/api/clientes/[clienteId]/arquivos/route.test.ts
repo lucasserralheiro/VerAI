@@ -45,9 +45,9 @@ describe('GET /api/clientes/[clienteId]/arquivos', () => {
     expect((await GET(new NextRequest(base), contexto())).status).toBe(401)
   })
 
-  it('403 sem acesso ao cliente', async () => {
+  it('200 para usuário logado sem vínculo com o cliente (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
-    expect((await GET(new NextRequest(base), contexto('c9'))).status).toBe(403)
+    expect((await GET(new NextRequest(base), contexto('c9'))).status).toBe(200)
   })
 
   it('404 cliente inexistente', async () => {

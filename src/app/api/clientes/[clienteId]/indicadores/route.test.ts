@@ -60,9 +60,9 @@ describe('GET /api/clientes/[clienteId]/indicadores', () => {
     expect((await get()).status).toBe(401)
   })
 
-  it('403 sem acesso ao cliente', async () => {
+  it('200 para usuário logado sem vínculo com o cliente (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
-    expect((await get('c9')).status).toBe(403)
+    expect((await get('c9')).status).toBe(200)
   })
 
   it('404 quando o cliente não existe', async () => {

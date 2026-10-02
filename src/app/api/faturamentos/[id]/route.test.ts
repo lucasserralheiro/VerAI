@@ -50,10 +50,10 @@ describe('GET /api/faturamentos/[id]', () => {
     await expect(resposta.json()).resolves.toEqual({ error: 'faturamento não encontrado' })
   })
 
-  it('403 sem permissão no cliente do faturamento', async () => {
+  it('200 para usuário logado sem vínculo com o cliente do faturamento (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [] })
-    expect((await GET(new NextRequest(url), contexto)).status).toBe(403)
+    expect((await GET(new NextRequest(url), contexto)).status).toBe(200)
   })
 
   it('devolve o faturamento com as notas, valores como string', async () => {

@@ -62,12 +62,12 @@ describe('GET /api/relatorios/vencimentos', () => {
     expect((await GET(get())).status).toBe(401)
   })
 
-  it('filtra pelos clientes visíveis e ordena pelos que vencem primeiro', async () => {
+  it('não restringe clientes e ordena pelos que vencem primeiro', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     await GET(get())
     expect(prisma.contrato.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { cliente: { id: { in: ['c1'] } } },
+        where: { cliente: {} },
         orderBy: [{ dataVencimento: { sort: 'asc', nulls: 'last' } }, { numeroTermo: 'asc' }],
       })
     )

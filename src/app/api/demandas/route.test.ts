@@ -40,11 +40,11 @@ describe('GET /api/demandas', () => {
     expect((await GET(get())).status).toBe(401)
   })
 
-  it('usuário comum só vê demandas dos clientes permitidos', async () => {
+  it('usuário comum vê demandas de todos os clientes (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     await GET(get())
     expect(prisma.demanda.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { AND: [{ cliente: { id: { in: ['c1'] } } }] } })
+      expect.objectContaining({ where: { AND: [{ cliente: {} }] } })
     )
   })
 

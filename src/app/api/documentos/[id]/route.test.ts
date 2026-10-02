@@ -102,11 +102,9 @@ describe('DELETE /api/documentos/[id] — somente leitura', () => {
   it('403 com motivo para quem vê mas não é da gerência', async () => {
     const comum = { id: 'u2', nome: 'Comum', email: 'c@x', role: 'responsavel' as const }
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
-    // 1ª consulta: visibilidade (enxerga o cliente); 2ª: edição (não é da gerência).
+    // Leitura liberada: só a consulta de edição (não é da gerência) acontece.
     ;(prisma.documento.findUnique as jest.Mock).mockResolvedValue({ ...documento, uploadedById: 'u2' })
-    ;(prisma.usuario.findUnique as jest.Mock)
-      .mockResolvedValueOnce({ clientesPermitidos: [{ id: 'c1' }] })
-      .mockResolvedValueOnce({ clientesPermitidos: [], gerencias: [] })
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValueOnce({ clientesPermitidos: [], gerencias: [] })
     const resposta = await DELETE(new NextRequest(url, { method: 'DELETE' }), contexto)
     expect(resposta.status).toBe(403)
     await expect(resposta.json()).resolves.toMatchObject({

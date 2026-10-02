@@ -25,11 +25,14 @@ it('401 sem usuário', async () => {
   expect((await GET(pedido(), contexto)).status).toBe(401)
 })
 
-it('403 sem acesso ao cliente', async () => {
+it('200 para usuário logado sem vínculo com o cliente (leitura liberada)', async () => {
   ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
   ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [] })
-  expect((await GET(pedido(), contexto)).status).toBe(403)
-  expect(pastasDoCliente).not.toHaveBeenCalled()
+  const pastas = { cliente: { id: 'cl-1', nome: 'C', sigla: 'C' }, arquivos: [] }
+  ;(pastasDoCliente as jest.Mock).mockResolvedValue(pastas)
+  const resposta = await GET(pedido(), contexto)
+  expect(resposta.status).toBe(200)
+  expect(await resposta.json()).toEqual(pastas)
 })
 
 it('404 cliente inexistente', async () => {

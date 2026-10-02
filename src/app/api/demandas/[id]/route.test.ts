@@ -48,10 +48,10 @@ describe('GET /api/demandas/[id]', () => {
     await expect(resposta.json()).resolves.toEqual({ error: 'demanda não encontrada' })
   })
 
-  it('403 sem permissão no cliente da demanda', async () => {
+  it('200 para usuário logado sem vínculo com o cliente da demanda (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [] })
-    expect((await GET(new NextRequest(url), contexto)).status).toBe(403)
+    expect((await GET(new NextRequest(url), contexto)).status).toBe(200)
   })
 
   it('devolve a demanda com trâmites em ordem de data e sugestões', async () => {

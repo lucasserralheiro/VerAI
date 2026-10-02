@@ -37,10 +37,13 @@ describe('GET /api/clientes/[clienteId]/responsaveis', () => {
     expect((await GET(new NextRequest(url), contexto)).status).toBe(401)
   })
 
-  it('403 sem permissão no cliente', async () => {
+  it('200 para usuário logado sem vínculo com o cliente (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [] })
-    expect((await GET(new NextRequest(url), contexto)).status).toBe(403)
+    ;(prisma.responsavelCliente.findMany as jest.Mock).mockResolvedValue([{ id: 'r1', nome: 'Ana' }])
+    const resposta = await GET(new NextRequest(url), contexto)
+    expect(resposta.status).toBe(200)
+    await expect(resposta.json()).resolves.toEqual([{ id: 'r1', nome: 'Ana' }])
   })
 
   it('404 quando o cliente não existe', async () => {

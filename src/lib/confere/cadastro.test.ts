@@ -90,11 +90,11 @@ describe('identificarLevantamento', () => {
     expect(prisma.historicoContrato.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { contratoId: 'ct-smit' } }))
   })
 
-  it('só procura entre os clientes que a pessoa pode ver', async () => {
+  it('procura entre todos os clientes, sem restrição de vínculo (leitura liberada)', async () => {
     ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [] })
     ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([])
     const resposta = await identificarLevantamento(comum, LEVANTAMENTO_SMIT)
-    expect(prisma.contrato.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { clienteId: { in: [] } } }))
+    expect(prisma.contrato.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }))
     expect(resposta).toMatchObject({ situacao: 'nao-encontrado', sugestoes: [] })
   })
 
@@ -156,10 +156,12 @@ describe('carregarArquivosDoCadastro', () => {
     await expect(carregarArquivosDoCadastro(admin, ['pc'], 'cl-smit')).rejects.toMatchObject({ status })
   })
 
-  it('arquivo de cliente sem permissão é tratado como inexistente', async () => {
+  it('arquivo de cliente sem vínculo com o usuário também baixa (leitura liberada)', async () => {
     ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [{ id: 'cl-outro' }] })
     ;(prisma.arquivoCliente.findMany as jest.Mock).mockResolvedValue([PC])
-    await expect(carregarArquivosDoCadastro(comum, ['pc'], null)).rejects.toMatchObject({ status: 404 })
+    ;(getUpload as jest.Mock).mockResolvedValue(Buffer.from('%PDF'))
+    const arquivos = await carregarArquivosDoCadastro(comum, ['pc'], null)
+    expect(arquivos.get('pc')).toEqual({ nome: 'PC.pdf', bytes: Buffer.from('%PDF') })
   })
 
   it('falha no storage vira 502 com o nome do arquivo', async () => {

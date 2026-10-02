@@ -46,10 +46,10 @@ describe('GET /api/termos-confirmacao', () => {
     await expect(resposta.json()).resolves.toEqual({ error: 'informe clienteId ou fornecedorId' })
   })
 
-  it('403 ao pedir termos de um cliente sem permissão', async () => {
+  it('lista termos de um cliente sem vínculo (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
-    expect((await GET(get('?clienteId=outro'))).status).toBe(403)
-    expect(prisma.termoConfirmacao.findMany).not.toHaveBeenCalled()
+    expect((await GET(get('?clienteId=outro'))).status).toBe(200)
+    expect(prisma.termoConfirmacao.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { clienteId: 'outro' } }))
   })
 
   it('lista os termos do cliente, valor como string', async () => {
@@ -62,11 +62,11 @@ describe('GET /api/termos-confirmacao', () => {
     expect(prisma.termoConfirmacao.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { clienteId: 'c1' } }))
   })
 
-  it('por fornecedor, só traz termos de clientes visíveis', async () => {
+  it('por fornecedor, traz termos de todos os clientes (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     await GET(get('?fornecedorId=f1'))
     expect(prisma.termoConfirmacao.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { fornecedorId: 'f1', cliente: { id: { in: ['c1'] } } } })
+      expect.objectContaining({ where: { fornecedorId: 'f1', cliente: {} } })
     )
   })
 })

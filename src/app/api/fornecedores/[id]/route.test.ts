@@ -63,12 +63,12 @@ describe('GET /api/fornecedores/[id]', () => {
     expect(corpo.termos).toEqual([expect.objectContaining({ id: 't1', valor: '10' })])
   })
 
-  it('só lista termos de clientes visíveis ao usuário', async () => {
+  it('lista termos de todos os clientes (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [{ id: 'c1' }] })
     await GET(new NextRequest(url), contexto)
     expect(prisma.termoConfirmacao.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { fornecedorId: 'f1', cliente: { id: { in: ['c1'] } } } })
+      expect.objectContaining({ where: { fornecedorId: 'f1', cliente: {} } })
     )
   })
 })

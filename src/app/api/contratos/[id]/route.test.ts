@@ -56,10 +56,10 @@ describe('GET /api/contratos/[id]', () => {
     await expect(resposta.json()).resolves.toEqual({ error: 'contrato não encontrado' })
   })
 
-  it('403 sem permissão no cliente do contrato', async () => {
+  it('200 para usuário logado sem vínculo com o cliente do contrato (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [] })
-    expect((await GET(new NextRequest(url), contexto)).status).toBe(403)
+    expect((await GET(new NextRequest(url), contexto)).status).toBe(200)
   })
 
   it('devolve cabeçalho, histórico por data, itens e saldo, decimais como string', async () => {

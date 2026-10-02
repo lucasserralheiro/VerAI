@@ -56,11 +56,11 @@ describe('GET /api/relatorios/status-faturamento', () => {
     expect(prisma.contrato.findMany).not.toHaveBeenCalled()
   })
 
-  it('filtra clientes visíveis e os faturamentos da competência', async () => {
+  it('não restringe clientes e filtra os faturamentos da competência', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     await GET(get('?ano=2026&mes=8'))
     const chamada = (prisma.contrato.findMany as jest.Mock).mock.calls[0][0]
-    expect(chamada.where).toEqual({ cliente: { id: { in: ['c1'] } } })
+    expect(chamada.where).toEqual({ cliente: {} })
     expect(chamada.select.faturamentos.where).toEqual({ competenciaAno: 2026, competenciaMes: 8 })
   })
 

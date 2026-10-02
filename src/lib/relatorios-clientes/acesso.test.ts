@@ -42,13 +42,10 @@ describe('exigirAcessoCliente', () => {
     expect(resultado.erro.status).toBe(401)
   })
 
-  it('403 quando o usuário não tem o cliente liberado', async () => {
+  it('ok para usuário logado sem o cliente liberado (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [{ id: 'outro' }] })
-    const resultado = await exigirAcessoCliente(requisicao(), 'c1')
-    if (!('erro' in resultado)) throw new Error('esperava erro')
-    expect(resultado.erro.status).toBe(403)
-    await expect(resultado.erro.json()).resolves.toEqual({ error: 'acesso negado' })
+    await expect(exigirAcessoCliente(requisicao(), 'c1')).resolves.toEqual({ usuario: comum })
   })
 
   it('ok com admin', async () => {
@@ -64,10 +61,11 @@ describe('exigirAcessoCliente', () => {
 })
 
 describe('verificarAcessoCliente', () => {
-  it('null quando pode, 403 quando não pode', async () => {
-    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [] })
+  it('ver: null para todos; editar: 403 para quem não edita', async () => {
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
     await expect(verificarAcessoCliente(admin, 'c1')).resolves.toBeNull()
-    const negado = await verificarAcessoCliente(comum, 'c1')
+    await expect(verificarAcessoCliente(comum, 'c1')).resolves.toBeNull()
+    const negado = await verificarAcessoCliente(comum, 'c1', 'editar')
     expect(negado?.status).toBe(403)
   })
 })

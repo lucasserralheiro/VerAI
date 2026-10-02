@@ -3,15 +3,10 @@ import { prisma } from './prisma'
 import type { AuthUser } from './auth'
 import { decidirEdicao } from './gerencias/permissao'
 
-export async function clienteIdsPermitidos(usuario: AuthUser): Promise<string[] | null> {
-  // null = sem restrição (admin vê todos os clientes)
-  if (usuario.role === 'admin') return null
-
-  const registro = await prisma.usuario.findUnique({
-    where: { id: usuario.id },
-    select: { clientesPermitidos: { select: { id: true } } },
-  })
-  return (registro?.clientesPermitidos ?? []).map((c) => c.id)
+/** `null` = sem restrição. Desde 02/10/2026 todo usuário logado vê todos os clientes (spec
+ *  2026-10-02-gerencias §0.1); quem edita decide `podeEditarCliente`. */
+export async function clienteIdsPermitidos(_usuario: AuthUser): Promise<string[] | null> {
+  return null
 }
 
 async function regrasQueBatemComUsuario(email: string) {

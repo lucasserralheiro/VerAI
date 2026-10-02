@@ -45,10 +45,10 @@ describe('GET /api/clientes/[clienteId]/faturamentos', () => {
     expect((await GET(get(), contexto)).status).toBe(401)
   })
 
-  it('403 sem permissão no cliente', async () => {
+  it('200 para usuário logado sem vínculo com o cliente (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [] })
-    expect((await GET(get(), contexto)).status).toBe(403)
+    expect((await GET(get(), contexto)).status).toBe(200)
   })
 
   it('404 quando o cliente não existe', async () => {

@@ -47,10 +47,10 @@ describe('GET /api/relatorios/valor-total', () => {
     expect((await GET(get())).status).toBe(401)
   })
 
-  it('só lista clientes visíveis', async () => {
+  it('lista todos os clientes (leitura liberada)', async () => {
     ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
     await GET(get())
-    expect(prisma.cliente.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['c1'] } } }))
+    expect(prisma.cliente.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }))
   })
 
   it('soma valor e faturado dos MESMOS contratos: ativo sem valor fica fora das duas somas', async () => {

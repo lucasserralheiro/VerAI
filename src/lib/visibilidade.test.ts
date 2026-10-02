@@ -1,7 +1,7 @@
 /** @jest-environment node */
 jest.mock('@/lib/prisma', () => ({ prisma: { usuario: { findUnique: jest.fn() } } }))
 import { prisma } from '@/lib/prisma'
-import { podeEditarCliente } from './visibilidade'
+import { podeEditarCliente, clienteIdsPermitidos, podeVerCliente, clientesVisiveisWhere } from './visibilidade'
 
 const comum = { id: 'u2', nome: 'C', email: 'c@x', role: 'responsavel' as const }
 const achar = prisma.usuario.findUnique as jest.Mock
@@ -28,5 +28,13 @@ describe('podeEditarCliente', () => {
     achar.mockResolvedValue(null)
     await podeEditarCliente(comum, 'c1')
     expect(achar.mock.calls[0][0].select.gerencias.where).toEqual({ gerencia: { ativa: true, carteira: { some: { clienteId: 'c1' } } } })
+  })
+})
+
+describe('leitura liberada (spec 2026-10-02-gerencias §0.1)', () => {
+  it('quem não é admin vê todos os clientes', async () => {
+    await expect(clienteIdsPermitidos(comum)).resolves.toBeNull()
+    await expect(podeVerCliente(comum, 'qualquer')).resolves.toBe(true)
+    await expect(clientesVisiveisWhere(comum)).resolves.toEqual({})
   })
 })

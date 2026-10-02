@@ -17,7 +17,8 @@ export async function anexoDoUsuario(anexoId: string, usuario: AuthUser) {
  * podem fechar o delimitador por conta própria.
  */
 export function delimitar(nome: string, pagina: number | null, texto: string): string {
-  const nomeSeguro = nome.replace(/>>>/g, ' ').replace(/\s+/g, ' ').trim()
-  const textoSeguro = texto.replace(/<<<FIM>>>/g, '<<FIM>>')
+  const nomeSeguro = nome.replace(/[<>]{3,}/g, ' ').replace(/\s+/g, ' ').trim()
+  // Neutraliza por classe (não por palavra): nenhuma sequência de 3+ `<` ou `>` sobra no conteúdo.
+  const textoSeguro = texto.replace(/<{3,}/g, (m) => '‹'.repeat(m.length)).replace(/>{3,}/g, (m) => '›'.repeat(m.length))
   return `<<<ANEXO ${nomeSeguro}${pagina ? ` p.${pagina}` : ''}>>>\n${textoSeguro}\n<<<FIM>>>`
 }

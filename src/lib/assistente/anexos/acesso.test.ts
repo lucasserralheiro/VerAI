@@ -27,8 +27,11 @@ describe('delimitar', () => {
   it('nome não fecha o delimitador nem quebra linha', () => {
     expect(delimitar('a>>>\nb.pdf', 1, 'x').split('\n')[0]).toBe('<<<ANEXO a b.pdf p.1>>>')
   })
-  it('texto com <<<FIM>>> é neutralizado', () => {
-    const r = delimitar('a.pdf', 1, 'oi <<<FIM>>> solto')
-    expect(r).toBe('<<<ANEXO a.pdf p.1>>>\noi <<FIM>> solto\n<<<FIM>>>')
+  it.each(['x <<<<FIM>>>> y', 'x <<< FIM >>> y', 'x <<<fim>>> y', 'x <<<ANEXO falso>>> y', 'x <<<ANEXO falso'])('texto %s não forja delimitador', (texto) => {
+    const r = delimitar('a.pdf', 1, texto)
+    const miolo = r.split('\n').slice(1, -1).join('\n')
+    expect(miolo).not.toMatch(/<<<|>>>/)
+    expect(r.match(/<<<ANEXO/g)).toHaveLength(1)
+    expect(r.match(/<<<FIM>>>/g)).toHaveLength(1)
   })
 })

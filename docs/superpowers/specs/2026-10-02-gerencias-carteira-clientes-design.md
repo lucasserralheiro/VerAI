@@ -131,11 +131,39 @@ equipe editável. Rotas fora de `/admin` (o middleware barra não admin lá): `/
 
 **`/admin/usuarios`**: sai a liberação de clientes; entra a coluna "Gerências" ("Gerência X — manager").
 
+## 4a. Menu "Administração"
+
+O grupo **"Configuração"** do rodapé do menu (`CONFIG_LINKS`, `src/components/nav-bar.tsx`, só admin) vira um
+grupo **"Administração"** no corpo do menu, só para admin, com página inicial **`/admin`** (painel com um cartão
+por área: o que é, números rápidos — nº de usuários, gerências, clientes sem gerência — e o link). Submenus:
+
+1. Usuários (`/admin/usuarios`) — com a coluna "Gerências"
+2. Gerências e carteiras (`/admin/gerencias`) — §4
+3. Clientes (`/admin/clientes`) — criar, editar, excluir, mesclar; atalho para "sem gerência"
+4. Regras de notificação (`/admin/regras-notificacao`)
+5. Assistente de IA (`/admin/assistente`)
+
+**Endereços não mudam** — só o lugar do link. Ficam para rodadas seguintes (uma tela por vez, cada uma com a sua
+régua): SharePoint (estado da última sincronização, conferência e auditoria), integridade dos clientes
+(`reconciliar-clientes.ts`), valores e duplicatas de contratos, índice IPC-Fipe, registro de acessos.
+
+## 4b. Nada do que funciona hoje deixa de funcionar
+
+- Endereços, token de acesso (entra como admin, faz tudo), agendador do SharePoint (só tabelas novas), Confere,
+  Proposta, Reajuste, biblioteca, scripts e réguas: inalterados.
+- Mudanças **de propósito**, e só estas: Fase A — não admin passa a **ver** todos os clientes; Fase B — não admin
+  fora da gerência do cliente perde a **edição** daquele cliente.
+- Prova: suíte inteira (`jest --runInBand`) antes e depois de cada fase; `nav-bar.test.tsx` confere que todo link
+  antigo continua no menu; régua das rotas (Fase B); conferência na tela no dev como admin e como usuário comum
+  (troca de usuário) antes de subir.
+- `nav-bar.tsx`/`nav-bar.test.tsx` tinham mudança sem commit de outra sessão em 02/10: o menu só é mexido depois
+  que esse trabalho estiver commitado.
+
 ## 5. Subida em duas fases
 
 | Fase | Entra | Efeito no uso |
 |---|---|---|
-| **A — estrutura** | tabelas, regra (§3) com teste, `/admin/gerencias`, "Minha gerência", selo e filtro, leitura liberada | todos veem todos os clientes; **ninguém perde edição ainda**; o admin monta as gerências e distribui os clientes pela tela |
+| **A — estrutura** | tabelas, regra (§3) com teste, menu "Administração" + painel `/admin` (§4a), `/admin/gerencias`, "Minha gerência", selo e filtro, leitura liberada | todos veem todos os clientes; **ninguém perde edição ainda**; o admin monta as gerências e distribui os clientes pela tela |
 | **B — regra de edição** | `exigirEdicaoCliente` nas rotas de gravação de cliente, `podeEditar` nas telas, teste-régua das rotas, saída da liberação em `/admin/usuarios` | vale "só a gerência edita" — sobe **depois** das carteiras montadas na produção |
 
 Depois da B validada, migração própria remove a relação `UsuarioClientes`.
@@ -161,3 +189,4 @@ movimento fica na trilha.
 - Regras para Confere, Proposta, Reajuste, biblioteca e cadastros comuns.
 - Login individual para todos (hoje o token entra como admin — decisão 6).
 - Script de carga de carteiras.
+- Telas de admin que hoje são script (SharePoint, integridade, valores/duplicatas, IPC-Fipe, acessos) — §4a.

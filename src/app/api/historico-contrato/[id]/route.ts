@@ -15,7 +15,7 @@ type Contexto = { params: Promise<{ id: string }> }
 
 export async function PATCH(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarComAcesso(request, id)
+  const carregado = await carregarComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   const corpo = await lerCorpo(request, esquemaEdicaoHistorico, ROTULOS_HISTORICO)
@@ -33,7 +33,7 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
 
 export async function DELETE(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarComAcesso(request, id)
+  const carregado = await carregarComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   try {

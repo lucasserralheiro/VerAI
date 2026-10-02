@@ -59,3 +59,14 @@ it('da tela de propostas: registra no repositório do cliente e aponta', async (
 it('origem desconhecida: 400', async () => {
   expect((await POST(req({ origem: 'historico', linhaId: 'h2', coluna: 'termo' }), contexto)).status).toBe(400)
 })
+
+it('POST 403 com motivo para quem vê mas não é da gerência', async () => {
+  ;(getAuthUser as jest.Mock).mockResolvedValue({ id: 'u2', nome: 'Comum', email: 'c@x', role: 'responsavel' })
+  ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+  const resposta = await POST(req({ origem: 'repositorio', arquivoId: 'a9' }), contexto)
+  expect(resposta.status).toBe(403)
+  await expect(resposta.json()).resolves.toMatchObject({
+    motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+  })
+  expect(prisma.historicoContrato.update).not.toHaveBeenCalled()
+})

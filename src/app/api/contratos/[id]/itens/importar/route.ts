@@ -14,7 +14,7 @@ const TAMANHO_MAXIMO = 2 * 1024 * 1024
  *  linha com erro impede a gravação, pra planilha e banco nunca divergirem em silêncio. */
 export async function POST(request: NextRequest, { params }: Contexto) {
   const { id: contratoId } = await params
-  const carregado = await carregarContratoComAcesso(request, contratoId)
+  const carregado = await carregarContratoComAcesso(request, contratoId, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   let formulario: FormData

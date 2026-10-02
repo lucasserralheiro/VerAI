@@ -8,7 +8,7 @@ jest.mock('@/lib/auth', () => ({
 }))
 jest.mock('@/lib/prisma', () => ({
   prisma: {
-    contrato: { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    contrato: { findUnique: jest.fn(), update: jest.fn(), delete: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     historicoContrato: { findMany: jest.fn() },
     itemContrato: { findMany: jest.fn() },
     usuario: { findUnique: jest.fn() },
@@ -19,7 +19,7 @@ jest.mock('@/lib/relatorios-clientes/saldos-contratos', () => ({ saldosDosContra
 import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { saldosDosContratos } from '@/lib/relatorios-clientes/saldos-contratos'
-import { GET, PATCH } from './route'
+import { DELETE, GET, PATCH } from './route'
 
 const admin = { id: 'u1', nome: 'Admin', email: 'a@x', role: 'admin' as const }
 const comum = { id: 'u2', nome: 'Comum', email: 'c@x', role: 'responsavel' as const }
@@ -120,5 +120,30 @@ describe('PATCH /api/contratos/[id]', () => {
       expect.objectContaining({ where: { id: 'k1' }, data: { numeroTermo: 'TC 203/2023', situacao: 'Ativo', vigente: false } })
     )
     await expect(resposta.json()).resolves.toEqual(expect.objectContaining({ situacao: 'Ativo', saldo: SALDO }))
+  })
+})
+
+describe('somente leitura', () => {
+  beforeEach(() => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+  })
+
+  it('PATCH 403 com motivo para quem vê mas não é da gerência', async () => {
+    const resposta = await PATCH(patch({ situacao: 'Ativo' }), contexto)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+    expect(prisma.contrato.update).not.toHaveBeenCalled()
+  })
+
+  it('DELETE 403 com motivo para quem vê mas não é da gerência', async () => {
+    const resposta = await DELETE(new NextRequest(url, { method: 'DELETE' }), contexto)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+    expect(prisma.contrato.delete).not.toHaveBeenCalled()
   })
 })

@@ -104,3 +104,16 @@ describe('POST /api/contratos/[id]/itens/importar', () => {
     })
   })
 })
+
+describe('POST somente leitura', () => {
+  it('403 com motivo para quem vê mas não é da gerência', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue({ id: 'u2', nome: 'Comum', email: 'c@x', role: 'responsavel' })
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+    const resposta = await enviar(await planilha([['Descrição', 'Valor total']]), true)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+    expect(prisma.itemContrato.createMany).not.toHaveBeenCalled()
+  })
+})

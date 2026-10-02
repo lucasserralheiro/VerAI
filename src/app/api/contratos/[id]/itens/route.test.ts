@@ -93,3 +93,16 @@ describe('POST /api/contratos/[id]/itens', () => {
     )
   })
 })
+
+describe('POST somente leitura', () => {
+  it('403 com motivo para quem vê mas não é da gerência', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+    const resposta = await POST(post({ valorTotal: '1' }), contexto)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+    expect(prisma.itemContrato.create).not.toHaveBeenCalled()
+  })
+})

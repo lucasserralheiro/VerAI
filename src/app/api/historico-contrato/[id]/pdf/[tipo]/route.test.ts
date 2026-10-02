@@ -83,3 +83,33 @@ describe('DELETE', () => {
     expect((await DELETE(new NextRequest('http://localhost/x', { method: 'DELETE' }), contexto('proposta'))).status).toBe(404)
   })
 })
+
+describe('somente leitura', () => {
+  beforeEach(() => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue({ id: 'u2', nome: 'Comum', email: 'c@x', role: 'responsavel' })
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+  })
+
+  it('POST 403 com motivo para quem vê mas não é da gerência', async () => {
+    const resposta = await POST(requisicao(pdf()), contexto('proposta'))
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+    expect(registrarConteudo).not.toHaveBeenCalled()
+    expect(prisma.historicoContrato.update).not.toHaveBeenCalled()
+  })
+
+  it('DELETE 403 com motivo para quem vê mas não é da gerência', async () => {
+    const resposta = await DELETE(
+      new NextRequest('http://localhost/api/historico-contrato/h1/pdf/proposta', { method: 'DELETE' }),
+      contexto('proposta')
+    )
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+    expect(deleteUpload).not.toHaveBeenCalled()
+    expect(prisma.historicoContrato.update).not.toHaveBeenCalled()
+  })
+})

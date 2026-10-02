@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type { AuthUser } from '@/lib/auth'
-import { exigirUsuario, verificarAcessoCliente } from '@/lib/relatorios-clientes/acesso'
+import { exigirUsuario, verificarAcessoCliente, type ModoAcesso } from '@/lib/relatorios-clientes/acesso'
 import { respostaErroPrisma } from '@/lib/relatorios-clientes/erros-prisma'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
 import { podeVerItensSemContrato } from '@/app/api/contratos/carregar'
@@ -19,8 +19,8 @@ type Contexto = { params: Promise<{ id: string }> }
 
 const NAO_ENCONTRADO = 'item não encontrado'
 
-async function negarSemAcesso(usuario: AuthUser, clienteId: string | undefined) {
-  if (clienteId) return verificarAcessoCliente(usuario, clienteId)
+async function negarSemAcesso(usuario: AuthUser, clienteId: string | undefined, modo: ModoAcesso) {
+  if (clienteId) return verificarAcessoCliente(usuario, clienteId, modo)
   return (await podeVerItensSemContrato(usuario))
     ? null
     : NextResponse.json({ error: 'acesso negado' }, { status: 403 })
@@ -28,7 +28,7 @@ async function negarSemAcesso(usuario: AuthUser, clienteId: string | undefined) 
 
 /** Autentica, acha o item e checa acesso (401 → 404 → 403): pelo cliente do contrato dele, ou —
  *  item importado sem contrato — pela regra de `podeVerItensSemContrato`. */
-async function carregarComAcesso(request: NextRequest, id: string) {
+async function carregarComAcesso(request: NextRequest, id: string, modo: ModoAcesso = 'ver') {
   const autenticado = await exigirUsuario(request)
   if ('erro' in autenticado) return autenticado
 
@@ -45,13 +45,13 @@ async function carregarComAcesso(request: NextRequest, id: string) {
   })
   if (!item) return { erro: NextResponse.json({ error: NAO_ENCONTRADO }, { status: 404 }) }
 
-  const negado = await negarSemAcesso(autenticado.usuario, item.contrato?.clienteId)
+  const negado = await negarSemAcesso(autenticado.usuario, item.contrato?.clienteId, modo)
   return negado ? { erro: negado } : { usuario: autenticado.usuario, item }
 }
 
 export async function PATCH(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarComAcesso(request, id)
+  const carregado = await carregarComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
   const { usuario, item } = carregado
 
@@ -66,7 +66,7 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
       select: { clienteId: true, cliente: { select: { siglaLegado: true } } },
     })
     if (!destino) return NextResponse.json({ error: 'Contrato: não encontrado' }, { status: 400 })
-    const negado = await verificarAcessoCliente(usuario, destino.clienteId)
+    const negado = await verificarAcessoCliente(usuario, destino.clienteId, 'editar')
     if (negado) return negado
     // Item do legado traz a sigla do cliente dono: nunca vai pro contrato de OUTRO cliente — a mesma
     // regra do vínculo automático (vincular-itens.ts), agora também no vínculo manual.
@@ -117,7 +117,7 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
 
 export async function DELETE(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarComAcesso(request, id)
+  const carregado = await carregarComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   try {

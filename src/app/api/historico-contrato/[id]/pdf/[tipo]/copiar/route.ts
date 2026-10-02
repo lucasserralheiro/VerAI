@@ -20,7 +20,7 @@ export async function POST(request: NextRequest, { params }: Contexto) {
   const { id, tipo } = await params
   if (!tipoPdfValido(tipo)) return NextResponse.json({ error: 'tipo de anexo inválido' }, { status: 404 })
 
-  const carregado = await carregarHistoricoComAcesso(request, id)
+  const carregado = await carregarHistoricoComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
   const clienteId = carregado.linha.contrato.clienteId
 

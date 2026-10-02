@@ -10,7 +10,7 @@ type Contexto = { params: Promise<{ id: string }> }
 
 export async function POST(request: NextRequest, { params }: Contexto) {
   const { id: contratoId } = await params
-  const carregado = await carregarContratoComAcesso(request, contratoId)
+  const carregado = await carregarContratoComAcesso(request, contratoId, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   const corpo = await lerCorpo(request, esquemaNovoHistorico, ROTULOS_HISTORICO)

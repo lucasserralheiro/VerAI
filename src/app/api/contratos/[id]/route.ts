@@ -46,7 +46,7 @@ export async function GET(request: NextRequest, { params }: Contexto) {
 
 export async function PATCH(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarContratoComAcesso(request, id)
+  const carregado = await carregarContratoComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   const corpo = await lerCorpo(request, esquemaContrato, ROTULOS_CONTRATO)
@@ -74,7 +74,7 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
 
 export async function DELETE(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarContratoComAcesso(request, id)
+  const carregado = await carregarContratoComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   // Item e termo de confirmação têm FK opcional (ON DELETE SET NULL): excluir o contrato os soltaria

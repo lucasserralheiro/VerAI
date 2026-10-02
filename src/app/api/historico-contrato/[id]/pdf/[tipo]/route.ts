@@ -14,7 +14,7 @@ export async function POST(request: NextRequest, { params }: Contexto) {
   const { id, tipo } = await params
   if (!tipoValido(tipo)) return NextResponse.json({ error: 'tipo de anexo inválido' }, { status: 404 })
 
-  const carregado = await carregarHistoricoComAcesso(request, id)
+  const carregado = await carregarHistoricoComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   const formData = await request.formData().catch(() => null)
@@ -51,7 +51,7 @@ export async function DELETE(request: NextRequest, { params }: Contexto) {
   const { id, tipo } = await params
   if (!tipoValido(tipo)) return NextResponse.json({ error: 'tipo de anexo inválido' }, { status: 404 })
 
-  const carregado = await carregarHistoricoComAcesso(request, id)
+  const carregado = await carregarHistoricoComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   const atual = await prisma.historicoContrato.findUnique({ where: { id }, select: { propostaArquivoId: true, termoArquivoId: true } })

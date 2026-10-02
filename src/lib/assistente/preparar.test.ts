@@ -55,15 +55,16 @@ describe('anexos da conversa', () => {
   it('lista os anexos lidos e os não lidos', async () => {
     const { prisma } = jest.requireMock('@/lib/prisma')
     prisma.anexoAssistente.findMany.mockResolvedValueOnce([
-      { id: 'a1', nome: 'proposta.pdf', status: 'ok', paginas: 3, ficha: { tipo: 'proposta' } },
       { id: 'a2', nome: 'scan.pdf', status: 'sem_texto', paginas: null, ficha: null },
+      { id: 'a1', nome: 'proposta.pdf', status: 'ok', paginas: 3, ficha: { tipo: 'proposta' } },
     ])
     const r = await prepararContexto({ ...base, conversaId: 'conv1' })
     expect(r).toContain('Anexos desta conversa: proposta.pdf (anexoId: a1, proposta, 3 páginas); scan.pdf (não lido: sem_texto).')
     expect(prisma.anexoAssistente.findMany).toHaveBeenCalledWith({
       where: { conversaId: 'conv1', conversa: { usuarioId: 'u' } },
       select: { id: true, nome: true, status: true, paginas: true, ficha: true },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
+      take: 21,
     })
   })
 
@@ -75,8 +76,25 @@ describe('anexos da conversa', () => {
     const r = await prepararContexto({ ...base, conversaId: 'conv1' })
     expect(r).not.toContain('<<<')
     expect(r).not.toContain('\n')
-    expect(r).toContain('(anexoId: a1, documento, 1 páginas)')
+    expect(r).toContain('(anexoId: a1, documento, 1 página)')
     expect(r.length).toBeLessThan(400)
+  })
+
+  it('teto de 20 anexos, do mais antigo ao mais novo, com aviso do resto', async () => {
+    const { prisma } = jest.requireMock('@/lib/prisma')
+    const desc = Array.from({ length: 21 }, (_, i) => ({ id: `id${25 - i}`, nome: `n${25 - i}.pdf`, status: 'ok', paginas: 2, ficha: null }))
+    prisma.anexoAssistente.findMany.mockResolvedValueOnce(desc)
+    const r = await prepararContexto({ ...base, conversaId: 'c' })
+    expect(r).toContain('n6.pdf (anexoId: id6, documento, 2 páginas); n7.pdf')
+    expect(r).toContain('n25.pdf (anexoId: id25, documento, 2 páginas); e mais anexos (use anexosDaConversa).')
+    expect(r).not.toContain('n5.pdf')
+  })
+
+  it('falha na consulta não derruba o contexto', async () => {
+    const { prisma } = jest.requireMock('@/lib/prisma')
+    jest.spyOn(console, 'error').mockImplementationOnce(() => {})
+    prisma.anexoAssistente.findMany.mockRejectedValueOnce(new Error('db'))
+    expect(await prepararContexto({ ...base, conversaId: 'c' })).toBe('Hoje é 25/09/2026. Tela aberta: SMIT')
   })
 
   it('sem conversaId ou sem anexos, nada muda', async () => {

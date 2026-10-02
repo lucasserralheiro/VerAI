@@ -2,6 +2,7 @@ import type { AuthUser } from '@/lib/auth'
 import { hojeEmBrasilia } from '@/lib/calendario/tipos'
 import { formatarData } from '@/lib/relatorios-clientes/formatacao'
 import { prisma } from '@/lib/prisma'
+import { textoSeguroDeLinha } from './anexos/seguro'
 import type { FichaAnexo } from './anexos/tipos'
 import { descreverContexto, interpretarRota } from './contexto-pagina'
 import { identificarEntidades } from './entidades'
@@ -34,25 +35,31 @@ const ROTULO_TIPO: Record<string, string> = {
   oficio: 'ofício', email: 'e-mail', conversa: 'conversa', outro: 'documento',
 }
 
-/** O nome vem do usuário: sem quebra de linha nem marcador de citação, e curto. */
-function nomeSeguro(nome: string): string {
-  return nome.replace(/[\r\n]+/g, ' ').replace(/<<<|>>>/g, '').trim().slice(0, 120)
-}
+const MAX_ANEXOS_NO_CONTEXTO = 20
 
 async function descreverAnexos(conversaId: string | undefined, usuarioId: string): Promise<string | null> {
   if (!conversaId) return null
-  const anexos = await prisma.anexoAssistente.findMany({
-    where: { conversaId, conversa: { usuarioId } },
-    select: { id: true, nome: true, status: true, paginas: true, ficha: true },
-    orderBy: { createdAt: 'asc' },
-  })
-  if (anexos.length === 0) return null
+  const encontrados = await prisma.anexoAssistente
+    .findMany({
+      where: { conversaId, conversa: { usuarioId } },
+      select: { id: true, nome: true, status: true, paginas: true, ficha: true },
+      orderBy: { createdAt: 'desc' },
+      take: MAX_ANEXOS_NO_CONTEXTO + 1,
+    })
+    .catch((erro: unknown) => {
+      console.error('[assistente] anexos fora do contexto:', erro)
+      return null
+    })
+  if (!encontrados?.length) return null
+  const temMais = encontrados.length > MAX_ANEXOS_NO_CONTEXTO
+  const anexos = encontrados.slice(0, MAX_ANEXOS_NO_CONTEXTO).reverse()
   const itens = anexos.map((a) => {
-    const nome = nomeSeguro(a.nome)
+    const nome = textoSeguroDeLinha(a.nome, 120)
     if (a.status !== 'ok') return `${nome} (não lido: ${a.status})`
-    const tipo = (a.ficha as FichaAnexo | null)?.tipo
-    const rotulo = ROTULO_TIPO[tipo ?? ''] ?? 'documento'
-    return `${nome} (anexoId: ${a.id}, ${rotulo}, ${a.paginas ?? 0} páginas)`
+    const rotulo = ROTULO_TIPO[(a.ficha as FichaAnexo | null)?.tipo ?? ''] ?? 'documento'
+    const paginas = a.paginas ? `, ${a.paginas} ${a.paginas === 1 ? 'página' : 'páginas'}` : ''
+    return `${nome} (anexoId: ${a.id}, ${rotulo}${paginas})`
   })
+  if (temMais) itens.push('e mais anexos (use anexosDaConversa)')
   return `Anexos desta conversa: ${itens.join('; ')}.`
 }

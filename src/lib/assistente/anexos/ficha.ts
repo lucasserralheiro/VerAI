@@ -1,6 +1,7 @@
 import Decimal from 'decimal.js'
 import { camposPorRegra } from '../fichas/regras'
 import type { PaginaDeTexto } from '../indexacao/trechos'
+import { textoSeguroDeLinha as seguro } from './seguro'
 import { lerConversa } from './conversa'
 import type { FichaAnexo, FormatoAnexo, ItemDocumento, TipoDocumento } from './tipos'
 
@@ -126,13 +127,13 @@ export function fichaDoAnexo(e: {
 const moeda = (v: string) => `R$ ${new Decimal(v).toNumber().toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 export function textoDaFicha(nome: string, f: FichaAnexo): string {
-  const cabeca = [`**${nome}** — ${ROTULO[f.tipo]}`, f.cliente, f.contrato].filter(Boolean).join(' · ')
+  const cabeca = [`**${seguro(nome, 120)}** — ${ROTULO[f.tipo]}`, f.cliente && seguro(f.cliente, 120), f.contrato && seguro(f.contrato, 120)].filter(Boolean).join(' · ')
   const linhas = [cabeca, '']
-  for (const [k, c] of Object.entries(f.campos)) linhas.push(`- ${ROTULO_CAMPO[k] ?? k}: ${c.valor}${c.pagina ? ` (p. ${c.pagina})` : ''}`)
+  for (const [k, c] of Object.entries(f.campos)) linhas.push(`- ${ROTULO_CAMPO[k] ?? k}: ${seguro(c.valor, 200)}${c.pagina ? ` (p. ${c.pagina})` : ''}`)
   if (f.itens) linhas.push(`- ${f.itens} itens com código de serviço${f.somaItens ? ` · soma das linhas ${moeda(f.somaItens)}` : ''}`)
-  if (f.conversa) linhas.push(`- ${f.conversa.mensagens} mensagens de ${f.conversa.participantes.join(', ')}${f.conversa.inicio ? ` · ${f.conversa.inicio} a ${f.conversa.fim}` : ''}`)
-  if (f.anexosDoEmail.length) linhas.push(`- anexos do e-mail (não lidos): ${f.anexosDoEmail.join(', ')}`)
-  for (const a of f.avisos) linhas.push(`- ⚠ ${a}`)
+  if (f.conversa) linhas.push(`- ${f.conversa.mensagens} mensagens de ${f.conversa.participantes.map((p) => seguro(p, 60)).join(', ')}${f.conversa.inicio ? ` · ${f.conversa.inicio} a ${f.conversa.fim}` : ''}`)
+  if (f.anexosDoEmail.length) linhas.push(`- anexos do e-mail (não lidos): ${f.anexosDoEmail.map((a) => seguro(a, 120)).join(', ')}`)
+  for (const a of f.avisos) linhas.push(`- ⚠ ${seguro(a, 300)}`)
   linhas.push('', `Pergunte, por exemplo: ${f.sugestoes.map((s) => `"${s}"`).join(' · ')}`)
   return linhas.join('\n')
 }

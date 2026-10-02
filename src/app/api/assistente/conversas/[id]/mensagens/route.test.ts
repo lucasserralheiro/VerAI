@@ -80,6 +80,7 @@ it('grava a pergunta, chama o agente com histórico em ordem e contexto, e grava
     pergunta: 'qual o saldo?',
     rota: '/clientes/c1',
     recentes: [[{ nome: 'resumoDoCliente', entrada: { clienteId: 'c1' } }]],
+    conversaId: 'conv',
   })
 
   const conferencia = { conferidos: 1, naoConfirmados: [] }

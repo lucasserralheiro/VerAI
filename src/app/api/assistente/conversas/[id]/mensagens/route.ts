@@ -62,7 +62,7 @@ export async function POST(request: NextRequest, { params }: Contexto) {
   const historico = anteriores.reverse().map(({ papel, conteudo }) => ({ papel, conteudo })) as MensagemHistorico[]
   await prisma.mensagemAssistente.create({ data: { conversaId: id, papel: 'usuario', conteudo: pergunta, origem: 'ia' } })
 
-  const contexto = await prepararContexto({ usuario, pergunta, rota: rota ?? null, recentes })
+  const contexto = await prepararContexto({ usuario, pergunta, rota: rota ?? null, recentes, conversaId: id })
 
   const { resposta } = executarAgente(
     { usuario, historico, pergunta, contexto, conversaId: id, abortSignal: AbortSignal.any([request.signal, AbortSignal.timeout(TIMEOUT_MS)]) },

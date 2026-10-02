@@ -92,7 +92,8 @@ models existentes apenas como campo virtual do Prisma (não gera coluna). `Usuar
 | Ver qualquer cliente | todo usuário logado |
 | Editar dados do cliente (contrato, histórico, itens, faturamento, NF, demanda, trâmite, solicitação, termo, responsável, arquivo, documento, análises consolidada/evolução, dados cadastrais) | admin, ou membro (manager/usuário) da gerência dona do cliente |
 | Cliente sem carteira | só admin edita |
-| Pôr/tirar pessoa da equipe, trocar papel | admin, ou manager daquela gerência; o último manager não sai nem vira usuário (só o admin) |
+| Pôr/tirar pessoa com papel **usuário** na equipe | admin, ou manager daquela gerência |
+| Nomear/tirar manager, trocar papel | só admin |
 | Criar/renomear/desativar gerência, mover cliente, nomear manager | só admin |
 | Criar/excluir cliente | só admin (como hoje) |
 
@@ -100,8 +101,9 @@ models existentes apenas como campo virtual do Prisma (não gera coluna). `Usuar
   assistente de uma vez. As funções de leitura ficam com o nome que têm.
 - Em `src/lib/relatorios-clientes/acesso.ts` entram `podeEditarCliente(usuario, clienteId)` e
   `exigirEdicaoCliente(request, clienteId)` / `verificarEdicaoCliente(usuario, clienteId)`, ao lado das de
-  leitura. 403 com mensagem: "Somente leitura: este cliente é da <gerência>." ou "Cliente sem gerência: só o
-  administrador edita."
+  leitura. O 403 mantém `{ error: 'acesso negado' }` (o que testes e telas já esperam) e acrescenta
+  `motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.'`; o nome da gerência a tela mostra
+  pelo selo.
 - `carregarContratoComAcesso` ganha o modo edição (usado só nos métodos de gravação).
 - Papéis `uploader`/`responsavel`/`admin` continuam valendo só como admin × não admin; a regra própria de
   documento (`documentosVisiveisWhere`/`podeVerDocumento`: uploader vê o que enviou, regras de notificação) **não
@@ -161,10 +163,15 @@ régua): SharePoint (estado da última sincronização, conferência e auditoria
 
 ## 5. Subida em duas fases
 
+**Ajuste de 02/10 (plano):** a troca das rotas de gravação para a verificação de edição entra **na Fase A**, com
+uma regra de transição — edita quem é admin, quem é da gerência do cliente **ou quem já tinha o cliente liberado
+em `clientesPermitidos`**. Sem isso, abrir a leitura (que passa por `clienteIdsPermitidos`) abriria também a
+edição de tudo para todos até a Fase B. A Fase B só retira a parte "liberado do jeito antigo".
+
 | Fase | Entra | Efeito no uso |
 |---|---|---|
-| **A — estrutura** | tabelas, regra (§3) com teste, menu "Administração" + painel `/admin` (§4a), `/admin/gerencias`, "Minha gerência", selo e filtro, leitura liberada | todos veem todos os clientes; **ninguém perde edição ainda**; o admin monta as gerências e distribui os clientes pela tela |
-| **B — regra de edição** | `exigirEdicaoCliente` nas rotas de gravação de cliente, `podeEditar` nas telas, teste-régua das rotas, saída da liberação em `/admin/usuarios` | vale "só a gerência edita" — sobe **depois** das carteiras montadas na produção |
+| **A — estrutura** | tabelas, regra (§3) com teste, verificação de edição nas rotas de gravação (com a transição) + régua das rotas, `podeEditar` nas telas, menu "Administração" + painel `/admin` (§4a), `/admin/gerencias`, "Minha gerência", selo e filtro, leitura liberada | todos veem todos os clientes; **ninguém perde edição ainda**; o admin monta as gerências e distribui os clientes pela tela |
+| **B — regra de edição** | sai a transição (`clientesPermitidos`) de `podeEditarCliente`; sai a liberação em `/admin/usuarios` | vale "só a gerência edita" — sobe **depois** das carteiras montadas na produção |
 
 Depois da B validada, migração própria remove a relação `UsuarioClientes`.
 

@@ -109,7 +109,7 @@ export const compararAnexoComContrato = definirFerramenta({
       linhas: typeof linhas
       itens?: { codigo: string; anexo: string | null; verai: string | null; situacao: Situacao }[]
       avisos: string[]
-    } = { anexo: anexo.nome, contrato: contrato.numeroTermo, linhas, avisos }
+    } = { anexo: anexo.nome, contrato: contrato.numeroTermo ?? contrato.id, linhas, avisos }
 
     // Itens: não são gravados; relê o arquivo só quando a ficha achou itens.
     if ((ficha?.itens ?? 0) > 0) {

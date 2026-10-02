@@ -307,7 +307,8 @@ describe('instrução do sistema — ajustes da régua', () => {
   })
   it('dúvida de Excel, Word, e-mail, SEI e ferramentas do escritório é trabalho (:::geral); recusa só para lazer', () => {
     expect(INSTRUCOES_SISTEMA).toMatch(/Excel[\s\S]*Word[\s\S]*e-mail[\s\S]*SEI[\s\S]*:::geral/)
-    expect(INSTRUCOES_SISTEMA).toContain('assunto pessoal')
+    expect(INSTRUCOES_SISTEMA).toContain('cultura geral')
+    expect(INSTRUCOES_SISTEMA).toContain('poema')
     expect(INSTRUCOES_SISTEMA.length).toBeLessThanOrEqual(6000)
   })
 })

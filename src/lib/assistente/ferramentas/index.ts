@@ -15,6 +15,7 @@ import { indiceIpcFipe, reajustesCalculados, simularReajuste } from './reajuste'
 import { controleDoFaturamento } from './controles'
 import { linksMpls } from './links'
 import { anexosDaConversa, lerAnexo } from './anexos'
+import { compararAnexoComContrato } from './anexo-contrato'
 
 export { ROTULOS_FERRAMENTAS } from './rotulos'
 
@@ -47,6 +48,7 @@ export const FERRAMENTAS: Record<string, Ferramenta> = {
   linksMpls,
   anexosDaConversa,
   lerAnexo,
+  compararAnexoComContrato,
 } as Record<string, Ferramenta>
 
 export async function executarComSeguranca(

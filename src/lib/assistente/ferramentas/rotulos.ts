@@ -28,4 +28,5 @@ export const ROTULOS_FERRAMENTAS: Record<string, string> = {
   linksMpls: 'Consultando os links MPLS',
   anexosDaConversa: 'Conferindo os anexos',
   lerAnexo: 'Lendo o anexo',
+  compararAnexoComContrato: 'Comparando com o contrato',
 }

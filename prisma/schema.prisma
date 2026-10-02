@@ -21,6 +21,7 @@ model Usuario {
   arquivosEnviados   ArquivoCliente[]  @relation("ArquivosEnviados")
   acessosArquivo     AcessoArquivo[]   @relation("AcessosArquivo")
   reajustes          ReajusteExecucao[]
+  gerencias          MembroGerencia[]
 }
 
 model Cliente {
@@ -45,6 +46,8 @@ model Cliente {
   demandas             Demanda[]
   solicitacoes         Solicitacao[]
   arquivos             ArquivoCliente[]
+  carteira             CarteiraCliente?
+  movimentosCarteira   MovimentoCarteira[]
 }
 
 // ---------------------------------------------------------------------------
@@ -1136,4 +1139,57 @@ model ReajusteExecucao {
   createdAt         DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Gerências e carteira de clientes — docs/superpowers/specs/2026-10-02-gerencias-carteira-clientes-design.md.
+// Só tabelas novas: o agendador do SharePoint roda este cliente Prisma contra produção.
+// ---------------------------------------------------------------------------
+
+model Gerencia {
+  id        String            @id @default(cuid())
+  nome      String            @unique
+  sigla     String?           @unique
+  ativa     Boolean           @default(true)
+  createdAt DateTime          @default(now())
+  membros   MembroGerencia[]
+  carteira  CarteiraCliente[]
+}
+
+model MembroGerencia {
+  id         String   @id @default(cuid())
+  gerenciaId String
+  gerencia   Gerencia @relation(fields: [gerenciaId], references: [id])
+  usuarioId  String
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  papel      String // manager | usuario
+  createdAt  DateTime @default(now())
+
+  @@unique([gerenciaId, usuarioId])
+  @@index([usuarioId])
+}
+
+model CarteiraCliente {
+  clienteId   String   @id
+  cliente     Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  gerenciaId  String
+  gerencia    Gerencia @relation(fields: [gerenciaId], references: [id])
+  movidoEm    DateTime @default(now())
+  movidoPorId String?
+
+  @@index([gerenciaId])
+}
+
+// Trilha de "quem mudou o cliente de carteira e quando". Gerências nunca são apagadas (só desativadas),
+// então de/para são ids simples, resolvidos para nome na leitura.
+model MovimentoCarteira {
+  id             String   @id @default(cuid())
+  clienteId      String
+  cliente        Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  deGerenciaId   String?
+  paraGerenciaId String?
+  porId          String?
+  em             DateTime @default(now())
+
+  @@index([clienteId])
 }

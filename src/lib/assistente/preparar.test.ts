@@ -40,3 +40,10 @@ it('período reconhece data de Brasília (UTC−3)', async () => {
   expect(r).toContain('Hoje é 30/09/2026. ')
   expect(r).toContain('Período citado: 01/08/2026 a 31/08/2026 (competência 2026-08).')
 })
+
+it('dúvida de trabalho: avisa na mensagem que não é caso de recusa', async () => {
+  const texto = await prepararContexto({ usuario, pergunta: 'como corrijo uma fórmula PROCV no Excel?', rota: null, recentes: [], hoje: new Date('2026-09-25T15:00:00Z') })
+  expect(texto).toContain('Tipo da pergunta: dúvida de trabalho — se o VerAI não tiver o dado, responda dentro de :::geral; não use a frase de recusa.')
+  const outra = await prepararContexto({ usuario, pergunta: 'qual a capital da França?', rota: null, recentes: [], hoje: new Date('2026-09-25T15:00:00Z') })
+  expect(outra).not.toContain('Tipo da pergunta')
+})

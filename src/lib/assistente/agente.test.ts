@@ -274,7 +274,7 @@ describe('instrução do sistema — ajustes da régua', () => {
     expect(INSTRUCOES_SISTEMA).toContain('omita mesInicial e mesFinal')
   })
   it('dúvida de Excel, Word, e-mail, SEI e ferramentas do escritório é trabalho (:::geral); recusa só para lazer', () => {
-    expect(INSTRUCOES_SISTEMA).toMatch(/Excel.*Word.*e-mail.*SEI.*:::geral/s)
+    expect(INSTRUCOES_SISTEMA).toMatch(/Excel[sS]*Word[sS]*e-mail[sS]*SEI[sS]*:::geral/)
     expect(INSTRUCOES_SISTEMA).toContain('assunto pessoal')
     expect(INSTRUCOES_SISTEMA.length).toBeLessThanOrEqual(6000)
   })

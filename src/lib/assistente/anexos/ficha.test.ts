@@ -11,6 +11,8 @@ it.each([
   ['msg.eml', '', 'eml', 'email'],
   ['conversa-2026-10-02-1000.txt', '01/10/2026 09:12 - Ana: oi\n01/10/2026 09:13 - Lucas: oi', 'txt', 'conversa'],
   ['x.pdf', 'texto sem pista', 'pdf', 'outro'],
+  ['doc.pdf', 'OFÍCIO Nº 12/2026\nSenhor Diretor', 'pdf', 'oficio'],
+  ['arquivo.pdf', 'MEMORANDO 3', 'pdf', 'oficio'],
   ['PA 001-2025 SMS - Proposta Comercial.pdf', '', 'pdf', 'proposta'],
   ['TA 03 - Prorrogação.pdf', '', 'pdf', 'termo'],
   ['TC 52-SMIT-2024 assinado.pdf', '', 'pdf', 'termo'],

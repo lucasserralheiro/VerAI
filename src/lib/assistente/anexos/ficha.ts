@@ -32,7 +32,7 @@ export function tipoDoDocumento(nome: string, texto: string, formato: FormatoAne
   if (/proposta comercial/.test(t)) return 'proposta'
   if (/termo (aditivo|de contrato)|apostilamento/.test(t)) return 'termo'
   if (/controle de contratos/.test(t)) return 'controle'
-  if (/^s*(oficio|memorando|despacho)/m.test(t)) return 'oficio'
+  if (/^\s*(oficio|memorando|despacho)\b/m.test(t)) return 'oficio'
   if (formato === 'xlsx' || formato === 'csv') return 'planilha'
   return 'outro'
 }

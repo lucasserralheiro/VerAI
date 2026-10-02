@@ -10,7 +10,7 @@ jest.mock('@/lib/prisma', () => ({
   prisma: {
     itemContrato: { findUnique: jest.fn(), update: jest.fn(), delete: jest.fn() },
     contrato: { findUnique: jest.fn() },
-    cliente: { count: jest.fn() },
+    cliente: { count: jest.fn(), findUnique: jest.fn() },
     usuario: { findUnique: jest.fn() },
   },
 }))
@@ -163,6 +163,78 @@ describe('DELETE /api/itens-contrato/[id]', () => {
     const resposta = await DELETE(del(), contexto)
     expect(resposta.status).toBe(200)
     expect(prisma.itemContrato.delete).toHaveBeenCalledWith({ where: { id: 'i1' } })
+  })
+})
+
+describe('item sem contrato (órfão)', () => {
+  const MOTIVO = 'Somente leitura: só a equipe da gerência deste cliente edita.'
+  beforeEach(() => {
+    ;(prisma.itemContrato.findUnique as jest.Mock).mockResolvedValue({ ...itemSolto, clienteSiglaLegado: 'SMS' })
+    ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue({ id: 'cSMS' })
+  })
+
+  it('PATCH 403 para quem não edita o cliente da sigla do legado', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+    const resposta = await PATCH(patch({ descricao: 'X' }), contexto)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toEqual({ error: 'acesso negado', motivo: MOTIVO })
+    expect(prisma.itemContrato.update).not.toHaveBeenCalled()
+  })
+
+  it('DELETE 403 para quem não edita o cliente da sigla do legado', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+    expect((await DELETE(del(), contexto)).status).toBe(403)
+    expect(prisma.itemContrato.delete).not.toHaveBeenCalled()
+  })
+
+  it('sem cliente da sigla, só admin edita: comum 403 com motivo', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue(null)
+    const resposta = await DELETE(del(), contexto)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toEqual({ error: 'acesso negado', motivo: MOTIVO })
+  })
+
+  it('admin edita e exclui, com ou sem cliente da sigla', async () => {
+    ;(prisma.cliente.findUnique as jest.Mock).mockResolvedValue(null)
+    expect((await PATCH(patch({ descricao: 'X' }), contexto)).status).toBe(200)
+    expect((await DELETE(del(), contexto)).status).toBe(200)
+  })
+
+  it('membro da gerência do cliente da sigla edita', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [{ gerenciaId: 'g1' }] })
+    expect((await DELETE(del(), contexto)).status).toBe(200)
+  })
+
+  it('item sem sigla e sem contrato: só admin edita', async () => {
+    ;(prisma.itemContrato.findUnique as jest.Mock).mockResolvedValue(itemSolto)
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    expect((await DELETE(del(), contexto)).status).toBe(403)
+    ;(getAuthUser as jest.Mock).mockResolvedValue(admin)
+    expect((await DELETE(del(), contexto)).status).toBe(200)
+  })
+})
+
+describe('vincular a contrato de destino (editar)', () => {
+  it('PATCH 403 com motivo quando o usuário não edita o cliente do contrato de destino', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    // edita o cliente do item (c1) mas não o do destino (c2)
+    ;(prisma.usuario.findUnique as jest.Mock).mockImplementation(({ select }: { select: { clientesPermitidos: { where: { id: string } } } }) =>
+      Promise.resolve({
+        clientesPermitidos: [],
+        gerencias: select.clientesPermitidos.where.id === 'c1' ? [{ gerenciaId: 'g1' }] : [],
+      })
+    )
+    ;(prisma.contrato.findUnique as jest.Mock).mockResolvedValue({ clienteId: 'c2', cliente: { siglaLegado: null } })
+    const resposta = await PATCH(patch({ contratoId: 'k2' }), contexto)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+    expect(prisma.itemContrato.update).not.toHaveBeenCalled()
   })
 })
 

@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type { AuthUser } from '@/lib/auth'
-import { exigirUsuario, verificarAcessoCliente, type ModoAcesso } from '@/lib/relatorios-clientes/acesso'
+import {
+  MOTIVO_SOMENTE_LEITURA,
+  exigirUsuario,
+  verificarAcessoCliente,
+  type ModoAcesso,
+} from '@/lib/relatorios-clientes/acesso'
 import { respostaErroPrisma } from '@/lib/relatorios-clientes/erros-prisma'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
 import { podeVerItensSemContrato } from '@/app/api/contratos/carregar'
@@ -19,8 +24,22 @@ type Contexto = { params: Promise<{ id: string }> }
 
 const NAO_ENCONTRADO = 'item não encontrado'
 
-async function negarSemAcesso(usuario: AuthUser, clienteId: string | undefined, modo: ModoAcesso) {
+async function negarSemAcesso(
+  usuario: AuthUser,
+  clienteId: string | undefined,
+  modo: ModoAcesso,
+  siglaLegado: string | null
+) {
   if (clienteId) return verificarAcessoCliente(usuario, clienteId, modo)
+  if (modo === 'editar') {
+    // Item órfão: o dono é o cliente da sigla do legado; sem ele (ou sem sigla), só admin edita.
+    const sigla = siglaLegado?.trim()
+    const cliente = sigla ? await prisma.cliente.findUnique({ where: { siglaLegado: sigla }, select: { id: true } }) : null
+    if (cliente) return verificarAcessoCliente(usuario, cliente.id, 'editar')
+    return usuario.role === 'admin'
+      ? null
+      : NextResponse.json({ error: 'acesso negado', motivo: MOTIVO_SOMENTE_LEITURA }, { status: 403 })
+  }
   return (await podeVerItensSemContrato(usuario))
     ? null
     : NextResponse.json({ error: 'acesso negado' }, { status: 403 })
@@ -45,7 +64,7 @@ async function carregarComAcesso(request: NextRequest, id: string, modo: ModoAce
   })
   if (!item) return { erro: NextResponse.json({ error: NAO_ENCONTRADO }, { status: 404 }) }
 
-  const negado = await negarSemAcesso(autenticado.usuario, item.contrato?.clienteId, modo)
+  const negado = await negarSemAcesso(autenticado.usuario, item.contrato?.clienteId, modo, item.clienteSiglaLegado)
   return negado ? { erro: negado } : { usuario: autenticado.usuario, item }
 }
 

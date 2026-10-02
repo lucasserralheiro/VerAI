@@ -14,6 +14,8 @@ interface Props {
   onMudou: () => void
 }
 
+type ClienteAdicionavel = ClienteCarteira & { gerencia?: { id: string; nome: string } | null }
+
 async function moverCarteira(clienteIds: string[], gerenciaId: string | null, onErro: Props['onErro']) {
   const resposta = await fetch('/api/admin/gerencias/carteira', {
     method: 'POST',
@@ -29,31 +31,38 @@ async function moverCarteira(clienteIds: string[], gerenciaId: string | null, on
 
 export function CarteiraGerencia({ gerenciaId, carteira, modoAdmin, onErro, onMudou }: Props) {
   const [aberta, setAberta] = useState(false)
-  const [todos, setTodos] = useState<ClienteCarteira[]>([])
-  const [soltos, setSoltos] = useState<string[]>([])
+  const [todos, setTodos] = useState<ClienteAdicionavel[]>([])
   const [selecionados, setSelecionados] = useState<string[]>([])
   const [busca, setBusca] = useState('')
+  const [confirmando, setConfirmando] = useState(false)
 
   async function abrir() {
     onErro(null)
-    const [rc, rs] = await Promise.all([fetch('/api/clientes'), fetch('/api/admin/gerencias/sem-gerencia')])
-    if (!rc.ok) return onErro(await erroDaResposta(rc, 'Falha ao carregar clientes.'))
-    const lista = (await rc.json()) as ClienteCarteira[]
-    const semGerencia = rs.ok ? ((await rs.json()) as ClienteCarteira[]) : []
+    const resposta = await fetch('/api/clientes')
+    if (!resposta.ok) return onErro(await erroDaResposta(resposta, 'Falha ao carregar clientes.'))
+    const lista = (await resposta.json()) as ClienteAdicionavel[]
     const naCarteira = new Set(carteira.map((c) => c.id))
     setTodos(lista.filter((c) => !naCarteira.has(c.id)))
-    setSoltos(semGerencia.map((c) => c.id))
     setSelecionados([])
     setBusca('')
+    setConfirmando(false)
     setAberta(true)
   }
 
-  async function adicionar() {
-    if (selecionados.length === 0) return
+  const deOutraGerencia = todos.filter((c) => selecionados.includes(c.id) && c.gerencia && c.gerencia.id !== gerenciaId)
+
+  async function mover() {
     if (await moverCarteira(selecionados, gerenciaId, onErro)) {
       setAberta(false)
+      setConfirmando(false)
       onMudou()
     }
+  }
+
+  function adicionar() {
+    if (selecionados.length === 0) return
+    if (deOutraGerencia.length > 0) return setConfirmando(true)
+    void mover()
   }
 
   async function tirar(id: string) {
@@ -63,8 +72,7 @@ export function CarteiraGerencia({ gerenciaId, carteira, modoAdmin, onErro, onMu
 
   const opcoes = todos.map((c) => ({
     ...c,
-    // O nome da outra gerência só chega com a Task 14; por ora o rótulo é genérico.
-    rotulo: soltos.includes(c.id) ? undefined : 'está em outra gerência — mover para cá',
+    rotulo: c.gerencia ? `está na ${c.gerencia.nome} — mover para cá` : undefined,
   }))
 
   return (
@@ -83,18 +91,38 @@ export function CarteiraGerencia({ gerenciaId, carteira, modoAdmin, onErro, onMu
           <ClientesSelecionaveis
             clientes={opcoes}
             selecionados={selecionados}
-            onAlternar={(id) => setSelecionados((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
+            onAlternar={(id) => {
+              setConfirmando(false)
+              setSelecionados((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
+            }}
             busca={busca}
             onBusca={setBusca}
           />
-          <div className="flex gap-2">
-            <button type="button" onClick={adicionar} disabled={selecionados.length === 0} className={`${BTN_PRIMARY} disabled:opacity-40`}>
-              Adicionar à carteira
-            </button>
-            <button type="button" onClick={() => setAberta(false)} className={BTN_OUTLINE_SM}>
-              Cancelar
-            </button>
-          </div>
+          {confirmando ? (
+            <div role="alert" className="space-y-2 rounded-lg border border-orange/30 bg-orange/5 px-3 py-2 text-sm text-navy">
+              <p>
+                {deOutraGerencia.length} cliente(s) sairão de outra gerência:{' '}
+                {deOutraGerencia.map((c) => `${c.siglaLegado ?? c.nome} (${c.gerencia?.nome})`).join(', ')}.
+              </p>
+              <div className="flex gap-2">
+                <button type="button" onClick={mover} className={BTN_PRIMARY}>
+                  Confirmar mudança
+                </button>
+                <button type="button" onClick={() => setConfirmando(false)} className={BTN_OUTLINE_SM}>
+                  Cancelar mudança
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <button type="button" onClick={adicionar} disabled={selecionados.length === 0} className={`${BTN_PRIMARY} disabled:opacity-40`}>
+                Adicionar à carteira
+              </button>
+              <button type="button" onClick={() => setAberta(false)} className={BTN_OUTLINE_SM}>
+                Cancelar
+              </button>
+            </div>
+          )}
         </div>
       )}
       {carteira.length === 0 ? (

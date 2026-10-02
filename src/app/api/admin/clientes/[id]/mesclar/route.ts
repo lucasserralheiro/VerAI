@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { exigirAdmin } from '@/lib/relatorios-clientes/acesso'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const admin = await exigirAdmin(request)
+  if ('erro' in admin) return admin.erro
   const { id } = await params
   const body = await request.json().catch(() => null)
   const destinoClienteId = body?.destinoClienteId
@@ -57,7 +60,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ...(carteiraOrigem && !carteiraDestino
         ? [
             prisma.carteiraCliente.create({
-              data: { clienteId: destinoClienteId, gerenciaId: carteiraOrigem.gerenciaId, movidoPorId: null },
+              data: { clienteId: destinoClienteId, gerenciaId: carteiraOrigem.gerenciaId, movidoPorId: admin.usuario.id },
+            }),
+            // A herança fica no histórico da carteira: sem isso o destino aparece com gerência sem movimento.
+            prisma.movimentoCarteira.create({
+              data: {
+                clienteId: destinoClienteId,
+                deGerenciaId: null,
+                paraGerenciaId: carteiraOrigem.gerenciaId,
+                porId: admin.usuario.id,
+              },
             }),
           ]
         : []),

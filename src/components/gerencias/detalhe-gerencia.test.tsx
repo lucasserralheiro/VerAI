@@ -61,4 +61,46 @@ describe('DetalheGerencia', () => {
       expect(JSON.parse(String(c?.init?.body))).toEqual({ clienteIds: ['c1'], gerenciaId: null })
     })
   })
+
+  describe('adicionar clientes (admin)', () => {
+    const clientes = [
+      { id: 'c1', nome: 'SMIT', siglaLegado: 'SMIT', gerencia: { id: 'g1', nome: 'Gerência X' } },
+      { id: 'c2', nome: 'SMS', siglaLegado: 'SMS', gerencia: null },
+      { id: 'c3', nome: 'SME', siglaLegado: 'SME', gerencia: { id: 'g9', nome: 'Gerência Y' } },
+    ]
+    const corpoDoPost = (chamadas: { url: string; init?: RequestInit }[]) =>
+      chamadas.filter((x) => x.url === '/api/admin/gerencias/carteira').map((x) => JSON.parse(String(x.init?.body)))
+
+    async function abrirLista(chamadas: { url: string }[]) {
+      render(<DetalheGerencia gerenciaId="g1" modo="admin" />)
+      fireEvent.click(await screen.findByRole('button', { name: /Adicionar clientes/ }))
+      await screen.findByLabelText('Selecionar SMS')
+      expect(chamadas.some((x) => x.url === '/api/admin/gerencias/sem-gerencia')).toBe(false)
+    }
+
+    it('rotula o cliente de outra gerência com o nome dela e não pergunta quando só há clientes sem gerência', async () => {
+      const chamadas = mockFetch({}, { '/api/clientes': clientes })
+      await abrirLista(chamadas)
+      expect(screen.getByText('está na Gerência Y — mover para cá')).toBeInTheDocument()
+      expect(screen.queryByLabelText('Selecionar SMIT')).toBeNull()
+      fireEvent.click(screen.getByLabelText('Selecionar SMS'))
+      fireEvent.click(screen.getByRole('button', { name: 'Adicionar à carteira' }))
+      await waitFor(() => expect(corpoDoPost(chamadas)).toEqual([{ clienteIds: ['c2'], gerenciaId: 'g1' }]))
+    })
+
+    it('pede confirmação na própria página antes de tirar cliente de outra gerência', async () => {
+      const chamadas = mockFetch({}, { '/api/clientes': clientes })
+      await abrirLista(chamadas)
+      fireEvent.click(screen.getByLabelText('Selecionar SME'))
+      fireEvent.click(screen.getByRole('button', { name: 'Adicionar à carteira' }))
+      expect(await screen.findByText('1 cliente(s) sairão de outra gerência: SME (Gerência Y).')).toBeInTheDocument()
+      expect(corpoDoPost(chamadas)).toEqual([])
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar mudança' }))
+      expect(screen.queryByText(/de outra gerência: SME/)).toBeNull()
+      expect(corpoDoPost(chamadas)).toEqual([])
+      fireEvent.click(screen.getByRole('button', { name: 'Adicionar à carteira' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Confirmar mudança' }))
+      await waitFor(() => expect(corpoDoPost(chamadas)).toEqual([{ clienteIds: ['c3'], gerenciaId: 'g1' }]))
+    })
+  })
 })

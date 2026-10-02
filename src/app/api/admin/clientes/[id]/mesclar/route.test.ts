@@ -1,4 +1,5 @@
 /** @jest-environment node */
+jest.mock('@/lib/auth', () => ({ ...jest.requireActual('@/lib/auth'), getAuthUser: jest.fn() }))
 jest.mock('@/lib/prisma', () => {
   const modelos = [
     'documento', 'analiseConsolidada', 'analiseEvolucao', 'contrato', 'faturamento', 'termoConfirmacao',
@@ -15,10 +16,12 @@ jest.mock('@/lib/prisma', () => {
     carteiraCliente: { findUnique: jest.fn(), create: jest.fn((a: unknown) => ({ op: 'carteira.create', a })) },
   }
   for (const m of modelos) prisma[m] = { updateMany: jest.fn((a: unknown) => ({ op: `${m}.updateMany`, a })) }
+  ;(prisma.movimentoCarteira as Record<string, unknown>).create = jest.fn((a: unknown) => ({ op: 'movimento.create', a }))
   return { prisma }
 })
 
 import { NextRequest } from 'next/server'
+import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { POST } from './route'
 
@@ -40,6 +43,7 @@ function carteiras(origem: unknown, destino: unknown) {
 
 beforeEach(() => {
   jest.clearAllMocks()
+  ;(getAuthUser as jest.Mock).mockResolvedValue({ id: 'adm1', nome: 'Admin', email: 'a@x', role: 'admin' })
   p.cliente.findUnique.mockImplementation(({ where }: { where: { id: string } }) =>
     Promise.resolve({ id: where.id, siglaLegado: null, usuariosPermitidos: [] })
   )
@@ -53,8 +57,13 @@ it('origem com carteira e destino sem: move os movimentos e cria a carteira do d
   const nomes = ops.map((o) => o.op)
   expect(p.movimentoCarteira.updateMany).toHaveBeenCalledWith({ where: { clienteId: 'o1' }, data: { clienteId: 'd1' } })
   expect(p.carteiraCliente.create).toHaveBeenCalledWith({
-    data: { clienteId: 'd1', gerenciaId: 'g1', movidoPorId: null },
+    data: { clienteId: 'd1', gerenciaId: 'g1', movidoPorId: 'adm1' },
   })
+  expect(p.movimentoCarteira.create).toHaveBeenCalledWith({
+    data: { clienteId: 'd1', deGerenciaId: null, paraGerenciaId: 'g1', porId: 'adm1' },
+  })
+  expect(nomes.indexOf('movimento.create')).toBeGreaterThan(-1)
+  expect(nomes.indexOf('movimento.create')).toBeLessThan(nomes.indexOf('cliente.delete'))
   expect(nomes.indexOf('movimentoCarteira.updateMany')).toBeLessThan(nomes.indexOf('cliente.delete'))
   expect(nomes.indexOf('carteira.create')).toBeGreaterThan(-1)
   expect(nomes.indexOf('carteira.create')).toBeLessThan(nomes.indexOf('cliente.delete'))
@@ -64,5 +73,12 @@ it('destino com carteira: mantém a dele', async () => {
   carteiras({ clienteId: 'o1', gerenciaId: 'g1' }, { clienteId: 'd1', gerenciaId: 'g2' })
   await chamar()
   expect(p.carteiraCliente.create).not.toHaveBeenCalled()
+  expect(p.movimentoCarteira.create).not.toHaveBeenCalled()
   expect(p.movimentoCarteira.updateMany).toHaveBeenCalled()
+})
+
+it('403 para quem não é admin', async () => {
+  ;(getAuthUser as jest.Mock).mockResolvedValue({ id: 'u2', nome: 'C', email: 'c@x', role: 'responsavel' })
+  expect((await chamar()).status).toBe(403)
+  expect(prisma.$transaction).not.toHaveBeenCalled()
 })

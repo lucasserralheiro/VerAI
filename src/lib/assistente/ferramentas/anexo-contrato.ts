@@ -9,13 +9,27 @@ import { anexoDoUsuario } from '@/lib/assistente/anexos/acesso'
 import { htmlDoAnexo } from '@/lib/assistente/anexos/extrair'
 import { CODIGO_SERVICO, itensDasTabelas } from '@/lib/assistente/anexos/itens'
 import { getR2 } from '@/lib/r2'
+import { tabela } from './compacto'
 import { data, definirFerramenta, moeda, NAO_ENCONTRADO, semAcento } from './comum'
 
 // Compara o documento anexado com o contrato do VerAI, campo a campo. A comparação é do código; a IA
 // só lê a tabela pronta. Somente leitura.
 
-type Situacao = 'igual' | 'diferente' | 'só no anexo' | 'só no VerAI'
+type Situacao = 'igual' | 'parecido' | 'diferente' | 'só no anexo' | 'só no VerAI'
+type LinhaComparada = { campo: string; anexo: string | null; verai: string | null; situacao: Situacao }
+type ItemComparado = { codigo: string; anexo: string | null; verai: string | null; situacao: Situacao }
+interface SaidaComparacao {
+  anexo: string
+  contrato: string
+  avisos: string[]
+  linhas: LinhaComparada[]
+  itensDivergentes?: ItemComparado[]
+  itensIguais?: number
+}
+
 const CORTE_OBJETO = 200
+const MAX_AVISOS_MODELO = 5
+const ORDEM_DIVERGENCIA: Situacao[] = ['diferente', 'só no anexo', 'só no VerAI']
 
 function situacaoDe(anexo: string | null, verai: string | null, igual: () => boolean): Situacao {
   if (anexo !== null && verai === null) return 'só no anexo'
@@ -24,19 +38,24 @@ function situacaoDe(anexo: string | null, verai: string | null, igual: () => boo
 }
 
 const cortar = (t: string) => (t.length > CORTE_OBJETO ? `${t.slice(0, CORTE_OBJETO)}…` : t)
-const normalizarTexto = (t: string) => semAcento(t).replace(/\s+/g, ' ').trim()
+const normalizarTexto = (t: string) => semAcento(t).replace(/[^a-z0-9]+/g, ' ').trim()
 
-/** 'igual' se um contém o outro OU se ≥ 80% das palavras de 4+ letras do menor estão no maior. */
-function objetosParecidos(a: string, b: string): boolean {
+// Vocabulário comum de TI/contratos: não prova que o objeto é o mesmo.
+const GENERICAS = new Set([
+  'prestacao', 'servicos', 'servico', 'tecnologia', 'informacao', 'comunicacao', 'contratacao', 'empresa', 'especializada', 'fornecimento',
+  'objeto', 'presente', 'termo', 'contrato', 'prefeitura', 'municipio', 'sao', 'paulo', 'prodam', 'para', 'com', 'dos', 'das', 'pelo', 'pela',
+])
+
+/** 'igual' só com o mesmo texto normalizado; 'parecido' se >= 80% das palavras específicas (>= 4 sobrando) do menor estão no maior. */
+function situacaoDoObjeto(a: string, b: string): Situacao {
   const x = normalizarTexto(a)
   const y = normalizarTexto(b)
-  if (!x || !y) return false
-  if (x.includes(y) || y.includes(x)) return true
-  const [menor, maior] = x.length <= y.length ? [x, y] : [y, x]
-  const palavras = [...new Set(menor.match(/[a-z]{4,}/g) ?? [])]
-  if (palavras.length === 0) return false
-  const noMaior = new Set(maior.match(/[a-z]{4,}/g) ?? [])
-  return palavras.filter((p) => noMaior.has(p)).length / palavras.length >= 0.8
+  if (x === y) return 'igual'
+  const especificas = (t: string) => new Set(t.split(' ').filter((p) => p.length >= 4 && !GENERICAS.has(p)))
+  const [pa, pb] = [especificas(x), especificas(y)]
+  const [menor, maior] = pa.size <= pb.size ? [pa, pb] : [pb, pa]
+  if (menor.size < 4) return 'diferente'
+  return [...menor].filter((p) => maior.has(p)).length / menor.size >= 0.8 ? 'parecido' : 'diferente'
 }
 
 function decimalDe(texto: string | null | undefined): Decimal | null {
@@ -47,13 +66,31 @@ function decimalDe(texto: string | null | undefined): Decimal | null {
 
 const iguais = (a: Decimal, b: Decimal) => a.toDecimalPlaces(2).equals(b.toDecimalPlaces(2))
 
+/** Texto ao modelo: avisos e divergências primeiro (o corte de 8.000 caracteres tira o fim). */
+function compactarComparacao(saida: unknown): string {
+  const s = saida as SaidaComparacao
+  const partes = [`anexo: ${s.anexo}`, `contrato: ${s.contrato}`]
+  if (s.avisos.length > 0) {
+    const mostrados = s.avisos.slice(0, MAX_AVISOS_MODELO)
+    const resto = s.avisos.length - mostrados.length
+    partes.push(`avisos: ${mostrados.join('; ')}${resto > 0 ? `; … e mais ${resto}` : ''}`)
+  }
+  partes.push(tabela('linhas', s.linhas as unknown as Record<string, unknown>[]))
+  if (s.itensDivergentes !== undefined) {
+    partes.push(tabela('itensDivergentes', s.itensDivergentes as unknown as Record<string, unknown>[]))
+    partes.push(`itensIguais: ${s.itensIguais ?? 0}`)
+  }
+  return partes.join('\n')
+}
+
 export const compararAnexoComContrato = definirFerramenta({
   descricao:
-    'Compara o documento anexado com o contrato do VerAI, campo a campo (valor, início, fim, objeto e itens). Use para "bate com o contrato?", "o que mudou?", "esse aditivo confere?". A comparação é feita pelo código; a tabela devolvida é o resultado.',
+    'Compara o documento anexado com o contrato do VerAI, campo a campo (valor, início, fim, objeto e itens). Use para "bate com o contrato?", "o que mudou?", "esse aditivo confere?". A comparação é feita pelo código; a tabela devolvida é o resultado. Situações: igual, diferente, só no anexo, só no VerAI e, só no objeto, parecido: o objeto é semelhante, confira o texto. Dos itens vêm só as divergências e a contagem dos iguais.',
   entrada: z.object({
     anexoId: z.string().min(1).describe('id do anexo (vem de anexosDaConversa)'),
     contratoId: z.string().min(1).optional().describe('contrato a comparar; sem ele, o que a ficha do anexo identificou'),
   }),
+  compactar: compactarComparacao,
   async executar({ anexoId, contratoId }, { usuario, hoje }) {
     const anexo = await anexoDoUsuario(anexoId, usuario)
     if (!anexo) return NAO_ENCONTRADO
@@ -68,7 +105,7 @@ export const compararAnexoComContrato = definirFerramenta({
 
     const avisos: string[] = []
     const campos = ficha?.campos ?? {}
-    const linhas: { campo: string; anexo: string | null; verai: string | null; situacao: Situacao }[] = []
+    const linhas: LinhaComparada[] = []
 
     // Valor
     const valorFicha = campos.valorTotal?.valor ?? null
@@ -96,20 +133,15 @@ export const compararAnexoComContrato = definirFerramenta({
     // Objeto
     const objAnexo = campos.objeto?.valor?.trim() || null
     const objVerai = contrato.descricao?.trim() || null
+    const situacaoObjeto = objAnexo !== null && objVerai !== null ? situacaoDoObjeto(objAnexo, objVerai) : situacaoDe(objAnexo, objVerai, () => false)
     linhas.push({
       campo: 'Objeto',
       anexo: objAnexo === null ? null : cortar(objAnexo),
       verai: objVerai === null ? null : cortar(objVerai),
-      situacao: situacaoDe(objAnexo, objVerai, () => objetosParecidos(objAnexo!, objVerai!)),
+      situacao: situacaoObjeto,
     })
 
-    const saida: {
-      anexo: string
-      contrato: string
-      linhas: typeof linhas
-      itens?: { codigo: string; anexo: string | null; verai: string | null; situacao: Situacao }[]
-      avisos: string[]
-    } = { anexo: anexo.nome, contrato: contrato.numeroTermo ?? contrato.id, linhas, avisos }
+    const saida: SaidaComparacao = { anexo: anexo.nome, contrato: contrato.numeroTermo ?? contrato.id, avisos, linhas }
 
     // Itens: não são gravados; relê o arquivo só quando a ficha achou itens.
     if ((ficha?.itens ?? 0) > 0) {
@@ -122,22 +154,36 @@ export const compararAnexoComContrato = definirFerramenta({
           where: { contratoId: contrato.id },
           select: { descricao: true, quantidade: true, valorUnitario: true, valorTotal: true },
         })
+        const repetidos = new Set<string>()
+        const repetido = (codigo: string) => {
+          if (repetidos.has(codigo)) return
+          repetidos.add(codigo)
+          avisos.push(`código ${codigo} repetido; comparado o primeiro`)
+        }
         const porCodigo = new Map<string, (typeof doContrato)[number]>()
         let semCodigo = 0
         for (const i of doContrato) {
           const codigo = i.descricao ? CODIGO_SERVICO.exec(i.descricao)?.[0] : undefined
           if (!codigo) semCodigo++
-          else if (!porCodigo.has(codigo)) porCodigo.set(codigo, i)
+          else if (porCodigo.has(codigo)) repetido(codigo)
+          else porCodigo.set(codigo, i)
         }
-        const itens: NonNullable<typeof saida.itens> = []
+        const itens: ItemComparado[] = []
         const vistos = new Set<string>()
+        let ilegiveis = 0
+        const valorLegivel = (dec: Decimal | null) => {
+          if (!dec) ilegiveis++
+          return dec ? moeda(dec.toFixed(2)) : null
+        }
         for (const a of doAnexo) {
-          if (vistos.has(a.codigo)) continue
+          if (vistos.has(a.codigo)) {
+            repetido(a.codigo)
+            continue
+          }
           vistos.add(a.codigo)
           const v = porCodigo.get(a.codigo)
           if (!v) {
-            const dec = decimalDe(a.unitario ?? a.total)
-            itens.push({ codigo: a.codigo, anexo: dec ? moeda(dec.toFixed(2)) : '—', verai: null, situacao: 'só no anexo' })
+            itens.push({ codigo: a.codigo, anexo: valorLegivel(decimalDe(a.unitario ?? a.total)), verai: null, situacao: 'só no anexo' })
             continue
           }
           // Unitário; sem unitário no anexo, o total.
@@ -146,7 +192,7 @@ export const compararAnexoComContrato = definirFerramenta({
           const decV = new Decimal((usarUnitario ? v.valorUnitario : v.valorTotal)!.toString())
           itens.push({
             codigo: a.codigo,
-            anexo: decA ? moeda(decA.toFixed(2)) : '—',
+            anexo: valorLegivel(decA),
             verai: moeda(decV.toFixed(2)),
             situacao: decA && iguais(decA, decV) ? 'igual' : 'diferente',
           })
@@ -156,8 +202,10 @@ export const compararAnexoComContrato = definirFerramenta({
           const dec = v.valorUnitario ?? v.valorTotal
           itens.push({ codigo, anexo: null, verai: moeda(new Decimal(dec.toString()).toFixed(2)), situacao: 'só no VerAI' })
         }
+        if (ilegiveis > 0) avisos.push(`${ilegiveis} item(ns) do anexo com valor ilegível`)
         if (semCodigo > 0) avisos.push(`${semCodigo} item(ns) do contrato no VerAI sem código de serviço na descrição não entraram na comparação`)
-        saida.itens = itens
+        saida.itensIguais = itens.filter((i) => i.situacao === 'igual').length
+        saida.itensDivergentes = ORDEM_DIVERGENCIA.flatMap((s) => itens.filter((i) => i.situacao === s))
       } catch (erro) {
         console.error('[assistente] falha ao reler o anexo para comparar itens', erro)
         avisos.push('itens não comparados')

@@ -143,5 +143,79 @@ describe('lerAnexo', () => {
     const modelo = textoParaModelo('lerAnexo', await lerAnexo.executar({ anexoId: 'a1', busca: 'prazo' }, ctx))
     expect(modelo).toContain('<<<ANEXO a.pdf p.1>>>\no prazo é 30 dias\n<<<FIM>>>')
   })
+
+  describe('arquivo sem página (DOCX/XLSX/CSV/TXT/EML: uma página só, pagina null)', () => {
+    const linhas = (n: number) => Array.from({ length: n }, (_, i) => `linha ${String(i).padStart(4, '0')} ${'x'.repeat(40)}`).join('\n')
+    const semPagina = (texto: string) => {
+      acesso.mockResolvedValue(anexo({ nome: 'e.txt', formato: 'txt' }))
+      paginas.mockResolvedValue([{ pagina: null, texto }])
+    }
+
+    it('sem nada: parte 1 com o orçamento inteiro e dica "peça a parte 2"', async () => {
+      semPagina(linhas(500)) // ~25.000 caracteres
+      const saida = (await lerAnexo.executar({ anexoId: 'a1' }, ctx)) as any
+      expect(saida.parte).toBe(1)
+      expect(saida.totalPartes).toBe(4)
+      const modelo = textoParaModelo('lerAnexo', saida)
+      expect(modelo.length).toBeLessThanOrEqual(8000)
+      expect(modelo.length).toBeGreaterThan(6500)
+      expect(modelo).toContain('parte: 1 de 4')
+      expect(modelo).toContain('<<<ANEXO e.txt>>>\nlinha 0000')
+      expect(modelo).toContain('[… continua; peça a parte 2 ou uma busca]')
+      expect(modelo).not.toContain('página 1')
+      expect(modelo.endsWith('<<<FIM>>>')).toBe(true)
+    })
+
+    it('parte N alcança o fim do texto, sem dica na última', async () => {
+      semPagina(linhas(500))
+      const modelo = textoParaModelo('lerAnexo', await lerAnexo.executar({ anexoId: 'a1', parte: 4 }, ctx))
+      expect(modelo).toContain('linha 0499')
+      expect(modelo).not.toContain('peça a parte')
+      expect(modelo.length).toBeLessThanOrEqual(8000)
+    })
+
+    it('as partes cobrem o texto inteiro, sem perder nem repetir linha, cada uma ≤ 7.000', async () => {
+      const texto = linhas(500)
+      semPagina(texto)
+      const corpos: string[] = []
+      for (let n = 1; n <= 4; n++) {
+        const r = (await lerAnexo.executar({ anexoId: 'a1', parte: n }, ctx)) as any
+        const corpo = r.texto.split('\n').filter((l: string) => l.startsWith('linha ')).join('\n')
+        expect(corpo.length).toBeLessThanOrEqual(7000)
+        corpos.push(corpo)
+      }
+      expect(corpos.join('\n')).toBe(texto)
+    })
+
+    it('texto curto: parte 1 inteira, sem dica', async () => {
+      semPagina('A | B\n1 | 2')
+      const r = (await lerAnexo.executar({ anexoId: 'a1' }, ctx)) as any
+      expect(r.texto).toBe('<<<ANEXO e.txt>>>\nA | B\n1 | 2\n<<<FIM>>>')
+      expect(r.totalPartes).toBe(1)
+    })
+
+    it('parte inexistente', async () => {
+      semPagina('curto')
+      expect(await lerAnexo.executar({ anexoId: 'a1', parte: 3 }, ctx)).toEqual({ erro: 'parte 3 não existe neste anexo (são 1 partes)' })
+    })
+
+    it('pagina em arquivo sem página dá erro claro', async () => {
+      semPagina('curto')
+      expect(await lerAnexo.executar({ anexoId: 'a1', pagina: 1 }, ctx)).toEqual({ erro: 'este anexo não tem páginas; use parte' })
+    })
+
+    it('busca em arquivo sem página diz em que parte está o trecho', async () => {
+      semPagina(`${linhas(300)}\no prazo é 30 dias`)
+      const r = (await lerAnexo.executar({ anexoId: 'a1', busca: 'prazo' }, ctx)) as any
+      expect(r.trechos[0].parte).toBe(3)
+      expect(textoParaModelo('lerAnexo', r)).toContain('peça a parte 3')
+    })
+
+    it('parte em PDF (com páginas) dá erro claro', async () => {
+      acesso.mockResolvedValue(anexo())
+      paginas.mockResolvedValue([{ pagina: 1, texto: 'um' }])
+      expect(await lerAnexo.executar({ anexoId: 'a1', parte: 1 }, ctx)).toEqual({ erro: 'este anexo tem páginas; use pagina' })
+    })
+  })
 })
 

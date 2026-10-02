@@ -3,8 +3,10 @@ import { NextRequest } from 'next/server'
 
 jest.mock('@/lib/auth', () => ({ ...jest.requireActual('@/lib/auth'), getAuthUser: jest.fn() }))
 jest.mock('@/lib/prisma', () => ({ prisma: { conversaAssistente: { findUnique: jest.fn(), delete: jest.fn() } } }))
+jest.mock('@/lib/assistente/anexos/registrar', () => ({ apagarAnexosDaConversa: jest.fn() }))
 
 import { getAuthUser } from '@/lib/auth'
+import { apagarAnexosDaConversa } from '@/lib/assistente/anexos/registrar'
 import { prisma } from '@/lib/prisma'
 import { DELETE, GET } from './route'
 
@@ -40,4 +42,17 @@ it('DELETE apaga a própria', async () => {
   ;(prisma.conversaAssistente.findUnique as jest.Mock).mockResolvedValue({ id: 'c1', usuarioId: 'u1', titulo: 't', mensagens: [] })
   expect(await (await DELETE(req(), params)).json()).toEqual({ ok: true })
   expect(prisma.conversaAssistente.delete).toHaveBeenCalledWith({ where: { id: 'c1' } })
+})
+
+it('DELETE apaga os arquivos dos anexos no R2 antes de apagar a conversa; de outro usuário, não', async () => {
+  ;(prisma.conversaAssistente.findUnique as jest.Mock).mockResolvedValue({ id: 'c1', usuarioId: 'u1', titulo: 't', mensagens: [] })
+  await DELETE(req(), params)
+  expect(apagarAnexosDaConversa).toHaveBeenCalledWith('c1')
+  expect((apagarAnexosDaConversa as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+    (prisma.conversaAssistente.delete as jest.Mock).mock.invocationCallOrder[0]
+  )
+  jest.clearAllMocks()
+  ;(prisma.conversaAssistente.findUnique as jest.Mock).mockResolvedValue({ id: 'c1', usuarioId: 'u2', titulo: 't', mensagens: [] })
+  await DELETE(req(), params)
+  expect(apagarAnexosDaConversa).not.toHaveBeenCalled()
 })

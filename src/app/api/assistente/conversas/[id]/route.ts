@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { apagarAnexosDaConversa } from '@/lib/assistente/anexos/registrar'
 import { prisma } from '@/lib/prisma'
 import { exigirUsuario } from '@/lib/relatorios-clientes/acesso'
 
@@ -51,6 +52,8 @@ export async function GET(request: NextRequest, contexto: Contexto) {
 export async function DELETE(request: NextRequest, contexto: Contexto) {
   const r = await carregar(request, contexto)
   if ('erro' in r) return r.erro
+  // Arquivos dos anexos saem do R2 (best-effort); as linhas saem pelo Cascade.
+  await apagarAnexosDaConversa(r.conversa.id)
   await prisma.conversaAssistente.delete({ where: { id: r.conversa.id } })
   return NextResponse.json({ ok: true })
 }

@@ -423,6 +423,34 @@ não nela. Nunca pôr número real (SEI, id) como exemplo na instrução: a IA c
   própria migração (`MIGRACAO_DO_INDICE`, `MIGRACAO_DAS_FICHAS`): o agendador roda o código da pasta
   contra produção, que pode estar num deploy anterior.
 
+**Consultor direto (frente A, 30/09–02/10) — responde direto, entende a fala da equipe, não inventa:**
+- **Cliente escrito sozinho** ("SMS", "saúde") responde **sem IA** (`resposta-cliente.ts`, `respostaDireta` na rota,
+  antes do limite; `origem='direta'` não conta nas 30/h). Apelidos tirados do nome (`apelidos.ts`) + o editável
+  `apelidos-clientes.json`; sigla/nome vence apelido. Contrato pelo **assunto** vira "Contrato provável" (a IA diz
+  qual considerou), nunca "Já identificados". "Mês passado", "próximos 3 meses", "novembro" → datas por
+  `periodos.ts` (Brasília); nº de contrato ("TC 12/2023") não vira período. Dúvida de trabalho (Excel, ofício, SEI…)
+  é reconhecida pelo código (`tipo-pergunta.ts`) e vai como dica no contexto — o modelo puxava para a recusa.
+- Ferramentas novas: `calendarioFaturamento`, `indiceIpcFipe`, `simularReajuste` (conta só de `src/lib/reajuste`,
+  decimal.js), `reajustesCalculados`, `controleDoFaturamento` (controle × VerAI), `linksMpls`; `detalheDoContrato` traz
+  `provas` (origem do valor/vigência).
+- **Três tipos de resposta** (`blocos.ts`): do VerAI; conhecimento geral **só dentro de `:::geral`** (a tela desenha a
+  caixa "🌐 Não está nos documentos do VerAI · resposta da IA"); fora do trabalho → frase fixa `RECUSA`. **Revê a
+  fase 2**: norma que não está na base pode ser explicada de memória, mas só na caixa geral, com "Confirme com o
+  jurídico." Delimitador tolerante a espaço/indentação; recusa só pela frase inteira.
+- **Conferência de números** (`conferencia.ts`, no fim do stream como `data-conferencia`, gravada em
+  `MensagemAssistente.conferencia`): valor, %, data, competência (08/2026 = ago/2026 = 2026-08), SEI e nº de contrato
+  da resposta fora de `:::geral` conferidos contra a saída das ferramentas e o contexto (da ENTRADA da ferramenta
+  só data e competência valem — valor que a IA passou tem de voltar na saída). O que não bate ganha ⚠ na
+  tela (marca, não bloqueia); **número sem nenhuma consulta** vira "Não encontrei isso no VerAI.". Limites: 6 passos,
+  2000 tokens, 90 s.
+- **Régua de acerto**: `scripts/regua-assistente.ts --acerto [--salvar] [--comparar=…]` (casos em
+  `scripts/regua-assistente-casos.ts`, 3 jeitos de perguntar cada intenção + recusas, dúvida geral e sem dado). Rode
+  antes e depois de mexer em ferramenta, instrução, apelido ou conferência (dev 02/10: 17/47 → 49/49). Suíte com
+  `--runInBand --forceExit` (sem `--forceExit` a rodada conjunta não encerra).
+- Spec `docs/superpowers/specs/2026-09-30-assistente-consultor-design.md`, plano
+  `docs/superpowers/plans/2026-09-30-assistente-consultor.md`. Próximas frentes: B (documentos no chat, R2) e C
+  (estratégia da carteira).
+
 - **Design**: `docs/superpowers/specs/2026-09-23-assistente-ia-design.md`; fase 1 da melhoria (texto
   compacto, identificação, links curtos, índice): `docs/superpowers/specs/2026-09-25-assistente-base-economica-design.md`;
   fase 2 (analista sênior): `docs/superpowers/specs/2026-09-25-assistente-senior-design.md`

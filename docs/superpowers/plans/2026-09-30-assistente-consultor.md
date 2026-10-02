@@ -1946,4 +1946,7 @@ export function RespostaMarkdown({ texto, naoConfirmados }: { texto: string; nao
 ## Andamento
 
 - Linha de base (Task 1, 30/09, dev): TOTAL 17/47. Por intenção: cliente-direto 0/3, saldo-contrato 3/3, vencimentos 3/3, faturamento-periodo 3/3, proximo-prazo 0/3, ipc-12-meses 0/3, simular-reajuste 0/3, controle-x-verai 0/3, links-mpls 0/3, prova-valor 3/3, reajustes-calculados 0/3, manual 2/3, fora-do-assunto 0/4, duvida-geral 0/4, sem-dado 3/3.
-- Depois (Task 17): _preencher_
+- Depois (Task 17, 02/10, dev): **49/49** — todas as intenções 3/3; fora-do-assunto 6/6 (2 casos novos: poema, cultura geral); dúvida geral 4/4; sem dado 3/3. Caminho: 39/47 na 1ª rodada pós-implementação → ajustes (conferência aceita data/competência da entrada da ferramenta; "próximos N meses"; IPC "últimos 12" = últimos publicados; régua do fechamento com a chave certa) → 43/47 → dúvida de trabalho reconhecida pelo código (`tipo-pergunta.ts`) e valores sem abreviar → 49/49.
+- Suíte 02/10: lib 265 + tela 39 + rotas 19 passando (`--runInBand --forceExit`), tsc sem erro.
+- Revisão final (opus): pronto com 4 correções (período × nº de contrato, texto parcial em interrupção, [confirmar] na regra 12, total MPLS de meses misturados) — feitas e re-revisadas.
+- Produção: subir a migração 20260930180000 ANTES do deploy (a rota grava origem/tipos/conferencia).

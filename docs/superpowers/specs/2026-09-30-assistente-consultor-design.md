@@ -1,6 +1,6 @@
 # Assistente de IA — consultor direto (frente A de 3) (design)
 
-**Status**: Desenho aprovado pelo usuário em 30/09/2026 (brainstorm). Plano a escrever.
+**Status**: Implementada no dev em 30/09–02/10/2026 (plano 2026-09-30-assistente-consultor.md, seção Andamento). Produção: migração 20260930180000 + deploy.
 **Data**: 30/09/2026
 **Frentes**: esta spec (A: consultor direto, dados novos, conhecimento geral marcado) → B: receber
 documentos no chat e analisar → C: analista de negócio e estratégia da carteira. Cada uma com spec,
@@ -280,3 +280,15 @@ Instrução do sistema (`instrucoes.ts`, continua fixa para o cache) passa a diz
 5. Instrução nova (formato, blocos, recusa, norma) + limites de passos/saída/tempo.
 6. Blocos 🌐 na tela + conferência (§7) com marcas ⚠.
 7. Régua depois, comparar; atualizar CLAUDE.md (seção do assistente) e a memória.
+
+## 15. Decisões tomadas na execução
+
+Decisões do usuário durante a execução do plano:
+
+- **Nº de contrato não vira período**: "contrato 52/2024" não é lido como mês/ano.
+- **Contrato achado pelo assunto = "contrato provável"**: a IA diz qual considerou; sigla/nome do cliente vence o apelido.
+- **Diferença do reajuste em `decimal.js`** (nunca em ponto flutuante).
+- **Conferência aceita os formatos reais**: moeda com/sem milhar; competência `08/2026` = `ago/2026` = `2026-08`; moeda e percentual conferidos separados; sinal respeitado.
+- **Caixa geral (🌐) tolerante** a espaço e indentação do delimitador; a **recusa** só vale pela frase inteira.
+- **Marca ⚠ respeita número e link**: só marca o número inteiro (nunca dentro de outro número), nunca dentro do destino de um link (número no texto do link ganha a marca depois do link) e no máximo uma marca por trecho.
+- **Liberdade para corrigir**: defeito claro vindo do próprio plano, cuja correção não muda decisão do usuário, é corrigido direto e registrado.

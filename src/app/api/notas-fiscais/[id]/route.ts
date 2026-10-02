@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { exigirUsuario, verificarAcessoCliente } from '@/lib/relatorios-clientes/acesso'
+import { exigirUsuario, verificarAcessoCliente, type ModoAcesso } from '@/lib/relatorios-clientes/acesso'
 import { respostaErroPrisma } from '@/lib/relatorios-clientes/erros-prisma'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
 import { ROTULOS_NOTA, SELECT_NOTA, esquemaEdicaoNota, serializarNota } from '@/app/api/faturamentos/esquema'
@@ -10,7 +10,7 @@ type Contexto = { params: Promise<{ id: string }> }
 const NAO_ENCONTRADA = 'nota fiscal não encontrada'
 
 /** Autentica, acha a nota e checa acesso pelo cliente do faturamento dela (401 → 404 → 403). */
-async function carregarComAcesso(request: NextRequest, id: string) {
+async function carregarComAcesso(request: NextRequest, id: string, modo: ModoAcesso) {
   const autenticado = await exigirUsuario(request)
   if ('erro' in autenticado) return autenticado
 
@@ -20,13 +20,13 @@ async function carregarComAcesso(request: NextRequest, id: string) {
   })
   if (!nota) return { erro: NextResponse.json({ error: NAO_ENCONTRADA }, { status: 404 }) }
 
-  const negado = await verificarAcessoCliente(autenticado.usuario, nota.faturamento.clienteId)
+  const negado = await verificarAcessoCliente(autenticado.usuario, nota.faturamento.clienteId, modo)
   return negado ? { erro: negado } : { nota }
 }
 
 export async function PATCH(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarComAcesso(request, id)
+  const carregado = await carregarComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   const corpo = await lerCorpo(request, esquemaEdicaoNota, ROTULOS_NOTA)
@@ -42,7 +42,7 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
 
 export async function DELETE(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarComAcesso(request, id)
+  const carregado = await carregarComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   try {

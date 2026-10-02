@@ -59,7 +59,7 @@ export async function GET(request: NextRequest, { params }: Contexto) {
 
 export async function PATCH(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarArquivoComAcesso(request, id)
+  const carregado = await carregarArquivoComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   const corpo = await lerCorpo(request, esquemaEdicao, ROTULOS_ARQUIVO)
@@ -77,7 +77,7 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
 /** Remoção lógica, e só quando nada usa o arquivo (spec §3.4 regra 2). O blob fica. */
 export async function DELETE(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarArquivoComAcesso(request, id)
+  const carregado = await carregarArquivoComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   const usos = (await usosDosArquivos([id])).get(id) ?? []

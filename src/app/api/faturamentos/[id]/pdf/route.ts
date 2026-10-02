@@ -12,7 +12,7 @@ const TAMANHO_MAXIMO_BYTES = 15 * 1024 * 1024 // 15 MB
  *  reanexar sobrescreve o mesmo blob sem deixar lixo no storage. */
 export async function POST(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarFaturamentoComAcesso(request, id)
+  const carregado = await carregarFaturamentoComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   const formData = await request.formData().catch(() => null)
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest, { params }: Contexto) {
 /** Remove o PDF anexado (storage + banco). */
 export async function DELETE(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarFaturamentoComAcesso(request, id)
+  const carregado = await carregarFaturamentoComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   const atual = await prisma.faturamento.findUnique({ where: { id }, select: { pdfUrl: true } })

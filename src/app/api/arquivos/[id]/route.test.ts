@@ -156,3 +156,28 @@ describe('DELETE /api/arquivos/[id]', () => {
     expect(prisma.arquivoCliente.update).toHaveBeenCalledWith({ where: { id: 'a1' }, data: { removidoEm: expect.any(Date) } })
   })
 })
+
+describe('somente leitura', () => {
+  beforeEach(() => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+  })
+
+  it('PATCH 403 com motivo para quem vê mas não é da gerência', async () => {
+    const resposta = await PATCH(patch({ categoria: 'MEDICAO' }), contexto)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+    expect(prisma.arquivoCliente.update).not.toHaveBeenCalled()
+  })
+
+  it('DELETE 403 com motivo para quem vê mas não é da gerência', async () => {
+    const resposta = await DELETE(new NextRequest(url, { method: 'DELETE' }), contexto)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+    expect(prisma.arquivoCliente.update).not.toHaveBeenCalled()
+  })
+})

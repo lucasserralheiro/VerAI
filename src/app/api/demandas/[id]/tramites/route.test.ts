@@ -76,3 +76,19 @@ describe('POST /api/demandas/[id]/tramites', () => {
     )
   })
 })
+
+describe('somente leitura', () => {
+  beforeEach(() => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+  })
+
+  it('POST 403 com motivo para quem vê mas não é da gerência', async () => {
+    const resposta = await POST(post({ data: '2026-09-22' }), contexto)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+    expect(prisma.tramiteDemanda.create).not.toHaveBeenCalled()
+  })
+})

@@ -79,3 +79,19 @@ describe('PATCH /api/solicitacoes/[id]', () => {
     )
   })
 })
+
+describe('somente leitura', () => {
+  beforeEach(() => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+  })
+
+  it('PATCH 403 com motivo para quem vê mas não é da gerência', async () => {
+    const resposta = await PATCH(patch({ descricao: 'x' }), contexto)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+    expect(prisma.solicitacao.update).not.toHaveBeenCalled()
+  })
+})

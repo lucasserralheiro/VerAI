@@ -30,7 +30,7 @@ export async function GET(request: NextRequest, { params }: Contexto) {
 
 export async function PATCH(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarDemandaComAcesso(request, id)
+  const carregado = await carregarDemandaComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   const corpo = await lerCorpo(request, esquemaEdicaoDemanda, ROTULOS_DEMANDA)
@@ -40,7 +40,7 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
   // correção de uma demanda que o import atribuiu à SMS — a nota de importação deixa de valer.
   const trocaCliente = corpo.dados.clienteId !== undefined && corpo.dados.clienteId !== carregado.demanda.clienteId
   if (trocaCliente) {
-    const negado = await verificarAcessoCliente(carregado.usuario, corpo.dados.clienteId!)
+    const negado = await verificarAcessoCliente(carregado.usuario, corpo.dados.clienteId!, 'editar')
     if (negado) return negado
   }
 
@@ -58,7 +58,7 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
 
 export async function DELETE(request: NextRequest, { params }: Contexto) {
   const { id } = await params
-  const carregado = await carregarDemandaComAcesso(request, id)
+  const carregado = await carregarDemandaComAcesso(request, id, 'editar')
   if ('erro' in carregado) return carregado.erro
 
   try {

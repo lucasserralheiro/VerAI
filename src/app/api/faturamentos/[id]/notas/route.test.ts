@@ -83,3 +83,19 @@ describe('POST /api/faturamentos/[id]/notas', () => {
     await expect(resposta.json()).resolves.toEqual(expect.objectContaining({ id: 'n9', valor: '113119.2' }))
   })
 })
+
+describe('somente leitura', () => {
+  beforeEach(() => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+  })
+
+  it('POST 403 com motivo para quem vê mas não é da gerência', async () => {
+    const resposta = await POST(post({ valor: '1' }), contexto)
+    expect(resposta.status).toBe(403)
+    await expect(resposta.json()).resolves.toMatchObject({
+      motivo: 'Somente leitura: só a equipe da gerência deste cliente edita.',
+    })
+    expect(prisma.notaFiscal.create).not.toHaveBeenCalled()
+  })
+})

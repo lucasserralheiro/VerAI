@@ -17,14 +17,14 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
 
   const atual = await prisma.solicitacao.findUnique({ where: { id }, select: { id: true, clienteId: true } })
   if (!atual) return NextResponse.json({ error: NAO_ENCONTRADA }, { status: 404 })
-  const negadoAtual = await verificarAcessoCliente(autenticado.usuario, atual.clienteId)
+  const negadoAtual = await verificarAcessoCliente(autenticado.usuario, atual.clienteId, 'editar')
   if (negadoAtual) return negadoAtual
 
   const corpo = await lerCorpo(request, esquemaEdicaoSolicitacao, ROTULOS_SOLICITACAO)
   if ('erro' in corpo) return corpo.erro
 
   if (corpo.dados.clienteId && corpo.dados.clienteId !== atual.clienteId) {
-    const negadoNovo = await verificarAcessoCliente(autenticado.usuario, corpo.dados.clienteId)
+    const negadoNovo = await verificarAcessoCliente(autenticado.usuario, corpo.dados.clienteId, 'editar')
     if (negadoNovo) return negadoNovo
   }
 

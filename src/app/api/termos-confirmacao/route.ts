@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   if ('erro' in corpo) return corpo.erro
   const { clienteId, contratoId, vigenciaInicio, vigenciaFim } = corpo.dados
 
-  const negado = await verificarAcessoCliente(autenticado.usuario, clienteId)
+  const negado = await verificarAcessoCliente(autenticado.usuario, clienteId, 'editar')
   if (negado) return negado
 
   const coId = corpo.dados.contratoOperacionalizacaoId

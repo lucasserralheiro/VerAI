@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
   const corpo = await lerCorpo(request, esquemaNovaSolicitacao, ROTULOS_SOLICITACAO)
   if ('erro' in corpo) return corpo.erro
 
-  const negado = await verificarAcessoCliente(autenticado.usuario, corpo.dados.clienteId)
+  const negado = await verificarAcessoCliente(autenticado.usuario, corpo.dados.clienteId, 'editar')
   if (negado) return negado
 
   try {

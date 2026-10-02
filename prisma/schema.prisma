@@ -1085,6 +1085,7 @@ model ConversaAssistente {
   createdAt       DateTime             @default(now())
   atualizadaEm    DateTime             @default(now())
   mensagens       MensagemAssistente[]
+  anexos          AnexoAssistente[]
 
   @@index([usuarioId, atualizadaEm])
 }
@@ -1109,6 +1110,36 @@ model MensagemAssistente {
   createdAt     DateTime           @default(now())
 
   @@index([conversaId, createdAt])
+}
+
+// Documento anexado no chat do assistente (spec 2026-10-02-assistente-anexos §8). Fica com a conversa: apagar a
+// conversa apaga o anexo (Cascade) e a rota DELETE apaga o arquivo do R2.
+model AnexoAssistente {
+  id           String                  @id @default(cuid())
+  conversaId   String
+  conversa     ConversaAssistente      @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  nome         String
+  formato      String // pdf | docx | xlsx | csv | txt | eml
+  tamanhoBytes Int
+  chaveR2      String
+  status       String // ok | sem_texto | erro
+  ocr          Boolean                 @default(false)
+  paginas      Int                     @default(0)
+  ficha        Json?
+  createdAt    DateTime                @default(now())
+  paginasTexto PaginaAnexoAssistente[]
+
+  @@index([conversaId, createdAt])
+}
+
+model PaginaAnexoAssistente {
+  id      String          @id @default(cuid())
+  anexoId String
+  anexo   AnexoAssistente @relation(fields: [anexoId], references: [id], onDelete: Cascade)
+  pagina  Int?
+  texto   String          @db.Text
+
+  @@index([anexoId, pagina])
 }
 
 // IPC-Fipe mensal (Banco Central, SGS 193) — spec 2026-09-30-reajuste-ipc-fipe-design §1.2.

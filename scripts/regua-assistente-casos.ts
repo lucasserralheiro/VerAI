@@ -22,9 +22,9 @@ export const CASOS: Caso[] = [
   { intencao: 'vencimentos', tipo: 'verai', ferramenta: 'contratosVencendo', perguntas: ['Quais contratos vencem até o fim do ano?', 'o que vence nos proximos 3 meses?', 'contrtos vencendo esse ano'] },
   { intencao: 'faturamento-periodo', tipo: 'verai', ferramenta: 'faturamentos', perguntas: ['Faturamento do SGM no mês passado', 'quanto a sgm faturou mes passado?', 'faturamnto sgm ultimo mes'] },
   {
-    intencao: 'proximo-prazo', tipo: 'verai', ferramenta: 'calendarioFaturamento',
-    perguntas: ['Qual o próximo prazo do faturamento?', 'quando fecha a fatura?', 'qdo fexa o faturamento'],
-    chave: async () => { const [p] = await proximosDoFaturamento(1); return p ? formatarData(p.inicio) : null },
+    intencao: 'proximo-fechamento', tipo: 'verai', ferramenta: 'calendarioFaturamento',
+    perguntas: ['Quando fecha o faturamento deste mês?', 'quando fecha a fatura?', 'qdo fexa o faturamento'],
+    chave: async () => { const p = (await proximosDoFaturamento(10)).find((x) => x.tipo === 'ENCERRAMENTO'); return p ? formatarData(p.inicio) : null },
   },
   { intencao: 'ipc-12-meses', tipo: 'verai', ferramenta: 'indiceIpcFipe', perguntas: ['Qual o IPC-Fipe acumulado dos últimos 12 meses?', 'quanto deu o ipc no ultimo ano?', 'ipc fipe acumulado 12 mses'], chave: acumulado12 },
   { intencao: 'simular-reajuste', tipo: 'verai', ferramenta: 'simularReajuste', perguntas: ['Quanto fica R$ 250.000,00 reajustado pelo IPC-Fipe dos últimos 12 meses?', 'se eu reajustar 250 mil pelo ipc quanto vai dar?', 'reajusta 250.000,00 pelo ipc 12 meses'] },

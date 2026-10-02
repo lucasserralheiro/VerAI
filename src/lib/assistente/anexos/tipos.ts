@@ -11,6 +11,10 @@ export const TIPOS_MIME_ANEXO: Record<FormatoAnexo, string> = {
   eml: 'message/rfc822',
 }
 
+/** Teto de cada anexo — o mesmo `TAMANHO_MAXIMO_ENVIO` de `propostas/envio.ts`, repetido aqui porque
+ *  aquele arquivo importa `node:crypto` e não pode entrar no bundle da tela. */
+export const TAMANHO_MAXIMO_ANEXO = 50 * 1024 * 1024
+
 export function formatoDoNome(nome: string): FormatoAnexo | null {
   const ext = nome.toLowerCase().split('.').pop() ?? ''
   return (FORMATOS_ANEXO as readonly string[]).includes(ext) && nome.includes('.') ? (ext as FormatoAnexo) : null

@@ -13,6 +13,9 @@ jest.mock('ai', () => ({
   }),
 }))
 
+jest.mock('./anexos/enviar-anexo', () => ({ enviarAnexo: jest.fn() }))
+
+import { enviarAnexo } from './anexos/enviar-anexo'
 import { useConversaAssistente } from './use-conversa-assistente'
 
 beforeEach(() => {
@@ -185,4 +188,103 @@ it('parar() durante o POST de criação aborta e volta pra "pronto"', async () =
 
   expect(result.current.estado).toBe('pronto')
   expect(result.current.conversaId).toBeNull()
+})
+
+describe('anexos', () => {
+  const arquivo = (nome: string) => new File(['x'], nome)
+
+  it('sem conversa, o primeiro anexo cria a conversa só para ele e a ficha entra como mensagem do assistente', async () => {
+    const fetchMock = jest.fn(async (url: string) => {
+      if (String(url) === '/api/assistente/conversas') return new Response(JSON.stringify({ id: 'c1', somenteCriar: true }), { status: 201 })
+      return new Response('{}', { status: 200 })
+    })
+    global.fetch = fetchMock as jest.Mock
+    ;(enviarAnexo as jest.Mock).mockResolvedValue({ anexoId: 'a1', texto: '**proposta.pdf** — proposta comercial' })
+
+    const { result } = renderHook(() => useConversaAssistente())
+    await act(async () => {
+      expect(await result.current.anexar([arquivo('proposta.pdf')], '/clientes/k1')).toBe(true)
+    })
+
+    const posts = fetchMock.mock.calls.filter(([url]) => String(url) === '/api/assistente/conversas') as unknown as [string, RequestInit][]
+    expect(posts).toHaveLength(1)
+    expect(JSON.parse(posts[0][1].body as string)).toEqual({ pergunta: 'proposta.pdf', rota: '/clientes/k1', somenteCriar: true })
+    expect((enviarAnexo as jest.Mock).mock.calls[0][1]).toBe('c1')
+    expect(result.current.conversaId).toBe('c1')
+    expect(result.current.mensagens).toEqual([{ id: 'anexo-a1', papel: 'assistente', conteudo: '**proposta.pdf** — proposta comercial' }])
+    expect(result.current.anexos).toEqual([expect.objectContaining({ nome: 'proposta.pdf' })])
+    // nenhuma pergunta à IA
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/mensagens'))).toBe(false)
+  })
+
+  it('texto longo: anexar e logo depois enviar a pergunta usam a MESMA conversa recém-criada', async () => {
+    const fetchMock = jest.fn(async (url: string) => {
+      if (String(url) === '/api/assistente/conversas') return new Response(JSON.stringify({ id: 'c1', somenteCriar: true }), { status: 201 })
+      return new Response('{}', { status: 200 })
+    })
+    global.fetch = fetchMock as jest.Mock
+    ;(enviarAnexo as jest.Mock).mockResolvedValue({ anexoId: 'a1', texto: 'ficha' })
+
+    const { result } = renderHook(() => useConversaAssistente())
+    await act(async () => {
+      const ok = await result.current.anexar([arquivo('conversa-2026-10-02-1005.txt')], '')
+      if (ok) await result.current.enviar('Analise o texto colado.', '')
+    })
+    expect(fetchMock.mock.calls.filter(([url]) => String(url) === '/api/assistente/conversas')).toHaveLength(1)
+    expect(result.current.mensagens.map((m) => m.papel)).toEqual(['assistente', 'usuario', 'assistente'])
+  })
+
+  it('com conversa aberta, o anexo vai para ela sem criar outra', async () => {
+    const fetchMock = jest.fn(async (url: string) => {
+      if (String(url) === '/api/assistente/conversas/c9') return new Response(JSON.stringify({ id: 'c9', titulo: 't', mensagens: [], anexos: [] }))
+      return new Response('{}', { status: 200 })
+    })
+    global.fetch = fetchMock as jest.Mock
+    ;(enviarAnexo as jest.Mock).mockResolvedValue({ anexoId: 'a2', texto: 'ficha' })
+    const { result } = renderHook(() => useConversaAssistente())
+    await act(async () => {
+      await result.current.abrirConversa('c9')
+    })
+    await act(async () => {
+      await result.current.anexar([arquivo('b.xlsx')], '')
+    })
+    expect(fetchMock.mock.calls.some(([url]) => String(url) === '/api/assistente/conversas')).toBe(false)
+    expect((enviarAnexo as jest.Mock).mock.calls[0][1]).toBe('c9')
+  })
+
+  it('abrir uma conversa mostra os cartões dos anexos já registrados', async () => {
+    global.fetch = jest.fn(async () =>
+      new Response(
+        JSON.stringify({
+          id: 'c9', titulo: 't', mensagens: [],
+          anexos: [
+            { id: 'a1', nome: 'termo.pdf', formato: 'pdf', status: 'ok', paginas: 3, ocr: true, ficha: null },
+            { id: 'a2', nome: 'quebrado.docx', formato: 'docx', status: 'erro', paginas: 0, ocr: false, ficha: null },
+            { id: 'a3', nome: 'escaneado.pdf', formato: 'pdf', status: 'sem_texto', paginas: 0, ocr: false, ficha: null },
+          ],
+        })
+      )
+    ) as jest.Mock
+    const { result } = renderHook(() => useConversaAssistente())
+    await act(async () => {
+      await result.current.abrirConversa('c9')
+    })
+    expect(result.current.anexos).toEqual([
+      { id: 'a1', anexoId: 'a1', nome: 'termo.pdf', etapa: 'pronto' },
+      { id: 'a2', anexoId: 'a2', nome: 'quebrado.docx', etapa: 'erro', erro: 'não foi possível ler' },
+      { id: 'a3', anexoId: 'a3', nome: 'escaneado.pdf', etapa: 'erro', erro: 'sem texto legível' },
+    ])
+  })
+
+  it('nova conversa limpa os cartões; criar a conversa falhou → cartão de erro, sem envio', async () => {
+    global.fetch = jest.fn(async () => new Response('falhou', { status: 500 })) as jest.Mock
+    const { result } = renderHook(() => useConversaAssistente())
+    await act(async () => {
+      expect(await result.current.anexar([arquivo('a.pdf')], '')).toBe(false)
+    })
+    expect(enviarAnexo).not.toHaveBeenCalled()
+    expect(result.current.anexos).toEqual([expect.objectContaining({ nome: 'a.pdf', etapa: 'erro', erro: 'não foi possível criar a conversa' })])
+    act(() => result.current.novaConversa())
+    expect(result.current.anexos).toEqual([])
+  })
 })

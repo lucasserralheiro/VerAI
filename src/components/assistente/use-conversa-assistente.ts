@@ -3,6 +3,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { DefaultChatTransport, readUIMessageStream, type UIMessage } from 'ai'
 import { lerMensagemDoStream, mensagemDeErro } from './mensagem-stream'
+import type { EstadoAnexo } from './anexos/enviar-anexo'
+import { useAnexos } from './anexos/use-anexos'
 
 export interface MensagemTela {
   id: string
@@ -15,6 +17,18 @@ export interface MensagemTela {
 export type EstadoConversa = 'pronto' | 'respondendo' | 'erro'
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
+
+/** Anexo já registrado, como volta de `GET /api/assistente/conversas/[id]`. */
+interface AnexoRegistrado {
+  id: string
+  nome: string
+  status: string
+}
+
+function cartaoDoRegistrado(a: AnexoRegistrado): EstadoAnexo {
+  if (a.status === 'ok') return { id: a.id, anexoId: a.id, nome: a.nome, etapa: 'pronto' }
+  return { id: a.id, anexoId: a.id, nome: a.nome, etapa: 'erro', erro: a.status === 'sem_texto' ? 'sem texto legível' : 'não foi possível ler' }
+}
 
 export function useConversaAssistente() {
   const [conversaId, setConversaId] = useState<string | null>(null)
@@ -37,6 +51,22 @@ export function useConversaAssistente() {
    *  que o usuário abriu depois, ou a guarda de envio em voo de uma cadeia nova é liberada por
    *  engano pela cadeia velha terminando por último. */
   const geracao = useRef(0)
+  /** Espelho de `conversaId` lido na hora: o painel anexa o texto colado e logo em seguida envia a
+   *  pergunta, na mesma volta — pelo estado, a pergunta ainda veria `null` e criaria outra conversa. */
+  const idAtual = useRef<string | null>(null)
+  /** Criação em curso de conversa para anexo: anexos e pergunta que chegam junto esperam por ela. */
+  const criandoParaAnexo = useRef<Promise<string | null> | null>(null)
+
+  const definirConversa = useCallback((id: string | null) => {
+    idAtual.current = id
+    setConversaId(id)
+  }, [])
+
+  /** A ficha do anexo (já gravada no servidor como resposta direta) entra como mensagem do assistente. */
+  const aoFicha = useCallback((texto: string, anexoId: string) => {
+    setMensagens((atual) => [...atual, { id: `anexo-${anexoId}`, papel: 'assistente', conteudo: texto }])
+  }, [])
+  const { anexos, anexar: anexarNaFila, registrarFalha, reiniciar: reiniciarAnexos } = useAnexos({ aoFicha })
 
   const responder = useCallback(
     async (id: string, pergunta: string, rota: string, abort: AbortController, minhaGeracao: number) => {
@@ -121,9 +151,9 @@ export function useConversaAssistente() {
       return null
     }
     if (geracao.current !== minhaGeracao) return null
-    setConversaId(corpo.id)
+    definirConversa(corpo.id)
     return corpo.id
-  }, [])
+  }, [definirConversa])
 
   /** Núcleo comum de `enviar`/`tentarDeNovo`: cria a conversa se preciso (sem `idExistente`) e
    *  encadeia a resposta, sob a guarda de envio em voo e a identidade de geração. */
@@ -154,9 +184,10 @@ export function useConversaAssistente() {
   const enviar = useCallback(
     async (pergunta: string, rota: string) => {
       const texto = pergunta.trim()
-      await executarEnvio(texto, rota, true, conversaId)
+      const id = idAtual.current ?? (criandoParaAnexo.current ? await criandoParaAnexo.current : null)
+      await executarEnvio(texto, rota, true, id)
     },
-    [executarEnvio, conversaId]
+    [executarEnvio]
   )
 
   /** Reenvia a mesma pergunta pela rota de mensagens (registra a pergunta de novo) — aceitável, e
@@ -165,9 +196,9 @@ export function useConversaAssistente() {
   const tentarDeNovo = useCallback(
     async (rota: string) => {
       if (!ultimaPergunta.current) return
-      await executarEnvio(ultimaPergunta.current, rota, false, conversaId)
+      await executarEnvio(ultimaPergunta.current, rota, false, idAtual.current)
     },
-    [executarEnvio, conversaId]
+    [executarEnvio]
   )
 
   const parar = useCallback(() => controle.current?.abort(), [])
@@ -177,25 +208,93 @@ export function useConversaAssistente() {
     controle.current?.abort()
     controle.current = null
     emAndamento.current = false
-    setConversaId(null)
+    criandoParaAnexo.current = null
+    reiniciarAnexos()
+    definirConversa(null)
     setMensagens([])
     setErro(null)
     setEstado('pronto')
-  }, [])
+  }, [reiniciarAnexos, definirConversa])
 
   const abrirConversa = useCallback(async (id: string) => {
     geracao.current += 1
     controle.current?.abort()
     controle.current = null
     emAndamento.current = false
+    criandoParaAnexo.current = null
+    reiniciarAnexos()
+    const minhaGeracao = geracao.current
     const resposta = await fetch(`/api/assistente/conversas/${id}`)
-    if (!resposta.ok) return
-    const dados = (await resposta.json()) as { mensagens: MensagemTela[] }
-    setConversaId(id)
+    if (!resposta.ok || geracao.current !== minhaGeracao) return
+    const dados = (await resposta.json()) as { mensagens: MensagemTela[]; anexos?: AnexoRegistrado[] }
+    if (geracao.current !== minhaGeracao) return
+    definirConversa(id)
     setMensagens(dados.mensagens)
+    reiniciarAnexos((dados.anexos ?? []).map(cartaoDoRegistrado))
     setErro(null)
     setEstado('pronto')
-  }, [])
+  }, [reiniciarAnexos, definirConversa])
 
-  return { conversaId, mensagens, estado, erro, ferramentaAtual, enviar, parar, tentarDeNovo, novaConversa, abrirConversa }
+  /** Cria a conversa só para receber anexos (título = nome do primeiro arquivo; sem pergunta à IA). */
+  const criarParaAnexo = useCallback(
+    async (nome: string, rota: string, minhaGeracao: number): Promise<string | null> => {
+      try {
+        const resposta = await fetch('/api/assistente/conversas', {
+          method: 'POST',
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ pergunta: nome.slice(0, 2000), rota, somenteCriar: true }),
+        })
+        if (!resposta.ok) return null
+        const { id } = (await resposta.json()) as { id: string }
+        if (geracao.current !== minhaGeracao) return null
+        definirConversa(id)
+        return id
+      } catch {
+        return null
+      }
+    },
+    [definirConversa]
+  )
+
+  /** Anexa arquivos à conversa aberta (criando uma, se não houver). Resolve `true` quando todos
+   *  ficaram prontos — o painel só manda a pergunta do texto colado depois disso. */
+  const anexar = useCallback(
+    async (arquivos: File[], rota: string): Promise<boolean> => {
+      if (arquivos.length === 0) return false
+      const minhaGeracao = geracao.current
+      let id = idAtual.current
+      if (!id) {
+        if (!criandoParaAnexo.current) {
+          const criacao = criarParaAnexo(arquivos[0].name, rota, minhaGeracao)
+          criandoParaAnexo.current = criacao
+          void criacao.finally(() => {
+            if (criandoParaAnexo.current === criacao) criandoParaAnexo.current = null
+          })
+        }
+        id = await criandoParaAnexo.current
+      }
+      if (geracao.current !== minhaGeracao) return false
+      if (!id) {
+        registrarFalha(arquivos, 'não foi possível criar a conversa')
+        return false
+      }
+      return anexarNaFila(arquivos, id)
+    },
+    [anexarNaFila, registrarFalha, criarParaAnexo]
+  )
+
+  return {
+    conversaId,
+    mensagens,
+    estado,
+    erro,
+    ferramentaAtual,
+    anexos,
+    enviar,
+    anexar,
+    parar,
+    tentarDeNovo,
+    novaConversa,
+    abrirConversa,
+  }
 }

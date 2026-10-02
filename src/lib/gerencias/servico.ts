@@ -223,3 +223,11 @@ export async function gerenciaDoCliente(clienteId: string): Promise<{ id: string
   })
   return c ? c.gerencia : null
 }
+
+export async function candidatosDaEquipe(gerenciaId: string): Promise<Array<{ id: string; nome: string; email: string }>> {
+  return prisma.usuario.findMany({
+    where: { gerencias: { none: { gerenciaId } } },
+    orderBy: { nome: 'asc' },
+    select: { id: true, nome: true, email: true },
+  })
+}

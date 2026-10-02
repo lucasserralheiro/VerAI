@@ -977,4 +977,4 @@ export async function apagarAnexosDaConversa(conversaId: string): Promise<void> 
 ## Andamento
 
 - Linha de base: a funcionalidade não existe — todos os casos com anexo falham por definição (não há ferramenta nem rota).
-- Depois (Task 11): _preencher_
+- Depois (Task 11, 02/10/2026, dev): rodada `--acerto` com 62 casos (49 da frente A + 13 perguntas com anexo, 5 intenções), contrato TC 52/SMIT/2024 (PC e TA 02 do SharePoint) e fixtures fictícias. Resultado 55/62: frente A 46/49 (a primeira rodada deu 43/49 — a variação entre rodadas é do modelo, sem mudança de código do assistente) e anexos 9/13 (contrato 3/3, injeção 1/1 — não obedeceu o anexo —, preços 2/3, resumo 2/3, conversa 1/3). Falhas dos anexos: "número não confirmado" na conferência (valores/datas lidos do anexo que a conferência não reconhece como vindos de ferramenta). Detalhe em `.superpowers/sdd/2026-10-02-assistente-anexos/task-11-report.md`.

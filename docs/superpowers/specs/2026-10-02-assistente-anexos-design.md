@@ -1,6 +1,6 @@
 # Assistente de IA — documentos no chat (frente B de 3) (design)
 
-**Status**: Desenho aprovado pelo usuário em 02/10/2026 (brainstorm). Plano a escrever.
+**Status**: Implementada no dev em 02/10/2026 (régua com anexos medida; produção depende da migração `20261002120000` e do deploy).
 **Data**: 02/10/2026
 **Frentes**: A — consultor direto (`2026-09-30-assistente-consultor-design.md`, feita no dev) → **esta (B)** →
 C — analista de negócio e estratégia da carteira.

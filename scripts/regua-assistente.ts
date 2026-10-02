@@ -17,6 +17,11 @@ import { executarAgente, type MensagemHistorico, type ResultadoAgente } from '..
 import { prepararContexto } from '../src/lib/assistente/preparar'
 import { respostaDireta } from '../src/lib/assistente/resposta-cliente'
 import { emMb, tamanhoDoIndice } from '../src/lib/assistente/indexacao/tamanho'
+import { readFileSync as lerArquivo } from 'node:fs'
+import { putR2, getR2, deleteR2, PREFIXO_R2 } from '../src/lib/r2'
+import { apagarAnexosDaConversa, chaveDoAnexo, registrarAnexo } from '../src/lib/assistente/anexos/registrar'
+import { TIPOS_MIME_ANEXO, formatoDoNome } from '../src/lib/assistente/anexos/tipos'
+import type { AnexoDoCaso } from '../src/lib/assistente/regua-acerto'
 import { CASOS } from './regua-assistente-casos'
 import { avaliarCaso } from '../src/lib/assistente/regua-acerto'
 
@@ -118,10 +123,45 @@ async function comIa(): Promise<MedidaComIa[]> {
   return medidas
 }
 
+/** Bytes do anexo do caso: arquivo local da régua ou PDF do contrato guardado do SharePoint (só leitura). */
+async function bytesDoAnexo(a: AnexoDoCaso): Promise<{ nome: string; buffer: Buffer }> {
+  if ('arquivo' in a) return { nome: path.basename(a.arquivo), buffer: lerArquivo(a.arquivo) }
+  const { contratoNumero, tipo } = a.arquivoSharepoint
+  const contrato = await prisma.contrato.findFirst({
+    where: { numeroTermo: contratoNumero },
+    select: { historico: { select: { tipo: true, propostaArquivo: { select: { nome: true, urlBlob: true } }, termoArquivo: { select: { nome: true, urlBlob: true } } } } },
+  })
+  if (!contrato) throw new Error(`contrato ${contratoNumero} não achado`)
+  const linhas = contrato.historico
+  const candidatos = tipo === 'PC' ? linhas.filter((h) => h.tipo === 'CONTRATO').map((h) => h.propostaArquivo)
+    : tipo === 'TC' ? linhas.filter((h) => h.tipo === 'CONTRATO').map((h) => h.termoArquivo)
+    : linhas.filter((h) => h.tipo !== 'CONTRATO').map((h) => h.termoArquivo)
+  const arq = candidatos.filter((x) => x?.urlBlob.startsWith(PREFIXO_R2)).at(-1)
+  if (!arq) throw new Error(`${contratoNumero}: sem ${tipo} em r2:`)
+  const r = await getR2(arq.urlBlob.slice(PREFIXO_R2.length))
+  if (!r.ok) throw new Error(`R2 ${r.status} ao ler ${arq.nome}`)
+  return { nome: arq.nome, buffer: Buffer.from(await r.arrayBuffer()) }
+}
+
 async function acerto(usuario: AuthUser): Promise<MedidaAcerto[]> {
   const medidas: MedidaAcerto[] = []
   for (const caso of CASOS) {
     const chave = caso.chave ? await caso.chave() : null
+    let conversaId: string | undefined
+    const subidas: string[] = []
+    try {
+      if (caso.anexos?.length) {
+        conversaId = (await prisma.conversaAssistente.create({ data: { usuarioId: usuario.id, titulo: `régua ${caso.intencao}` }, select: { id: true } })).id
+        for (const a of caso.anexos) {
+          const { nome, buffer } = await bytesDoAnexo(a)
+          const formato = formatoDoNome(nome)
+          if (!formato) throw new Error(`formato não aceito: ${nome}`)
+          const chaveR2 = chaveDoAnexo(conversaId, formato)
+          subidas.push(chaveR2)
+          await putR2(chaveR2, buffer, TIPOS_MIME_ANEXO[formato])
+          await registrarAnexo({ conversaId, usuario, endereco: `${PREFIXO_R2}${chaveR2}`, nome })
+        }
+      }
     for (const pergunta of caso.perguntas) {
       // Mesma ordem da rota: mensagem que é só um cliente responde sem IA.
       const direta = await respostaDireta(pergunta, usuario, new Date())
@@ -129,9 +169,9 @@ async function acerto(usuario: AuthUser): Promise<MedidaAcerto[]> {
       if (direta) {
         obs = { texto: direta.texto, ferramentas: [], direta: true, naoConfirmados: [] }
       } else {
-        const contexto = await prepararContexto({ usuario, pergunta, rota: null, recentes: [] })
+        const contexto = await prepararContexto({ usuario, pergunta, rota: null, recentes: [], conversaId })
         let final: ResultadoAgente | undefined
-        await executarAgente({ usuario, historico: [], pergunta, contexto }, async (r) => { final = r }).resposta.text()
+        await executarAgente({ usuario, historico: [], pergunta, contexto, conversaId }, async (r) => { final = r }).resposta.text()
         const f = final as ResultadoAgente | undefined
         obs = {
           texto: f?.texto ?? '',
@@ -143,6 +183,14 @@ async function acerto(usuario: AuthUser): Promise<MedidaAcerto[]> {
       const { ok, motivos } = avaliarCaso(caso, chave, obs)
       medidas.push({ intencao: caso.intencao, pergunta, ok, motivos, ferramentas: obs.ferramentas, resposta: obs.texto.slice(0, 300) })
       console.log(`${ok ? '✔' : '✘'} [${caso.intencao}] ${pergunta}${motivos.length ? ` — ${motivos.join('; ')}` : ''}`)
+    }
+    } finally {
+      // O bucket é compartilhado com a produção: só some o que esta régua subiu em assistente/<conversa>/.
+      for (const k of subidas) await deleteR2(k).catch(() => undefined) // sobra de registro que falhou: só chaves desta régua
+      if (conversaId) {
+        await apagarAnexosDaConversa(conversaId).catch((e) => console.error('falha ao apagar anexos', e))
+        await prisma.conversaAssistente.delete({ where: { id: conversaId } }).catch((e) => console.error('falha ao apagar conversa', e))
+      }
     }
   }
   const porIntencao = new Map<string, { ok: number; total: number }>()

@@ -12,7 +12,7 @@ import type { AuthUser } from '@/lib/auth'
 import { criarFerramentas, textoParaModelo } from './ferramentas'
 import { INSTRUCOES_SISTEMA } from './instrucoes'
 import { modeloDoAssistente } from './configuracao'
-import { conferirResposta, type Conferencia } from './conferencia'
+import { conferirResposta, soDatasECompetencias, type Conferencia } from './conferencia'
 import { NAO_ENCONTREI, separarBlocos, tiposDaResposta } from './blocos'
 
 export const MAX_PASSOS = 6
@@ -134,7 +134,7 @@ export function executarAgente(
       // Fonte da conferência: o que as ferramentas devolveram e também o que a IA passou a elas (datas, mês).
       const saidas = steps.flatMap((s) => [
         ...s.toolResults.map((r) => textoParaModelo(r.toolName, r.output)),
-        ...s.toolCalls.map((c) => JSON.stringify(c.input)),
+        ...s.toolCalls.map((c) => soDatasECompetencias(JSON.stringify(c.input))),
       ])
       const final = texto.trim()
         ? finalizarComSeguranca({ texto, saidas, contexto: entrada.contexto, houveFerramenta: ferramentas.length > 0 })

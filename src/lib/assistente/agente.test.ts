@@ -142,6 +142,38 @@ describe('executarAgente', () => {
     }).resposta.text()
     expect(final!.conferencia).toEqual({ conferidos: 1, naoConfirmados: [] })
   })
+
+  it('valor passado na ENTRADA da ferramenta NÃO confirma a resposta', async () => {
+    const modelo = new MockLanguageModelV4({
+      doStream: [
+        {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'stream-start', warnings: [] },
+              { type: 'tool-call', toolCallId: 't1', toolName: 'buscarClientes', input: '{"termo":"R$ 999,00"}' },
+              { type: 'finish', finishReason: { unified: 'tool-calls', raw: 'tool_calls' }, usage: uso(1, 0, 1) },
+            ],
+          }),
+        },
+        {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'stream-start', warnings: [] },
+              { type: 'text-start', id: '1' },
+              { type: 'text-delta', id: '1', delta: 'Fica R$ 999,00.' },
+              { type: 'text-end', id: '1' },
+              { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage: uso(1, 0, 1) },
+            ],
+          }),
+        },
+      ],
+    })
+    let final: ResultadoAgente | undefined
+    await executarAgente({ usuario, historico: [], pergunta: 'o que vence?', contexto: null, modelo }, async (r) => {
+      final = r
+    }).resposta.text()
+    expect(final!.conferencia).toEqual({ conferidos: 0, naoConfirmados: ['R$ 999,00'] })
+  })
 })
 
 describe('executarAgente — conferência e falha', () => {

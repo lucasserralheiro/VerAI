@@ -81,3 +81,10 @@ export function conferirResposta({ textoVerai, fontes }: { textoVerai: string; f
   const naoConfirmados = numeros.filter((v) => !conhecidos.has(canonico(v)))
   return { conferidos: numeros.length - naoConfirmados.length, naoConfirmados: [...new Set(naoConfirmados)] }
 }
+
+const ehDataOuCompetencia = (v: string) => /^(?:\d{2}\/\d{2}\/\d{4}|20\d{2}-\d{2}(?:-\d{2})?|\d{2}\/20\d{2}|[A-Za-z]{3}\/20\d{2})$/.test(v)
+
+/** Da entrada que a IA passou a uma ferramenta, só data e competência servem de fonte; valor e percentual têm de voltar na saída. */
+export function soDatasECompetencias(texto: string): string {
+  return extrairNumeros(texto).filter(ehDataOuCompetencia).join(' ')
+}

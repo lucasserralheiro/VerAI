@@ -1,4 +1,4 @@
-import { conferirResposta, extrairNumeros } from './conferencia'
+import { conferirResposta, extrairNumeros, soDatasECompetencias } from './conferencia'
 
 it('extrai valor, percentual, data, competência, SEI e número de contrato', () => {
   expect(extrairNumeros('Saldo R$ 600.000,00 (40%), vence 31/12/2026, compet. 08/2026, SEI 6018.2023/0122629-0, TC 45/SMIT/2023.')).toEqual([
@@ -57,4 +57,10 @@ describe('fix round 1', () => {
 it('data ISO da fonte confere com dd/mm/aaaa da resposta', () => {
   expect(conferirResposta({ textoVerai: 'Vencem até 02/01/2027.', fontes: ['{"ate":"2027-01-02"}'] })).toEqual({ conferidos: 1, naoConfirmados: [] })
   expect(conferirResposta({ textoVerai: 'Vence 03/01/2027.', fontes: ['{"ate":"2027-01-02"}'] }).naoConfirmados).toEqual(['03/01/2027'])
+})
+
+it('da entrada da ferramenta só data e competência confirmam; valor e percentual não', () => {
+  const fonte = soDatasECompetencias('{"valor":"999,00","pct":"R$ 999,00 6,17%","ate":"2027-01-02","mes":"2026-10"}')
+  expect(conferirResposta({ textoVerai: 'Até 02/01/2027, compet. 10/2026.', fontes: [fonte] }).naoConfirmados).toEqual([])
+  expect(conferirResposta({ textoVerai: 'Valor R$ 999,00 e 6,17%.', fontes: [fonte] }).naoConfirmados).toEqual(['R$ 999,00', '6,17%'])
 })

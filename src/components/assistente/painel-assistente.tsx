@@ -159,10 +159,15 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
         <button type="button" className={BTN_OUTLINE_SM} onClick={alternarHistorico} aria-label="Conversas anteriores">
           <History className="size-3.5" aria-hidden />
         </button>
-        <button type="button" className={BTN_OUTLINE_SM} onClick={() => {
+        <button
+          type="button"
+          className={BTN_OUTLINE_SM}
+          onClick={() => {
             trocasDeConversa.current += 1
             conversa.novaConversa()
-          }} aria-label="Nova conversa">
+          }}
+          aria-label="Nova conversa"
+        >
           <Plus className="size-3.5" aria-hidden />
         </button>
         <button type="button" className={BTN_OUTLINE_SM} onClick={onFechar} aria-label="Fechar assistente">

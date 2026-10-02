@@ -147,6 +147,22 @@ describe('ocrSeEscaneado', () => {
     expect(doc.destroy).toHaveBeenCalled()
   })
 
+  it('página só com espaços e quebras (muitos) continua sem camada de texto: dispara o OCR', async () => {
+    ;(getDocumentProxy as jest.Mock).mockResolvedValue(documento(1))
+    ;(extractTextItems as jest.Mock).mockResolvedValue({ items: [[{ str: ' '.repeat(40) }, { str: '\n\n\t\r\n'.repeat(10) }, { str: '12' }]] })
+    const worker = { recognize: jest.fn().mockResolvedValue({ data: { text: 'texto' } }), terminate: jest.fn().mockResolvedValue(undefined) }
+    ;(createWorker as jest.Mock).mockResolvedValue(worker)
+    expect(await ocrSeEscaneado(pdfComBytes(), () => {})).toEqual([{ pagina: 1, texto: 'texto' }])
+    expect(createWorker).toHaveBeenCalled()
+  })
+
+  it('texto real cheio de "s" tem camada de texto: não dispara o OCR', async () => {
+    ;(getDocumentProxy as jest.Mock).mockResolvedValue(documento(1))
+    ;(extractTextItems as jest.Mock).mockResolvedValue({ items: [[{ str: 'sessões sucessivas assinadas' }]] })
+    expect(await ocrSeEscaneado(pdfComBytes(), () => {})).toBeNull()
+    expect(createWorker).not.toHaveBeenCalled()
+  })
+
   it('escaneado: reconhece página a página com progresso e encerra o worker', async () => {
     ;(getDocumentProxy as jest.Mock).mockResolvedValue(documento(2))
     ;(extractTextItems as jest.Mock).mockResolvedValue({ items: [[{ str: '  ' }], []] })

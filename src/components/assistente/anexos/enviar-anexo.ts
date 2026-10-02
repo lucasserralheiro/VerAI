@@ -64,7 +64,7 @@ export async function ocrSeEscaneado(arquivo: File, aoProgredir: (p: ProgressoOc
   try {
     const { items } = await extractTextItems(pdf)
     const temTexto = items.some(
-      (pagina) => pagina.map((item) => item.str ?? '').join('').replace(/s/g, '').length >= MINIMO_DE_CARACTERES
+      (pagina) => pagina.map((item) => item.str ?? '').join('').replace(/\s/g, '').length >= MINIMO_DE_CARACTERES
     )
     if (temTexto) return null
     pararSeCancelado(signal)

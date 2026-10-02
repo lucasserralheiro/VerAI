@@ -110,6 +110,38 @@ describe('executarAgente', () => {
     // A 2ª chamada recebeu o resultado da ferramenta, em texto compacto.
     expect(JSON.stringify(modelo.doStreamCalls[1].prompt)).toContain('c1|SMIT|SMIT|1')
   })
+
+  it('data passada na ENTRADA da ferramenta confirma a resposta (ISO na entrada, dd/mm/aaaa no texto)', async () => {
+    const modelo = new MockLanguageModelV4({
+      doStream: [
+        {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'stream-start', warnings: [] },
+              { type: 'tool-call', toolCallId: 't1', toolName: 'buscarClientes', input: '{"termo":"2027-01-02"}' },
+              { type: 'finish', finishReason: { unified: 'tool-calls', raw: 'tool_calls' }, usage: uso(1, 0, 1) },
+            ],
+          }),
+        },
+        {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'stream-start', warnings: [] },
+              { type: 'text-start', id: '1' },
+              { type: 'text-delta', id: '1', delta: 'Vencem até 02/01/2027.' },
+              { type: 'text-end', id: '1' },
+              { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage: uso(1, 0, 1) },
+            ],
+          }),
+        },
+      ],
+    })
+    let final: ResultadoAgente | undefined
+    await executarAgente({ usuario, historico: [], pergunta: 'o que vence?', contexto: null, modelo }, async (r) => {
+      final = r
+    }).resposta.text()
+    expect(final!.conferencia).toEqual({ conferidos: 1, naoConfirmados: [] })
+  })
 })
 
 describe('executarAgente — conferência e falha', () => {

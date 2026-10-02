@@ -53,3 +53,8 @@ describe('fix round 1', () => {
     expect(c('Saldo R$ -5,00.', 'R$ 5,00').naoConfirmados).toEqual(['R$ -5,00'])
   })
 })
+
+it('data ISO da fonte confere com dd/mm/aaaa da resposta', () => {
+  expect(conferirResposta({ textoVerai: 'Vencem até 02/01/2027.', fontes: ['{"ate":"2027-01-02"}'] })).toEqual({ conferidos: 1, naoConfirmados: [] })
+  expect(conferirResposta({ textoVerai: 'Vence 03/01/2027.', fontes: ['{"ate":"2027-01-02"}'] }).naoConfirmados).toEqual(['03/01/2027'])
+})

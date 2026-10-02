@@ -12,6 +12,7 @@ const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'o
 const PADROES = [
   /-?R\$\s?-?\d+(?:\.\d{3})*(?:,\d{1,2})?(?!\d)/g, // moeda, com ou sem milhar, 1–2 casas, com sinal
   /\b\d{4}\.\d{4}\/\d{7}-\d\b/g, // SEI
+  /(?<![\d-])20\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?![\d-])/g, // data ISO AAAA-MM-DD (entrada de ferramenta)
   /(?<![\d.,])-?\d{1,3}(?:[.,]\d{1,2})?%/g, // percentual
   /\b\d{2}\/\d{2}\/\d{4}\b/g, // data
   /\b\d{1,4}\/[A-Za-zÀ-ú]+\/\d{4}\b/g, // contrato NN/SIGLA/AAAA
@@ -47,6 +48,8 @@ function canonico(v: string): string {
   if (v.endsWith('%')) return `p:${fixo(Number(v.slice(0, -1).replace(',', '.')))}`
   let m = v.match(/^(0[1-9]|1[0-2])\/(20\d{2})$/)
   if (m) return `c:${m[2]}-${m[1]}`
+  m = v.match(/^(20\d{2})-(0[1-9]|1[0-2])-(\d{2})$/)
+  if (m) return `t:${m[3]}/${m[2]}/${m[1]}` // igual à data dd/mm/aaaa
   m = v.match(/^(20\d{2})-(0[1-9]|1[0-2])$/)
   if (m) return `c:${m[1]}-${m[2]}`
   m = v.match(/^([A-Za-z]{3})\/(20\d{2})$/)

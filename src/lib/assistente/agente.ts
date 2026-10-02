@@ -131,7 +131,11 @@ export function executarAgente(
 
       const texto = steps.map((s) => s.text).filter(Boolean).join('\n\n')
       const ferramentas = steps.flatMap((s) => s.toolCalls.map((c) => ({ nome: c.toolName, entrada: c.input })))
-      const saidas = steps.flatMap((s) => s.toolResults.map((r) => textoParaModelo(r.toolName, r.output)))
+      // Fonte da conferência: o que as ferramentas devolveram e também o que a IA passou a elas (datas, mês).
+      const saidas = steps.flatMap((s) => [
+        ...s.toolResults.map((r) => textoParaModelo(r.toolName, r.output)),
+        ...s.toolCalls.map((c) => JSON.stringify(c.input)),
+      ])
       const final = texto.trim()
         ? finalizarComSeguranca({ texto, saidas, contexto: entrada.contexto, houveFerramenta: ferramentas.length > 0 })
         : { texto: '', conferencia: { conferidos: 0, naoConfirmados: [] }, tipos: [], bloqueada: false }

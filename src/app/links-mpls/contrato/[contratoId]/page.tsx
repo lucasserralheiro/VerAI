@@ -141,11 +141,11 @@ export default function LinksDoContratoPage({ params }: { params: Promise<{ cont
         <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
           <span>Relatórios dos clientes</span>
           <ChevronRight className="size-3" strokeWidth={2.5} />
-          <Link href="/links-mpls" className="hover:text-orange">
-            Links MPLS
+          <Link href={`/clientes/${contrato.clienteId}/contratos/${contrato.id}`} className="hover:text-orange">
+            {contrato.numeroTermo ?? 'Contrato'}
           </Link>
           <ChevronRight className="size-3" strokeWidth={2.5} />
-          <span className="font-semibold text-navy">{contrato.numeroTermo ?? 'Contrato'}</span>
+          <span className="font-semibold text-navy">Links MPLS</span>
         </nav>
         <div>
           <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">Links MPLS — {contrato.numeroTermo ?? '(sem número)'}</h1>
@@ -191,7 +191,7 @@ export default function LinksDoContratoPage({ params }: { params: Promise<{ cont
                   {ROTULO_CATEGORIA[r.categoria]} · {nomeDaCompetencia(r.competencia)}
                 </h2>
                 <p className="text-xs text-mid-grey">
-                  {r.conferido ? `${r.ativos} ativo(s) · ${r.cancelados} cancelado(s)` : 'Leitura não conferida: os totais do PDF não batem com os links lidos — confira no PDF.'}
+                  {r.conferido ? `${r.ativos} ativo(s)` : 'Leitura não conferida: os totais do PDF não batem com os links lidos — confira no PDF.'}
                   {r.entraram !== null && ` · ▲${r.entraram} entraram ▼${r.sairam} saíram em relação ao mês anterior`}
                 </p>
               </div>
@@ -232,7 +232,8 @@ export default function LinksDoContratoPage({ params }: { params: Promise<{ cont
             )}
             {cancelados.length > 0 && (
               <details>
-                <summary className="cursor-pointer text-xs font-semibold text-navy">Cancelados ({cancelados.length})</summary>
+                {/* A lista do PDF traz cancelamentos de meses anteriores: o que saiu neste mês é o bloco "Saíram". */}
+                <summary className="cursor-pointer text-xs font-semibold text-navy">Lista de cancelados do relatório ({cancelados.length}) — inclui meses anteriores</summary>
                 <div className="mt-2">
                   <TabelaLinks links={filtrar(cancelados)} rotulo="Links cancelados" />
                 </div>

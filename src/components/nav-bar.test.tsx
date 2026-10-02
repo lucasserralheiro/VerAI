@@ -95,7 +95,8 @@ describe('NavBar', () => {
     render(<NavBar />)
     expect(screen.getByRole('link', { name: 'Tabela de preços' })).toHaveAttribute('href', '/tabela-de-precos')
     expect(screen.getByRole('link', { name: 'Controle de faturamento' })).toHaveAttribute('href', '/controle-faturamento')
-    expect(screen.getByRole('link', { name: 'Links MPLS' })).toHaveAttribute('href', '/links-mpls')
+    // Links MPLS não têm tela geral: só o cartão no detalhe do contrato.
+    expect(screen.queryByRole('link', { name: 'Links MPLS' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Calendário de faturamento' })).toHaveAttribute('href', '/calendario-faturamento')
   })
 

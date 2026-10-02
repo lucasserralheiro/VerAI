@@ -3,8 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { diferencaDeLinks, type CategoriaLinks, type LinkSerializado, type RelatorioDoContrato, type RelatorioResumo } from './tipos'
 
 // Consultas dos Links MPLS (spec docs/superpowers/specs/2026-09-29-links-mpls-design.md §6–8). Contagens e
-// diferenças só de relatório conferido; permissão por cliente (`clienteIds` null = admin, vê também o que não
-// casou com contrato).
+// diferenças só de relatório conferido. Sempre por contrato: a tela geral (todos os clientes) saiu em 30/09.
 
 const comp = (r: { ano: number; mes: number }) => `${r.ano}-${String(r.mes).padStart(2, '0')}`
 const anterior = (c: string) => {
@@ -60,39 +59,6 @@ const doAnterior = (r: RelatorioLinks, anteriores: ComLinks[]) =>
 async function nomesDosClientes(ids: (string | null)[]) {
   const validos = [...new Set(ids.filter((x): x is string => !!x))]
   return new Map((await prisma.cliente.findMany({ where: { id: { in: validos } }, select: { id: true, nome: true } })).map((c) => [c.id, c.nome]))
-}
-
-const filtroCliente = (clienteIds: string[] | null) => (clienteIds === null ? {} : { clienteId: { in: clienteIds } })
-
-export async function listarLinks(filtro: {
-  competencia?: string
-  clienteIds: string[] | null
-}): Promise<{ competencias: string[]; competencia: string | null; relatorios: RelatorioResumo[] }> {
-  const competencias = (
-    await prisma.relatorioLinks.findMany({
-      where: filtroCliente(filtro.clienteIds),
-      distinct: ['ano', 'mes'],
-      select: { ano: true, mes: true },
-      orderBy: [{ ano: 'desc' }, { mes: 'desc' }],
-    })
-  ).map(comp)
-  const competencia = filtro.competencia && competencias.includes(filtro.competencia) ? filtro.competencia : (competencias[0] ?? null)
-  if (!competencia) return { competencias, competencia: null, relatorios: [] }
-  const [doMes, doAnteriorMes] = await Promise.all(
-    [competencia, anterior(competencia)].map((c) =>
-      prisma.relatorioLinks.findMany({
-        where: { ...partes(c), ...filtroCliente(filtro.clienteIds) },
-        include: { links: { where: { situacao: 'ATIVO' }, orderBy: { posicao: 'asc' } } },
-        orderBy: [{ sigla: 'asc' }, { categoria: 'asc' }],
-      })
-    )
-  )
-  const nomes = await nomesDosClientes(doMes.map((r) => r.clienteId))
-  return {
-    competencias,
-    competencia,
-    relatorios: doMes.map((r) => resumir(r, doAnterior(r, doAnteriorMes), r.clienteId ? (nomes.get(r.clienteId) ?? null) : null)),
-  }
 }
 
 /** Série mês a mês do contrato (ativos por categoria, só conferidos) e os relatórios do mês pedido com os links. */

@@ -3,6 +3,15 @@
 **Status:** implementado no dev em 30/09/2026 ("pode fazer todos"). Depende da base
 `2026-09-29-biblioteca-documentos-prodam-design.md`.
 
+**Revisão de 30/09 — tela geral retirada.** A tela entrou "porque a pasta estava lá", sem pedido da equipe, e
+não apoia decisão (sem R$, sem cruzar com o faturado). O total geral enganava (1.431 links em jan/2025 → 248 em
+set/2026, acompanhando 40 → 17 relatórios na pasta, sem dizer se é rede encolhendo ou PDF faltando) e o
+"cancelados no mês" era a lista acumulada do PDF (SMADS out/2025: 4 "cancelados", 1 saiu de fato). Ficou: a
+leitura no agendador, o cartão no detalhe do contrato e `/links-mpls/contrato/[id]` (evolução, entraram/saíram,
+PDF); a lista de cancelados aparece como "lista do relatório — inclui meses anteriores". Saíram: o item do menu,
+`/links-mpls`, `GET /api/links-mpls` e `listarLinks`. Os relatórios sem contrato no VerAI (SEGES 24/2025) deixam
+de ter tela. A §6.1 abaixo é histórica. Volta a ter tela geral se cruzar links × tabela de preços (§10).
+
 **Decisões da execução (30/09):**
 - **Prova por seção**: um PDF pode ter "LINKS ATIVOS" e "LINKS CANCELADOS", cada um com o próprio "Total Geral"
   e "TOTAL ="; cada seção confere com os seus códigos. O título da seção se repete no topo de cada página — seção

@@ -26,7 +26,6 @@ import {
   Sparkles,
   Tags,
   Receipt,
-  Network,
   CalendarDays,
   TrendingUp,
   Table2,
@@ -69,10 +68,10 @@ const RELATORIOS_SUBLINKS = [
   { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
   { href: '/', label: 'Todos os documentos', icon: FileText },
   // Telas da biblioteca "Documentos" do SharePoint (spec 2026-09-29-biblioteca-documentos-prodam §4):
-  // entram aqui, embaixo de "Relatórios dos clientes", a pedido do usuário (29/09/2026).
+  // entram aqui, embaixo de "Relatórios dos clientes", a pedido do usuário (29/09/2026). Os Links MPLS
+  // saíram do menu em 30/09: ficam só no detalhe do contrato (cartão → /links-mpls/contrato/[id]).
   { href: '/tabela-de-precos', label: 'Tabela de preços', icon: Tags },
   { href: '/controle-faturamento', label: 'Controle de faturamento', icon: Receipt },
-  { href: '/links-mpls', label: 'Links MPLS', icon: Network },
   { href: '/calendario-faturamento', label: 'Calendário de faturamento', icon: CalendarDays },
 ]
 

@@ -5,6 +5,7 @@ import { carregarTabela } from '@/lib/tabela-precos/consultas'
 import { anexoDoUsuario } from '@/lib/assistente/anexos/acesso'
 import { htmlDoAnexo } from '@/lib/assistente/anexos/extrair'
 import { itensDasTabelas } from '@/lib/assistente/anexos/itens'
+import type { FormatoAnexo } from '@/lib/assistente/anexos/tipos'
 import { getR2 } from '@/lib/r2'
 import { tabela } from './compacto'
 import { definirFerramenta, moeda, NAO_ENCONTRADO } from './comum'
@@ -83,12 +84,13 @@ export const conferirPrecosDoAnexo = definirFerramenta({
   async executar({ anexoId }, { usuario }) {
     const anexo = await anexoDoUsuario(anexoId, usuario)
     if (!anexo) return NAO_ENCONTRADO
+    if (anexo.status !== 'ok') return { erro: 'não consegui ler este anexo' }
 
     let itensDoAnexo
     try {
       const resposta = await getR2(anexo.chaveR2)
       if (!resposta?.ok) throw new Error('arquivo fora do R2')
-      const html = await htmlDoAnexo(Buffer.from(await resposta.arrayBuffer()), anexo.formato as never)
+      const html = await htmlDoAnexo(Buffer.from(await resposta.arrayBuffer()), anexo.formato as FormatoAnexo)
       itensDoAnexo = itensDasTabelas(html)
     } catch (erro) {
       console.error('[assistente] falha ao reler o anexo para conferir preços', erro)
@@ -103,7 +105,7 @@ export const conferirPrecosDoAnexo = definirFerramenta({
     const avisos: string[] = []
     const resumo = { igual: 0, diferente: 0, inexistente: 0, contaErrada: 0 }
     const itens: ItemConferido[] = []
-    let anual = false
+    let semTotal = 0
     let semValor = 0
     let soma = new Decimal(0)
 
@@ -122,7 +124,7 @@ export const conferirPrecosDoAnexo = definirFerramenta({
       else if (arredondar(unit).equals(arredondar(refDec))) preco = 'igual'
       else {
         preco = 'diferente'
-        detalhes.push(`tabela ${dinheiro(refDec)}`)
+        detalhes.push(`tabela ${dinheiro(refDec)}${ref?.unidade ? ` por ${ref.unidade}` : ""}`)
       }
       if (preco === 'igual') resumo.igual++
       else if (preco === 'diferente') resumo.diferente++
@@ -137,7 +139,7 @@ export const conferirPrecosDoAnexo = definirFerramenta({
           resumo.contaErrada++
           detalhes.push(`quantidade × unitário = ${dinheiro(calculado)}`)
         }
-      } else if (qtd && unit && !totalLinha) anual = true
+      } else if (qtd && unit && !totalLinha) semTotal++
 
       const valorLinha = totalLinha ?? (qtd && unit ? arredondar(qtd.times(unit)) : null)
       if (valorLinha) soma = soma.plus(valorLinha)
@@ -154,7 +156,7 @@ export const conferirPrecosDoAnexo = definirFerramenta({
         ...(detalhes.length > 0 ? { detalhe: detalhes.join('; ') } : {}),
       })
     }
-    if (anual) avisos.push('a tabela traz só total anual; conta por linha não conferida')
+    if (semTotal > 0) avisos.push(`${semTotal} linha(s) sem total — conta por linha não conferida`)
 
     const declarado = decimalDe(anexo.ficha?.campos?.valorTotal?.valor)
     let situacaoSoma: SaidaPrecos['soma']
@@ -164,7 +166,16 @@ export const conferirPrecosDoAnexo = definirFerramenta({
       avisos.push(`soma não conferida: ${semValor} item(ns) sem valor`)
     } else {
       somaDasLinhas = dinheiro(soma)
-      situacaoSoma = !declarado ? 'sem total declarado' : arredondar(soma).equals(arredondar(declarado)) ? 'confere' : 'não confere'
+      avisos.push('a soma considera só os itens com código de serviço')
+      if (!declarado) situacaoSoma = 'sem total declarado'
+      else if (arredondar(soma).equals(arredondar(declarado))) situacaoSoma = 'confere'
+      else if (arredondar(soma.times(12)).equals(arredondar(declarado))) {
+        situacaoSoma = 'não conferida'
+        avisos.push('o total declarado parece anual (12 × a soma mensal das linhas)')
+      } else {
+        situacaoSoma = 'não confere'
+        avisos.push(`soma das linhas ${dinheiro(soma)} × total declarado ${dinheiro(declarado)}`)
+      }
     }
 
     return {

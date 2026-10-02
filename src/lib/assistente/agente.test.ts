@@ -226,6 +226,7 @@ describe('contexto da pergunta', () => {
 describe('instrução do sistema', () => {
   it('cabe no teto e cita as ferramentas de analista, o formato e as regras da fase 1', () => {
     expect(INSTRUCOES_SISTEMA.length).toBeLessThanOrEqual(6000)
+    expect(INSTRUCOES_SISTEMA).toContain('[confirmar]')
     for (const termo of [
       'alertas', 'consultarManual', 'buscarNasNormas', 'fichasDoContrato', 'buscarNosDocumentos', 'Atenção', 'Próximo passo', 'Já identificados', '(tipo:id)', 'sei:', '"|"',
       ':::geral', 'calendarioFaturamento', 'simularReajuste', 'controleDoFaturamento', 'Período citado', 'Contratos possíveis', 'Contrato provável', RECUSA,

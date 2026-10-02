@@ -36,6 +36,16 @@ export function periodoDaPergunta(pergunta: string, hoje: Date): { inicio: strin
   if (/\bano passado\b/.test(q)) return entre(a - 1, 1, 1, a - 1, 12, 31)
   if (/\bate o fim do ano\b|\bate dezembro\b/.test(q)) return entre(a, m, d, a, 12, 31)
   if (/\b(este|esse|neste|nesse) ano\b|\bano atual\b/.test(q)) return entre(a, 1, 1, a, 12, 31)
+  const proxMeses = q.match(/\bproximos (\d{1,2}) meses\b/)
+  if (proxMeses) {
+    const [af, mf] = somar(a, m, Number(proxMeses[1]))
+    return entre(a, m, d, af, mf, ultimoDia(af, mf))
+  }
+  const proxDias = q.match(/\bproximos (\d{1,3}) dias\b/)
+  if (proxDias) {
+    const f = new Date(Date.UTC(a, m - 1, d + Number(proxDias[1])))
+    return entre(a, m, d, f.getUTCFullYear(), f.getUTCMonth() + 1, f.getUTCDate())
+  }
   const ultimos = q.match(/\bultimos (\d{1,2}) meses\b/)
   if (ultimos) {
     const [ai, mi] = somar(a, m, -(Number(ultimos[1]) - 1))

@@ -48,3 +48,17 @@ it('faturamento de MM/AAAA vira período', () => {
     fim: '2026-08-31',
   })
 })
+
+describe('próximos N meses / dias', () => {
+  const h = new Date('2026-10-02T12:00:00Z')
+  const q = (t: string) => periodoDaPergunta(t, h)
+  it('próximos 3 meses: de hoje ao último dia do mês hoje+3', () => {
+    expect(q('o que vence nos próximos 3 meses?')).toMatchObject({ inicio: '2026-10-02', fim: '2027-01-31' })
+  })
+  it('próximos 30 dias: de hoje a hoje+30', () => {
+    expect(q('vence nos próximos 30 dias?')).toMatchObject({ inicio: '2026-10-02', fim: '2026-11-01' })
+  })
+  it('próximo mês e próximo trimestre seguem como antes', () => {
+    expect(q('próximo mês')).toMatchObject({ inicio: '2026-11-01', fim: '2026-11-30' })
+  })
+})

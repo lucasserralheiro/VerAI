@@ -41,6 +41,22 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
   const [arrastando, setArrastando] = useState(false)
   const fim = useRef<HTMLDivElement>(null)
   const seletor = useRef<HTMLInputElement>(null)
+  /** Muda a cada troca de conversa: o texto colado cujo anexo falhou só volta ao campo da MESMA conversa. */
+  const trocasDeConversa = useRef(0)
+
+  useEffect(() => {
+    // Arquivo solto fora do painel (enquanto ele está aberto) seria aberto pelo navegador, saindo do
+    // VerAI. Só arraste de arquivos: texto e links continuam com o comportamento normal.
+    function segurar(e: globalThis.DragEvent) {
+      if (Array.from(e.dataTransfer?.types ?? []).includes('Files')) e.preventDefault()
+    }
+    window.addEventListener('dragover', segurar)
+    window.addEventListener('drop', segurar)
+    return () => {
+      window.removeEventListener('dragover', segurar)
+      window.removeEventListener('drop', segurar)
+    }
+  }, [])
 
   useEffect(() => {
     setUsarContexto(true)
@@ -67,8 +83,12 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
     // Texto colado longo (e-mail, conversa) não cabe na pergunta: vira anexo .txt e a pergunta,
     // curta, só sai depois que o anexo ficou pronto — senão a IA responderia sem ele.
     if (pergunta.trim().length > LIMITE_DA_PERGUNTA) {
+      const minhaTroca = trocasDeConversa.current
       void conversa.anexar([arquivoDoTextoColado(pergunta)], rotaEnviada).then((ok) => {
         if (ok) conversa.enviar(perguntaDoTextoColado(pergunta), rotaEnviada)
+        // Falhou: o texto (com a pergunta que o usuário escreveu nele) volta ao campo, se ele ainda
+        // está vazio e a conversa é a mesma — nunca por cima do que o usuário digitou depois.
+        else if (trocasDeConversa.current === minhaTroca) setTexto((atual) => (atual === '' ? pergunta : atual))
       })
       return
     }
@@ -139,7 +159,10 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
         <button type="button" className={BTN_OUTLINE_SM} onClick={alternarHistorico} aria-label="Conversas anteriores">
           <History className="size-3.5" aria-hidden />
         </button>
-        <button type="button" className={BTN_OUTLINE_SM} onClick={conversa.novaConversa} aria-label="Nova conversa">
+        <button type="button" className={BTN_OUTLINE_SM} onClick={() => {
+            trocasDeConversa.current += 1
+            conversa.novaConversa()
+          }} aria-label="Nova conversa">
           <Plus className="size-3.5" aria-hidden />
         </button>
         <button type="button" className={BTN_OUTLINE_SM} onClick={onFechar} aria-label="Fechar assistente">
@@ -158,6 +181,7 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
                 type="button"
                 className="block w-full truncate rounded-lg px-2 py-1.5 text-left text-xs text-navy hover:bg-navy/[0.06]"
                 onClick={() => {
+                  trocasDeConversa.current += 1
                   conversa.abrirConversa(c.id)
                   setHistoricoAberto(false)
                 }}
@@ -180,7 +204,7 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
       )}
 
       {conversa.anexos.length > 0 && (
-        <section className="max-h-48 space-y-1.5 overflow-y-auto border-b border-border-grey px-4 py-2" aria-label="Anexos da conversa">
+        <section className="max-h-48 space-y-1.5 overflow-y-auto border-b border-border-grey px-4 py-2" aria-label="Anexos da conversa" aria-live="polite">
           {conversa.anexos.map((a) => (
             <CartaoAnexo key={a.id} anexo={a} />
           ))}

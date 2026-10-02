@@ -13,7 +13,10 @@ jest.mock('ai', () => ({
   }),
 }))
 
-jest.mock('./anexos/enviar-anexo', () => ({ enviarAnexo: jest.fn() }))
+jest.mock('./anexos/enviar-anexo', () => ({
+  ...jest.requireActual('./anexos/enviar-anexo'),
+  enviarAnexo: jest.fn(),
+}))
 
 import { enviarAnexo } from './anexos/enviar-anexo'
 import { useConversaAssistente } from './use-conversa-assistente'
@@ -286,5 +289,35 @@ describe('anexos', () => {
     expect(result.current.anexos).toEqual([expect.objectContaining({ nome: 'a.pdf', etapa: 'erro', erro: 'não foi possível criar a conversa' })])
     act(() => result.current.novaConversa())
     expect(result.current.anexos).toEqual([])
+  })
+
+  it('formato inválido ou acima de 50 MB, sem conversa aberta: cartão com erro e NENHUMA conversa criada', async () => {
+    const fetchMock = jest.fn(async () => new Response(JSON.stringify({ id: 'c1' }), { status: 201 }))
+    global.fetch = fetchMock as jest.Mock
+    const grande = arquivo('enorme.pdf')
+    Object.defineProperty(grande, 'size', { value: 50 * 1024 * 1024 + 1 })
+    const { result } = renderHook(() => useConversaAssistente())
+    await act(async () => {
+      expect(await result.current.anexar([arquivo('foto.png'), grande], '')).toBe(false)
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(enviarAnexo).not.toHaveBeenCalled()
+    expect(result.current.conversaId).toBeNull()
+    expect(result.current.anexos).toEqual([
+      expect.objectContaining({ nome: 'foto.png', etapa: 'erro', erro: 'formato não aceito' }),
+      expect.objectContaining({ nome: 'enorme.pdf', etapa: 'erro', erro: 'arquivo acima de 50 MB' }),
+    ])
+  })
+
+  it('lote misto: o inválido vira cartão de erro e o válido segue (a conversa leva o nome do válido)', async () => {
+    const fetchMock = jest.fn(async () => new Response(JSON.stringify({ id: 'c1', somenteCriar: true }), { status: 201 }))
+    global.fetch = fetchMock as jest.Mock
+    ;(enviarAnexo as jest.Mock).mockResolvedValue({ anexoId: 'a1', texto: 'ficha' })
+    const { result } = renderHook(() => useConversaAssistente())
+    await act(async () => {
+      expect(await result.current.anexar([arquivo('foto.png'), arquivo('termo.pdf')], '')).toBe(false)
+    })
+    expect(JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string).pergunta).toBe('termo.pdf')
+    expect((enviarAnexo as jest.Mock).mock.calls.map((c) => (c[0] as File).name)).toEqual(['termo.pdf'])
   })
 })

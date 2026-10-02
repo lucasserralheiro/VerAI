@@ -138,11 +138,13 @@ describe('ocrSeEscaneado', () => {
     jest.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,x')
   })
 
-  it('PDF com camada de texto: null, sem tesseract', async () => {
-    ;(getDocumentProxy as jest.Mock).mockResolvedValue(documento(1))
+  it('PDF com camada de texto: null, sem tesseract (e o documento é liberado)', async () => {
+    const doc = documento(1)
+    ;(getDocumentProxy as jest.Mock).mockResolvedValue(doc)
     ;(extractTextItems as jest.Mock).mockResolvedValue({ items: [[{ str: 'Termo de contrato de prestação de serviços' }]] })
     expect(await ocrSeEscaneado(pdfComBytes(), () => {})).toBeNull()
     expect(createWorker).not.toHaveBeenCalled()
+    expect(doc.destroy).toHaveBeenCalled()
   })
 
   it('escaneado: reconhece página a página com progresso e encerra o worker', async () => {
@@ -178,5 +180,23 @@ describe('ocrSeEscaneado', () => {
     await expect(ocrSeEscaneado(pdfComBytes(), () => {}, abort.signal)).rejects.toThrow()
     expect(worker.recognize).toHaveBeenCalledTimes(1)
     expect(worker.terminate).toHaveBeenCalled()
+  })
+
+  it('abortado durante o recognize (o terminate do tesseract não rejeita o job): rejeita mesmo assim, libera worker e documento', async () => {
+    const doc = documento(2)
+    ;(getDocumentProxy as jest.Mock).mockResolvedValue(doc)
+    ;(extractTextItems as jest.Mock).mockResolvedValue({ items: [[], []] })
+    const abort = new AbortController()
+    const worker = {
+      recognize: jest.fn(() => {
+        setTimeout(() => abort.abort(), 0)
+        return new Promise(() => {}) // nunca resolve
+      }),
+      terminate: jest.fn().mockResolvedValue(undefined),
+    }
+    ;(createWorker as jest.Mock).mockResolvedValue(worker)
+    await expect(ocrSeEscaneado(pdfComBytes(), () => {}, abort.signal)).rejects.toThrow('cancelado')
+    expect(worker.terminate).toHaveBeenCalled()
+    expect(doc.destroy).toHaveBeenCalled()
   })
 })

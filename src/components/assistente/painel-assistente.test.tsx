@@ -117,6 +117,8 @@ describe('anexos', () => {
     await abrirPainel()
     expect(screen.getByText('termo.pdf')).toBeInTheDocument()
     expect(screen.getByText('Lendo página 3 de 12 (OCR)…')).toBeInTheDocument()
+    // leitor de tela anuncia o andamento
+    expect(screen.getByRole('region', { name: 'Anexos da conversa' })).toHaveAttribute('aria-live', 'polite')
   })
 
   it('texto colado com mais de 2.000 caracteres vira anexo .txt e a pergunta enviada é a primeira linha', async () => {
@@ -153,6 +155,38 @@ describe('anexos', () => {
     })
     expect(hook.anexar).toHaveBeenCalledTimes(2)
     expect(hook.enviar).not.toHaveBeenCalled()
+    // o texto colado não se perde: volta ao campo
+    expect(campo).toHaveValue('z'.repeat(2500))
+  })
+
+  it('anexo do texto colado falhou mas o usuário já trocou de conversa (ou digitou outra coisa): o campo não é sobrescrito', async () => {
+    await abrirPainel()
+    const campo = screen.getByPlaceholderText(/Pergunte/)
+    let concluir!: (ok: boolean) => void
+    hook.anexar.mockImplementation(() => new Promise<boolean>((r) => (concluir = r)))
+    fireEvent.change(campo, { target: { value: 'z'.repeat(2500) } })
+    fireEvent.keyDown(campo, { key: 'Enter' })
+    fireEvent.click(screen.getByRole('button', { name: 'Nova conversa' }))
+    await act(async () => concluir(false))
+    expect(campo).toHaveValue('')
+
+    fireEvent.change(campo, { target: { value: 'w'.repeat(2500) } })
+    fireEvent.keyDown(campo, { key: 'Enter' })
+    fireEvent.change(campo, { target: { value: 'outra pergunta' } })
+    await act(async () => concluir(false))
+    expect(campo).toHaveValue('outra pergunta')
+  })
+
+  it('com o painel aberto, soltar arquivo fora dele não abre o arquivo no navegador (só arraste de arquivos)', async () => {
+    const { unmount } = render(<PainelAssistente rota="/confere" onFechar={() => {}} />)
+    await screen.findByText('SMIT › Contrato 031/2023')
+    // fireEvent devolve false quando alguém chamou preventDefault
+    expect(fireEvent.dragOver(window, { dataTransfer: { types: ['Files'] } })).toBe(false)
+    expect(fireEvent.drop(window, { dataTransfer: { types: ['Files'], files: [] } })).toBe(false)
+    expect(fireEvent.dragOver(window, { dataTransfer: { types: ['text/plain'] } })).toBe(true)
+    expect(hook.anexar).not.toHaveBeenCalled()
+    unmount()
+    expect(fireEvent.drop(window, { dataTransfer: { types: ['Files'], files: [] } })).toBe(true)
   })
 
   it('até 2.000 caracteres continua indo como pergunta', async () => {

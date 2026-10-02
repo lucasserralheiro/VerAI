@@ -41,6 +41,17 @@ function pararSeCancelado(signal?: AbortSignal) {
   if (signal?.aborted) throw new Cancelado()
 }
 
+/** A promessa ou o cancelamento, o que vier primeiro. */
+function comAbort<T>(promessa: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promessa
+  if (signal.aborted) return Promise.reject(new Cancelado())
+  return new Promise<T>((resolve, reject) => {
+    const aoAbortar = () => reject(new Cancelado())
+    signal.addEventListener('abort', aoAbortar, { once: true })
+    promessa.then(resolve, reject).finally(() => signal.removeEventListener('abort', aoAbortar))
+  })
+}
+
 /**
  * Lê a camada de texto do PDF; se nenhuma página tem texto (escaneado), reconhece cada página com o
  * tesseract (um worker por arquivo, encerrado no fim ou ao abortar). `null` = o PDF já tem texto e o
@@ -50,51 +61,72 @@ export async function ocrSeEscaneado(arquivo: File, aoProgredir: (p: ProgressoOc
   const { getDocumentProxy, extractTextItems } = await import('unpdf')
   pararSeCancelado(signal)
   const pdf = await getDocumentProxy(new Uint8Array(await arquivo.arrayBuffer()))
-  const { items } = await extractTextItems(pdf)
-  const temTexto = items.some(
-    (pagina) => pagina.map((item) => item.str ?? '').join('').replace(/\s/g, '').length >= MINIMO_DE_CARACTERES
-  )
-  if (temTexto) return null
-  pararSeCancelado(signal)
-
-  const { createWorker } = await import('tesseract.js')
-  const worker = await createWorker('por')
-  let encerrado = false
-  const encerrar = () => {
-    if (encerrado) return
-    encerrado = true
-    void worker.terminate().catch(() => {})
-  }
-  signal?.addEventListener('abort', encerrar)
   try {
-    const paginas: PaginaOcr[] = []
-    const total = pdf.numPages
-    for (let numero = 1; numero <= total; numero++) {
-      pararSeCancelado(signal)
-      aoProgredir({ pagina: numero, total })
-      const pagina = await pdf.getPage(numero)
-      const viewport = pagina.getViewport({ scale: ESCALA_RENDER_OCR })
-      const canvas = document.createElement('canvas')
-      canvas.width = viewport.width
-      canvas.height = viewport.height
-      const contexto = canvas.getContext('2d')
-      if (!contexto) throw new Error('não foi possível criar o contexto de canvas')
-      await pagina.render({ canvas, canvasContext: contexto, viewport }).promise
-      const imagem = contexto.getImageData(0, 0, canvas.width, canvas.height)
-      binarizarEContrastar(imagem)
-      contexto.putImageData(imagem, 0, 0)
-      const { data } = await worker.recognize(canvas.toDataURL('image/png'))
-      pararSeCancelado(signal)
-      paginas.push({ pagina: numero, texto: data.text.trim() })
-      // Libera o bitmap da página antes da próxima (PDF grande em escala 4 pesa).
-      canvas.width = 0
-      canvas.height = 0
+    const { items } = await extractTextItems(pdf)
+    const temTexto = items.some(
+      (pagina) => pagina.map((item) => item.str ?? '').join('').replace(/s/g, '').length >= MINIMO_DE_CARACTERES
+    )
+    if (temTexto) return null
+    pararSeCancelado(signal)
+
+    const { createWorker } = await import('tesseract.js')
+    const worker = await createWorker('por')
+    let encerrado = false
+    const encerrar = () => {
+      if (encerrado) return
+      encerrado = true
+      void worker.terminate().catch(() => {})
     }
-    return paginas
+    signal?.addEventListener('abort', encerrar)
+    try {
+      const paginas: PaginaOcr[] = []
+      const total = pdf.numPages
+      for (let numero = 1; numero <= total; numero++) {
+        pararSeCancelado(signal)
+        aoProgredir({ pagina: numero, total })
+        const pagina = await pdf.getPage(numero)
+        const viewport = pagina.getViewport({ scale: ESCALA_RENDER_OCR })
+        const canvas = document.createElement('canvas')
+        try {
+          canvas.width = viewport.width
+          canvas.height = viewport.height
+          const contexto = canvas.getContext('2d')
+          if (!contexto) throw new Error('não foi possível criar o contexto de canvas')
+          await pagina.render({ canvas, canvasContext: contexto, viewport }).promise
+          const imagem = contexto.getImageData(0, 0, canvas.width, canvas.height)
+          binarizarEContrastar(imagem)
+          contexto.putImageData(imagem, 0, 0)
+          // O terminate() do tesseract não rejeita o job em curso: sem a corrida com o abort, cancelar
+          // no meio de uma página deixaria esta promessa pendente para sempre.
+          const { data } = await comAbort(worker.recognize(canvas.toDataURL('image/png')), signal)
+          pararSeCancelado(signal)
+          paginas.push({ pagina: numero, texto: data.text.trim() })
+        } finally {
+          // Libera o bitmap da página (escala 4 pesa), inclusive quando cancelou ou falhou.
+          canvas.width = 0
+          canvas.height = 0
+        }
+      }
+      return paginas
+    } finally {
+      signal?.removeEventListener('abort', encerrar)
+      encerrar()
+    }
   } finally {
-    signal?.removeEventListener('abort', encerrar)
-    encerrar()
+    // O tipo do unpdf não declara o destroy, mas o PDFDocumentProxy do pdf.js tem.
+    try {
+      await (pdf as { destroy?: () => Promise<void> }).destroy?.()
+    } catch {
+      // liberar é best-effort: o resultado do OCR (ou o erro original) é o que importa
+    }
   }
+}
+
+/** Por que o arquivo não pode ser anexado (`null` = pode). Conferido antes de criar conversa e de enviar. */
+export function motivoDeRecusa(arquivo: File): string | null {
+  if (!formatoDoNome(arquivo.name)) return 'formato não aceito'
+  if (arquivo.size > TAMANHO_MAXIMO_ANEXO) return 'arquivo acima de 50 MB'
+  return null
 }
 
 /**
@@ -110,15 +142,12 @@ export async function enviarAnexo(
 ): Promise<{ anexoId: string; texto: string } | null> {
   const buscar = deps.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
   const { signal } = deps
+  const recusa = motivoDeRecusa(arquivo)
+  if (recusa) {
+    aoMudar({ etapa: 'erro', erro: recusa })
+    return null
+  }
   const formato = formatoDoNome(arquivo.name)
-  if (!formato) {
-    aoMudar({ etapa: 'erro', erro: 'formato não aceito' })
-    return null
-  }
-  if (arquivo.size > TAMANHO_MAXIMO_ANEXO) {
-    aoMudar({ etapa: 'erro', erro: 'arquivo acima de 50 MB' })
-    return null
-  }
 
   try {
     let paginasOcr: PaginaOcr[] | null = null

@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { DefaultChatTransport, readUIMessageStream, type UIMessage } from 'ai'
 import { lerMensagemDoStream, mensagemDeErro } from './mensagem-stream'
-import type { EstadoAnexo } from './anexos/enviar-anexo'
+import { motivoDeRecusa, type EstadoAnexo } from './anexos/enviar-anexo'
 import { useAnexos } from './anexos/use-anexos'
 
 export interface MensagemTela {
@@ -260,12 +260,20 @@ export function useConversaAssistente() {
    *  ficaram prontos — o painel só manda a pergunta do texto colado depois disso. */
   const anexar = useCallback(
     async (arquivos: File[], rota: string): Promise<boolean> => {
-      if (arquivos.length === 0) return false
+      // Formato e tamanho antes de tudo: arquivo recusado não cria conversa vazia.
+      const validos: File[] = []
+      for (const arquivo of arquivos) {
+        const recusa = motivoDeRecusa(arquivo)
+        if (recusa) registrarFalha([arquivo], recusa)
+        else validos.push(arquivo)
+      }
+      if (validos.length === 0) return false
+      const todosValidos = validos.length === arquivos.length
       const minhaGeracao = geracao.current
       let id = idAtual.current
       if (!id) {
         if (!criandoParaAnexo.current) {
-          const criacao = criarParaAnexo(arquivos[0].name, rota, minhaGeracao)
+          const criacao = criarParaAnexo(validos[0].name, rota, minhaGeracao)
           criandoParaAnexo.current = criacao
           void criacao.finally(() => {
             if (criandoParaAnexo.current === criacao) criandoParaAnexo.current = null
@@ -275,10 +283,11 @@ export function useConversaAssistente() {
       }
       if (geracao.current !== minhaGeracao) return false
       if (!id) {
-        registrarFalha(arquivos, 'não foi possível criar a conversa')
+        registrarFalha(validos, 'não foi possível criar a conversa')
         return false
       }
-      return anexarNaFila(arquivos, id)
+      const prontos = await anexarNaFila(validos, id)
+      return prontos && todosValidos
     },
     [anexarNaFila, registrarFalha, criarParaAnexo]
   )

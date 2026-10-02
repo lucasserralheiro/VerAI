@@ -1,6 +1,7 @@
 import type { Documento, Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 import type { AuthUser } from './auth'
+import { decidirEdicao } from './gerencias/permissao'
 
 export async function clienteIdsPermitidos(usuario: AuthUser): Promise<string[] | null> {
   // null = sem restrição (admin vê todos os clientes)
@@ -66,4 +67,26 @@ export async function clientesVisiveisWhere(usuario: AuthUser): Promise<Prisma.C
 export async function podeVerCliente(usuario: AuthUser, clienteId: string): Promise<boolean> {
   const ids = await clienteIdsPermitidos(usuario)
   return ids === null || ids.includes(clienteId)
+}
+
+/** Edição de cliente (spec 2026-10-02-gerencias §3): admin; membro da gerência ativa dona do cliente; e, na
+ *  transição da Fase A, quem tem o cliente em `clientesPermitidos`. Uma consulta só. Os mocks antigos de rota
+ *  devolvem `clientesPermitidos` sem filtro — por isso a conferência por id, e não só pelo tamanho da lista. */
+export async function podeEditarCliente(usuario: AuthUser, clienteId: string): Promise<boolean> {
+  if (usuario.role === 'admin') return true
+  const registro = await prisma.usuario.findUnique({
+    where: { id: usuario.id },
+    select: {
+      clientesPermitidos: { where: { id: clienteId }, select: { id: true } },
+      gerencias: {
+        where: { gerencia: { ativa: true, carteira: { some: { clienteId } } } },
+        select: { gerenciaId: true },
+      },
+    },
+  })
+  return decidirEdicao({
+    ehAdmin: false,
+    membroDaGerenciaDoCliente: (registro?.gerencias ?? []).length > 0,
+    liberadoNoModeloAntigo: (registro?.clientesPermitidos ?? []).some((c) => c.id === clienteId),
+  })
 }

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { AuthUser } from '@/lib/auth'
 import { clientesVisiveisWhere } from '@/lib/visibilidade'
-import { exigirUsuario, verificarAcessoCliente } from '@/lib/relatorios-clientes/acesso'
+import { exigirUsuario, verificarAcessoCliente, type ModoAcesso } from '@/lib/relatorios-clientes/acesso'
 import { chaveExata } from '@/lib/relatorios-clientes/vincular-itens'
 import { chaveDoSei } from '@/lib/relatorios-clientes/sei'
 
@@ -17,14 +17,14 @@ export const CONTRATO_NAO_ENCONTRADO = 'contrato não encontrado'
 
 /** Autentica, acha o contrato e checa acesso pelo cliente dele (401 → 404 → 403). Usado pelas
  *  rotas `/api/contratos/[id]/...`. */
-export async function carregarContratoComAcesso(request: NextRequest, id: string) {
+export async function carregarContratoComAcesso(request: NextRequest, id: string, modo: ModoAcesso = 'ver') {
   const autenticado = await exigirUsuario(request)
   if ('erro' in autenticado) return autenticado
 
   const contrato = await prisma.contrato.findUnique({ where: { id }, select: { id: true, clienteId: true } })
   if (!contrato) return { erro: NextResponse.json({ error: CONTRATO_NAO_ENCONTRADO }, { status: 404 }) }
 
-  const negado = await verificarAcessoCliente(autenticado.usuario, contrato.clienteId)
+  const negado = await verificarAcessoCliente(autenticado.usuario, contrato.clienteId, modo)
   return negado ? { erro: negado } : { usuario: autenticado.usuario, contrato }
 }
 

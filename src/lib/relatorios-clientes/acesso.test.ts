@@ -11,7 +11,7 @@ jest.mock('@/lib/prisma', () => ({
 
 import { getAuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { exigirAcessoCliente, exigirUsuario, verificarAcessoCliente } from './acesso'
+import { exigirAcessoCliente, exigirAdmin, exigirUsuario, MOTIVO_SOMENTE_LEITURA, verificarAcessoCliente } from './acesso'
 
 const requisicao = () => new NextRequest('http://localhost/api/qualquer')
 const admin = { id: 'u1', nome: 'Admin', email: 'a@x', role: 'admin' as const }
@@ -69,5 +69,34 @@ describe('verificarAcessoCliente', () => {
     await expect(verificarAcessoCliente(admin, 'c1')).resolves.toBeNull()
     const negado = await verificarAcessoCliente(comum, 'c1')
     expect(negado?.status).toBe(403)
+  })
+})
+
+describe('modo editar', () => {
+  it('403 com motivo quando vê mas não edita', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [] })
+    const resultado = await exigirAcessoCliente(requisicao(), 'c1', 'editar')
+    if (!('erro' in resultado)) throw new Error('esperava erro')
+    expect(resultado.erro.status).toBe(403)
+    await expect(resultado.erro.json()).resolves.toEqual({ error: 'acesso negado', motivo: MOTIVO_SOMENTE_LEITURA })
+  })
+  it('ok para membro da gerência', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    ;(prisma.usuario.findUnique as jest.Mock).mockResolvedValue({ clientesPermitidos: [], gerencias: [{ gerenciaId: 'g1' }] })
+    await expect(exigirAcessoCliente(requisicao(), 'c1', 'editar')).resolves.toEqual({ usuario: comum })
+  })
+})
+
+describe('exigirAdmin', () => {
+  it('403 para quem não é admin', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(comum)
+    const r = await exigirAdmin(requisicao())
+    if (!('erro' in r)) throw new Error('esperava erro')
+    expect(r.erro.status).toBe(403)
+  })
+  it('ok para admin', async () => {
+    ;(getAuthUser as jest.Mock).mockResolvedValue(admin)
+    await expect(exigirAdmin(requisicao())).resolves.toEqual({ usuario: admin })
   })
 })

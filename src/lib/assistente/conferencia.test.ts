@@ -64,3 +64,20 @@ it('da entrada da ferramenta só data e competência confirmam; valor e percentu
   expect(conferirResposta({ textoVerai: 'Até 02/01/2027, compet. 10/2026.', fontes: [fonte] }).naoConfirmados).toEqual([])
   expect(conferirResposta({ textoVerai: 'Valor R$ 999,00 e 6,17%.', fontes: [fonte] }).naoConfirmados).toEqual(['R$ 999,00', '6,17%'])
 })
+
+describe('data por extenso na fonte', () => {
+  const conf = (fonte: string, resposta: string) => conferirResposta({ textoVerai: resposta, fontes: [fonte] }).naoConfirmados
+  it.each([
+    ['a contar de 1º de julho de 2026', 'Início em 01/07/2026.'],
+    ['a contar de 01 de julho de 2026', 'Início em 01/07/2026.'],
+    ['assinado em 1 de jul. de 2026', 'Assinado em 01/07/2026.'],
+    ['São Paulo, 15 de Março de 2026', 'Data 15/03/2026.'],
+    ['em 3 de dez de 2025', 'Data 03/12/2025.'],
+  ])('"%s" confirma a data dd/mm/aaaa', (fonte, resposta) => {
+    expect(conf(fonte, resposta)).toEqual([])
+  })
+  it('data por extenso diferente não confirma', () => {
+    expect(conf('a contar de 1º de julho de 2026', 'Início em 02/07/2026.')).toEqual(['02/07/2026'])
+    expect(conf('a contar de 1º de julho de 2026', 'Início em 01/08/2026.')).toEqual(['01/08/2026'])
+  })
+})

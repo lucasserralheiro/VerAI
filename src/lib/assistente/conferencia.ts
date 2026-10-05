@@ -57,10 +57,28 @@ function canonico(v: string): string {
   return `t:${v.toUpperCase().replace(/\s/g, '')}`
 }
 
+const MESES_EXTENSO = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+// "1º de julho de 2026", "01 de julho de 2026", "1 de jul. de 2026" (termo e ofício escrevem assim).
+const DATA_POR_EXTENSO = /(?<!\d)(\d{1,2})\s*[º°o]?\s+de\s+(\p{L}+)\.?\s+de\s+(\d{4})(?!\d)/giu
+
+/** Datas por extenso da FONTE na forma canônica da data dd/mm/aaaa (`t:dd/mm/aaaa`). Só da fonte: a resposta segue em dd/mm/aaaa. */
+function datasPorExtenso(texto: string): string[] {
+  const datas: string[] = []
+  for (const m of texto.matchAll(DATA_POR_EXTENSO)) {
+    const nome = m[2].normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    const mes = MESES.indexOf(nome.slice(0, 3))
+    const dia = Number(m[1])
+    if (mes < 0 || (nome.length !== 3 && nome !== MESES_EXTENSO[mes]) || dia < 1 || dia > 31) continue
+    datas.push(`t:${String(dia).padStart(2, '0')}/${String(mes + 1).padStart(2, '0')}/${m[3]}`)
+  }
+  return datas
+}
+
 function canonicosDasFontes(fontes: string[]): Set<string> {
   const s = new Set<string>()
   const texto = fontes.join('\n')
   for (const v of extrairNumeros(texto)) s.add(canonico(v))
+  for (const d of datasPorExtenso(texto)) s.add(d)
   // Número cru das ferramentas ("1000.00", "33.333333", "1000") vale como moeda e como percentual, arredondado
   // a 2 casas. Inteiro só com 3+ dígitos e fora de data/competência: o "30" de "30/09/2026" não confirma "R$ 30,00".
   const crus = [/(?<![\d.,/-])-?\d+\.\d+(?![\d/]|,\d)/g, /(?<![\d.,/-])-?\d{3,}(?![\d/]|[.,]\d|-\d)/g]

@@ -110,9 +110,9 @@ describe('enviarAnexo', () => {
 })
 
 describe('texto colado', () => {
-  it('vira conversa-AAAA-MM-DD-HHMM.txt no horário de Brasília, text/plain', async () => {
+  it('vira texto-colado-AAAA-MM-DD-HHMM.txt no horário de Brasília, text/plain', async () => {
     const a = arquivoDoTextoColado('x', new Date('2026-10-02T13:05:00Z'))
-    expect(a.name).toBe('conversa-2026-10-02-1005.txt')
+    expect(a.name).toBe('texto-colado-2026-10-02-1005.txt')
     expect(a.type).toBe('text/plain')
     expect(a.size).toBe(1)
   })

@@ -32,7 +32,7 @@ export async function prepararContexto(entrada: {
 
 const ROTULO_TIPO: Record<string, string> = {
   proposta: 'proposta', termo: 'termo', controle: 'controle', planilha: 'planilha',
-  oficio: 'ofício', email: 'e-mail', conversa: 'conversa', outro: 'documento',
+  oficio: 'ofício', outro: 'documento',
 }
 
 const MAX_ANEXOS_NO_CONTEXTO = 20

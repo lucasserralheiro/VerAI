@@ -211,7 +211,7 @@ export function arquivoDoTextoColado(texto: string, agora: Date = new Date()): F
       .formatToParts(agora)
       .map((p) => [p.type, p.value])
   )
-  const nome = `conversa-${partes.year}-${partes.month}-${partes.day}-${partes.hour}${partes.minute}.txt`
+  const nome = `texto-colado-${partes.year}-${partes.month}-${partes.day}-${partes.hour}${partes.minute}.txt`
   return new File([texto], nome, { type: 'text/plain' })
 }
 

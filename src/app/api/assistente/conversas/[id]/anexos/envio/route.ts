@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: Contexto) {
   const nome = typeof corpo?.nome === 'string' ? corpo.nome : ''
   const formato = formatoDoNome(nome)
   if (!formato) {
-    return NextResponse.json({ error: 'formato não aceito — envie PDF, Word (.docx), Excel (.xlsx/.csv), texto (.txt) ou e-mail (.eml)' }, { status: 400 })
+    return NextResponse.json({ error: 'formato não aceito — envie PDF, Word (.docx), Excel (.xlsx/.csv) ou texto (.txt)' }, { status: 400 })
   }
   const tamanhoBytes = corpo?.tamanhoBytes
   if (typeof tamanhoBytes !== 'number' || !Number.isInteger(tamanhoBytes) || tamanhoBytes <= 0) {

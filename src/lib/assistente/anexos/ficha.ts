@@ -2,7 +2,6 @@ import Decimal from 'decimal.js'
 import { camposPorRegra } from '../fichas/regras'
 import type { PaginaDeTexto } from '../indexacao/trechos'
 import { textoSeguroDeLinha as seguro } from './seguro'
-import { lerConversa } from './conversa'
 import type { FichaAnexo, FormatoAnexo, ItemDocumento, TipoDocumento } from './tipos'
 
 // Ficha do anexo, montada por regra e sem IA (spec 2026-10-02-assistente-anexos §5).
@@ -23,13 +22,8 @@ function tipoPeloNome(n: string): TipoDocumento | null {
 
 /** O nome do arquivo decide primeiro; o texto só quando o nome não tem pista. */
 export function tipoDoDocumento(nome: string, texto: string, formato: FormatoAnexo): TipoDocumento {
-  if (formato === 'eml') return 'email'
   const n = semAcento(nome)
   const t = semAcento(texto.slice(0, 4000))
-  if (formato === 'txt') {
-    const f = lerConversa(texto).formato
-    if (f) return f === 'email' ? 'email' : 'conversa'
-  }
   const pelaNome = tipoPeloNome(n)
   if (pelaNome) return pelaNome
   if (/^\s*termo de referencia/m.test(t)) return 'outro'
@@ -79,7 +73,7 @@ export function tipoDaLinha(nome: string, texto: string): 'CONTRATO' | 'ADITIVO'
 
 const ROTULO: Record<TipoDocumento, string> = {
   proposta: 'proposta comercial', termo: 'termo (contrato/aditivo)', controle: 'controle do faturamento', planilha: 'planilha',
-  oficio: 'ofício/memorando', email: 'e-mail', conversa: 'conversa', outro: 'documento',
+  oficio: 'ofício/memorando', outro: 'documento',
 }
 
 const ROTULO_CAMPO: Record<string, string> = {
@@ -103,8 +97,6 @@ function sugestoes(tipo: TipoDocumento, contrato: string | null): string[] {
     case 'proposta': return ['Os preços estão certos?', bate, 'Resuma os riscos e prazos.']
     case 'termo': return [bate, 'O que este termo muda?', 'Resuma os riscos e prazos.']
     case 'planilha': return ['Os preços estão certos?', bate, 'Resuma esta planilha.']
-    case 'conversa':
-    case 'email': return ['O que foi combinado e quem ficou de fazer o quê?', 'Algo aqui contradiz o contrato?', 'Qual o próximo passo?']
     default: return ['Resuma este documento.', 'Quais prazos e valores aparecem?', 'O que precisa de ação?']
   }
 }
@@ -115,7 +107,6 @@ export function fichaDoAnexo(e: {
   paginas: PaginaDeTexto[]
   itens: ItemDocumento[]
   entidades: { clienteId: string | null; cliente: string | null; contratoId: string | null; contrato: string | null }
-  anexosDoEmail?: string[]
   paginasIlegiveis?: number[]
 }): FichaAnexo {
   const texto = e.paginas.map((p) => p.texto).join('\n')
@@ -124,15 +115,6 @@ export function fichaDoAnexo(e: {
   const camposLidos = tipoLinha ? camposPorRegra(e.paginas, tipoLinha) : {}
   const campos = Object.fromEntries(Object.entries(camposLidos).map(([k, c]) => [k, { valor: c!.valor, pagina: c!.pagina }]))
   const totais = e.itens.map((i) => i.total).filter((t): t is string => t !== null)
-  const conv = lerConversa(texto)
-  const conversa = conv.formato
-    ? {
-        participantes: [...new Set(conv.mensagens.map((m) => m.autor))].filter((a) => a !== '(texto colado)'),
-        inicio: conv.mensagens.find((m) => m.quando)?.quando ?? null,
-        fim: [...conv.mensagens].reverse().find((m) => m.quando)?.quando ?? null,
-        mensagens: conv.mensagens.length,
-      }
-    : null
   const avisos = [
     ...(e.paginasIlegiveis ?? []).map((p) => `página ${p} ilegível`),
     ...(e.paginas.length === 0 ? ['não foi possível ler o texto deste arquivo'] : []),
@@ -144,8 +126,6 @@ export function fichaDoAnexo(e: {
     campos,
     itens: e.itens.length,
     somaItens: totais.length ? totais.reduce((s, t) => s.plus(t), new Decimal(0)).toFixed(2) : null,
-    conversa,
-    anexosDoEmail: e.anexosDoEmail ?? [],
     sugestoes: sugestoes(tipo, e.entidades.contrato),
     avisos,
   }
@@ -158,8 +138,6 @@ export function textoDaFicha(nome: string, f: FichaAnexo): string {
   const linhas = [cabeca, '']
   for (const [k, c] of Object.entries(f.campos)) linhas.push(`- ${ROTULO_CAMPO[k] ?? k}: ${seguro(c.valor, 200)}${c.pagina ? ` (p. ${c.pagina})` : ''}`)
   if (f.itens) linhas.push(`- ${f.itens} itens com código de serviço${f.somaItens ? ` · soma das linhas ${moeda(f.somaItens)}` : ''}`)
-  if (f.conversa) linhas.push(`- ${f.conversa.mensagens} mensagens de ${f.conversa.participantes.map((p) => seguro(p, 60)).join(', ')}${f.conversa.inicio ? ` · ${f.conversa.inicio} a ${f.conversa.fim}` : ''}`)
-  if (f.anexosDoEmail.length) linhas.push(`- anexos do e-mail (não lidos): ${f.anexosDoEmail.map((a) => seguro(a, 120)).join(', ')}`)
   for (const a of f.avisos) linhas.push(`- ⚠ ${seguro(a, 300)}`)
   linhas.push('', `Pergunte, por exemplo: ${f.sugestoes.map((s) => `"${s}"`).join(' · ')}`)
   return linhas.join('\n')

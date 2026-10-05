@@ -48,6 +48,7 @@ it('400 formato não aceito, tamanho 0 e acima de 50 MB', async () => {
   const exe = await POST(req({ nome: 'a.exe', tamanhoBytes: 10 }), params)
   expect(exe.status).toBe(400)
   expect((await exe.json()).error).toMatch(/formato não aceito/)
+  expect((await POST(req({ nome: 'mensagem.eml', tamanhoBytes: 10 }), params)).status).toBe(400)
   expect((await POST(req({ nome: 'a.pdf', tamanhoBytes: 0 }), params)).status).toBe(400)
   expect((await POST(req({ nome: 'a.pdf', tamanhoBytes: 1.5 }), params)).status).toBe(400)
   const grande = await POST(req({ nome: 'a.pdf', tamanhoBytes: 50 * 1024 * 1024 + 1 }), params)

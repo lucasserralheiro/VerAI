@@ -1,6 +1,7 @@
 # Assistente de IA — documentos no chat (frente B de 3) (design)
 
 **Status**: Implementada no dev em 02/10/2026 (régua com anexos medida; produção depende da migração `20261002120000` e do deploy).
+**Decisão 02/10/2026**: e-mail (.eml) e leitura de conversa (WhatsApp/e-mail colado) removidos a pedido do usuário; texto colado longo segue como .txt comum (`texto-colado-AAAA-MM-DD-HHMM.txt`). As seções 3.1/4.1/5 abaixo que falam de .eml e conversa ficam como histórico.
 **Data**: 02/10/2026
 **Frentes**: A — consultor direto (`2026-09-30-assistente-consultor-design.md`, feita no dev) → **esta (B)** →
 C — analista de negócio e estratégia da carteira.

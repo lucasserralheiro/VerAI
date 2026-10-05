@@ -1,5 +1,5 @@
 // Tipos dos anexos do chat (spec 2026-10-02-assistente-anexos). Sem import de servidor: a tela usa.
-export const FORMATOS_ANEXO = ['pdf', 'docx', 'xlsx', 'csv', 'txt', 'eml'] as const
+export const FORMATOS_ANEXO = ['pdf', 'docx', 'xlsx', 'csv', 'txt'] as const
 export type FormatoAnexo = (typeof FORMATOS_ANEXO)[number]
 
 export const TIPOS_MIME_ANEXO: Record<FormatoAnexo, string> = {
@@ -8,7 +8,6 @@ export const TIPOS_MIME_ANEXO: Record<FormatoAnexo, string> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   csv: 'text/csv',
   txt: 'text/plain',
-  eml: 'message/rfc822',
 }
 
 /** Teto de cada anexo — o mesmo `TAMANHO_MAXIMO_ENVIO` de `propostas/envio.ts`, repetido aqui porque
@@ -20,8 +19,6 @@ export function formatoDoNome(nome: string): FormatoAnexo | null {
   return (FORMATOS_ANEXO as readonly string[]).includes(ext) && nome.includes('.') ? (ext as FormatoAnexo) : null
 }
 
-export interface MensagemConversa { autor: string; quando: string | null; texto: string }
-
 export interface ItemDocumento {
   codigo: string
   descricao: string
@@ -32,7 +29,7 @@ export interface ItemDocumento {
   linha: number
 }
 
-export type TipoDocumento = 'proposta' | 'termo' | 'controle' | 'planilha' | 'oficio' | 'email' | 'conversa' | 'outro'
+export type TipoDocumento = 'proposta' | 'termo' | 'controle' | 'planilha' | 'oficio' | 'outro'
 
 export interface FichaAnexo {
   tipo: TipoDocumento
@@ -48,8 +45,6 @@ export interface FichaAnexo {
   campos: Record<string, { valor: string; pagina: number | null }>
   itens: number
   somaItens: string | null
-  conversa: { participantes: string[]; inicio: string | null; fim: string | null; mensagens: number } | null
-  anexosDoEmail: string[]
   sugestoes: string[]
   avisos: string[]
 }

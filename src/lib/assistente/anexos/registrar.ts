@@ -132,7 +132,7 @@ export async function registrarAnexo(e: {
   try {
     const html = paginas.length && !pularItens ? await htmlDoAnexo(buffer, alvo.formato).catch(() => '') : ''
     const lida = fichaDoAnexo({
-      nome, formato: alvo.formato, paginas, itens: itensDasTabelas(html), anexosDoEmail: lido.anexosDoEmail, paginasIlegiveis,
+      nome, formato: alvo.formato, paginas, itens: itensDasTabelas(html), paginasIlegiveis,
       entidades: {
         clienteId: cliente?.id ?? null,
         cliente: cliente ? `${cliente.sigla ? `${cliente.sigla} – ` : ''}${cliente.nome}` : null,

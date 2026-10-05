@@ -34,7 +34,7 @@ beforeEach(() => {
 describe('chaveDoAnexo / enderecoValido', () => {
   it('monta a chave na pasta da conversa', () => {
     expect(chaveDoAnexo('conv1', 'pdf', UUID)).toBe(`assistente/conv1/${UUID}.pdf`)
-    expect(chaveDoAnexo('conv1', 'eml')).toMatch(/^assistente\/conv1\/[0-9a-f-]{36}\.eml$/)
+    expect(chaveDoAnexo('conv1', 'txt')).toMatch(/^assistente\/conv1\/[0-9a-f-]{36}\.txt$/)
   })
 
   it('aceita só endereço da mesma conversa, com uuid e formato da lista', () => {
@@ -57,7 +57,7 @@ describe('chaveDoAnexo / enderecoValido', () => {
 
 describe('registrarAnexo', () => {
   it('PDF com texto: grava ok, páginas e ficha; devolve o texto da ficha', async () => {
-    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }, { pagina: 2, texto: textoLongo }], anexosDoEmail: [] })
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }, { pagina: 2, texto: textoLongo }] })
     const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'proposta.pdf' })
     expect(getR2).toHaveBeenCalledWith(`assistente/conv1/${UUID}.pdf`)
     const data = (prisma.anexoAssistente.create as jest.Mock).mock.calls[0][0].data
@@ -72,7 +72,7 @@ describe('registrarAnexo', () => {
   })
 
   it('nome gravado sem caminho', async () => {
-    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }], anexosDoEmail: [] })
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }] })
     const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'C:\\pasta/sub\\proposta.pdf' })
     expect((prisma.anexoAssistente.create as jest.Mock).mock.calls[0][0].data.nome).toBe('proposta.pdf')
     expect(r.anexo.nome).toBe('proposta.pdf')
@@ -95,7 +95,7 @@ describe('registrarAnexo', () => {
   })
 
   it('PDF sem camada de texto + OCR do navegador: usa o OCR e marca página vazia como ilegível', async () => {
-    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: '' }, { pagina: 2, texto: ' ' }], anexosDoEmail: [] })
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: '' }, { pagina: 2, texto: ' ' }] })
     const r = await registrarAnexo({
       conversaId: 'conv1', usuario, endereco, nome: 'scan.pdf',
       paginasOcr: [{ pagina: 1, texto: textoLongo }, { pagina: 2, texto: '  ' }],
@@ -106,7 +106,7 @@ describe('registrarAnexo', () => {
   })
 
   it('PDF sem texto e sem OCR: sem_texto, com aviso', async () => {
-    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: '' }], anexosDoEmail: [] })
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: '' }] })
     const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'scan.pdf' })
     const data = (prisma.anexoAssistente.create as jest.Mock).mock.calls[0][0].data
     expect(data).toMatchObject({ status: 'sem_texto', ocr: false, paginas: 0, paginasTexto: { create: [] } })
@@ -139,7 +139,7 @@ describe('registrarAnexo', () => {
 
   it('entidades: primeiros 3000 caracteres; cliente e contrato únicos entram, provável não', async () => {
     const grande = 'A'.repeat(2500)
-    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: grande }, { pagina: 2, texto: 'B'.repeat(2500) }], anexosDoEmail: [] })
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: grande }, { pagina: 2, texto: 'B'.repeat(2500) }] })
     ;(identificarEntidades as jest.Mock).mockResolvedValue({
       clientes: [{ id: 'c1', nome: 'Secretaria de Inovação', sigla: 'SMIT' }],
       contratos: [{ id: 'k1', numero: '52/2024', clienteId: 'c1' }],
@@ -155,7 +155,7 @@ describe('registrarAnexo', () => {
   })
 
   it('entidades ambíguas (dois clientes) não entram; provável sozinho também não', async () => {
-    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }], anexosDoEmail: [] })
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }] })
     ;(identificarEntidades as jest.Mock).mockResolvedValue({
       clientes: [{ id: 'c1', nome: 'A', sigla: null }, { id: 'c2', nome: 'B', sigla: null }],
       contratos: [], possiveis: [], provavel: { id: 'k9', numero: '9/2020', descricao: 'nuvem' }, texto: null,
@@ -170,7 +170,7 @@ describe('contrato pelo arquivo (SHA-256)', () => {
     id, contrato: { id: contratoId, numeroTermo, cliente: { id: 'c1', nome: 'Secretaria de Inovação', siglaLegado: 'SMIT' } },
   })
   beforeEach(() => {
-    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }], anexosDoEmail: [] })
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }] })
   })
 
   it('sem contrato no texto: o mesmo arquivo numa linha do histórico identifica contrato, cliente e linha', async () => {
@@ -223,13 +223,13 @@ describe('tetos e limpeza do texto', () => {
 
   it('páginas em branco não são gravadas', async () => {
     const paginas = [{ pagina: 1, texto: textoLongo }, ...Array.from({ length: 50 }, (_, i) => ({ pagina: i + 2, texto: ' \n ' }))]
-    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas, anexosDoEmail: [] })
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas })
     await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
     expect(dados()).toMatchObject({ status: 'ok', paginas: 1, paginasTexto: { create: [{ pagina: 1, texto: textoLongo }] } })
   })
 
   it('NUL é removido do texto antes de gravar', async () => {
-    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: `${textoLongo}\u0000fim\u0000` }], anexosDoEmail: [] })
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: `${textoLongo}\u0000fim\u0000` }] })
     await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
     expect(dados().paginasTexto.create[0].texto).toBe(`${textoLongo}fim`)
   })
@@ -237,7 +237,7 @@ describe('tetos e limpeza do texto', () => {
   it('texto acima do teto: corta no limite, avisa e não lê itens', async () => {
     const pagina = 'x'.repeat(1_000_000)
     ;(paginasDoAnexo as jest.Mock).mockResolvedValue({
-      paginas: Array.from({ length: 6 }, (_, i) => ({ pagina: i + 1, texto: pagina })), anexosDoEmail: [],
+      paginas: Array.from({ length: 6 }, (_, i) => ({ pagina: i + 1, texto: pagina })),
     })
     const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco: docx, nome: 'grande.docx' })
     const gravadas = dados().paginasTexto.create as { texto: string }[]
@@ -250,7 +250,7 @@ describe('tetos e limpeza do texto', () => {
 
   it('páginas acima do teto: corta em MAX_PAGINAS_ANEXO', async () => {
     ;(paginasDoAnexo as jest.Mock).mockResolvedValue({
-      paginas: Array.from({ length: MAX_PAGINAS_ANEXO + 10 }, (_, i) => ({ pagina: i + 1, texto: textoLongo })), anexosDoEmail: [],
+      paginas: Array.from({ length: MAX_PAGINAS_ANEXO + 10 }, (_, i) => ({ pagina: i + 1, texto: textoLongo })),
     })
     const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
     expect(dados().paginas).toBe(MAX_PAGINAS_ANEXO)
@@ -259,7 +259,7 @@ describe('tetos e limpeza do texto', () => {
 
   it('PDF com mais de 300 páginas: pula os itens com aviso', async () => {
     ;(paginasDoAnexo as jest.Mock).mockResolvedValue({
-      paginas: Array.from({ length: 301 }, (_, i) => ({ pagina: i + 1, texto: textoLongo })), anexosDoEmail: [],
+      paginas: Array.from({ length: 301 }, (_, i) => ({ pagina: i + 1, texto: textoLongo })),
     })
     const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
     expect(htmlDoAnexo).not.toHaveBeenCalled()
@@ -268,7 +268,7 @@ describe('tetos e limpeza do texto', () => {
   })
 
   it('anexo dentro do teto: lê os itens com o buffer original', async () => {
-    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }], anexosDoEmail: [] })
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }] })
     await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
     expect(htmlDoAnexo).toHaveBeenCalledWith(Buffer.from('%PDF-1.4 conteudo'), 'pdf')
   })
@@ -287,7 +287,7 @@ describe('tetos e limpeza do texto', () => {
 
 describe('falha de banco não vira "ilegível"', () => {
   beforeEach(() => {
-    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }], anexosDoEmail: [] })
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }] })
   })
 
   it('create que lança: a promessa rejeita e não grava status erro', async () => {

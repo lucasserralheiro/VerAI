@@ -38,7 +38,7 @@ const itensAnexo = itensDasTabelas as jest.Mock
 
 const ficha = (extra: any = {}) => ({
   tipo: 'termo', clienteId: 'cl1', cliente: 'SMIT', contratoId: 'ct1', contrato: 'TC 1/2024',
-  campos: {}, itens: 0, somaItens: null, conversa: null, anexosDoEmail: [], sugestoes: [], avisos: [], ...extra,
+  campos: {}, itens: 0, somaItens: null, sugestoes: [], avisos: [], ...extra,
 })
 const anexo = (f: any = ficha()) => ({ id: 'a1', nome: 'aditivo.pdf', formato: 'pdf', status: 'ok', ficha: f, conversaId: 'c1', chaveR2: 'assistente/c1/x.pdf' })
 const contrato = (extra: any = {}) => ({

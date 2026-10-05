@@ -406,13 +406,13 @@ Modelo: `ASSISTENTE_AI_*` (fallback `AI_*`), `deepseek-chat`. Instrução do sis
 não nela. Nunca pôr número real (SEI, id) como exemplo na instrução: a IA copia.
 
 **Documentos no chat (frente B, 02/10/2026)** — o clipe, o arrastar e o texto colado com mais de 2.000
-caracteres (vira `conversa-AAAA-MM-DD-HHMM.txt`) anexam `pdf/docx/xlsx/csv/txt/eml` (até 50 MB cada, sem
+caracteres (vira `texto-colado-AAAA-MM-DD-HHMM.txt`, texto comum) anexam `pdf/docx/xlsx/csv/txt` (até 50 MB cada, sem
 limite de quantidade) à conversa: o navegador sobe direto ao R2 em `assistente/<conversa>/<uuid>.<ext>`
 (PUT pré-assinado) e `registrarAnexo` lê, grava `AnexoAssistente`/`PaginaAnexoAssistente` e a **ficha sem
 IA** como mensagem direta do assistente (não conta no limite por hora). PDF escaneado: o OCR roda no
 navegador. Quatro ferramentas somente-leitura (`lerAnexo`, `anexosDaConversa`, `compararAnexoComContrato`,
 `conferirPrecosDoAnexo`) só enxergam anexo de conversa do próprio usuário; o texto do anexo volta sempre entre
-`<<<ANEXO nome p.n>>>` e `<<<FIM>>>` e é citação, nunca instrução. Régua: `--acerto` tem 5 intenções com
+`<<<ANEXO nome p.n>>>` e `<<<FIM>>>` e é citação, nunca instrução. Régua: `--acerto` tem 4 intenções com
 anexo (sobem ao R2 numa conversa temporária e são apagadas no fim; o bucket é o mesmo da produção — rode com
 `-e .env.development -e .env.local`). Migração `20261002120000` (só tabelas novas) **antes** do deploy.
 Spec `docs/superpowers/specs/2026-10-02-assistente-anexos-design.md`.

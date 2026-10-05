@@ -11,7 +11,7 @@ import { LIMITE_DA_PERGUNTA, arquivoDoTextoColado, perguntaDoTextoColado } from 
 import { useConversaAssistente } from './use-conversa-assistente'
 
 /** Mesmos formatos de `FORMATOS_ANEXO` (`lib/assistente/anexos/tipos.ts`). */
-const ACEITOS = '.pdf,.docx,.xlsx,.csv,.txt,.eml'
+const ACEITOS = '.pdf,.docx,.xlsx,.csv,.txt'
 
 const temArquivos = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files')
 

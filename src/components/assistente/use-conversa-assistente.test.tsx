@@ -230,7 +230,7 @@ describe('anexos', () => {
 
     const { result } = renderHook(() => useConversaAssistente())
     await act(async () => {
-      const ok = await result.current.anexar([arquivo('conversa-2026-10-02-1005.txt')], '')
+      const ok = await result.current.anexar([arquivo('texto-colado-2026-10-02-1005.txt')], '')
       if (ok) await result.current.enviar('Analise o texto colado.', '')
     })
     expect(fetchMock.mock.calls.filter(([url]) => String(url) === '/api/assistente/conversas')).toHaveLength(1)

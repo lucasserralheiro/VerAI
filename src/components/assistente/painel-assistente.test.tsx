@@ -91,7 +91,7 @@ describe('anexos', () => {
     const seletor = screen.getByTestId('seletor-de-anexos') as HTMLInputElement
     expect(seletor.type).toBe('file')
     expect(seletor.multiple).toBe(true)
-    expect(seletor.accept).toBe('.pdf,.docx,.xlsx,.csv,.txt,.eml')
+    expect(seletor.accept).toBe('.pdf,.docx,.xlsx,.csv,.txt')
     const abrir = jest.spyOn(seletor, 'click')
     fireEvent.click(screen.getByRole('button', { name: 'Anexar arquivo' }))
     expect(abrir).toHaveBeenCalled()
@@ -146,7 +146,7 @@ describe('anexos', () => {
     })
     const [[arquivos]] = hook.anexar.mock.calls as [File[], string][]
     expect(arquivos).toHaveLength(1)
-    expect(arquivos[0].name).toMatch(/^conversa-\d{4}-\d{2}-\d{2}-\d{4}\.txt$/)
+    expect(arquivos[0].name).toMatch(/^texto-colado-\d{4}-\d{2}-\d{2}-\d{4}\.txt$/)
     expect(arquivos[0].size).toBe(colado.length)
     await waitFor(() => expect(hook.enviar).toHaveBeenCalledWith('Confira os valores deste e-mail', '/confere'))
     expect(campo).toHaveValue('')

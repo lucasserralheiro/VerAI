@@ -6,9 +6,10 @@ import { clientesVisiveisWhere } from '@/lib/visibilidade'
 import { identificarEntidades } from '../entidades'
 import { semCamadaDeTexto } from '../indexacao/extrair'
 import type { PaginaDeTexto } from '../indexacao/trechos'
-import { ZipGrandeDemais, htmlDoAnexo, paginasDoAnexo } from './extrair'
+import { AnexoRecusado, htmlDoAnexo, paginasDoAnexo } from './extrair'
 import { fichaDoAnexo, textoDaFicha } from './ficha'
 import { itensDasTabelas } from './itens'
+import { textoSeguroDeLinha } from './seguro'
 import { FORMATOS_ANEXO, type FichaAnexo, type FormatoAnexo } from './tipos'
 
 /** Chave do anexo no R2: sempre dentro da pasta da conversa (spec 2026-10-02-assistente-anexos). */
@@ -35,8 +36,20 @@ export class AnexoForaDoR2 extends Error {
   }
 }
 
-/** Nome gravado: só o nome do arquivo, sem caminho que o navegador possa ter mandado. */
-export const nomeDoArquivo = (nome: string) => nome.split(/[\\/]/).pop()!.trim()
+const MAX_NOME = 200
+
+/**
+ * Nome gravado: só o nome do arquivo, sem caminho que o navegador possa ter mandado, sem caractere de
+ * controle nem `<`/`>` (não recompõe `<<<FIM>>>` nas saídas das ferramentas) e com até 200 caracteres,
+ * mantendo a extensão. Higienizado aqui uma vez, vale para todas as ferramentas que mostram o nome.
+ */
+export function nomeDoArquivo(nome: string): string {
+  const base = nome.split(/[\\/]/).pop()!.replace(/[\u0000-\u001f\u007f]/g, '')
+  const ponto = base.lastIndexOf('.')
+  const ext = ponto > 0 && base.length - ponto <= 6 ? base.slice(ponto) : ''
+  const corpo = ext ? base.slice(0, ponto) : base
+  return `${textoSeguroDeLinha(corpo, MAX_NOME - ext.length)}${ext}`
+}
 
 /**
  * Lê o arquivo que o navegador subiu ao R2, grava o anexo com o texto por página e a ficha (sem IA) e
@@ -65,7 +78,7 @@ export async function registrarAnexo(e: {
   // caminho e propaga — não é "arquivo ilegível".
   const gravarErro = async (erro: unknown) => {
     console.error('[assistente] falha ao ler anexo', erro)
-    const motivo = erro instanceof ZipGrandeDemais ? erro.message : null
+    const motivo = erro instanceof AnexoRecusado ? erro.message : null
     const ficha: FichaAnexo | null = motivo
       ? { ...fichaDoAnexo({ nome, formato: alvo.formato, paginas: [], itens: [], entidades: semEntidades }), avisos: [motivo] }
       : null

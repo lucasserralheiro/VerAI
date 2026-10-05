@@ -112,6 +112,20 @@ describe('anexos', () => {
     expect(screen.queryByText('Solte os arquivos para anexar')).not.toBeInTheDocument()
   })
 
+  it('respondendo: clipe e arrastar desativados (a ficha não entra entre a pergunta e a resposta)', async () => {
+    Object.assign(hook, { estado: 'respondendo', mensagens: [{ id: 'p', papel: 'usuario', conteudo: 'oi' }] })
+    await abrirPainel()
+    expect(screen.getByRole('button', { name: 'Anexar arquivo' })).toBeDisabled()
+    expect((screen.getByTestId('seletor-de-anexos') as HTMLInputElement).disabled).toBe(true)
+    const painel = screen.getByRole('dialog', { name: 'Assistente VerAI' })
+    const a = arquivo('a.pdf')
+    fireEvent.dragOver(painel, { dataTransfer: { files: [a], types: ['Files'] } })
+    expect(screen.queryByText('Solte os arquivos para anexar')).not.toBeInTheDocument()
+    // Soltar não abre o arquivo no navegador, mas também não anexa.
+    expect(fireEvent.drop(painel, { dataTransfer: { files: [a], types: ['Files'] } })).toBe(false)
+    expect(hook.anexar).not.toHaveBeenCalled()
+  })
+
   it('mostra os cartões dos anexos com o andamento', async () => {
     hook.anexos = [{ id: 'l1', nome: 'termo.pdf', etapa: 'ocr', progresso: { pagina: 3, total: 12 } }]
     await abrirPainel()

@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import JSZip from 'jszip'
-import { MAX_DESCOMPRIMIDO_ANEXO, ZipGrandeDemais, paginasDoAnexo, tamanhoDescomprimido } from './extrair'
+import { AnexoRecusado, MAX_DESCOMPRIMIDO_ANEXO, ZipGrandeDemais, ZipIlegivel, paginasDoAnexo, tamanhoDescomprimido } from './extrair'
 
 /** Zip só com o diretório central (sem conteúdo), declarando os tamanhos dados. */
 function zipFalso(tamanhos: number[]): Buffer {
@@ -46,5 +46,18 @@ describe('paginasDoAnexo', () => {
     const grande = zipFalso([MAX_DESCOMPRIMIDO_ANEXO, 1])
     await expect(paginasDoAnexo(grande, 'docx')).rejects.toBeInstanceOf(ZipGrandeDemais)
     await expect(paginasDoAnexo(grande, 'xlsx')).rejects.toBeInstanceOf(ZipGrandeDemais)
+  })
+  it('docx/xlsx com diretório central ilegível (não é zip, zip64 com mais de 65.535 entradas): recusa', async () => {
+    const zip64 = zipFalso([10])
+    zip64.writeUInt16LE(0xffff, zip64.length - 22 + 10)
+    zip64.writeUInt32LE(0xffffffff, zip64.length - 22 + 16)
+    for (const buf of [Buffer.from('não sou zip'), zip64]) {
+      for (const formato of ['docx', 'xlsx'] as const) {
+        const erro = await paginasDoAnexo(buf, formato).catch((e) => e)
+        expect(erro).toBeInstanceOf(ZipIlegivel)
+        expect(erro).toBeInstanceOf(AnexoRecusado)
+        expect(erro.message).toBe('arquivo compactado ilegível')
+      }
+    }
   })
 })

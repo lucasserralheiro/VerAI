@@ -28,6 +28,10 @@ it.each([
   ['TC_52.pdf', '', 'pdf', 'termo'],
   ['Pagamento 08.pdf', '', 'pdf', 'outro'],
   ['Tabela de preços.pdf', '', 'pdf', 'outro'],
+  ['Termo de Referência.pdf', '', 'pdf', 'outro'],
+  ['TR 05-2026 SMIT.pdf', 'TERMO DE REFERÊNCIA', 'pdf', 'outro'],
+  ['TR_rede.docx', '', 'docx', 'outro'],
+  ['anexo.pdf', 'TERMO DE REFERÊNCIA\nTermo aditivo previsto na cláusula 5', 'pdf', 'outro'],
 ] as const)('%s → %s', (nome, texto, formato, tipo) => {
   expect(tipoDoDocumento(nome, texto, formato)).toBe(tipo)
 })

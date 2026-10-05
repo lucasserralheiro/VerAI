@@ -8,17 +8,29 @@ import type { FormatoAnexo } from './tipos'
 /** Teto do tamanho descomprimido de DOCX/XLSX (zip): acima disso é recusado antes de extrair. */
 export const MAX_DESCOMPRIMIDO_ANEXO = 200 * 1024 * 1024
 
-export class ZipGrandeDemais extends Error {
+/** Arquivo recusado antes de extrair: o motivo (`message`) vai para a ficha e para o texto ao usuário. */
+export class AnexoRecusado extends Error {}
+
+export class ZipGrandeDemais extends AnexoRecusado {
   constructor() {
     super('arquivo compactado grande demais')
     this.name = 'ZipGrandeDemais'
   }
 }
 
+/** DOCX/XLSX sem diretório central legível (não é zip, ou zip64 com mais de 65.535 entradas): o tamanho
+ *  descomprimido não pode ser conferido, então nem se tenta extrair. */
+export class ZipIlegivel extends AnexoRecusado {
+  constructor() {
+    super('arquivo compactado ilegível')
+    this.name = 'ZipIlegivel'
+  }
+}
+
 /**
  * Soma dos tamanhos descomprimidos declarados no diretório central do zip, sem descomprimir nada.
- * Entrada zip64 (tamanho 0xFFFFFFFF) conta como infinito. `null` quando não acha o diretório (não é
- * zip): a extração falha sozinha depois.
+ * Entrada zip64 (tamanho 0xFFFFFFFF) conta como infinito. `null` quando não acha ou não consegue ler o
+ * diretório (não é zip; zip64 com o offset 0xFFFFFFFF): DOCX/XLSX assim é recusado.
  */
 export function tamanhoDescomprimido(buffer: Buffer): number | null {
   // Fim do diretório central: assinatura 0x06054b50, nos últimos 22 + 65535 bytes (comentário).
@@ -49,8 +61,10 @@ export async function paginasDoAnexo(buffer: Buffer, formato: FormatoAnexo): Pro
     const cab = [e.de && `De: ${e.de}`, e.para && `Para: ${e.para}`, e.data && `Data: ${e.data}`, e.assunto && `Assunto: ${e.assunto}`].filter(Boolean).join('\n')
     return { paginas: [{ pagina: null, texto: `${cab}\n\n${e.corpo}`.trim() }], anexosDoEmail: e.anexos }
   }
-  if ((formato === 'docx' || formato === 'xlsx') && (tamanhoDescomprimido(buffer) ?? 0) > MAX_DESCOMPRIMIDO_ANEXO) {
-    throw new ZipGrandeDemais()
+  if (formato === 'docx' || formato === 'xlsx') {
+    const tamanho = tamanhoDescomprimido(buffer)
+    if (tamanho === null) throw new ZipIlegivel()
+    if (tamanho > MAX_DESCOMPRIMIDO_ANEXO) throw new ZipGrandeDemais()
   }
   return { paginas: await extrairPaginas(buffer, formato), anexosDoEmail: [] }
 }

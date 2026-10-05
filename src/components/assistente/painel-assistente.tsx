@@ -100,10 +100,13 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
     if (lista.length) void conversa.anexar(lista, rotaEnviada)
   }
 
+  // Enquanto o assistente responde, não se anexa: a ficha seria gravada entre a pergunta e a resposta.
+  const anexoBloqueado = () => conversa.estado === 'respondendo'
+
   function aoArrastarSobre(e: DragEvent<HTMLElement>) {
     if (!temArquivos(e)) return
     e.preventDefault()
-    setArrastando(true)
+    if (!anexoBloqueado()) setArrastando(true)
   }
 
   function aoSairDoArraste(e: DragEvent<HTMLElement>) {
@@ -116,7 +119,7 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
     if (!temArquivos(e)) return
     e.preventDefault()
     setArrastando(false)
-    anexar(e.dataTransfer.files)
+    if (!anexoBloqueado()) anexar(e.dataTransfer.files)
   }
 
   function aoTeclar(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -265,6 +268,7 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
           multiple
           accept={ACEITOS}
           hidden
+          disabled={respondendo}
           data-testid="seletor-de-anexos"
           onChange={(e) => {
             anexar(e.target.files)
@@ -277,6 +281,7 @@ export function PainelAssistente({ rota, onFechar }: { rota: string; onFechar: (
           onClick={() => seletor.current?.click()}
           aria-label="Anexar arquivo"
           title="Anexar arquivo (ou arraste para o painel)"
+          disabled={respondendo}
         >
           <Paperclip className="size-3.5" aria-hidden />
         </button>

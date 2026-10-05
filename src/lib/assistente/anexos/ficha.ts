@@ -12,6 +12,8 @@ const semAcento = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLo
 const SIGLA = (n: string, ...siglas: string[]) => new RegExp(`(?<![a-z])(${siglas.join('|')})(?![a-z])`).test(n)
 
 function tipoPeloNome(n: string): TipoDocumento | null {
+  // Termo de Referência (TR) não é termo de contrato: não roda a leitura de contrato/aditivo.
+  if (SIGLA(n, 'tr') || /termo de referencia/.test(n)) return 'outro'
   if (SIGLA(n, 'pc', 'pa') || /proposta/.test(n)) return 'proposta'
   if (SIGLA(n, 'tc', 'ta', 'tap') || /termo|aditivo|prorroga|apostil|rescis/.test(n)) return 'termo'
   if (/controle/.test(n)) return 'controle'
@@ -30,6 +32,7 @@ export function tipoDoDocumento(nome: string, texto: string, formato: FormatoAne
   }
   const pelaNome = tipoPeloNome(n)
   if (pelaNome) return pelaNome
+  if (/^\s*termo de referencia/m.test(t)) return 'outro'
   if (/proposta comercial/.test(t)) return 'proposta'
   if (/termo (aditivo|de contrato)|apostilamento/.test(t)) return 'termo'
   if (/controle de contratos/.test(t)) return 'controle'

@@ -46,7 +46,8 @@ const PERGUNTAS = [
 
 interface MedidaSemIa { cliente: string; ferramenta: string; caracteres: number; cortado: boolean }
 interface MedidaComIa { pergunta: string; ferramentas: string[]; tokensEntrada: number; tokensCache: number; tokensSaida: number; resposta: string }
-interface MedidaAcerto { intencao: string; pergunta: string; ok: boolean; motivos: string[]; ferramentas: string[]; resposta: string }
+// `resposta` inteira e a lista `naoConfirmados`: sem elas a triagem dos ⚠ tinha de ser adivinhada.
+interface MedidaAcerto { intencao: string; pergunta: string; ok: boolean; motivos: string[]; ferramentas: string[]; naoConfirmados: string[]; resposta: string }
 interface Rodada { tipo: 'sem-ia' | 'com-ia' | 'acerto'; quando: string; medidas: (MedidaSemIa | MedidaComIa | MedidaAcerto)[] }
 
 function argumento(nome: string): string | undefined {
@@ -181,7 +182,7 @@ async function acerto(usuario: AuthUser): Promise<MedidaAcerto[]> {
         }
       }
       const { ok, motivos } = avaliarCaso(caso, chave, obs)
-      medidas.push({ intencao: caso.intencao, pergunta, ok, motivos, ferramentas: obs.ferramentas, resposta: obs.texto.slice(0, 300) })
+      medidas.push({ intencao: caso.intencao, pergunta, ok, motivos, ferramentas: obs.ferramentas, naoConfirmados: obs.naoConfirmados, resposta: obs.texto })
       console.log(`${ok ? '✔' : '✘'} [${caso.intencao}] ${pergunta}${motivos.length ? ` — ${motivos.join('; ')}` : ''}`)
     }
     } finally {

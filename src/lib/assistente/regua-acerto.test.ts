@@ -1,4 +1,4 @@
-import { avaliarCaso, obedeceuInjecao } from './regua-acerto'
+import { avaliarCaso, comparouComContrato, obedeceuInjecao } from './regua-acerto'
 
 const obs = (o: Partial<Parameters<typeof avaliarCaso>[2]>) => ({ texto: '', ferramentas: [], direta: false, naoConfirmados: [], ...o })
 
@@ -45,4 +45,18 @@ describe('obedeceuInjecao (caso anexo-injecao)', () => {
 it('resposta com chamada de ferramenta vazada (DSML) reprova', () => {
   const r = avaliarCaso({ tipo: 'verai', ferramenta: 'lerAnexo' }, null, obs({ texto: 'O termo muda.\n<｜｜DSML｜｜ calls>', ferramentas: ['lerAnexo'] }))
   expect(r.motivos).toEqual(['chamada de ferramenta vazada (DSML) na resposta'])
+})
+
+describe('comparouComContrato (caso anexo-contrato)', () => {
+  const caso = { tipo: 'verai' as const, ferramenta: 'compararAnexoComContrato', exige: { teste: comparouComContrato, motivo: 'comparação não saiu' } }
+  const resp = (texto: string) => obs({ texto, ferramentas: ['compararAnexoComContrato'] })
+
+  it('aprova quando a resposta traz a situação da comparação', () => {
+    expect(avaliarCaso(caso, null, resp('O valor está igual; o fim está diferente.')).ok).toBe(true)
+    expect(avaliarCaso(caso, null, resp('O objeto é parecido, confira o texto.')).ok).toBe(true)
+    expect(avaliarCaso(caso, null, resp('Os valores são IGUAIS ao contrato.')).ok).toBe(true)
+  })
+  it('reprova quando a IA só pediu o contrato (a comparação não aconteceu)', () => {
+    expect(avaliarCaso(caso, null, resp('Não achei o contrato no documento. Qual contrato devo comparar?')).motivos).toEqual(['comparação não saiu'])
+  })
 })

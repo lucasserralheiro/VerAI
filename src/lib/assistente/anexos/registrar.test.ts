@@ -1,10 +1,13 @@
 /** @jest-environment node */
-jest.mock('@/lib/prisma', () => ({ prisma: { anexoAssistente: { create: jest.fn(), findMany: jest.fn() } } }))
+jest.mock('@/lib/prisma', () => ({ prisma: { anexoAssistente: { create: jest.fn(), findMany: jest.fn() }, arquivoCliente: { findMany: jest.fn() } } }))
+jest.mock('@/lib/visibilidade', () => ({ clientesVisiveisWhere: jest.fn() }))
 jest.mock('@/lib/r2', () => ({ PREFIXO_R2: 'r2:', getR2: jest.fn(), deleteR2: jest.fn() }))
 jest.mock('./extrair', () => ({ ...jest.requireActual('./extrair'), paginasDoAnexo: jest.fn(), htmlDoAnexo: jest.fn() }))
 jest.mock('../entidades', () => ({ identificarEntidades: jest.fn() }))
 
+import { createHash } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
+import { clientesVisiveisWhere } from '@/lib/visibilidade'
 import { deleteR2, getR2 } from '@/lib/r2'
 import { identificarEntidades } from '../entidades'
 import { ZipGrandeDemais, htmlDoAnexo, paginasDoAnexo } from './extrair'
@@ -24,6 +27,8 @@ beforeEach(() => {
   ;(htmlDoAnexo as jest.Mock).mockResolvedValue('')
   ;(identificarEntidades as jest.Mock).mockResolvedValue({ clientes: [], contratos: [], possiveis: [], provavel: null, texto: null })
   ;(prisma.anexoAssistente.create as jest.Mock).mockResolvedValue({ id: 'a1' })
+  ;(prisma.arquivoCliente.findMany as jest.Mock).mockResolvedValue([])
+  ;(clientesVisiveisWhere as jest.Mock).mockResolvedValue({ ativo: true })
 })
 
 describe('chaveDoAnexo / enderecoValido', () => {
@@ -141,6 +146,58 @@ describe('registrarAnexo', () => {
     })
     const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
     expect(r.anexo.ficha).toMatchObject({ clienteId: null, cliente: null, contratoId: null, contrato: null })
+  })
+})
+
+describe('contrato pelo arquivo (SHA-256)', () => {
+  const linhaDe = (id: string, contratoId: string, numeroTermo = 'TC 52/SMIT/2024') => ({
+    id, contrato: { id: contratoId, numeroTermo, cliente: { id: 'c1', nome: 'Secretaria de Inovação', siglaLegado: 'SMIT' } },
+  })
+  beforeEach(() => {
+    ;(paginasDoAnexo as jest.Mock).mockResolvedValue({ paginas: [{ pagina: 1, texto: textoLongo }], anexosDoEmail: [] })
+  })
+
+  it('sem contrato no texto: o mesmo arquivo numa linha do histórico identifica contrato, cliente e linha', async () => {
+    ;(prisma.arquivoCliente.findMany as jest.Mock).mockResolvedValue([{ linhasComoProposta: [linhaDe('h1', 'k1')], linhasComoTermo: [] }])
+    const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'PC 03.pdf' })
+    const where = (prisma.arquivoCliente.findMany as jest.Mock).mock.calls[0][0].where
+    expect(where.sha256).toBe(createHash('sha256').update(Buffer.from('%PDF-1.4 conteudo')).digest('hex'))
+    expect(where.cliente).toEqual({ ativo: true })
+    expect(clientesVisiveisWhere).toHaveBeenCalledWith(usuario)
+    expect(r.anexo.ficha).toMatchObject({
+      clienteId: 'c1', cliente: 'SMIT – Secretaria de Inovação', contratoId: 'k1', contrato: 'TC 52/SMIT/2024', linhaHistoricoId: 'h1',
+    })
+  })
+
+  it('o mesmo arquivo em contratos diferentes: não identifica', async () => {
+    ;(prisma.arquivoCliente.findMany as jest.Mock).mockResolvedValue([
+      { linhasComoProposta: [linhaDe('h1', 'k1')], linhasComoTermo: [] },
+      { linhasComoProposta: [], linhasComoTermo: [linhaDe('h2', 'k2', 'TC 9/2020')] },
+    ])
+    const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'PC 03.pdf' })
+    expect(r.anexo.ficha).toMatchObject({ contratoId: null, contrato: null })
+    expect(r.anexo.ficha!.linhaHistoricoId ?? null).toBeNull()
+  })
+
+  it('duas linhas do mesmo contrato: contrato sim, linha não', async () => {
+    ;(prisma.arquivoCliente.findMany as jest.Mock).mockResolvedValue([{ linhasComoProposta: [linhaDe('h1', 'k1')], linhasComoTermo: [linhaDe('h2', 'k1')] }])
+    const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'PC 03.pdf' })
+    expect(r.anexo.ficha).toMatchObject({ contratoId: 'k1' })
+    expect(r.anexo.ficha!.linhaHistoricoId ?? null).toBeNull()
+  })
+
+  it('a mesma linha como PC e TC: conta uma vez', async () => {
+    ;(prisma.arquivoCliente.findMany as jest.Mock).mockResolvedValue([{ linhasComoProposta: [linhaDe('h1', 'k1')], linhasComoTermo: [linhaDe('h1', 'k1')] }])
+    const r = await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'PC 03.pdf' })
+    expect(r.anexo.ficha).toMatchObject({ contratoId: 'k1', linhaHistoricoId: 'h1' })
+  })
+
+  it('contrato achado no texto: não procura pelo arquivo', async () => {
+    ;(identificarEntidades as jest.Mock).mockResolvedValue({
+      clientes: [], contratos: [{ id: 'k1', numero: '52/2024', clienteId: 'c1' }], possiveis: [], provavel: null, texto: null,
+    })
+    await registrarAnexo({ conversaId: 'conv1', usuario, endereco, nome: 'p.pdf' })
+    expect(prisma.arquivoCliente.findMany).not.toHaveBeenCalled()
   })
 })
 

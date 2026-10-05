@@ -1,7 +1,8 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { AuthUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { PREFIXO_R2, deleteR2, getR2 } from '@/lib/r2'
+import { clientesVisiveisWhere } from '@/lib/visibilidade'
 import { identificarEntidades } from '../entidades'
 import { semCamadaDeTexto } from '../indexacao/extrair'
 import type { PaginaDeTexto } from '../indexacao/trechos'
@@ -105,8 +106,14 @@ export async function registrarAnexo(e: {
 
   // A ficha só afirma cliente/contrato únicos; o "provável pelo assunto" não entra.
   const ent = await identificarEntidades({ pergunta: paginas.map((p) => p.texto).join('\n').slice(0, 3000), usuario: e.usuario, recentes: [] })
-  const cliente = ent.clientes.length === 1 ? ent.clientes[0] : null
-  const contrato = ent.contratos.length === 1 ? ent.contratos[0] : null
+  let cliente: { id: string; nome: string; sigla: string | null } | null = ent.clientes.length === 1 ? ent.clientes[0] : null
+  let contrato: { id: string; numero: string } | null = ent.contratos.length === 1 ? ent.contratos[0] : null
+  // Proposta não traz o nº do contrato: o mesmo arquivo (SHA-256) numa linha do histórico identifica.
+  let linhaHistoricoId: string | null = null
+  if (!contrato) {
+    const peloArquivo = await contratoPeloArquivo(buffer, e.usuario)
+    if (peloArquivo) ({ cliente, contrato, linhaHistoricoId } = peloArquivo)
+  }
 
   let ficha: FichaAnexo
   try {
@@ -120,7 +127,7 @@ export async function registrarAnexo(e: {
         contrato: contrato?.numero ?? null,
       },
     })
-    ficha = { ...lida, avisos: [...lida.avisos, ...avisos] }
+    ficha = { ...lida, avisos: [...lida.avisos, ...avisos], ...(linhaHistoricoId ? { linhaHistoricoId } : {}) }
   } catch (erro) {
     return gravarErro(erro)
   }
@@ -135,6 +142,35 @@ export async function registrarAnexo(e: {
     select: { id: true },
   })
   return { anexo: { id: anexo.id, nome, status, ficha }, texto: textoDaFicha(nome, ficha) }
+}
+
+/**
+ * Contrato pelo próprio arquivo: o anexo é byte a byte um `ArquivoCliente` (de cliente visível) que é PC/PA ou
+ * TC/TA de linha do histórico — caso de quem baixa o PC do VerAI ou do SharePoint. Só quando dá UM contrato;
+ * a linha só quando é uma.
+ */
+async function contratoPeloArquivo(
+  buffer: Buffer,
+  usuario: AuthUser
+): Promise<{ cliente: { id: string; nome: string; sigla: string | null }; contrato: { id: string; numero: string }; linhaHistoricoId: string | null } | null> {
+  const sha256 = createHash('sha256').update(buffer).digest('hex')
+  const selecaoLinha = {
+    select: { id: true, contrato: { select: { id: true, numeroTermo: true, cliente: { select: { id: true, nome: true, siglaLegado: true } } } } },
+  }
+  const arquivos = await prisma.arquivoCliente.findMany({
+    where: { sha256, cliente: await clientesVisiveisWhere(usuario) },
+    select: { linhasComoProposta: selecaoLinha, linhasComoTermo: selecaoLinha },
+  })
+  const linhas = new Map(arquivos.flatMap((a) => [...a.linhasComoProposta, ...a.linhasComoTermo]).map((l) => [l.id, l]))
+  const contratos = new Set([...linhas.values()].map((l) => l.contrato.id))
+  if (contratos.size !== 1) return null
+  const [primeira] = linhas.values()
+  const c = primeira.contrato
+  return {
+    cliente: { id: c.cliente.id, nome: c.cliente.nome, sigla: c.cliente.siglaLegado },
+    contrato: { id: c.id, numero: c.numeroTermo ?? '(sem número)' },
+    linhaHistoricoId: linhas.size === 1 ? primeira.id : null,
+  }
 }
 
 /** Teto do que se grava de um anexo (páginas e caracteres no total). */

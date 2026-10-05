@@ -8,6 +8,7 @@ import { SELECT_CONTRATO } from '@/app/api/contratos/esquema'
 import { anexoDoUsuario } from '@/lib/assistente/anexos/acesso'
 import { htmlDoAnexo } from '@/lib/assistente/anexos/extrair'
 import { CODIGO_SERVICO, itensDasTabelas } from '@/lib/assistente/anexos/itens'
+import { identificarEntidades } from '@/lib/assistente/entidades'
 import { getR2 } from '@/lib/r2'
 import { tabela } from './compacto'
 import { data, definirFerramenta, moeda, NAO_ENCONTRADO, semAcento } from './comum'
@@ -85,17 +86,24 @@ function compactarComparacao(saida: unknown): string {
 
 export const compararAnexoComContrato = definirFerramenta({
   descricao:
-    'Compara o documento anexado com o contrato do VerAI, campo a campo (valor, início, fim, objeto e itens). Use para "bate com o contrato?", "o que mudou?", "esse aditivo confere?". A comparação é feita pelo código; a tabela devolvida é o resultado. Situações: igual, diferente, só no anexo, só no VerAI e, só no objeto, parecido: o objeto é semelhante, confira o texto. Dos itens vêm só as divergências e a contagem dos iguais.',
+    'Compara o documento anexado com o contrato do VerAI, campo a campo (valor, início, fim, objeto e itens). Use para "bate com o contrato?", "o que mudou?", "esse aditivo confere?". O contrato é, nesta ordem: contratoId, numero (o nº do contrato como aparece, ex. o que você achou no documento ou na conversa) ou o que a ficha do anexo identificou. A comparação é feita pelo código; a tabela devolvida é o resultado. Situações: igual, diferente, só no anexo, só no VerAI e, só no objeto, parecido: o objeto é semelhante, confira o texto. Dos itens vêm só as divergências e a contagem dos iguais.',
   entrada: z.object({
     anexoId: z.string().min(1).describe('id do anexo (vem de anexosDaConversa)'),
-    contratoId: z.string().min(1).optional().describe('contrato a comparar; sem ele, o que a ficha do anexo identificou'),
+    contratoId: z.string().min(1).optional().describe('contrato a comparar; sem ele, o numero ou o que a ficha do anexo identificou'),
+    numero: z.string().min(1).max(80).optional().describe('nº do contrato como texto, quando não há contratoId; só vale se for único entre os contratos visíveis'),
   }),
   compactar: compactarComparacao,
-  async executar({ anexoId, contratoId }, { usuario, hoje }) {
+  async executar({ anexoId, contratoId, numero }, { usuario, hoje }) {
     const anexo = await anexoDoUsuario(anexoId, usuario)
     if (!anexo) return NAO_ENCONTRADO
     const ficha = anexo.ficha
-    const alvo = contratoId ?? ficha?.contratoId
+    let alvo = contratoId
+    if (!alvo && numero) {
+      const ent = await identificarEntidades({ pergunta: numero, usuario, recentes: [] })
+      if (ent.contratos.length !== 1) return { erro: `contrato ${numero} não encontrado (ou mais de um com esse número): passe o contratoId` }
+      alvo = ent.contratos[0].id
+    }
+    alvo = alvo ?? ficha?.contratoId ?? undefined
     if (!alvo) return { erro: 'diga qual contrato comparar (não achei o contrato no documento)' }
 
     const contrato = await prisma.contrato.findUnique({ where: { id: alvo }, select: SELECT_CONTRATO })

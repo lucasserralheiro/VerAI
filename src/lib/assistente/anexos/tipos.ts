@@ -40,6 +40,8 @@ export interface FichaAnexo {
   cliente: string | null
   contratoId: string | null
   contrato: string | null
+  /** Linha do histórico que tem este MESMO arquivo como PC/PA ou TC/TA (pelo SHA-256), quando é uma só. */
+  linhaHistoricoId?: string | null
   campos: Record<string, { valor: string; pagina: number | null }>
   itens: number
   somaItens: string | null

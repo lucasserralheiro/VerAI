@@ -6,6 +6,7 @@ jest.mock('@/lib/assistente/anexos/acesso', () => ({ anexoDoUsuario: jest.fn() }
 jest.mock('@/lib/visibilidade', () => ({ podeVerCliente: jest.fn() }))
 jest.mock('@/lib/relatorios-clientes/contratos-consolidados', () => ({ consolidarContratos: jest.fn() }))
 jest.mock('@/lib/r2', () => ({ getR2: jest.fn() }))
+jest.mock('@/lib/assistente/entidades', () => ({ identificarEntidades: jest.fn() }))
 jest.mock('@/lib/assistente/anexos/extrair', () => ({ htmlDoAnexo: jest.fn() }))
 jest.mock('@/lib/assistente/anexos/itens', () => ({
   ...jest.requireActual('@/lib/assistente/anexos/itens'),
@@ -19,6 +20,7 @@ import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consoli
 import { getR2 } from '@/lib/r2'
 import { htmlDoAnexo } from '@/lib/assistente/anexos/extrair'
 import { itensDasTabelas } from '@/lib/assistente/anexos/itens'
+import { identificarEntidades } from '@/lib/assistente/entidades'
 import { compararAnexoComContrato } from './anexo-contrato'
 import { textoParaModelo } from './index'
 
@@ -62,6 +64,19 @@ describe('compararAnexoComContrato', () => {
     acesso.mockResolvedValue(anexo(ficha({ contratoId: null })))
     expect(await compararAnexoComContrato.executar({ anexoId: 'a1' }, ctx)).toEqual({
       erro: 'diga qual contrato comparar (não achei o contrato no documento)',
+    })
+  })
+  it('numero do contrato (texto): resolvido entre os visíveis, só se único', async () => {
+    const entidades = identificarEntidades as jest.Mock
+    acesso.mockResolvedValue(anexo(ficha({ contratoId: null })))
+    entidades.mockResolvedValue({ clientes: [], contratos: [{ id: 'ct7', numero: 'TC 52/SMIT/2024', clienteId: 'cl1' }], possiveis: [], provavel: null, texto: null })
+    await compararAnexoComContrato.executar({ anexoId: 'a1', numero: 'TC 52/SMIT/2024' }, ctx)
+    expect(entidades).toHaveBeenCalledWith({ pergunta: 'TC 52/SMIT/2024', usuario: ctx.usuario, recentes: [] })
+    expect(achar.mock.calls[0][0].where).toEqual({ id: 'ct7' })
+
+    entidades.mockResolvedValue({ clientes: [], contratos: [], possiveis: [], provavel: null, texto: null })
+    expect(await compararAnexoComContrato.executar({ anexoId: 'a1', numero: '52/2024' }, ctx)).toEqual({
+      erro: 'contrato 52/2024 não encontrado (ou mais de um com esse número): passe o contratoId',
     })
   })
   it('contratoId informado vence o da ficha', async () => {

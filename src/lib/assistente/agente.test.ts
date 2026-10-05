@@ -338,6 +338,13 @@ describe('instrução do sistema', () => {
   })
 })
 
+describe('instrução do sistema — prazo relativo do documento', () => {
+  it('"amanhã" e "até sexta-feira" são citados como estão, com a data da mensagem; nunca viram data calculada', () => {
+    expect(INSTRUCOES_SISTEMA).toMatch(/16\.[^\n]*Prazo relativo no documento \("amanhã", "até sexta-feira"\): cite como está, com a data da mensagem como referência; nunca converta em data/)
+    expect(INSTRUCOES_SISTEMA.length).toBeLessThanOrEqual(6000)
+  })
+})
+
 describe('instrução do sistema — ajustes da régua', () => {
   it('IPC "últimos N meses" = os N últimos publicados, sem passar período', () => {
     expect(INSTRUCOES_SISTEMA).toMatch(/últimos N meses.*publicados/)

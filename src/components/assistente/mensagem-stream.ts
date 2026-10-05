@@ -18,7 +18,8 @@ export function lerMensagemDoStream(mensagem: UIMessage): { texto: string; ferra
       ferramenta = estado === 'output-available' || estado === 'output-error' ? null : parte.type.slice(5)
     }
   }
-  if (conferencia?.bloqueada && conferencia.texto) texto = conferencia.texto
+  // O servidor manda `texto` quando bloqueou a resposta ou tirou dela uma chamada de ferramenta vazada.
+  if (conferencia?.texto) texto = conferencia.texto
   return { texto, ferramenta, conferencia }
 }
 

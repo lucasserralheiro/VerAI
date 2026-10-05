@@ -68,6 +68,30 @@ export function finalizarResposta(e: { texto: string; saidas: string[]; contexto
   return { texto, conferencia: bloqueada ? { conferidos: 0, naoConfirmados: [] } : conferencia, tipos: tiposDaResposta(texto), bloqueada }
 }
 
+// Tag de chamada de ferramenta do DeepSeek: `<｜｜DSML｜｜ invoke …>`, `<｜tool▁calls▁begin｜>`.
+const MARCADOR_DE_CHAMADA = /<\/?[^<>\n]*?(?:｜|DSML)[^<>\n]*>/g
+
+/**
+ * O DeepSeek às vezes escreve a chamada de ferramenta como texto (mais no último passo, o de
+ * `toolChoice: 'none'`). Tira do primeiro ao último marcador, as linhas com DSML que sobrarem e o `｜`
+ * solto. Sem marcador, devolve o texto como veio.
+ */
+export function limparChamadasVazadas(texto: string): string {
+  if (!/DSML|｜/.test(texto)) return texto
+  const marcadores = [...texto.matchAll(MARCADOR_DE_CHAMADA)]
+  let limpo = texto
+  if (marcadores.length > 0) {
+    const ultimo = marcadores[marcadores.length - 1]
+    limpo = texto.slice(0, marcadores[0].index) + texto.slice(ultimo.index! + ultimo[0].length)
+  }
+  return limpo
+    .split('\n')
+    .filter((l) => !l.includes('DSML'))
+    .join('\n')
+    .replace(/｜/g, '')
+    .trim()
+}
+
 /** A conferência nunca derruba a resposta: na falha, a resposta segue sem marcas. */
 function finalizarComSeguranca(entrada: Parameters<typeof finalizarResposta>[0]): ReturnType<typeof finalizarResposta> {
   try {
@@ -130,7 +154,10 @@ export function executarAgente(
         interrompida = true
       }
 
-      const texto = steps.map((s) => s.text).filter(Boolean).join('\n\n')
+      const textos = steps.map((s) => s.text).filter(Boolean)
+      const limpos = textos.map(limparChamadasVazadas)
+      const limpou = limpos.some((t, i) => t !== textos[i])
+      const texto = limpos.filter(Boolean).join('\n\n')
       const ferramentas = steps.flatMap((s) => s.toolCalls.map((c) => ({ nome: c.toolName, entrada: c.input })))
       // Fonte da conferência: o que as ferramentas devolveram e também o que a IA passou a elas (datas, mês).
       const saidas = steps.flatMap((s) => [
@@ -142,9 +169,11 @@ export function executarAgente(
         : { texto: '', conferencia: { conferidos: 0, naoConfirmados: [] }, tipos: [], bloqueada: false }
 
       if (!interrompida) {
+        // Bloqueada ou com chamada vazada removida: a tela troca o texto que recebeu pelo final.
+        const trocar = final.bloqueada || limpou
         writer.write({
           type: 'data-conferencia',
-          data: { naoConfirmados: final.conferencia.naoConfirmados, bloqueada: final.bloqueada, ...(final.bloqueada ? { texto: final.texto } : {}) },
+          data: { naoConfirmados: final.conferencia.naoConfirmados, bloqueada: final.bloqueada, ...(trocar ? { texto: final.texto || MENSAGEM_DE_FALHA } : {}) },
         })
         writer.write({ type: 'finish' })
       }

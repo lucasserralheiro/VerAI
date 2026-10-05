@@ -43,3 +43,11 @@ it('conferencia não bloqueada mantém o texto e devolve os não confirmados', (
   expect(r.texto).toBe('Saldo R$ 5,00.')
   expect(r.conferencia?.naoConfirmados).toEqual(['R$ 5,00'])
 })
+
+it('texto limpo do servidor (chamada de ferramenta vazada) troca o texto mesmo sem bloqueio', () => {
+  const r = lerMensagemDoStream({ id: 'm', role: 'assistant', parts: [
+    { type: 'text', text: 'O termo prorroga. <｜｜DSML｜｜ calls>lixo' },
+    { type: 'data-conferencia', data: { naoConfirmados: [], bloqueada: false, texto: 'O termo prorroga.' } },
+  ] } as never)
+  expect(r.texto).toBe('O termo prorroga.')
+})

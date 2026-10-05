@@ -6,7 +6,7 @@ jest.mock('unpdf', () => ({})) // ESM; carregado pela cadeia das ferramentas, n�
 jest.mock('@/lib/prisma', () => ({ prisma: { cliente: { findMany: jest.fn(async () => [{ id: 'c1', nome: 'SMIT', siglaLegado: 'SMIT', _count: { contratos: 1 } }]) } } }))
 jest.mock('@/lib/visibilidade', () => ({ clienteIdsPermitidos: jest.fn(async () => null), podeVerCliente: jest.fn(async () => true), documentosVisiveisWhere: jest.fn(async () => ({})) }))
 
-import { executarAgente, finalizarResposta, montarMensagens, MAX_HISTORICO, type ResultadoAgente } from './agente'
+import { executarAgente, finalizarResposta, limparChamadasVazadas, montarMensagens, MAX_HISTORICO, type ResultadoAgente } from './agente'
 import { INSTRUCOES_SISTEMA } from './instrucoes'
 import { NAO_ENCONTREI, RECUSA } from './blocos'
 
@@ -249,6 +249,29 @@ describe('executarAgente — conferência e falha', () => {
     erro.mockRestore()
   })
 
+  it('chamada de ferramenta do DeepSeek vazada no texto: sai antes de conferir e gravar; a tela recebe o texto limpo', async () => {
+    const vazado = 'O termo prorroga a vigência.\n\n<｜｜DSML｜｜ calls><｜｜DSML｜｜ invoke name="lerAnexo"><｜｜DSML｜｜ parameter name="anexoId">a1</｜｜DSML｜｜ parameter></｜｜DSML｜｜ invoke></｜｜DSML｜｜ calls>'
+    let final: ResultadoAgente | undefined
+    const { resposta } = executarAgente({ usuario, historico: [], pergunta: 'o que muda?', contexto: null, modelo: soTexto(vazado) }, async (r) => {
+      final = r
+    })
+    const corpo = await resposta.text()
+    expect(final!.texto).toBe('O termo prorroga a vigência.')
+    expect(corpo).toContain('"data":{"naoConfirmados":[],"bloqueada":false,"texto":"O termo prorroga a vigência."}')
+  })
+
+  it('só chamada vazada, sem texto: cai no caminho sem resposta', async () => {
+    let final: ResultadoAgente | undefined
+    const { resposta } = executarAgente(
+      { usuario, historico: [], pergunta: 'o que muda?', contexto: null, modelo: soTexto('<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>lerAnexo<｜tool▁sep｜>{"anexoId":"a1"}<｜tool▁call▁end｜><｜tool▁calls▁end｜>') },
+      async (r) => {
+        final = r
+      }
+    )
+    await resposta.text()
+    expect(final!.texto).toBe('')
+  })
+
   it('falha em aoTerminar (banco) não vira erro na tela', async () => {
     const erro = jest.spyOn(console, 'error').mockImplementation(() => {})
     const { resposta } = executarAgente({ usuario, historico: [], pergunta: 'oi', contexto: null, modelo: soTexto('ok') }, async () => {
@@ -284,6 +307,15 @@ describe('contexto da pergunta', () => {
     // A regra 4 da instrução cita o rótulo "Já identificados"; o que não pode ir ao system é o conteúdo.
     expect(JSON.stringify(prompt.filter((m) => m.role === 'system'))).not.toContain('clienteId: c1')
     expect(JSON.stringify(prompt.at(-1))).toContain('cliente SMIT (clienteId: c1)')
+  })
+})
+
+describe('limparChamadasVazadas', () => {
+  it('tira o bloco de marcadores (DSML e ｜) e mantém o texto antes e depois', () => {
+    expect(limparChamadasVazadas('Antes.<｜｜DSML｜｜ calls>x</｜｜DSML｜｜ calls>\nDepois.')).toBe('Antes.\nDepois.')
+    expect(limparChamadasVazadas('Sem nada estranho: R$ 5,00 | coluna')).toBe('Sem nada estranho: R$ 5,00 | coluna')
+    expect(limparChamadasVazadas('linha com DSML solta\nresto')).toBe('resto')
+    expect(limparChamadasVazadas('a ｜ b')).toBe('a  b')
   })
 })
 

@@ -38,8 +38,30 @@ export function tipoDoDocumento(nome: string, texto: string, formato: FormatoAne
   return 'outro'
 }
 
+const ORDINAIS = ['primeiro', 'segundo', 'terceiro', 'quarto', 'quinto', 'sexto', 'setimo', 'oitavo', 'nono', 'decimo']
+
+/**
+ * Identidade do termo no formato de `termoDoTexto` (valores-contratos): "TA3", "TAP2" (apostilamento), "TC0"
+ * (contrato). Pelo nome ("TA 03.pdf", "T.A. 04") ou pelo começo do texto ("TERMO ADITIVO Nº 05", "2º TERMO
+ * ADITIVO", "TERCEIRO TERMO ADITIVO"). Sem número → null.
+ */
+export function termoDoAnexo(nome: string, texto: string): string | null {
+  const n = semAcento(nome).replace(/_/g, ' ')
+  const doNome = /(?<![a-z])(tap|tc|t\.a\.?|ta)\s*[-.nº°o]*\s*(\d{1,3})(?!\d)/.exec(n)
+  if (doNome) return doNome[1] === 'tc' ? 'TC0' : `${doNome[1] === 'tap' ? 'TAP' : 'TA'}${Number(doNome[2])}`
+  const t = semAcento(texto.slice(0, 1500))
+  const especie = (e: string) => (/apostil/.test(e) ? 'TAP' : 'TA')
+  const porNumero = /termo\s+(aditivo|de\s+apostilamento)\s*(?:n[º°o.]*\s*)?(\d{1,3})(?!\d)/.exec(t)
+  if (porNumero) return `${especie(porNumero[1])}${Number(porNumero[2])}`
+  const porOrdinal = /(?<!\d)(\d{1,2})\s*[º°o]\s*termo\s+(aditivo|de\s+apostilamento)/.exec(t)
+  if (porOrdinal) return `${especie(porOrdinal[2])}${Number(porOrdinal[1])}`
+  const porExtenso = new RegExp(`(${ORDINAIS.join('|')})\\s+termo\\s+(aditivo|de\\s+apostilamento)`).exec(t)
+  if (porExtenso) return `${especie(porExtenso[2])}${ORDINAIS.indexOf(porExtenso[1]) + 1}`
+  return null
+}
+
 /** Tipo de linha do histórico, que escolhe os padrões de leitura (`extrairCampos`). Apostilamento não tem regra própria. */
-function tipoDaLinha(nome: string, texto: string): 'CONTRATO' | 'ADITIVO' | 'PRORROGACAO' | 'RESCISAO' {
+export function tipoDaLinha(nome: string, texto: string): 'CONTRATO' | 'ADITIVO' | 'PRORROGACAO' | 'RESCISAO' {
   const n = semAcento(nome)
   const t = semAcento(texto.slice(0, 1500))
   const de = (x: string) => {
@@ -95,7 +117,8 @@ export function fichaDoAnexo(e: {
 }): FichaAnexo {
   const texto = e.paginas.map((p) => p.texto).join('\n')
   const tipo = tipoDoDocumento(e.nome, texto, e.formato)
-  const camposLidos = tipo === 'proposta' || tipo === 'termo' ? camposPorRegra(e.paginas, tipoDaLinha(e.nome, texto)) : {}
+  const tipoLinha = tipo === 'proposta' || tipo === 'termo' ? tipoDaLinha(e.nome, texto) : null
+  const camposLidos = tipoLinha ? camposPorRegra(e.paginas, tipoLinha) : {}
   const campos = Object.fromEntries(Object.entries(camposLidos).map(([k, c]) => [k, { valor: c!.valor, pagina: c!.pagina }]))
   const totais = e.itens.map((i) => i.total).filter((t): t is string => t !== null)
   const conv = lerConversa(texto)
@@ -114,6 +137,7 @@ export function fichaDoAnexo(e: {
   return {
     tipo,
     ...e.entidades,
+    ...(tipo === 'termo' && tipoLinha ? { tipoLinha, termo: termoDoAnexo(e.nome, texto) } : {}),
     campos,
     itens: e.itens.length,
     somaItens: totais.length ? totais.reduce((s, t) => s.plus(t), new Decimal(0)).toFixed(2) : null,

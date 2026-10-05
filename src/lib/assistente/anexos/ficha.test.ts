@@ -1,5 +1,5 @@
 import { textoSeguroDeLinha } from './seguro'
-import { fichaDoAnexo, textoDaFicha, tipoDoDocumento } from './ficha'
+import { fichaDoAnexo, termoDoAnexo, textoDaFicha, tipoDoDocumento } from './ficha'
 
 const sem = { clienteId: null, cliente: null, contratoId: null, contrato: null }
 
@@ -71,6 +71,27 @@ it('aditivo lê o valor pelo padrão de aditivo, não o do contrato original', (
   const texto = 'TERMO ADITIVO Nº 03\nO valor estimado do presente contrato é de R$ 1.000,00.\nO valor total do contrato passa a ser de R$ 1.234.567,89.'
   const f = fichaDoAnexo({ nome: 'TA 03.pdf', formato: 'pdf', itens: [], entidades: sem, paginas: [{ pagina: 1, texto }] })
   expect(f.campos.valorTotal?.valor).toBe('R$ 1.234.567,89')
+})
+
+it.each([
+  ['TA 03.pdf', '', 'TA3'],
+  ['SMIT TA_02 assinado.pdf', '', 'TA2'],
+  ['T.A. 04 - Prorrogação.pdf', '', 'TA4'],
+  ['TAP 02.pdf', '', 'TAP2'],
+  ['TC 52-SMIT-2024.pdf', '', 'TC0'],
+  ['aditivo.pdf', 'TERMO ADITIVO Nº 05 AO TERMO DE CONTRATO Nº 52/SMIT/2024', 'TA5'],
+  ['aditivo.pdf', '2º TERMO ADITIVO AO CONTRATO Nº 52/SMIT/2024', 'TA2'],
+  ['aditivo.pdf', 'TERCEIRO TERMO ADITIVO AO CONTRATO', 'TA3'],
+  ['aditivo.pdf', 'texto sem número do termo', null],
+] as const)('termoDoAnexo(%s, %s) → %s', (nome, texto, termo) => {
+  expect(termoDoAnexo(nome, texto)).toBe(termo)
+})
+
+it('ficha de termo guarda o tipo da linha e a identidade do termo', () => {
+  const f = fichaDoAnexo({ nome: 'TA 03.pdf', formato: 'pdf', itens: [], entidades: sem, paginas: [{ pagina: 1, texto: 'TERMO ADITIVO Nº 03' }] })
+  expect(f).toMatchObject({ tipoLinha: 'ADITIVO', termo: 'TA3' })
+  const p = fichaDoAnexo({ nome: 'PC 01.pdf', formato: 'pdf', itens: [], entidades: sem, paginas: [{ pagina: 1, texto: 'PROPOSTA COMERCIAL' }] })
+  expect(p.termo).toBeUndefined()
 })
 
 it('textoSeguroDeLinha não deixa recompor marcador', () => {

@@ -1,6 +1,6 @@
 /** @jest-environment node */
 jest.mock('@/lib/prisma', () => ({
-  prisma: { contrato: { findUnique: jest.fn() }, itemContrato: { findMany: jest.fn() } },
+  prisma: { contrato: { findUnique: jest.fn() }, itemContrato: { findMany: jest.fn() }, historicoContrato: { findMany: jest.fn() } },
 }))
 jest.mock('@/lib/assistente/anexos/acesso', () => ({ anexoDoUsuario: jest.fn() }))
 jest.mock('@/lib/visibilidade', () => ({ podeVerCliente: jest.fn() }))
@@ -29,6 +29,7 @@ const ctx = { usuario: { id: 'u1', nome: 'U', email: 'u@x', role: 'uploader' as 
 const acesso = anexoDoUsuario as jest.Mock
 const achar = prisma.contrato.findUnique as jest.Mock
 const itensDb = prisma.itemContrato.findMany as jest.Mock
+const historico = prisma.historicoContrato.findMany as jest.Mock
 const consolidar = consolidarContratos as jest.Mock
 const pode = podeVerCliente as jest.Mock
 const r2 = getR2 as jest.Mock
@@ -46,8 +47,9 @@ const contrato = (extra: any = {}) => ({
 const consolidado = (extra: any = {}) => ({ valorBase: '18530.00', vigenciaFim: new Date('2026-12-31T12:00:00Z'), ...extra })
 
 beforeEach(() => {
-  for (const m of [acesso, achar, itensDb, consolidar, pode, r2, html, itensAnexo]) m.mockReset()
+  for (const m of [acesso, achar, itensDb, historico, consolidar, pode, r2, html, itensAnexo]) m.mockReset()
   pode.mockResolvedValue(true)
+  historico.mockResolvedValue([])
   itensDb.mockResolvedValue([])
   achar.mockResolvedValue(contrato())
   consolidar.mockResolvedValue(new Map([['ct1', consolidado()]]))
@@ -135,6 +137,59 @@ describe('compararAnexoComContrato', () => {
     expect(await com('Serviços de REDE', 'Contratação de serviços de rede metropolitana')).toBe('diferente')
     expect(await com('Locação de equipamentos de videoconferência para salas de reunião do gabinete', 'Locação de equipamentos de videoconferência para salas de reunião da secretaria')).toBe('parecido')
     expect(await com('Locação de equipamentos de videoconferência para salas de reunião do gabinete', 'Locação de equipamentos de impressão para salas de auditório do gabinete')).toBe('diferente')
+  })
+  describe('termo aditivo: compara com a linha do mesmo termo no histórico', () => {
+    const dia = (d: string) => new Date(`${d}T12:00:00Z`)
+    const linhaTa = (extra: any = {}) => ({
+      id: 'h2', tipo: 'ADITIVO', numero: 'TA 02/2025', data: dia('2025-06-30'), valor: '5000', dataInicio: dia('2025-07-01'), dataVencimento: dia('2026-06-30'), ...extra,
+    })
+    const linhaTc = { id: 'h1', tipo: 'CONTRATO', numero: 'TC 1/2024', data: dia('2024-01-05'), valor: '18530', dataInicio: dia('2024-01-10'), dataVencimento: dia('2025-01-09') }
+    const camposTa = {
+      valorTotal: { valor: 'R$ 5.000,00', pagina: 1 },
+      vigenciaInicio: { valor: '01/07/2025', pagina: 1 },
+      vigenciaFim: { valor: '30/06/2026', pagina: 1 },
+      assinatura: { valor: '30/06/2025', pagina: 2 },
+    }
+
+    it('pela identidade do termo (espécie + nº): início, fim, valor e assinatura da linha', async () => {
+      acesso.mockResolvedValue(anexo(ficha({ tipoLinha: 'ADITIVO', termo: 'TA2', campos: camposTa })))
+      historico.mockResolvedValue([linhaTc, linhaTa()])
+      const r = (await compararAnexoComContrato.executar({ anexoId: 'a1' }, ctx)) as any
+      expect(historico.mock.calls[0][0].where).toEqual({ contratoId: 'ct1' })
+      expect(linha(r, 'Valor')).toMatchObject({ verai: 'R$ 5.000,00', situacao: 'igual' })
+      expect(linha(r, 'Início')).toMatchObject({ verai: '01/07/2025', situacao: 'igual' })
+      expect(linha(r, 'Fim')).toMatchObject({ verai: '30/06/2026', situacao: 'igual' })
+      expect(linha(r, 'Assinatura')).toMatchObject({ anexo: '30/06/2025', verai: '30/06/2025', situacao: 'igual' })
+      expect(r.contrato).toBe('TC 1/2024 · TA 02/2025')
+      expect(r.avisos).toEqual([])
+    })
+    it('pela linha que tem o mesmo arquivo (linhaHistoricoId), sem número no nome', async () => {
+      acesso.mockResolvedValue(anexo(ficha({ linhaHistoricoId: 'h2', campos: { vigenciaInicio: { valor: '02/07/2025', pagina: 1 } } })))
+      historico.mockResolvedValue([linhaTc, linhaTa({ numero: 'Em elaboração' })])
+      const r = (await compararAnexoComContrato.executar({ anexoId: 'a1' }, ctx)) as any
+      expect(linha(r, 'Início')).toMatchObject({ verai: '01/07/2025', situacao: 'diferente' })
+      expect(linha(r, 'Assinatura')).toBeUndefined()
+    })
+    it('linha do termo repetida ou ausente: contrato e aviso', async () => {
+      acesso.mockResolvedValue(anexo(ficha({ tipoLinha: 'ADITIVO', termo: 'TA2', campos: camposTa })))
+      historico.mockResolvedValue([linhaTa(), linhaTa({ id: 'h3', numero: 'TA 2' })])
+      const r = (await compararAnexoComContrato.executar({ anexoId: 'a1' }, ctx)) as any
+      expect(linha(r, 'Início')).toMatchObject({ verai: '10/01/2024' })
+      expect(r.contrato).toBe('TC 1/2024')
+      expect(r.avisos).toContain('comparado com o contrato (linha do termo não encontrada)')
+    })
+    it('termo de contrato (TC): compara com o contrato, sem aviso', async () => {
+      acesso.mockResolvedValue(anexo(ficha({ tipoLinha: 'CONTRATO', termo: 'TC0' })))
+      const r = (await compararAnexoComContrato.executar({ anexoId: 'a1' }, ctx)) as any
+      expect(r.avisos).toEqual([])
+      expect(linha(r, 'Início').verai).toBe('10/01/2024')
+    })
+    it('linha da ficha de outro contrato (contratoId informado) não é usada', async () => {
+      acesso.mockResolvedValue(anexo(ficha({ tipoLinha: 'CONTRATO', linhaHistoricoId: 'hX' })))
+      historico.mockResolvedValue([linhaTc])
+      const r = (await compararAnexoComContrato.executar({ anexoId: 'a1', contratoId: 'ct1' }, ctx)) as any
+      expect(r.contrato).toBe('TC 1/2024')
+    })
   })
   it('objeto longo é cortado em 200 caracteres', async () => {
     acesso.mockResolvedValue(anexo(ficha({ campos: { objeto: { valor: 'a'.concat('b'.padEnd(500, 'c')), pagina: 1 } } })))

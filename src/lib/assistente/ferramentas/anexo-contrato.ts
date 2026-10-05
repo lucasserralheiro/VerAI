@@ -9,6 +9,9 @@ import { anexoDoUsuario } from '@/lib/assistente/anexos/acesso'
 import { htmlDoAnexo } from '@/lib/assistente/anexos/extrair'
 import { CODIGO_SERVICO, itensDasTabelas } from '@/lib/assistente/anexos/itens'
 import { identificarEntidades } from '@/lib/assistente/entidades'
+import { termoDoAnexo, tipoDaLinha } from '@/lib/assistente/anexos/ficha'
+import type { FichaAnexo } from '@/lib/assistente/anexos/tipos'
+import { termoDoTexto } from '@/lib/valores-contratos/aplicar'
 import { getR2 } from '@/lib/r2'
 import { tabela } from './compacto'
 import { data, definirFerramenta, moeda, NAO_ENCONTRADO, semAcento } from './comum'
@@ -84,6 +87,32 @@ function compactarComparacao(saida: unknown): string {
   return partes.join('\n')
 }
 
+const TIPOS_TERMO = new Set(['ADITIVO', 'PRORROGACAO'])
+const SELECT_LINHA = { id: true, tipo: true, numero: true, data: true, valor: true, dataInicio: true, dataVencimento: true } as const
+
+/**
+ * Linha do histórico do mesmo termo (spec 2026-10-02-assistente-anexos §6): a que tem o mesmo arquivo
+ * (`linhaHistoricoId`, pelo SHA-256) ou, para aditivo/prorrogação, a ÚNICA com a mesma identidade espécie + nº
+ * (`termoDoTexto`, o de valores-contratos). `null` = comparar com o contrato; `'nao-encontrada'` = é termo,
+ * mas a linha não casou (compara com o contrato, com aviso).
+ */
+async function linhaDoTermoNoHistorico(contratoId: string, nome: string, ficha: FichaAnexo | null | undefined) {
+  const tipoLinha = ficha?.tipoLinha ?? (ficha?.tipo === 'termo' ? tipoDaLinha(nome, '') : null)
+  const ehTermo = tipoLinha === 'ADITIVO' || tipoLinha === 'PRORROGACAO'
+  const linhaId = ficha?.linhaHistoricoId ?? null
+  if (!ehTermo && !linhaId) return null
+  const linhas = await prisma.historicoContrato.findMany({ where: { contratoId }, select: SELECT_LINHA })
+  const peloArquivo = linhaId ? linhas.find((l) => l.id === linhaId) : undefined
+  if (peloArquivo) return TIPOS_TERMO.has(peloArquivo.tipo) ? peloArquivo : null
+  if (!ehTermo) return null
+  const identidade = ficha?.termo ?? termoDoAnexo(nome, '')
+  if (identidade && identidade !== 'TC0') {
+    const casadas = linhas.filter((l) => TIPOS_TERMO.has(l.tipo) && termoDoTexto(l.numero) === identidade)
+    if (casadas.length === 1) return casadas[0]
+  }
+  return 'nao-encontrada' as const
+}
+
 export const compararAnexoComContrato = definirFerramenta({
   descricao:
     'Compara o documento anexado com o contrato do VerAI, campo a campo (valor, início, fim, objeto e itens). Use para "bate com o contrato?", "o que mudou?", "esse aditivo confere?". O contrato é, nesta ordem: contratoId, numero (o nº do contrato como aparece, ex. o que você achou no documento ou na conversa) ou o que a ficha do anexo identificou. A comparação é feita pelo código; a tabela devolvida é o resultado. Situações: igual, diferente, só no anexo, só no VerAI e, só no objeto, parecido: o objeto é semelhante, confira o texto. Dos itens vêm só as divergências e a contagem dos iguais.',
@@ -115,10 +144,15 @@ export const compararAnexoComContrato = definirFerramenta({
     const campos = ficha?.campos ?? {}
     const linhas: LinhaComparada[] = []
 
+    // Termo aditivo/prorrogação: o lado do VerAI é a LINHA do mesmo termo no histórico, não o contrato.
+    const linhaDoTermo = await linhaDoTermoNoHistorico(contrato.id, anexo.nome, ficha)
+    if (linhaDoTermo === 'nao-encontrada') avisos.push('comparado com o contrato (linha do termo não encontrada)')
+    const termo = linhaDoTermo && linhaDoTermo !== 'nao-encontrada' ? linhaDoTermo : null
+
     // Valor
     const valorFicha = campos.valorTotal?.valor ?? null
     const decFicha = decimalDe(valorFicha)
-    const decVerai = consolidado.valorBase ? new Decimal(consolidado.valorBase) : null
+    const decVerai = termo ? (termo.valor !== null ? new Decimal(termo.valor.toString()) : null) : consolidado.valorBase ? new Decimal(consolidado.valorBase) : null
     if (valorFicha && !decFicha) avisos.push(`valor do anexo não pôde ser lido como número ("${valorFicha}")`)
     const valorAnexo = valorFicha === null ? null : decFicha ? moeda(decFicha.toFixed(2)) : valorFicha
     const valorVerai = decVerai ? moeda(decVerai.toFixed(2)) : null
@@ -132,11 +166,19 @@ export const compararAnexoComContrato = definirFerramenta({
     // Datas (a ficha já vem em dd/mm/aaaa)
     const dataVerai = (d: Date | null | undefined) => (d ? data(d) : null)
     const inicioAnexo = campos.vigenciaInicio?.valor ?? null
-    const inicioVerai = dataVerai(contrato.dataInicio)
+    const inicioVerai = dataVerai(termo ? termo.dataInicio : contrato.dataInicio)
     linhas.push({ campo: 'Início', anexo: inicioAnexo, verai: inicioVerai, situacao: situacaoDe(inicioAnexo, inicioVerai, () => inicioAnexo === inicioVerai) })
     const fimAnexo = campos.vigenciaFim?.valor ?? null
-    const fimVerai = dataVerai(consolidado.vigenciaFim)
+    const fimVerai = dataVerai(termo ? termo.dataVencimento : consolidado.vigenciaFim)
     linhas.push({ campo: 'Fim', anexo: fimAnexo, verai: fimVerai, situacao: situacaoDe(fimAnexo, fimVerai, () => fimAnexo === fimVerai) })
+    const assinaturaAnexo = campos.assinatura?.valor ?? null
+    if (termo && assinaturaAnexo !== null) {
+      const assinaturaVerai = dataVerai(termo.data)
+      linhas.push({
+        campo: 'Assinatura', anexo: assinaturaAnexo, verai: assinaturaVerai,
+        situacao: situacaoDe(assinaturaAnexo, assinaturaVerai, () => assinaturaAnexo === assinaturaVerai),
+      })
+    }
 
     // Objeto
     const objAnexo = campos.objeto?.valor?.trim() || null
@@ -149,7 +191,10 @@ export const compararAnexoComContrato = definirFerramenta({
       situacao: situacaoObjeto,
     })
 
-    const saida: SaidaComparacao = { anexo: anexo.nome, contrato: contrato.numeroTermo ?? contrato.id, avisos, linhas }
+    const nomeContrato = contrato.numeroTermo ?? contrato.id
+    const saida: SaidaComparacao = {
+      anexo: anexo.nome, contrato: termo ? `${nomeContrato} · ${termo.numero ?? termo.tipo}` : nomeContrato, avisos, linhas,
+    }
 
     // Itens: não são gravados; relê o arquivo só quando a ficha achou itens.
     if ((ficha?.itens ?? 0) > 0) {

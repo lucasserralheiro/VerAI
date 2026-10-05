@@ -159,7 +159,9 @@ HTML de bloqueio), guardada em `IndiceIpcFipe` pelo cron diário (`/api/reajuste
 "Atualizar agora"; mês já gravado **nunca** é sobrescrito (valor diferente vira divergência na tela).
 Período editável (sugestão: últimos 12 publicados); mês sem índice não calcula; conta em `decimal.js`,
 arredonda só o valor final. Planilha volta com colunas "corrigido" **depois da última usada** (fórmula
-existente não se mexe) e aba "Reajuste IPC-Fipe"; PDF/DOCX **nunca é reescrito** — volta planilha de
+existente não se mexe) e aba "Reajuste IPC-Fipe"; na coluna corrigida, valor digitado = valor × fator e **fórmula
+ganha a mesma fórmula apontando pras colunas corrigidas** (total = ROUND(preço corrigido × qtde × meses),
+nunca total × fator — `formulas.ts`, spec §2.3.1); PDF/DOCX **nunca é reescrito** — volta planilha de
 comparação (só valor com centavos entra). Envio pelo mesmo PUT pré-assinado da Nova conversão; original e
 resultado no R2 (`reajustes/<id>/`), histórico em `ReajusteExecucao`. Regras em `src/lib/reajuste/`.
 Spec `docs/superpowers/specs/2026-09-30-reajuste-ipc-fipe-design.md`, plano
@@ -252,6 +254,7 @@ que revisa `2026-09-24-sincronizacao-sharepoint-contratos-design.md`):
 - Nada grava sem `--aplicar`; `--clientes=` restringe listagem **e** remoção (use em dev: dev e
   produção dividem o mesmo bucket do Cloudflare R2). Antes da primeira execução num banco:
   `scripts/migrar-sharepoint-lugar-certo.ts` (a sincronização recusa rodar com migração pendente).
+- **Reinstalar/formatar o PC do Lucas**: siga `docs/reinstalar-pc.md` (backup, OneDrive, tarefa, primeira passada).
 - **Automação**: roda sempre do PC do Lucas, a cada 30 min, pelo Agendador do Windows — sem e-mail
   nem painel (decisão do usuário). `scripts\agendador-sharepoint.ps1 -Estado` mostra a
   última execução. O Agendador só enxerga o `conhost --headless` (o que evita a janela), que devolve
@@ -304,8 +307,9 @@ na legenda; cada prazo em ≥ 10 meses; nenhum prazo em fim de semana ou feriado
 a grade errada no PDF sai inteiro, com aviso (o de 2026 desenhou janeiro/2027 com o 1º na quinta); falhou a prova →
 só feriados + PDF. Conferido mês a mês contra a imagem do PDF em 30/09/2026.
 
-**Links MPLS** (`/links-mpls` e `/links-mpls/contrato/[id]`, subitem de "Relatórios dos clientes", cartão no detalhe
-do contrato; spec `2026-09-29-links-mpls-design.md`): relatórios "Links MPLS - Relatórios para Faturamento" (área
+**Links MPLS** (só por contrato: cartão no detalhe do contrato → `/links-mpls/contrato/[id]`; a tela geral e o item
+do menu saíram em 30/09 — sem pedido da equipe e com total enganoso; não recriar sem cruzar com a tabela de preços;
+spec `2026-09-29-links-mpls-design.md`): relatórios "Links MPLS - Relatórios para Faturamento" (área
 `LINKS_MPLS`, tabelas `RelatorioLinks`/`LinkMpls`). Competência = pasta do mês (o nome do arquivo erra). Leitura por
 formato + posição (`src/lib/links-mpls/leitura.ts`); **prova por seção** (ativos e cancelados): códigos lidos =
 "Total Geral" = "TOTAL =". Sem prova, o relatório aparece com o PDF e fica fora das contas e da evolução.

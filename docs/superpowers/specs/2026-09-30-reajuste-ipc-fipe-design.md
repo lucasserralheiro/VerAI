@@ -108,6 +108,28 @@ Grupo novo em `src/components/nav-bar.tsx`, no mesmo formato de ConfereAI/Propos
 - **PDF/DOCX**: XLSX com colunas página, trecho, valor original, valor corrigido, diferença; mais a
   mesma aba "Reajuste IPC-Fipe".
 
+### 2.3.1 Fórmulas — regra do IPC na memória de cálculo (05/10/2026)
+
+Conferido com a memória de cálculo real da PRODAM (`arquivos-teste-reajuste/memoria-calculo-sustentacao-seges.xlsx`:
+preço unitário × qtde × meses, subtotais por grupo, total da proposta e cronograma em outra aba).
+O reajuste corrige o **preço unitário** (× fator, 2 casas); o resto sai da conta da própria planilha.
+
+- **Valor digitado** na coluna marcada → `valor × fator`, 2 casas.
+- **Fórmula** na coluna marcada que cita coluna marcada (inclusive de outra aba) → a coluna corrigida
+  recebe a **mesma fórmula** com as referências trocadas pelas colunas corrigidas
+  (`ROUND(E6*F6*G6,2)` → `ROUND(L6*F6*G6,2)`, `SUM(H6:H9)` → `SUM(M6:M9)`,
+  `'Memória Cálculo'!H5` → `'Memória Cálculo'!M5`). Qtde e meses continuam os originais. O arquivo sai
+  com `fullCalcOnLoad` pra o Excel calcular ao abrir. (`src/lib/reajuste/formulas.ts`)
+- Fórmula que não cita coluna marcada, ou intervalo que mistura coluna marcada e não marcada → resultado × fator.
+- Por que não `total × fator`: dá centavos (às vezes milhares de reais) de diferença e subtotal que não
+  bate com a soma — no exemplo, `0,15 × fator = 0,16` no crédito de 3,9 milhões; total corrigido certo
+  R$ 109.679.570,51 contra R$ 109.661.082,61 do total × fator.
+- **Leitura**: título mesclado (B2:H2) conta uma vez só (antes virava o cabeçalho de todas as colunas e
+  sugeria CÓDIGO, QTDE e PERÍODO); código com pontos (`10.050.00001.00`) não é valor; nome de coluna por
+  palavra inteira ("CUSTOMIZADOS" não é custo). Vem sugerida também a coluna cuja fórmula usa uma
+  sugerida e a coluna somada no mesmo intervalo por uma sugerida (cronograma inteiro + VALOR TOTAL).
+- A prévia marca célula de fórmula com "≈" (o número final vem da fórmula refeita).
+
 ### 2.4 `/reajuste/historico`
 
 Lista de todos (como o histórico do ConfereAI: o registro é do que passou pela ferramenta): data,

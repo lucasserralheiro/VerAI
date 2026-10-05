@@ -21,6 +21,25 @@ export interface ValorNoTexto {
   depois: string
 }
 
-export type Leitura = { tipo: 'planilha'; colunas: ColunaCandidata[] } | { tipo: 'texto'; valores: ValorNoTexto[] }
+/** Célula da prévia: `t` como aparece; `v` normalizado ("1500.00") quando é valor; `f` quando o valor
+ *  sai de fórmula (no resultado ela é refeita com as colunas corrigidas, não multiplicada pelo fator). */
+export interface CelulaPrevia {
+  t: string
+  v?: string
+  f?: true
+}
+
+/** Começo de cada aba, pra tela mostrar a planilha como ela é (linhas e colunas cortadas nos limites). */
+export interface AbaPrevia {
+  nome: string
+  linhaCabecalho: number // 0 = sem cabeçalho achado
+  totalLinhas: number
+  totalColunas: number
+  linhas: Array<{ numero: number; celulas: CelulaPrevia[] }>
+}
+
+export type Leitura =
+  | { tipo: 'planilha'; colunas: ColunaCandidata[]; abas: AbaPrevia[] }
+  | { tipo: 'texto'; valores: ValorNoTexto[] }
 
 export class ArquivoIlegivel extends Error {}

@@ -33,6 +33,21 @@
   - **D2 = manter** o login por senha-mestra em produção.
   - **D3:** o `AI_*` de produção já é DeepSeek, nada a fazer.
   - **D4 = sim:** push e fim da trava depois de validar.
+- **Execução em 28/09/2026:**
+  - O usuário validou o hotfix em produção (a Nova conversão funcionou).
+  - O usuário optou por seguir **sem** o branch de backup no Neon: as 6 migrações só acrescentam e foram testadas do zero; a volta do banco fica pelo restore por horário do Neon.
+  - `CRON_SECRET` fica para depois (o `env add` foi cancelado; sem ele, o cron diário só recebe 401).
+  - O agendador foi pausado pela sessão às ~17:40.
+  - O usuário rodou `scratchpad/subir-release.ps1`, que confere se o worktree está em `076a85a` e limpo, roda `prisma-producao.ps1 -Comando deploy` e, só se der certo, `vc.js deploy --prod --cwd C:/projeto/VerAI-release`. Resultado: **"PRONTO"**.
+  - Deploy novo **`dpl_FwReTdk1AKiZmLtXok3XZf5EWcGW`**: criado às 17:44:24, build de 2m33s, `Ready`, alias `verai-virid.vercel.app`.
+  - A tela de clientes em produção mostra as pastas e "Ainda não sincronizado com o SharePoint". A tabela `AtualizacaoSharepoint` existe, então as migrações entraram.
+  - Agendador religado e primeira rodada disparada pela sessão às 17:48:31 (`Start-ScheduledTask`).
+  - A rodada terminou às 17:56, `codigo 0`:
+    - arquivos: 1.176 inalterados, "TUDO NO VERAI";
+    - **"data das telas: atualizada (28/09/2026, 17:48:40)"**, a primeira linha de `AtualizacaoSharepoint` em produção;
+    - índice do assistente: 164 indexados, 36 sem texto, 0 erros, 996 pendentes (200 por rodada);
+    - fichas: 38 com IA (DeepSeek, 292 mil tokens), 11 sem texto, 1 erro, 150 pendentes.
+  - Task 8 Steps 1–2 concluídos. Próximo: Task 9 (teste do usuário) e depois a Task 10 (push, D4).
 - Release: **`076a85a`** (worktree `C:\projeto\VerAI-release`, branch `release/2026-09-main`) · backup no Neon: `—` · deploy anterior: **`dpl_9jvJRm6RnJzroa6uyVPJuZQeHJ32`** (`hotfix/proposta-r2`, no ar desde 28/09, com o fix do 504; é a volta da release) · deploy novo: `—`
 
 ## Decisões do usuário (antes da Task 1)
@@ -223,6 +238,18 @@ Run: `powershell -ExecutionPolicy Bypass -File C:\projeto\VerAI-release\scripts\
 Expected: `Banco: ep-nameless-term-…neon.tech` (host **sem** `-pooler`) e a lista "have not yet been applied", com pelo menos `20260925190000_proposta_arquivo_do_cliente`, `20260926100000_assistente_referencias`, `20260926110000_assistente_fichas` e `20260928120000_atualizacao_sharepoint`. Colar a saída na conversa.
 
 - [ ] **Step 3** (🤖): conferir a lista. Toda pendente tem de ser uma das 23 analisadas em "Por que nessa ordem". Migração marcada como `failed` ou "modified after applied", ou nome fora da lista: **parar**.
+
+**Resultado (28/09, rodado pelo usuário):**
+- Banco `ep-nameless-term-aww5a917.c-12.us-east-1.aws.neon.tech`, conexão direta, sem `-pooler`.
+- 39 migrações na pasta, **6 pendentes**, nenhuma `failed` ou modificada. Todas só acrescentam (SQL relido em 28/09):
+  - `20260925120000_confere_execucao_contrato`: 3 colunas opcionais e FK `SET NULL`;
+  - `20260925190000_assistente_arquivo_cliente`: valor novo no enum `OrigemTrecho`;
+  - `20260925190000_proposta_arquivo_do_cliente`: coluna opcional e FK `SET NULL`;
+  - `20260926100000_assistente_referencias`: valor no enum e tabela `DocumentoReferencia`;
+  - `20260926110000_assistente_fichas`: tabela `FichaDocumento`;
+  - `20260928120000_atualizacao_sharepoint`: tabela `AtualizacaoSharepoint`.
+- As outras 16 do main (GRC-1, repositório, SharePoint, `assistente_ia` com `unaccent`) já estavam no Neon.
+- Steps 2 e 3 concluídos. O Step 1 (backup) depende de confirmação do usuário.
 
 ---
 

@@ -1,9 +1,11 @@
 // Resultado do reajuste (spec §2.3): planilha com colunas "corrigido" depois da última usada (nada
 // muda de lugar, fórmula existente não quebra) ou planilha de comparação pra PDF/DOCX. Sempre com a
-// aba "Reajuste IPC-Fipe" provando o cálculo.
+// aba "Reajuste IPC-Fipe" provando o cálculo. Na planilha, só valor digitado é multiplicado pelo
+// fator; célula de fórmula ganha a mesma fórmula apontando pras colunas corrigidas (spec §2.3.1).
 import Decimal from 'decimal.js'
 import ExcelJS from 'exceljs'
 import { corrigirValor, fatorCompleto } from './calculo'
+import { type MapaDeColunas, traduzirFormula } from './formulas'
 import { valorDaCelula } from './leitura'
 import { nomeDoMes } from './meses'
 import type { ValorNoTexto } from './tipos'
@@ -49,24 +51,55 @@ export async function planilhaCorrigida(
   let quantidade = 0
   const porAba = new Map<string, typeof colunas>()
   for (const c of colunas) porAba.set(c.aba, [...(porAba.get(c.aba) ?? []), c])
+
+  // Primeiro decide onde cai cada coluna corrigida, em TODAS as abas: a fórmula de uma aba pode citar
+  // outra (cronograma → memória de cálculo). Em ordem de coluna, pra intervalo C:H virar K:P.
+  const mapa: MapaDeColunas = new Map()
   for (const [nome, lista] of porAba) {
     const aba = wb.getWorksheet(nome)
     if (!aba) continue
+    lista.sort((a, b) => a.coluna - b.coluna)
+    const destinos = new Map<number, number>()
     let destino = aba.columnCount
+    for (const c of lista) if (!destinos.has(c.coluna)) destinos.set(c.coluna, ++destino)
+    mapa.set(nome, destinos)
+  }
+
+  for (const [nome, lista] of porAba) {
+    const aba = wb.getWorksheet(nome)
+    const destinos = mapa.get(nome)
+    if (!aba || !destinos) continue
     for (const c of lista) {
-      destino += 1
+      const destino = destinos.get(c.coluna)!
       const titulo = aba.getRow(c.linhaCabecalho).getCell(c.coluna).text || `Coluna ${c.coluna}`
       aba.getRow(c.linhaCabecalho).getCell(destino).value = `${titulo} corrigido`
       for (let linha = c.linhaCabecalho + 1; linha <= aba.rowCount; linha++) {
-        const original = valorDaCelula(aba.getRow(linha).getCell(c.coluna).value)
-        if (original === null) continue
+        const origem = aba.getRow(linha).getCell(c.coluna)
+        if (origem.isMerged && origem.master.address !== origem.address) continue
         const celula = aba.getRow(linha).getCell(destino)
+        const ehFormula = origem.type === ExcelJS.ValueType.Formula
+        // Fórmula que usa coluna corrigida: a mesma conta, com as colunas corrigidas (o Excel recalcula
+        // ao abrir). Preço × fator, total = ROUND(preço corrigido × qtde × meses) — como a planilha faz.
+        if (ehFormula && origem.formula) {
+          const traducao = traduzirFormula(origem.formula, nome, mapa)
+          if (traducao.tipo === 'traduzida') {
+            celula.value = { formula: traducao.formula } as ExcelJS.CellFormulaValue
+            celula.numFmt = MOEDA_BR
+            quantidade++
+            continue
+          }
+        }
+        // Valor digitado (ou fórmula que não depende de nada corrigido): valor × fator, 2 casas.
+        const original = valorDaCelula(ehFormula ? (origem.result ?? null) : origem.value)
+        if (original === null) continue
         celula.value = Number(corrigirValor(original, fator))
         celula.numFmt = MOEDA_BR
         quantidade++
       }
     }
   }
+  // Sem isso o Excel mostraria as fórmulas novas vazias até alguém mandar recalcular.
+  wb.calcProperties = { ...wb.calcProperties, fullCalcOnLoad: true }
   abaDeResumo(wb, resumo)
   return { buffer: await paraBuffer(wb), quantidade }
 }

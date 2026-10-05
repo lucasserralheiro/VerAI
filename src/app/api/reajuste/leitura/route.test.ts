@@ -25,7 +25,11 @@ it('lê o CSV do temporário e devolve as colunas', async () => {
   ;(getR2 as jest.Mock).mockResolvedValue(new Response('Item;Valor\nA;1.500,00\n'))
   const r = await POST(req({ endereco: `r2:tmp-uploads/${UUID}.csv` }))
   expect(r.status).toBe(200)
-  expect(await r.json()).toEqual({ tipo: 'planilha', colunas: [expect.objectContaining({ cabecalho: 'Valor' })] })
+  expect(await r.json()).toEqual({
+    tipo: 'planilha',
+    colunas: [expect.objectContaining({ cabecalho: 'Valor' })],
+    abas: [expect.objectContaining({ linhaCabecalho: 1 })],
+  })
 })
 
 it('arquivo ilegível vira 422 com a mensagem', async () => {

@@ -48,6 +48,43 @@ describe('planilhaCorrigida', () => {
   })
 })
 
+describe('planilhaCorrigida com fórmulas (memória de cálculo)', () => {
+  it('corrige o preço; total, subtotal e cronograma refazem a conta com as colunas corrigidas', async () => {
+    const wb = new ExcelJS.Workbook()
+    const mem = wb.addWorksheet('Memória Cálculo')
+    mem.addRow(['Código', 'Preço unitário (R$)', 'Qtde', 'Meses', 'Total (R$)'])
+    mem.addRow(['Subtotal', null, null, null, { formula: 'SUM(E3:E4)', result: 3740.4 }])
+    mem.addRow(['10.050.00001.00', 100, 2, 12, { formula: 'ROUND(B3*C3*D3,2)', result: 2400 }])
+    mem.addRow(['15.075.00012.00', 0.15, 8936, 1, { formula: 'ROUND(B4*C4,2)', result: 1340.4 }])
+    const cron = wb.addWorksheet('Cronograma')
+    cron.addRow(['Mês', 'Valor'])
+    cron.addRow(['Mês 1', { formula: "ROUND('Memória Cálculo'!E2/12,2)", result: 311.7 }])
+
+    const { buffer, quantidade } = await planilhaCorrigida(
+      wb,
+      [
+        { aba: 'Memória Cálculo', coluna: 2, linhaCabecalho: 1 },
+        { aba: 'Memória Cálculo', coluna: 5, linhaCabecalho: 1 },
+        { aba: 'Cronograma', coluna: 2, linhaCabecalho: 1 },
+      ],
+      { ...resumo, fator: '1.035543', acumuladoPct: '3.55', meses: DOZE }
+    )
+    const saida = await reabrir(buffer)
+    const m = saida.getWorksheet('Memória Cálculo')!
+    expect(quantidade).toBe(6)
+    expect(m.getCell('F1').value).toBe('Preço unitário (R$) corrigido')
+    expect(m.getCell('G1').value).toBe('Total (R$) corrigido')
+    // preço × fator, 2 casas (0,15 → 0,16); quantidade e meses nunca são corrigidos
+    expect(m.getCell('F3').value).toBe(103.55)
+    expect(m.getCell('F4').value).toBe(0.16)
+    expect((m.getCell('G3').value as ExcelJS.CellFormulaValue).formula).toBe('ROUND(F3*C3*D3,2)')
+    expect((m.getCell('G4').value as ExcelJS.CellFormulaValue).formula).toBe('ROUND(F4*C4,2)')
+    expect((m.getCell('G2').value as ExcelJS.CellFormulaValue).formula).toBe('SUM(G3:G4)')
+    const c = saida.getWorksheet('Cronograma')!
+    expect((c.getCell('C2').value as ExcelJS.CellFormulaValue).formula).toBe("ROUND('Memória Cálculo'!G2/12,2)")
+  })
+})
+
 describe('planilhaDeComparacao', () => {
   it('uma linha por valor marcado com original, corrigido e diferença', async () => {
     const { buffer, quantidade } = await planilhaDeComparacao(

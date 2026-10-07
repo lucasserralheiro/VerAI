@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { clientesVisiveisWhere } from '@/lib/visibilidade'
 import { exigirUsuario, verificarAcessoCliente } from '@/lib/relatorios-clientes/acesso'
 import { respostaErroPrisma } from '@/lib/relatorios-clientes/erros-prisma'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
 import { ROTULOS_DEMANDA, SELECT_DEMANDA, esquemaNovaDemanda, sugestoesDemanda } from './esquema'
+import { clientesDoEscopoWhere } from '@/lib/gerencias/escopo-carteira'
 
 const LIMITE = 500
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   if ('erro' in autenticado) return autenticado.erro
 
   const params = request.nextUrl.searchParams
-  const filtros: Prisma.DemandaWhereInput[] = [{ cliente: await clientesVisiveisWhere(autenticado.usuario) }]
+  const filtros: Prisma.DemandaWhereInput[] = [{ cliente: await clientesDoEscopoWhere(autenticado.usuario, request) }]
   const clienteId = params.get('clienteId')
   if (clienteId) filtros.push({ clienteId })
   const situacao = params.get('situacao')

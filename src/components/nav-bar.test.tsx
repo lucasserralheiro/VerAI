@@ -64,6 +64,7 @@ describe('NavBar', () => {
 
   it('"ConfereAI" tem o sub-item "Histórico" apontando pra /confere/historico', () => {
     render(<NavBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir ConfereAI' }))
     expect(hrefsDoHistorico()).toContain('/confere/historico')
   })
 
@@ -73,19 +74,21 @@ describe('NavBar', () => {
     const reajuste = screen.getByRole('link', { name: 'Reajuste IPC-Fipe' })
     expect(reajuste).toHaveAttribute('href', '/reajuste')
     expect(links.indexOf(screen.getByRole('link', { name: 'ConfereAI' }))).toBeLessThan(links.indexOf(reajuste))
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir Reajuste IPC-Fipe' }))
     expect(hrefsDoHistorico()).toContain('/reajuste/historico')
     expect(screen.getByRole('link', { name: 'Tabela do índice' })).toHaveAttribute('href', '/reajuste/indice')
   })
 
-  it('a marca no topo leva para /confere, a nova porta de entrada', () => {
+  it('a marca no topo leva para /clientes, a porta de entrada', () => {
     render(<NavBar />)
-    expect(screen.getByRole('link', { name: /Ver\s*AI/ })).toHaveAttribute('href', '/confere')
+    expect(screen.getByRole('link', { name: /Ver\s*AI/ })).toHaveAttribute('href', '/clientes')
   })
 
-  it('usa "Relatórios" como cabeçalho de seção, não mais "Análise de Documentos"', () => {
+  it('separa o menu nas seções "Clientes", "Referências PRODAM" e "Ferramentas"', () => {
     render(<NavBar />)
-    // O sub-item "Relatórios" (/relatorios) tem o mesmo texto — o cabeçalho é o que não é link.
-    expect(screen.getAllByText('Relatórios').some((el) => !el.closest('a'))).toBe(true)
+    for (const secao of ['Clientes', 'Referências PRODAM', 'Ferramentas']) {
+      expect(screen.getAllByText(secao).some((el) => !el.closest('a'))).toBe(true)
+    }
     expect(screen.queryByText('Análise de Documentos')).not.toBeInTheDocument()
   })
 
@@ -128,30 +131,18 @@ describe('NavBar', () => {
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).not.toHaveAttribute('aria-current')
   })
 
-  it('"Proposta Comercial" é um link de verdade pro histórico, fora de "Relatórios", aberto por padrão', () => {
+  it('"Proposta Comercial" é um link de verdade pro histórico, sem sub-item repetindo a mesma rota', () => {
     render(<NavBar />)
     expect(screen.getByRole('link', { name: 'Proposta Comercial' })).toHaveAttribute('href', '/propostas-comerciais')
-    const botao = screen.getByRole('button', { name: 'Recolher Proposta Comercial' })
-    expect(botao).toHaveAttribute('aria-expanded', 'true')
-    expect(hrefsDoHistorico()).toContain('/propostas-comerciais')
+    expect(screen.queryByRole('button', { name: /(Expandir|Recolher) Proposta Comercial/ })).not.toBeInTheDocument()
+    expect(hrefsDoHistorico()).not.toContain('/propostas-comerciais')
   })
 
-  it('alterna o grupo "Proposta Comercial" ao clicar no chevron, sem navegar', () => {
+  it('grupos de ferramentas nascem recolhidos fora das suas rotas', () => {
     render(<NavBar />)
-    const botao = screen.getByRole('button', { name: 'Recolher Proposta Comercial' })
-
-    fireEvent.click(botao)
-    expect(screen.getByRole('button', { name: 'Expandir Proposta Comercial' })).toHaveAttribute(
-      'aria-expanded',
-      'false'
-    )
-    expect(hrefsDoHistorico()).not.toContain('/propostas-comerciais')
-    // o "Histórico" do ConfereAI não é afetado pelo grupo vizinho
-    expect(hrefsDoHistorico()).toContain('/confere/historico')
-    expect(screen.getByRole('link', { name: 'Proposta Comercial' })).toHaveAttribute('href', '/propostas-comerciais')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Expandir Proposta Comercial' }))
-    expect(hrefsDoHistorico()).toContain('/propostas-comerciais')
+    expect(screen.getByRole('button', { name: 'Expandir ConfereAI' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Expandir Reajuste IPC-Fipe' })).toHaveAttribute('aria-expanded', 'false')
+    expect(hrefsDoHistorico()).toEqual([])
   })
 
   it('alterna o grupo "Relatórios dos clientes" ao clicar no chevron, sem navegar', () => {
@@ -173,7 +164,6 @@ describe('NavBar', () => {
   it('reabre o grupo "Relatórios dos clientes" ao navegar para um dos seus sub-itens', () => {
     pathnameMock = '/notificacoes'
     const { rerender } = render(<NavBar />)
-    fireEvent.click(screen.getByRole('button', { name: 'Recolher Relatórios dos clientes' }))
     expect(screen.queryByRole('link', { name: 'Todos os documentos' })).not.toBeInTheDocument()
 
     pathnameMock = '/'
@@ -223,6 +213,8 @@ describe('NavBar', () => {
     render(<NavBar />)
     await screen.findByRole('link', { name: 'Administração' })
     fireEvent.click(screen.getByRole('button', { name: 'Expandir Administração' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir ConfereAI' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir Reajuste IPC-Fipe' }))
     const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))
     const antes = [
       '/confere', '/clientes', '/fornecedores', '/demandas', '/solicitacoes', '/relatorios', '/',

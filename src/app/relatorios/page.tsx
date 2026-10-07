@@ -16,6 +16,7 @@ import { BarraFaturado, PillVencimento } from '@/components/relatorios-clientes/
 import { rotuloCliente, type OpcaoCliente } from '@/components/relatorios-clientes/formulario-demanda'
 import { SeiLink } from '@/components/relatorios-clientes/sei-link'
 import { ProximoPrazoFaturamento } from '@/components/calendario/proximo-prazo'
+import { SeletorCarteira, comCarteira, useCarteiraFoco } from '@/components/carteira/carteira-foco'
 
 type ClienteResumo = Pick<OpcaoCliente, 'id' | 'nome' | 'siglaLegado'>
 
@@ -26,12 +27,16 @@ const cacheConsultas = new Map<string, unknown>()
 
 /** GET com estado de carregamento/erro, refeito quando a `url` muda. `carregando` só é true quando
  *  ainda não existe NENHUM dado pra essa URL (primeira vez); revalidação com cache é silenciosa. */
-function useConsulta<T>(url: string) {
-  const [estado, setEstado] = useState<{ url: string; dados: T | null; erro: string | null; carregando: boolean }>(() => {
-    const emCache = cacheConsultas.get(url) as T | undefined
+function useConsulta<T>(urlBase: string) {
+  // Toda consulta segue a carteira em foco (menu lateral): `?carteira=` entra na URL — e na chave do cache.
+  const { foco, pronto } = useCarteiraFoco()
+  const url = pronto ? comCarteira(urlBase, foco) : null
+  const [estado, setEstado] = useState<{ url: string | null; dados: T | null; erro: string | null; carregando: boolean }>(() => {
+    const emCache = (url === null ? undefined : cacheConsultas.get(url)) as T | undefined
     return { url, dados: emCache ?? null, erro: null, carregando: emCache === undefined }
   })
   useEffect(() => {
+    if (url === null) return
     let ativo = true
     const emCache = cacheConsultas.get(url) as T | undefined
     setEstado({ url, dados: emCache ?? null, erro: null, carregando: emCache === undefined })
@@ -380,6 +385,9 @@ function competencia(ano: number | null, mes: number | null) {
 function AbaSeis() {
   const clientes = useConsulta<ClienteResumo[]>('/api/clientes')
   const [clienteId, setClienteId] = useState('')
+  // Cliente escolhido pode não ser da nova carteira em foco: volta para todos.
+  const { foco } = useCarteiraFoco()
+  useEffect(() => setClienteId(''), [foco])
   const [busca, setBusca] = useState('')
   const { dados, erro, carregando } = useConsulta<RespostaSeis>(
     `/api/relatorios/seis${clienteId ? `?clienteId=${encodeURIComponent(clienteId)}` : ''}`
@@ -663,8 +671,11 @@ export default function RelatoriosPage() {
         </nav>
         <div>
           <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">Relatórios</h1>
-          <p className="text-sm text-mid-grey">Consultas sobre todos os clientes que você acompanha</p>
+          <p className="text-sm text-mid-grey">Consultas sobre os clientes da carteira em foco</p>
           <ProximoPrazoFaturamento />
+        </div>
+        <div>
+          <SeletorCarteira />
         </div>
       </div>
 

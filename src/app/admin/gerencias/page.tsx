@@ -1,10 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Network, Plus } from 'lucide-react'
+import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { Check, Loader2, Network, Pencil, Plus, X } from 'lucide-react'
 import type { ClienteCarteira, GerenciaResumo } from '@/lib/gerencias/tipos'
-import { BTN_PRIMARY, INPUT_BASE, LINK_NAVY } from '@/lib/ui'
+import { BTN_OUTLINE_SM, BTN_PRIMARY, INPUT_BASE, LINK_NAVY } from '@/lib/ui'
 import { ClientesSelecionaveis, MensagemErro, erroDaResposta } from '@/components/gerencias/comum'
 
 export default function AdminGerenciasPage() {
@@ -18,6 +18,10 @@ export default function AdminGerenciasPage() {
   const [selecionados, setSelecionados] = useState<string[]>([])
   const [busca, setBusca] = useState('')
   const [destino, setDestino] = useState('')
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [nomeEdit, setNomeEdit] = useState('')
+  const [siglaEdit, setSiglaEdit] = useState('')
+  const [salvando, setSalvando] = useState(false)
 
   const carregar = useCallback(async () => {
     const resposta = await fetch('/api/admin/gerencias')
@@ -49,6 +53,49 @@ export default function AdminGerenciasPage() {
     setNome('')
     setSigla('')
     carregar()
+  }
+
+  function editar(g: GerenciaResumo) {
+    setErro(null)
+    setEditandoId(g.id)
+    setNomeEdit(g.nome)
+    setSiglaEdit(g.sigla ?? '')
+  }
+
+  async function alterar(id: string, corpo: { nome?: string; sigla?: string | null; ativa?: boolean }) {
+    setErro(null)
+    setSalvando(true)
+    try {
+      const resposta = await fetch(`/api/admin/gerencias/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(corpo),
+      })
+      if (!resposta.ok) {
+        setErro(await erroDaResposta(resposta, 'Falha ao alterar a gerência.'))
+        return false
+      }
+      await carregar()
+      return true
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function salvarEdicao() {
+    if (!editandoId || !nomeEdit.trim()) return
+    const ok = await alterar(editandoId, { nome: nomeEdit.trim(), sigla: siglaEdit.trim() || null })
+    if (ok) setEditandoId(null)
+  }
+
+  function teclasDaEdicao(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      salvarEdicao()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setEditandoId(null)
+    }
   }
 
   async function alternarSoltos() {
@@ -106,20 +153,93 @@ export default function AdminGerenciasPage() {
               </tr>
             </thead>
             <tbody>
-              {gerencias.map((g) => (
-                <tr key={g.id}>
-                  <td className="font-medium text-navy">{g.nome}</td>
-                  <td className="text-mid-grey">{g.sigla ?? '—'}</td>
-                  <td className="text-mid-grey">{g.clientes}</td>
-                  <td className="text-mid-grey">{g.managers.join(', ') || '—'}</td>
-                  <td className="text-mid-grey">{g.ativa ? 'Ativa' : 'Desativada'}</td>
-                  <td>
-                    <Link href={`/admin/gerencias/${g.id}`} className={LINK_NAVY}>
-                      Abrir
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+              {gerencias.map((g) => {
+                const emEdicao = editandoId === g.id
+                return (
+                  <tr key={g.id} className={emEdicao ? 'bg-orange/[0.04]' : undefined}>
+                    <td className="font-medium text-navy">
+                      {emEdicao ? (
+                        <input
+                          autoFocus
+                          aria-label="Nome da gerência"
+                          value={nomeEdit}
+                          onChange={(e) => setNomeEdit(e.target.value)}
+                          onKeyDown={teclasDaEdicao}
+                          className={`${INPUT_BASE} w-full min-w-40 py-1.5`}
+                        />
+                      ) : (
+                        g.nome
+                      )}
+                    </td>
+                    <td className="text-mid-grey">
+                      {emEdicao ? (
+                        <input
+                          aria-label="Sigla da gerência"
+                          value={siglaEdit}
+                          onChange={(e) => setSiglaEdit(e.target.value)}
+                          onKeyDown={teclasDaEdicao}
+                          className={`${INPUT_BASE} w-28 py-1.5`}
+                        />
+                      ) : (
+                        (g.sigla ?? '—')
+                      )}
+                    </td>
+                    <td className="text-mid-grey">{g.clientes}</td>
+                    <td className="text-mid-grey">{g.managers.join(', ') || '—'}</td>
+                    <td>
+                      <button
+                        type="button"
+                        disabled={salvando}
+                        title={g.ativa ? 'Clique para desativar' : 'Clique para reativar'}
+                        onClick={() => alterar(g.id, { ativa: !g.ativa })}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                          g.ativa
+                            ? 'bg-green-ok/10 text-green-ok hover:bg-green-ok/20'
+                            : 'bg-red-crit/10 text-red-crit hover:bg-red-crit/20'
+                        }`}
+                      >
+                        {g.ativa ? 'Ativa' : 'Desativada'}
+                      </button>
+                    </td>
+                    <td>
+                      <div className="flex items-center justify-end gap-2">
+                        {emEdicao ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={salvarEdicao}
+                              disabled={salvando || !nomeEdit.trim()}
+                              className={`${BTN_PRIMARY} py-1 text-xs`}
+                            >
+                              {salvando ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                              Salvar
+                            </button>
+                            <button type="button" onClick={() => setEditandoId(null)} className={BTN_OUTLINE_SM}>
+                              <X className="size-3.5" />
+                              Cancelar
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => editar(g)}
+                              aria-label={`Editar ${g.nome}`}
+                              title="Editar nome e sigla"
+                              className="inline-flex size-8 items-center justify-center rounded-lg text-mid-grey transition-colors hover:bg-navy/[0.06] hover:text-navy"
+                            >
+                              <Pencil className="size-3.5" />
+                            </button>
+                            <Link href={`/admin/gerencias/${g.id}`} className={LINK_NAVY}>
+                              Abrir
+                            </Link>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

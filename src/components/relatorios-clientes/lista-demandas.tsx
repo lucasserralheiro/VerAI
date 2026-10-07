@@ -6,6 +6,7 @@
 import { usePermissaoCliente } from '@/app/clientes/[id]/permissao-cliente'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { fetchComPreCarga } from '@/lib/relatorios-clientes/prefetch'
+import { SeletorCarteira, comCarteira, useCarteiraFoco } from '@/components/carteira/carteira-foco'
 import Link from 'next/link'
 import { AlertCircle, AlertTriangle, ClipboardList, ListTree, Loader2, Plus, Search, Trash2 } from 'lucide-react'
 import { BTN_OUTLINE, BTN_PRIMARY, INPUT_BASE, LINK_DANGER, LINK_NAVY } from '@/lib/ui'
@@ -26,6 +27,9 @@ interface DemandaNaLista extends Demanda {
 export function ListaDemandas({ clienteId }: { clienteId?: string }) {
   const geral = !clienteId
   const { podeEditar } = usePermissaoCliente()
+  // Na lista geral vale a carteira em foco; dentro do cliente, não (o cliente já decide).
+  const { foco: focoCarteira, pronto } = useCarteiraFoco()
+  const foco = geral ? focoCarteira : null
   const [demandas, setDemandas] = useState<DemandaNaLista[]>([])
   const [sugestoes, setSugestoes] = useState<SugestoesDemanda | null>(null)
   const [clientes, setClientes] = useState<OpcaoCliente[] | null>(null)
@@ -45,7 +49,7 @@ export function ListaDemandas({ clienteId }: { clienteId?: string }) {
     if (q) params.set('q', q)
     const query = params.toString()
     try {
-      const response = await fetchComPreCarga(`/api/demandas${query ? `?${query}` : ''}`)
+      const response = await fetchComPreCarga(comCarteira(`/api/demandas${query ? `?${query}` : ''}`, foco))
       if (!response.ok) {
         const body = await response.json().catch(() => null)
         setErro(body?.error ?? 'Falha ao carregar demandas.')
@@ -61,21 +65,27 @@ export function ListaDemandas({ clienteId }: { clienteId?: string }) {
   }
 
   useEffect(() => {
+    if (geral && !pronto) return
     carregar().finally(() => setCarregando(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtros, q])
+  }, [filtros, q, foco, pronto])
+
+  // Trocou a carteira: o cliente escolhido no filtro pode não ser dela.
+  useEffect(() => {
+    if (geral) setFiltros((atual) => (atual.clienteId ? { ...atual, clienteId: '' } : atual))
+  }, [geral, foco])
 
   // Lista de clientes só na lista geral (filtro e select do formulário).
   useEffect(() => {
-    if (!geral) return
-    fetch('/api/clientes')
+    if (!geral || !pronto) return
+    fetch(comCarteira('/api/clientes', foco))
       .then(async (response) => {
         if (!response.ok) return
         const lista = await response.json()
         if (Array.isArray(lista)) setClientes(lista)
       })
       .catch(() => {})
-  }, [geral])
+  }, [geral, foco, pronto])
 
   function handleBuscar(event: FormEvent) {
     event.preventDefault()
@@ -107,6 +117,7 @@ export function ListaDemandas({ clienteId }: { clienteId?: string }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {geral && <SeletorCarteira />}
         {geral && (
           <select
             aria-label="Filtrar por cliente"

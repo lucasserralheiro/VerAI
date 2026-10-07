@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { exigirUsuario } from '@/lib/relatorios-clientes/acesso'
 import { lerCorpo } from '@/lib/relatorios-clientes/validacao'
+import { clienteWhereDaCarteira } from '@/lib/gerencias/escopo-carteira'
 import { ROTULOS_FORNECEDOR, SELECT_FORNECEDOR, esquemaFornecedor } from './esquema'
 
 // Fornecedor não pertence a cliente: as rotas exigem só autenticação.
@@ -21,8 +22,12 @@ export async function GET(request: NextRequest) {
       }
     : {}
 
+  // Fornecedor é cadastro comum (não é de cliente). Com `?carteira=`, a lista mostra só quem tem termo de
+  // confirmação com algum cliente daquela carteira — o foco de trabalho da área "Relatórios dos clientes".
+  const carteira = request.nextUrl.searchParams.get('carteira')
+
   const fornecedores = await prisma.fornecedor.findMany({
-    where,
+    where: carteira ? { AND: [where, { termosConfirmacao: { some: { cliente: clienteWhereDaCarteira(carteira) } } }] } : where,
     orderBy: { razaoSocial: 'asc' },
     select: {
       ...SELECT_FORNECEDOR,

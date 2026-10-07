@@ -116,8 +116,10 @@ describe('ClienteDetalhePage', () => {
       'Documentos',
       'Contratos',
       'Faturamento',
+      'Controle do faturamento',
       'Fornecedores',
       'Demandas',
+      'Solicitações',
       'Responsáveis',
     ])
     expect(screen.getByRole('tab', { name: 'Documentos' })).toHaveAttribute('aria-selected', 'true')

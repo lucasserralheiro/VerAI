@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -13,9 +13,9 @@ import {
   ShieldCheck,
   BellRing,
   LogOut,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen,
   ArrowLeftRight,
   ClipboardCopy,
   History,
@@ -33,6 +33,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ClientesRecentes } from './clientes-recentes'
+import { TrocaCarteiraMenu, aplicarCarteiraPadrao } from './carteira/carteira-foco'
 
 // "Relatórios" é uma das soluções do VerAI (conjunto de soluções) — por isso
 // vive como um grupo próprio no menu, com "Relatórios dos clientes" como
@@ -68,11 +70,16 @@ const RELATORIOS_SUBLINKS = [
   { href: '/solicitacoes', label: 'Solicitações', icon: Inbox },
   { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
   { href: '/', label: 'Todos os documentos', icon: FileText },
-  // Telas da biblioteca "Documentos" do SharePoint (spec 2026-09-29-biblioteca-documentos-prodam §4):
-  // entram aqui, embaixo de "Relatórios dos clientes", a pedido do usuário (29/09/2026). Os Links MPLS
-  // saíram do menu em 30/09: ficam só no detalhe do contrato (cartão → /links-mpls/contrato/[id]).
-  { href: '/tabela-de-precos', label: 'Tabela de preços', icon: Tags },
+  // Controle de faturamento vem da biblioteca "Documentos" do SharePoint, mas é POR CONTRATO — segue a
+  // carteira em foco como as outras telas do grupo. Os Links MPLS saíram do menu em 30/09: ficam só no
+  // detalhe do contrato (cartão → /links-mpls/contrato/[id]).
   { href: '/controle-faturamento', label: 'Controle de faturamento', icon: Receipt },
+]
+
+// Referências da PRODAM (07/10/2026): valem para todos os clientes, não seguem a carteira em foco — por isso
+// ficam fora do grupo "Relatórios dos clientes", numa seção própria logo abaixo dele.
+const REFERENCIAS_LINKS = [
+  { href: '/tabela-de-precos', label: 'Tabela de preços', icon: Tags },
   { href: '/calendario-faturamento', label: 'Calendário de faturamento', icon: CalendarDays },
 ]
 
@@ -85,7 +92,9 @@ const PROPOSTA_COMERCIAL_LINK = {
   label: 'Proposta Comercial',
   icon: ClipboardCopy,
 }
-const PROPOSTA_COMERCIAL_SUBLINKS = [{ href: '/propostas-comerciais', label: 'Histórico', icon: History }]
+// O sub-item "Histórico" apontava para a mesma rota do cabeçalho — saiu (07/10/2026): link repetido só
+// confundia. Quando o módulo ganhar outra tela, ela entra aqui e o grupo volta a ter chevron.
+const PROPOSTA_COMERCIAL_SUBLINKS: Array<{ href: string; label: string; icon: LucideIcon }> = []
 
 // Fora de qualquer solução — utilitário do produto como um todo.
 const NOTIFICACOES_LINK = { href: '/notificacoes', label: 'Notificações', icon: Bell }
@@ -116,65 +125,72 @@ interface DevStatus {
   users: Array<{ id: string; nome: string; email: string; role: string }>
 }
 
-function IconeMenu({ icon: Icon, badge, expandida }: { icon: LucideIcon; badge?: number; expandida: boolean }) {
+type Item = { href: string; label: string; icon: LucideIcon }
+
+/** Sub-item ativo na própria rota e nas de detalhe abaixo dela (`/demandas/[id]` acende
+ *  "Demandas"). `/` ("Todos os documentos") só na raiz, senão acenderia em tudo. */
+function rotaAtiva(pathname: string, href: string) {
+  return pathname === href || (href !== '/' && pathname.startsWith(`${href}/`))
+}
+
+function Secao({ titulo, expandida, children }: { titulo: string; expandida: boolean; children: ReactNode }) {
   return (
-    <span className="relative flex size-8 shrink-0 items-center justify-center rounded-lg">
-      <Icon className="size-[18px]" strokeWidth={1.75} />
-      {!!badge && !expandida && (
-        <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-orange text-[0.6rem] font-bold leading-none text-white ring-2 ring-navy">
-          {badge > 9 ? '9+' : badge}
-        </span>
+    <div className="flex flex-col gap-0.5">
+      {expandida ? (
+        <span className="px-2.5 pb-1 text-[10.5px] font-semibold tracking-[0.06em] text-white/35 uppercase">{titulo}</span>
+      ) : (
+        <span className="mx-auto mb-1 h-px w-6 bg-white/10" aria-hidden />
       )}
-    </span>
+      {children}
+    </div>
   )
 }
 
+/** Item de primeiro nível: ícone + nome. Ativo = fundo claro, ícone laranja e barrinha à esquerda. */
 function LinkMenu({
   href,
   label,
-  icon,
+  icon: Icon,
   ativo,
+  realce = ativo,
   expandida,
   badge,
-  className,
-  destaque = false,
 }: {
   href: string
   label: string
   icon: LucideIcon
+  /** A rota é exatamente este item. */
   ativo: boolean
+  /** O item (ou um sub-item dele) é onde o usuário está. */
+  realce?: boolean
   expandida: boolean
   badge?: number
-  className?: string
-  destaque?: boolean
 }) {
   return (
     <Link
       aria-current={ativo ? 'page' : undefined}
       href={href}
       aria-label={label}
+      title={expandida ? undefined : label}
       className={cn(
-        'group relative flex items-center gap-2 rounded-lg py-1.5 pl-1.5 pr-2 text-[13px] font-medium text-light-blue transition-all duration-150',
-        'hover:bg-white/[0.07] hover:text-white',
-        ativo
-          ? destaque
-            ? 'bg-orange/[0.12] text-white'
-            : 'bg-white/[0.08] text-white'
-          : '',
-        className
+        'group relative flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] font-medium text-light-blue/90 transition-colors duration-150',
+        'hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange/60',
+        realce && 'bg-white/[0.08] text-white',
+        !expandida && 'justify-center px-0'
       )}
     >
-      {ativo && destaque && (
-        <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-orange" />
-      )}
-      <span className={cn(ativo && destaque && 'text-orange')}>
-        <IconeMenu icon={icon} badge={badge} expandida={expandida} />
+      {ativo && <span className="absolute inset-y-2 -left-3 w-[3px] rounded-r-full bg-orange" aria-hidden />}
+      <span className="relative flex shrink-0">
+        <Icon className={cn('size-[18px]', realce ? 'text-orange' : 'text-light-blue/70 group-hover:text-white')} strokeWidth={1.9} />
+        {!!badge && !expandida && (
+          <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-orange text-[0.6rem] font-bold text-white ring-2 ring-navy">
+            {badge > 9 ? '9+' : badge}
+          </span>
+        )}
       </span>
-      {expandida && (
-        <span className={cn('min-w-0 flex-1 truncate leading-tight', destaque && 'font-semibold')}>{label}</span>
-      )}
+      {expandida && <span className="min-w-0 flex-1 truncate">{label}</span>}
       {!!badge && expandida && (
-        <span className="ml-auto flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-orange px-1.5 text-[0.7rem] font-bold leading-none text-white">
+        <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-orange px-1.5 text-[0.7rem] font-bold text-white">
           {badge}
         </span>
       )}
@@ -182,10 +198,23 @@ function LinkMenu({
   )
 }
 
-/** Sub-item ativo na própria rota e nas de detalhe abaixo dela (`/demandas/[id]` acende
- *  "Demandas"). `/` ("Todos os documentos") só na raiz, senão acenderia em tudo. */
-function rotaAtiva(pathname: string, href: string) {
-  return pathname === href || (href !== '/' && pathname.startsWith(`${href}/`))
+/** Sub-item: só texto, recuado na linha-guia do grupo — ícone em todo sub-item deixava o menu carregado. */
+function SubLink({ href, label, ativo }: { href: string; label: string; ativo: boolean }) {
+  return (
+    <Link
+      aria-current={ativo ? 'page' : undefined}
+      href={href}
+      aria-label={label}
+      className={cn(
+        'relative flex h-8 items-center rounded-md pr-2 pl-3 text-[13px] text-light-blue/75 transition-colors',
+        'hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange/60',
+        ativo && 'bg-white/[0.06] font-semibold text-white'
+      )}
+    >
+      {ativo && <span className="absolute top-1/2 -left-[13px] size-[7px] -translate-y-1/2 rounded-full bg-orange ring-[3px] ring-navy" aria-hidden />}
+      <span className="truncate">{label}</span>
+    </Link>
+  )
 }
 
 function GrupoMenu({
@@ -196,26 +225,26 @@ function GrupoMenu({
   pathname,
   expandida,
 }: {
-  link: { href: string; label: string; icon: LucideIcon }
-  sublinks: Array<{ href: string; label: string; icon: LucideIcon }>
+  link: Item
+  sublinks: Item[]
   aberto: boolean
   onToggle: () => void
   pathname: string
   expandida: boolean
 }) {
-  const ativo = pathname === link.href || sublinks.some((s) => rotaAtiva(pathname, s.href))
+  const filhoAtivo = sublinks.some((s) => rotaAtiva(pathname, s.href))
+  const ativo = pathname === link.href
 
   return (
-    <div className="flex flex-col gap-0.5">
-      <div className="flex items-center gap-0.5">
+    <div className="flex flex-col">
+      <div className="relative flex items-center">
         <LinkMenu
           href={link.href}
           label={link.label}
           icon={link.icon}
-          ativo={pathname === link.href}
+          ativo={ativo}
+          realce={ativo || (filhoAtivo && !aberto)}
           expandida={expandida}
-          className="flex-1"
-          destaque
         />
         {expandida && sublinks.length > 0 && (
           <button
@@ -223,35 +252,28 @@ function GrupoMenu({
             onClick={onToggle}
             aria-label={aberto ? `Recolher ${link.label}` : `Expandir ${link.label}`}
             aria-expanded={aberto}
-            className={cn(
-              'flex size-7 shrink-0 items-center justify-center rounded-md text-light-blue/70 transition-all duration-150 hover:bg-white/[0.07] hover:text-white',
-              ativo && 'text-white/70'
-            )}
+            className="absolute right-1 flex size-7 items-center justify-center rounded-md text-white/35 transition-colors hover:bg-white/[0.08] hover:text-white"
           >
-            <ChevronDown
-              className={cn('size-3.5 transition-transform duration-200', aberto && 'rotate-180')}
-              strokeWidth={2.25}
-            />
+            <ChevronDown className={cn('size-3.5 transition-transform duration-200', !aberto && '-rotate-90')} strokeWidth={2.25} />
           </button>
         )}
       </div>
 
       {expandida && aberto && sublinks.length > 0 && (
-        <div className="ml-4 flex flex-col gap-0.5 border-l border-white/[0.08] pl-3">
+        <div className="mt-0.5 mb-1 ml-[19px] flex flex-col gap-px border-l border-white/[0.10] pl-2.5">
           {sublinks.map((sub) => (
-            <LinkMenu
-              key={sub.href}
-              href={sub.href}
-              label={sub.label}
-              icon={sub.icon}
-              ativo={rotaAtiva(pathname, sub.href)}
-              expandida={expandida}
-            />
+            <SubLink key={sub.href} href={sub.href} label={sub.label} ativo={rotaAtiva(pathname, sub.href)} />
           ))}
         </div>
       )}
     </div>
   )
+}
+
+function iniciais(nome: string | undefined) {
+  if (!nome) return '…'
+  const partes = nome.trim().split(/\s+/)
+  return ((partes[0]?.[0] ?? '') + (partes.length > 1 ? partes[partes.length - 1][0] : '')).toUpperCase()
 }
 
 export function NavBar() {
@@ -265,13 +287,12 @@ export function NavBar() {
   const [expandida, setExpandida] = useState(true)
   const [adminAberto, setAdminAberto] = useState(false)
   const [minhasGerencias, setMinhasGerencias] = useState<Array<{ papel: string }>>([])
-  // O grupo "Relatórios dos clientes" nasce aberto — é a solução em uso hoje.
-  const [relatoriosAberto, setRelatoriosAberto] = useState(true)
-  // Nasce aberto pelo mesmo motivo que "Relatórios dos clientes": é a única
-  // coisa dentro do grupo hoje, não faz sentido esconder por padrão.
-  const [propostaComercialAberto, setPropostaComercialAberto] = useState(true)
-  const [confereAberto, setConfereAberto] = useState(true)
-  const [reajusteAberto, setReajusteAberto] = useState(true)
+  // Todos os grupos nascem recolhidos: o menu abre limpo e só o grupo da página
+  // atual se abre sozinho (efeitos abaixo), pra quem está lá dentro ver onde está.
+  const [relatoriosAberto, setRelatoriosAberto] = useState(false)
+  const [propostaComercialAberto, setPropostaComercialAberto] = useState(false)
+  const [confereAberto, setConfereAberto] = useState(false)
+  const [reajusteAberto, setReajusteAberto] = useState(false)
 
   const naLoginPage = pathname === '/login'
 
@@ -287,7 +308,11 @@ export function NavBar() {
     if (naLoginPage) return
     fetch('/api/gerencias/minhas')
       .then((r) => (r.ok ? r.json() : []))
-      .then((lista: Array<{ papel: string }>) => setMinhasGerencias(Array.isArray(lista) ? lista : []))
+      .then((lista: Array<{ papel: string; gerenciaId: string }>) => {
+        const minhas = Array.isArray(lista) ? lista : []
+        setMinhasGerencias(minhas)
+        aplicarCarteiraPadrao(minhas)
+      })
       .catch(() => {})
   }, [naLoginPage])
 
@@ -359,54 +384,22 @@ export function NavBar() {
     localStorage.setItem(NAV_EXPANDIDA_KEY, String(proximoEstado))
   }
 
-  function alternarAdmin() {
-    if (!expandida) {
-      setExpandida(true)
-      localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
-      setAdminAberto(true)
-      return
+  /** Recolhida, clicar no chevron/grupo primeiro abre a barra; aberta, alterna o grupo. */
+  function alternarGrupo(definir: Dispatch<SetStateAction<boolean>>) {
+    return () => {
+      if (!expandida) {
+        setExpandida(true)
+        localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
+        definir(true)
+        return
+      }
+      definir((aberto) => !aberto)
     }
-    setAdminAberto((aberto) => !aberto)
   }
 
-  function alternarRelatorios() {
-    if (!expandida) {
-      setExpandida(true)
-      localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
-      setRelatoriosAberto(true)
-      return
-    }
-    setRelatoriosAberto((aberto) => !aberto)
-  }
-
-  function alternarPropostaComercial() {
-    if (!expandida) {
-      setExpandida(true)
-      localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
-      setPropostaComercialAberto(true)
-      return
-    }
-    setPropostaComercialAberto((aberto) => !aberto)
-  }
-
-  function alternarConfere() {
-    if (!expandida) {
-      setExpandida(true)
-      localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
-      setConfereAberto(true)
-      return
-    }
-    setConfereAberto((aberto) => !aberto)
-  }
-
-  function alternarReajuste() {
-    if (!expandida) {
-      setExpandida(true)
-      localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
-      setReajusteAberto(true)
-      return
-    }
-    setReajusteAberto((aberto) => !aberto)
+  function expandir() {
+    setExpandida(true)
+    localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
   }
 
   async function handleLogout() {
@@ -433,74 +426,54 @@ export function NavBar() {
   const souManager = minhasGerencias.some((g) => g.papel === 'manager')
   const rotuloMinhaGerencia = minhasGerencias.length > 1 ? 'Minhas gerências' : 'Minha gerência'
 
+  const papel = usuarioAtual?.role === 'admin' ? 'Administrador' : souManager ? 'Manager' : 'Usuário'
+
   return (
     <nav
+      aria-label="Menu principal"
       className={cn(
-        'sticky top-0 flex h-screen shrink-0 flex-col bg-gradient-to-b from-navy via-navy to-navy-2 shadow-[1px_0_0_0_rgba(255,255,255,0.06),8px_0_20px_-8px_rgba(0,0,0,0.35)] transition-[width] duration-200',
+        'sticky top-0 flex h-screen shrink-0 flex-col bg-navy shadow-[1px_0_0_0_rgba(255,255,255,0.06)] transition-[width] duration-200',
         expandida ? 'w-64' : 'w-[68px]'
       )}
     >
-      <Link
-        href="/confere"
-        className={cn(
-          'flex shrink-0 items-center gap-2.5 overflow-hidden px-4 py-5',
-          !expandida && 'justify-center px-0'
-        )}
-      >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange to-orange-dark text-sm font-bold text-white shadow-[0_2px_6px_rgba(240,124,45,0.35)]">
-          V
-        </span>
-        {expandida && (
-          <span className="whitespace-nowrap text-[15px] font-bold tracking-tight text-white">
-            Ver<span className="text-orange">AI</span>
+      {/* Marca + recolher: o controle da barra fica no topo, onde o olho procura. */}
+      <div className={cn('flex shrink-0 items-center gap-2 px-4 pt-4 pb-3', !expandida && 'flex-col px-0')}>
+        <Link href="/clientes" className="flex min-w-0 flex-1 items-center gap-2.5" aria-label="VerAI — início">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange to-orange-dark text-sm font-bold text-white shadow-[0_2px_8px_rgba(240,124,45,0.4)]">
+            V
           </span>
-        )}
-      </Link>
-
-      <div className="nav-scroll flex flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-3 py-2">
-        <div className="flex flex-col gap-1">
           {expandida && (
-            <span className="px-1.5 pb-0.5 text-[10px] font-bold tracking-[0.08em] text-white/30 uppercase">
-              Relatórios
+            <span className="text-[15px] font-bold tracking-tight whitespace-nowrap text-white">
+              Ver<span className="text-orange">AI</span>
             </span>
           )}
+        </Link>
+        <button
+          type="button"
+          onClick={alternarExpandida}
+          aria-label={expandida ? 'Recolher menu' : 'Expandir menu'}
+          title={expandida ? 'Recolher menu' : 'Expandir menu'}
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/[0.08] hover:text-white"
+        >
+          {expandida ? <PanelLeftClose className="size-[18px]" strokeWidth={1.9} /> : <PanelLeftOpen className="size-[18px]" strokeWidth={1.9} />}
+        </button>
+      </div>
 
+      {/* Carteira em foco: contexto de trabalho global, então fica no alto — não escondida dentro de um grupo. */}
+      <div className={cn('shrink-0 px-3 pb-3', !expandida && 'px-2.5')}>
+        <TrocaCarteiraMenu expandida={expandida} onExpandir={expandir} />
+      </div>
+
+      <div className="nav-scroll flex flex-1 flex-col gap-5 overflow-x-hidden overflow-y-auto px-3 pt-1 pb-4">
+        <Secao titulo="Clientes" expandida={expandida}>
           <GrupoMenu
             link={RELATORIOS_LINK}
             sublinks={RELATORIOS_SUBLINKS}
             aberto={relatoriosAberto}
-            onToggle={alternarRelatorios}
+            onToggle={alternarGrupo(setRelatoriosAberto)}
             pathname={pathname}
             expandida={expandida}
           />
-
-          <GrupoMenu
-            link={PROPOSTA_COMERCIAL_LINK}
-            sublinks={PROPOSTA_COMERCIAL_SUBLINKS}
-            aberto={propostaComercialAberto}
-            onToggle={alternarPropostaComercial}
-            pathname={pathname}
-            expandida={expandida}
-          />
-
-          <GrupoMenu
-            link={CONFERE_LINK}
-            sublinks={CONFERE_SUBLINKS}
-            aberto={confereAberto}
-            onToggle={alternarConfere}
-            pathname={pathname}
-            expandida={expandida}
-          />
-
-          <GrupoMenu
-            link={REAJUSTE_LINK}
-            sublinks={REAJUSTE_SUBLINKS}
-            aberto={reajusteAberto}
-            onToggle={alternarReajuste}
-            pathname={pathname}
-            expandida={expandida}
-          />
-
           {souManager && (
             <LinkMenu
               href="/gerencias"
@@ -510,10 +483,48 @@ export function NavBar() {
               expandida={expandida}
             />
           )}
-        </div>
+          <ClientesRecentes pathname={pathname} expandida={expandida} />
+        </Secao>
 
-        {!MENU_SIMPLIFICADO && (
-          <div className="flex flex-col gap-1">
+        <Secao titulo="Referências PRODAM" expandida={expandida}>
+          {REFERENCIAS_LINKS.map((ref) => (
+            <LinkMenu
+              key={ref.href}
+              href={ref.href}
+              label={ref.label}
+              icon={ref.icon}
+              ativo={rotaAtiva(pathname, ref.href)}
+              expandida={expandida}
+            />
+          ))}
+        </Secao>
+
+        <Secao titulo="Ferramentas" expandida={expandida}>
+          <GrupoMenu
+            link={PROPOSTA_COMERCIAL_LINK}
+            sublinks={PROPOSTA_COMERCIAL_SUBLINKS}
+            aberto={propostaComercialAberto}
+            onToggle={alternarGrupo(setPropostaComercialAberto)}
+            pathname={pathname}
+            expandida={expandida}
+          />
+          <GrupoMenu
+            link={CONFERE_LINK}
+            sublinks={CONFERE_SUBLINKS}
+            aberto={confereAberto}
+            onToggle={alternarGrupo(setConfereAberto)}
+            pathname={pathname}
+            expandida={expandida}
+          />
+          <GrupoMenu
+            link={REAJUSTE_LINK}
+            sublinks={REAJUSTE_SUBLINKS}
+            aberto={reajusteAberto}
+            onToggle={alternarGrupo(setReajusteAberto)}
+            pathname={pathname}
+            expandida={expandida}
+          />
+          {!MENU_SIMPLIFICADO && (
             <LinkMenu
               href={NOTIFICACOES_LINK.href}
               label={NOTIFICACOES_LINK.label}
@@ -522,51 +533,43 @@ export function NavBar() {
               expandida={expandida}
               badge={naoLidas}
             />
-          </div>
-        )}
+          )}
+        </Secao>
 
         {ehAdmin && (
-          <div className="flex flex-col gap-1 border-t border-white/[0.08] pt-3">
+          <Secao titulo="Sistema" expandida={expandida}>
             <GrupoMenu
               link={ADMIN_LINK}
               sublinks={ADMIN_SUBLINKS}
               aberto={adminAberto}
-              onToggle={alternarAdmin}
+              onToggle={alternarGrupo(setAdminAberto)}
               pathname={pathname}
               expandida={expandida}
             />
-          </div>
+          </Secao>
         )}
       </div>
 
-      <div className="flex shrink-0 flex-col gap-1.5 border-t border-white/[0.08] px-3 py-3">
+      <div className="flex shrink-0 flex-col gap-2 border-t border-white/[0.08] p-3">
         {devStatus.enabled && devStatus.impersonating && (
           <button
             type="button"
             onClick={handleVoltarAdmin}
             aria-label="Voltar para admin"
+            title={expandida ? undefined : `Vendo como ${usuarioAtual?.nome ?? '...'} — voltar para admin`}
             className={cn(
-              'flex items-center gap-2 rounded-lg bg-orange/15 py-1.5 pl-1.5 pr-2 text-[13px] font-medium text-orange transition-colors hover:bg-orange/25',
-              !expandida && 'justify-center'
+              'flex items-center gap-2 rounded-lg bg-orange/15 px-2.5 py-2 text-[12.5px] font-medium text-orange transition-colors hover:bg-orange/25',
+              !expandida && 'justify-center px-0'
             )}
           >
-            <span className="flex size-8 shrink-0 items-center justify-center">
-              <ArrowLeftRight className="size-[18px]" strokeWidth={1.75} />
-            </span>
-            {expandida && (
-              <span className="min-w-0 flex-1 truncate leading-tight">
-                Vendo como {usuarioAtual?.nome ?? '...'}
-              </span>
-            )}
+            <ArrowLeftRight className="size-4 shrink-0" strokeWidth={2} />
+            {expandida && <span className="min-w-0 flex-1 truncate text-left">Vendo como {usuarioAtual?.nome ?? '...'}</span>}
           </button>
         )}
 
         {!MENU_SIMPLIFICADO && devStatus.enabled && !devStatus.impersonating && ehAdmin && expandida && devStatus.users.length > 0 && (
           <div className="flex flex-col gap-1 px-1 pb-1">
-            <label
-              htmlFor="dev-simular-usuario"
-              className="text-[10px] font-bold tracking-[0.08em] text-white/40 uppercase"
-            >
+            <label htmlFor="dev-simular-usuario" className="text-[10px] font-bold tracking-[0.08em] text-white/40 uppercase">
               Simular usuário
             </label>
             <select
@@ -575,7 +578,7 @@ export function NavBar() {
                 if (event.target.value) handleSimular(event.target.value)
               }}
               defaultValue=""
-              className="rounded-md border border-white/15 bg-navy-2 px-2 py-1.5 text-xs font-normal tracking-normal text-white normal-case outline-none"
+              className="rounded-md border border-white/15 bg-navy-2 px-2 py-1.5 text-xs text-white outline-none"
             >
               <option value="" disabled>
                 Escolher...
@@ -589,36 +592,31 @@ export function NavBar() {
           </div>
         )}
 
-        <button
-          onClick={handleLogout}
-          aria-label="Sair"
-          className={cn(
-            'flex items-center gap-2 rounded-lg py-1.5 pl-1.5 pr-2 text-[13px] font-medium text-white/70 transition-colors hover:bg-white/[0.07] hover:text-white',
-            !expandida && 'justify-center'
-          )}
-        >
-          <span className="flex size-8 shrink-0 items-center justify-center">
-            <LogOut className="size-[18px]" strokeWidth={1.75} />
+        {/* Quem está logado + sair, num cartão só (antes "Sair" e "Recolher" eram dois botões soltos). */}
+        <div className={cn('flex items-center gap-2.5 rounded-xl p-1.5', expandida ? 'bg-white/[0.04]' : 'flex-col bg-transparent p-0')}>
+          <span
+            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-light-blue/15 text-[11px] font-bold text-white ring-1 ring-white/10"
+            title={expandida ? undefined : usuarioAtual?.nome}
+          >
+            {iniciais(usuarioAtual?.nome)}
           </span>
-          {expandida && <span className="leading-tight">Sair</span>}
-        </button>
-
-        <button
-          onClick={alternarExpandida}
-          aria-label={expandida ? 'Recolher menu' : 'Expandir menu'}
-          className={cn(
-            'flex items-center justify-center gap-2 rounded-lg border border-white/10 py-1.5 text-[13px] font-medium text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all hover:border-white/25 hover:bg-white/[0.07] hover:text-white'
+          {expandida && (
+            <span className="flex min-w-0 flex-1 flex-col leading-tight">
+              <span className="truncate text-[13px] font-semibold text-white">{usuarioAtual?.nome ?? '…'}</span>
+              <span className="truncate text-[11px] text-white/45">{papel}</span>
+            </span>
           )}
-        >
-          {expandida ? (
-            <>
-              <ChevronLeft className="size-3.5 shrink-0" strokeWidth={2.25} />
-              <span className="leading-tight">Recolher</span>
-            </>
-          ) : (
-            <ChevronRight className="size-3.5" strokeWidth={2.25} />
-          )}
-        </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            aria-label="Sair"
+            title="Sair"
+            className="flex size-8 shrink-0 items-center justify-center rounded-lg text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white"
+          >
+            <LogOut className="size-4" strokeWidth={1.9} />
+            <span className="sr-only">Sair</span>
+          </button>
+        </div>
       </div>
     </nav>
   )

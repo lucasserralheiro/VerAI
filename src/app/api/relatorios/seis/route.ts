@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { clientesVisiveisWhere } from '@/lib/visibilidade'
 import { exigirUsuario } from '@/lib/relatorios-clientes/acesso'
+import { clientesDoEscopoWhere } from '@/lib/gerencias/escopo-carteira'
 
 const LIMITE = 1000
 const CLIENTE = { select: { id: true, nome: true, siglaLegado: true } } as const
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const autenticado = await exigirUsuario(request)
   if ('erro' in autenticado) return autenticado.erro
 
-  const filtroCliente: Prisma.ClienteWhereInput = await clientesVisiveisWhere(autenticado.usuario)
+  const filtroCliente: Prisma.ClienteWhereInput = await clientesDoEscopoWhere(autenticado.usuario, request)
   const clienteId = request.nextUrl.searchParams.get('clienteId')
   const doCliente = clienteId ? { clienteId } : {}
 

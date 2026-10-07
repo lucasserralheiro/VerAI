@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { clientesVisiveisWhere } from '@/lib/visibilidade'
 import { exigirUsuario } from '@/lib/relatorios-clientes/acesso'
 import { calcularSaldo } from '@/lib/relatorios-clientes/saldo'
 import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
+import { clientesDoEscopoWhere } from '@/lib/gerencias/escopo-carteira'
 
 /** Por cliente visível: nº de contratos (e quantos ativos), valor contratado dos ativos (histórico,
  *  senão itens), faturado desses mesmos contratos e saldo — a mesma regra do contrato e da ficha, somada. */
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   if ('erro' in autenticado) return autenticado.erro
 
   const clientes = await prisma.cliente.findMany({
-    where: await clientesVisiveisWhere(autenticado.usuario),
+    where: await clientesDoEscopoWhere(autenticado.usuario, request),
     orderBy: { nome: 'asc' },
     select: {
       id: true,

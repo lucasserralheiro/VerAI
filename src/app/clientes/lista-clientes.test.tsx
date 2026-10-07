@@ -7,12 +7,16 @@ function mockFetch(options: {
   criarOk?: boolean
   criarErro?: string
   atualizadoEm?: string | null
+  painel?: unknown
 }) {
-  const { role, clientes = [], criarOk = true, criarErro = 'Falha ao criar cliente.', atualizadoEm } = options
+  const { role, clientes = [], criarOk = true, criarErro = 'Falha ao criar cliente.', atualizadoEm, painel } = options
   global.fetch = jest.fn((url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url)
     if (u === '/api/sharepoint/atualizacao' && atualizadoEm !== undefined) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ atualizadoEm }) }) as unknown as Promise<Response>
+    }
+    if (u === '/api/clientes/painel' && painel !== undefined) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(painel) }) as unknown as Promise<Response>
     }
     if (u === '/api/clientes') {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(clientes) }) as unknown as Promise<Response>
@@ -41,7 +45,13 @@ function mockFetch(options: {
 }
 
 describe('ListaClientes', () => {
-  it('filtra por gerência e por "Sem gerência"', async () => {
+  // A pasta aberta vira a carteira em foco (localStorage) — não pode vazar de um teste para o outro.
+  beforeEach(() => {
+    localStorage.clear()
+    window.history.pushState(null, '', '/')
+  })
+
+  it('abre na raiz com uma pasta por carteira e, ao abrir a pasta, mostra só os clientes dela', async () => {
     mockFetch({
       role: 'usuario',
       clientes: [
@@ -50,13 +60,64 @@ describe('ListaClientes', () => {
       ],
     })
     render(<ListaClientes />)
-    expect(await screen.findByText('Carteira: GCR')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Gerência'), { target: { value: 'sem' } })
+    const pastaGcr = (await screen.findByText('GCR')).closest('a') as HTMLElement
+    expect(screen.getByText('Sem carteira')).toBeInTheDocument()
     expect(screen.queryByText('Saúde')).toBeNull()
-    expect(screen.getByText('Obras')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Gerência'), { target: { value: 'g1' } })
-    expect(screen.getByText('Saúde')).toBeInTheDocument()
+
+    fireEvent.click(pastaGcr)
+    expect(await screen.findByText('Saúde')).toBeInTheDocument()
     expect(screen.queryByText('Obras')).toBeNull()
+    expect(window.location.search).toBe('?carteira=g1')
+
+    fireEvent.click(screen.getByRole('link', { name: 'Todas as carteiras' }))
+    fireEvent.click(screen.getByText('Sem carteira').closest('a') as HTMLElement)
+    expect(await screen.findByText('Obras')).toBeInTheDocument()
+    expect(screen.queryByText('Saúde')).toBeNull()
+    window.history.pushState(null, '', '/')
+  })
+
+  it('na raiz, a busca procura em todos os clientes e mostra a carteira de cada um', async () => {
+    mockFetch({
+      role: 'usuario',
+      clientes: [
+        { id: 'c1', nome: 'Saúde', gerencia: { id: 'g1', nome: 'GCR' } },
+        { id: 'c2', nome: 'Obras', gerencia: null },
+      ],
+    })
+    render(<ListaClientes />)
+    fireEvent.change(await screen.findByLabelText('Buscar cliente'), { target: { value: 'saude' } })
+    expect(screen.getByText('Saúde')).toBeInTheDocument()
+    expect(screen.getByText('Carteira: GCR')).toBeInTheDocument()
+    expect(screen.queryByText('Obras')).toBeNull()
+  })
+
+  it('mostra os totais do painel no nível aberto', async () => {
+    const totais = (clientes: number, valor: string) => ({
+      clientes,
+      clientesComContratoAtivo: clientes,
+      contratosAtivos: 2,
+      contratosSemValor: 0,
+      valorContratado: valor,
+      faturado: '0',
+      saldo: valor,
+      percentualFaturado: '0.00',
+      vencidos: 0,
+      vencem30: 1,
+      vencem90: 1,
+    })
+    mockFetch({
+      role: 'usuario',
+      clientes: [{ id: 'c1', nome: 'Saúde', gerencia: { id: 'g1', nome: 'GCR' } }],
+      painel: {
+        geral: totais(1, '2500000'),
+        carteiras: [{ id: 'g1', nome: 'GCR', sigla: null, gerentes: ['Ana'], totais: totais(1, '2500000') }],
+        clientes: { c1: totais(1, '2500000') },
+      },
+    })
+    render(<ListaClientes />)
+    expect(await screen.findByText('Gerente: Ana')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Totais gerais' })).toHaveTextContent('Valor contratado')
+    expect(screen.getByText('1 vence em 30d')).toBeInTheDocument()
   })
 
   it('usa font-semibold no título (não font-bold) e o nome "Relatórios dos clientes"', async () => {

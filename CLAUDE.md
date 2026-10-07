@@ -74,6 +74,21 @@ outros três.
 O conversor NÃO deve ramificar por gerador: cada decisão sai da evidência do
 próprio documento. O gerador serve pra medir e avisar.
 
+**Corpus grande (SharePoint)**: `npm run regua:conversao -- --salvar` converte
+todas as propostas PC/PA da biblioteca ContratosReceita (+ `arquivos-teste-conversao`)
+e guarda a base em `logs/regua-conversao.json`; depois da mudança,
+`npm run regua:conversao` reconverte os MESMOS PDFs e diz arquivo por arquivo o que
+piorou (saída 1) ou melhorou, com o panorama por gerador e os piores arquivos (onde
+trabalhar a seguir). Mede também **fidelidade**: palavra e número do texto do PDF que
+somem/sobram/mudam de ordem no HTML — número perdido ou a mais deve ser zero.
+`--detalhe=<trecho>` mostra o diff do HTML; `--gerador=`, `--filtro=`, `--por-gerador=N`
+pra iterar rápido. Métricas numa definição só, `src/lib/extracao/regua/` (usada também
+pelo `diag:pdf`). `--do-sistema` (com o `.env` da produção) baixa o original de toda conversão
+real de PDF pra `logs/regua-conversao/sistema/` e põe no corpus. Na tela, o card "Conferência de
+totais" mostra a mesma régua por proposta (`ConferenciaTexto`, `conferirTextoDoOriginal`): todo
+número do original contra o documento atual, com página e "Ver no PDF" — sem migração, campo
+`texto` dentro de `conferenciaTotais`. Spec `docs/superpowers/specs/2026-10-07-regua-conversao-sharepoint-design.md`.
+
 ## Integração do Confere
 
 O serviço **Confere** (Python/FastAPI separado, mantido pela PRODAM, deploy em
@@ -123,9 +138,9 @@ hoje:
   do proxy: o relatório já está no corpo da resposta, e falha de storage ou de banco não derruba a
   entrega. A listagem vive em `/confere/historico` (sub-item do grupo "ConfereAI" no menu), servida
   por `/api/confere/execucoes`.
-- **É a porta de entrada do sistema** — login e o middleware redirecionam para `/confere` (não
-  mais `/clientes`), e é o terceiro grupo do menu lateral, depois de "Relatórios dos clientes" e "Proposta Comercial"
-  (`src/components/nav-bar.tsx`) — a posição no menu é a do ambiente local, não a primeira.
+- **Não é mais a porta de entrada** (07/10/2026) — login, middleware e a marca do menu levam para
+  `/clientes`. No menu lateral (`src/components/nav-bar.tsx`) o ConfereAI fica na seção "Ferramentas",
+  depois de "Proposta Comercial"; os grupos nascem recolhidos e só o da página atual se abre.
 - **Proxy próprio** (`src/app/api/confere/reports/route.ts`) — o navegador nunca fala direto com o
   Confere nem conhece `CONFERE_SHARED_SECRET`; a rota recebe o mesmo multipart que o Confere
   espera, chama `chamarConfere()` (`src/lib/confere/cliente.ts`) e devolve a resposta dele quase sem tocar. É também onde a execução é registrada no
@@ -181,6 +196,32 @@ valor contratado = valor do último termo assinado do histórico (nunca rescisã
 soma dos itens, senão `null` (fora das somas, as telas avisam); saldo e % faturado usam essa mesma base,
 e faturamento **Cancelado** não entra no faturado (`situacao-faturamento.ts`). Um lançamento
 **principal** por contrato + competência; complementar à parte. Rota nova que mostra contrato **usa o consolidado**, não `contratoAtivo`/`saldosDosContratos` direto.
+
+**Lista de clientes por carteira** (07/10/2026): `/clientes` abre com uma pasta por **gerência** (nome, sigla,
+gerente = membros `manager`, "Sua carteira" para quem é membro, "Sem carteira" no fim); abrir a pasta
+(`?carteira=<id|sem>`) mostra os clientes dela; "Todos os clientes" (`?visao=todos`) é a lista plana. Em todo
+nível há a faixa de totais (clientes, contratos ativos, valor contratado, faturado, saldo, vencem em 90 dias) e
+cada pasta/cliente traz o seu. Números só de `GET /api/clientes/painel` → `carregarPainelCarteiras`
+(`src/lib/relatorios-clientes/painel-carteiras.ts`): `consolidarContratos()` e soma em decimal no servidor
+(mesma conta de `/api/relatorios/valor-total`: só ativos; ativo sem valor fica fora das somas e é contado). A
+tela não soma dinheiro. Sem gerência cadastrada a tela cai direto na lista plana.
+
+**Áreas do cliente** (07/10/2026): a navegação dentro do cliente é **só a barra de abas da ficha** (fixa no topo
+ao rolar); o menu lateral não repete as abas — mostra "Clientes recentes" (`src/components/clientes-recentes.tsx`,
+localStorage, últimos 5, registrados pela ficha). As abas têm uma definição só, `ABAS_META`
+(`src/app/clientes/[id]/abas/abas-meta.ts`) + componente em `abas.tsx` + pré-carga em `page.tsx`. Lista geral e aba
+usam o MESMO componente com `clienteId` opcional (`ListaDemandas`, `ListaSolicitacoes`, `ControleFaturamento` em
+`src/components/relatorios-clientes/`; `/api/controle-faturamento?clienteId=`) — nunca uma tela por cliente copiada
+da geral.
+
+**Carteira em foco** (07/10/2026): UMA escolha de carteira vale para toda a área "Relatórios dos clientes" — lista
+de clientes (a pasta aberta É o foco), Demandas, Solicitações, Relatórios, Documentos, Controle de faturamento e
+Fornecedores (só quem tem termo com clientes da carteira). Escolhe-se no menu lateral (topo do grupo) ou no topo de
+cada tela (`SeletorCarteira`, `src/components/carteira/carteira-foco.tsx`, localStorage; primeira visita foca a
+carteira do usuário se ele é de uma gerência só). As telas mandam `?carteira=<id|sem>`; as rotas filtram por
+`clientesDoEscopoWhere`/`clienteWhereDaCarteira` (`src/lib/gerencias/escopo-carteira.ts`) — é foco, **não
+permissão** (todos veem todos). Tela/rota nova da área segue o mesmo par. Tabela de preços e Calendário de
+faturamento valem para todos e ficam fora do grupo, em "Referências PRODAM". Dentro do cliente, a aba ignora o foco.
 
 **Item de contrato nunca fica solto de propósito.** `vincularItensOrfaos()` (`vincular-itens.ts`) liga
 por casamento tolerante (caixa, acento, zero à esquerda, SEI, nº do histórico) e só quando é único; roda

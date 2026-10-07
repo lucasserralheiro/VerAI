@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
-import { clientesVisiveisWhere } from '@/lib/visibilidade'
+import { clientesDoEscopoWhere } from '@/lib/gerencias/escopo-carteira'
 
 export async function GET(request: NextRequest) {
   const usuario = await getAuthUser(request)
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   }
 
   const clientes = await prisma.cliente.findMany({
-    where: await clientesVisiveisWhere(usuario),
+    where: await clientesDoEscopoWhere(usuario, request),
     orderBy: { nome: 'asc' },
     select: {
       id: true,

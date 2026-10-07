@@ -28,7 +28,7 @@ export function DevLoginForm() {
         setToken('')
         return
       }
-      router.push('/confere')
+      router.push('/clientes')
     } catch {
       setErro('Não foi possível entrar')
     } finally {

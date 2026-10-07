@@ -8,6 +8,7 @@ import { buildUploadPath, putUpload } from '@/lib/storage'
 import { extrairConteudo } from '@/lib/extracao'
 import { analisarDocumento, PROMPT_VERSION_ATUAL } from '@/lib/ia/analisar'
 import { dispararNotificacoes } from '@/lib/notificacao'
+import { clienteWhereDaCarteira } from '@/lib/gerencias/escopo-carteira'
 
 const TIPOS_SUPORTADOS = ['xlsx', 'csv', 'pdf', 'docx'] as const
 
@@ -43,6 +44,9 @@ export async function GET(request: NextRequest) {
     }
   }
   if (clienteId) filtros.clienteId = clienteId
+  // Escopo de carteira da área "Relatórios dos clientes" (`?carteira=`) — foco de trabalho, não permissão.
+  const carteira = params.get('carteira')
+  if (carteira) filtros.cliente = clienteWhereDaCarteira(carteira)
   if (competenciaAno) filtros.competenciaAno = Number(competenciaAno)
   if (competenciaMes) filtros.competenciaMes = Number(competenciaMes)
 

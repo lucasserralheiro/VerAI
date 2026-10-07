@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AlertCircle, ChevronRight, Loader2, Plus, Search, Truck } from 'lucide-react'
 import { BTN_OUTLINE, BTN_PRIMARY, INPUT_BASE } from '@/lib/ui'
 import { SeiLink } from '@/components/relatorios-clientes/sei-link'
+import { SeletorCarteira, comCarteira, useCarteiraFoco } from '@/components/carteira/carteira-foco'
 import type { Fornecedor } from './formulario-fornecedor'
 import { ModalFornecedor } from './modal-fornecedor'
 
@@ -19,10 +20,12 @@ export default function FornecedoresPage() {
   const [erro, setErro] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [criando, setCriando] = useState(false)
+  // Fornecedor é cadastro comum; com carteira em foco a lista mostra quem tem termo com clientes dela.
+  const { foco, pronto } = useCarteiraFoco()
 
   async function carregar(q = '') {
     try {
-      const response = await fetch(q ? `/api/fornecedores?q=${encodeURIComponent(q)}` : '/api/fornecedores')
+      const response = await fetch(comCarteira(q ? `/api/fornecedores?q=${encodeURIComponent(q)}` : '/api/fornecedores', foco))
       if (!response.ok) {
         const body = await response.json().catch(() => null)
         setErro(body?.error ?? 'Falha ao carregar fornecedores.')
@@ -36,8 +39,10 @@ export default function FornecedoresPage() {
   }
 
   useEffect(() => {
-    carregar().finally(() => setCarregando(false))
-  }, [])
+    if (!pronto) return
+    carregar(busca.trim()).finally(() => setCarregando(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foco, pronto])
 
   function handleBuscar(event: FormEvent) {
     event.preventDefault()
@@ -55,7 +60,11 @@ export default function FornecedoresPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-navy">Fornecedores</h1>
-            <p className="text-sm text-mid-grey">Acordos, contratos de operacionalização e termos de confirmação</p>
+            <p className="text-sm text-mid-grey">
+              Acordos, contratos de operacionalização e termos de confirmação
+              {foco && ' — só quem tem termo com clientes da carteira em foco'}
+            </p>
+            <SeletorCarteira className="mt-2" />
           </div>
           <button type="button" onClick={() => setCriando(true)} className={BTN_PRIMARY}>
             <Plus className="size-3.5" strokeWidth={2.25} />

@@ -5,6 +5,7 @@
 // ligar a flag EM_DESENVOLVIMENTO em ./page.tsx.
 
 import { useEffect, useState, type FormEvent } from 'react'
+import { SeletorCarteira, comCarteira, useCarteiraFoco } from '@/components/carteira/carteira-foco'
 import Link from 'next/link'
 import {
   Search,
@@ -84,22 +85,32 @@ export function ListaDocumentos() {
   const [usuario, setUsuario] = useState<UsuarioLogado | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS)
+  // Carteira em foco da área "Relatórios dos clientes" (menu lateral): restringe documentos e a lista de clientes.
+  const { foco, pronto } = useCarteiraFoco()
 
   async function carregarDocumentos(filtrosAtuais: Filtros) {
     setCarregando(true)
     const query = montarQuery(filtrosAtuais)
-    const response = await fetch(`/api/documentos${query ? `?${query}` : ''}`)
+    const response = await fetch(comCarteira(`/api/documentos${query ? `?${query}` : ''}`, foco))
     if (response.ok) {
       setDocumentos(await response.json())
     }
     setCarregando(false)
   }
 
+  // Ao abrir e a cada troca de carteira: o cliente do filtro pode não ser da nova carteira — volta pra "todos".
   useEffect(() => {
-    carregarDocumentos(FILTROS_VAZIOS)
-    fetch('/api/clientes')
+    if (!pronto) return
+    const semCliente = { ...filtros, clienteId: '' }
+    setFiltros(semCliente)
+    carregarDocumentos(semCliente)
+    fetch(comCarteira('/api/clientes', foco))
       .then((r) => (r.ok ? r.json() : []))
       .then(setClientes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foco, pronto])
+
+  useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
       .then(setUsuario)
@@ -157,6 +168,8 @@ export function ListaDocumentos() {
           </div>
         ))}
       </div>
+
+      <SeletorCarteira />
 
       <form onSubmit={handleFiltrar} className="card flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-sm">

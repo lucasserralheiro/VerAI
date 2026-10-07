@@ -11,6 +11,7 @@ import { IndicadoresCliente } from './indicadores-cliente'
 import { ModalCliente } from '../modal-cliente'
 import { SeloCarteira, usePermissaoCliente } from './permissao-cliente'
 import { preCarregar } from '@/lib/relatorios-clientes/prefetch'
+import { registrarClienteRecente } from '@/components/clientes-recentes'
 
 interface Cliente {
   id: string
@@ -55,9 +56,16 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
     contratos: [[`/api/clientes/${id}/itens-aguardando`, { cache: 'no-store' }], [`/api/clientes/${id}/contratos`]],
     faturamento: [[`/api/clientes/${id}/faturamentos`]],
     fornecedores: [[`/api/termos-confirmacao?clienteId=${id}`]],
+    controle: [[`/api/controle-faturamento?clienteId=${id}`]],
     demandas: [[`/api/demandas?clienteId=${id}`]],
+    solicitacoes: [[`/api/solicitacoes?clienteId=${id}`]],
     responsaveis: [[`/api/clientes/${id}/responsaveis`]],
   }
+
+  // Entra em "Clientes recentes" do menu lateral (e atualiza o nome se ele foi editado).
+  useEffect(() => {
+    if (cliente) registrarClienteRecente({ id: cliente.id, nome: cliente.nome, sigla: cliente.siglaLegado })
+  }, [cliente])
 
   useEffect(() => {
     fetch(`/api/clientes/${id}`)
@@ -166,7 +174,12 @@ export default function ClienteDetalhePage({ params }: { params: Promise<{ id: s
 
       <IndicadoresCliente clienteId={id} />
 
-      <div role="tablist" className="flex gap-6 overflow-x-auto overflow-y-hidden border-b border-border-grey">
+      {/* Fixas no topo ao rolar: com tabela longa (documentos, faturamento) a troca de área continua à mão —
+          é a navegação do cliente; o menu lateral não a repete. */}
+      <div
+        role="tablist"
+        className="sticky top-0 z-20 -mx-6 flex gap-6 overflow-x-auto overflow-y-hidden border-b border-border-grey bg-background/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:-mx-8 lg:px-8"
+      >
         {ABAS.map((aba) => {
           const Icon = aba.icon
           const ativa = aba.id === abaAtiva.id

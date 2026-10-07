@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { clientesVisiveisWhere } from '@/lib/visibilidade'
 import { exigirUsuario } from '@/lib/relatorios-clientes/acesso'
 import { consolidarContratos } from '@/lib/relatorios-clientes/contratos-consolidados'
 import { ANO, MES, resumoDasNotas } from '@/app/api/faturamentos/esquema'
 import { faturamentoCancelado } from '@/lib/relatorios-clientes/situacao-faturamento'
+import { clientesDoEscopoWhere } from '@/lib/gerencias/escopo-carteira'
 
 /** `?ano=&mes=` (obrigatórios): para cada contrato ativo — ou que tenha faturamento na competência —
  *  os faturamentos daquele mês, com valor (o do faturamento ou a soma das notas) e envio
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   if (!mes.success) return NextResponse.json({ error: `Mês: ${mes.error.issues[0].message}` }, { status: 400 })
 
   const contratos = await prisma.contrato.findMany({
-    where: { cliente: await clientesVisiveisWhere(autenticado.usuario) },
+    where: { cliente: await clientesDoEscopoWhere(autenticado.usuario, request) },
     orderBy: [{ cliente: { nome: 'asc' } }, { numeroTermo: 'asc' }],
     select: {
       id: true,

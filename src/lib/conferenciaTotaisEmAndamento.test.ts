@@ -63,7 +63,7 @@ describe('conferenciaTotaisEmAndamento', () => {
 
     const resultado = await iniciarConferenciaTotais('p1')
 
-    expect(resultado).toEqual({ totais: [], tabelas: [], checadoEm: null })
+    expect(resultado).toEqual({ totais: [], tabelas: [], texto: null, checadoEm: null })
   })
 
   it('resposta não-ok joga erro com a mensagem do corpo', async () => {

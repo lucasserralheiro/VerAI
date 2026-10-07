@@ -1,3 +1,5 @@
+import type { ConferenciaDeTexto } from '@/lib/extracao/regua/fidelidade'
+
 /**
  * Cache em memória (nível de módulo) da conferência de totais em andamento
  * por proposta — mesmo padrão de `checagemIaEmAndamento.ts`: iniciada
@@ -51,6 +53,8 @@ export interface TabelaConferidaCliente {
 export interface ResultadoConferenciaTotais {
   totais: TotalConferidoCliente[]
   tabelas: TabelaConferidaCliente[]
+  /** Todo número (e palavra) do original contra o documento atual — `null` se o servidor não mandou. */
+  texto: ConferenciaDeTexto | null
   checadoEm: string | null
 }
 
@@ -80,7 +84,9 @@ export function iniciarConferenciaTotais(propostaId: string): Promise<ResultadoC
     const totais = Array.isArray(corpo?.totais) ? corpo.totais : []
     const tabelas = Array.isArray(corpo?.tabelas) ? corpo.tabelas : []
     const checadoEm = typeof corpo?.checadoEm === 'string' ? corpo.checadoEm : null
-    return { totais, tabelas, checadoEm }
+    const texto =
+      corpo?.texto && typeof corpo.texto === 'object' && Array.isArray(corpo.texto.numerosPerdidos) ? corpo.texto : null
+    return { totais, tabelas, texto, checadoEm }
   })()
 
   cache.set(propostaId, { status: 'rodando', promise })

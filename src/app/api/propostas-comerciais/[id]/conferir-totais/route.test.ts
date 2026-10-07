@@ -36,6 +36,17 @@ const requisicao = () =>
   new NextRequest('http://localhost/api/propostas-comerciais/p1/conferir-totais', { method: 'POST' })
 const contexto = { params: Promise.resolve({ id: 'p1' }) }
 
+const TEXTO_CONFERIDO = {
+  numerosNoOriginal: 1,
+  quantidadeNumerosPerdidos: 0,
+  numerosPerdidos: [],
+  quantidadeNumerosSobrando: 0,
+  numerosSobrando: [],
+  palavrasNoOriginal: 2,
+  palavrasPerdidas: 0,
+  exemploPalavrasPerdidas: [],
+}
+
 describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -161,6 +172,7 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
       conferenciaTotais: {
         totais: [{ origem: 'Página 1', pagina: 1, rotulo: 'Total', valorNoOriginal: 'R$ 10,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 }],
         tabelas: [{ origem: 'Página 1', pagina: 1, linhas: [] }],
+        texto: TEXTO_CONFERIDO,
         arquivosRelevantes: ['a1'],
         documentoHash: hashDocumento(documentoSalvo),
       },
@@ -178,6 +190,53 @@ describe('POST /api/propostas-comerciais/[id]/conferir-totais', () => {
       { origem: 'Página 1', pagina: 1, rotulo: 'Total', valorNoOriginal: 'R$ 10,00', encontradoNoDocumento: true, ocorrenciasNoDocumento: 1 },
     ])
     expect(corpo.tabelas).toEqual([{ origem: 'Página 1', pagina: 1, linhas: [] }])
+    expect(corpo.texto).toEqual(TEXTO_CONFERIDO)
+  })
+
+  it('cache salvo antes da conferência do texto é refeito uma vez', async () => {
+    const documentoSalvo = 'Documento salvo'
+    ;(prisma.propostaComercial.findUnique as jest.Mock).mockResolvedValue({
+      id: 'p1',
+      conteudoMarkdown: documentoSalvo,
+      conferenciaTotaisEm: new Date('2026-09-01T00:00:00.000Z'),
+      conferenciaTotais: { totais: [], tabelas: [], arquivosRelevantes: ['a1'], documentoHash: hashDocumento(documentoSalvo) },
+      arquivos: [{ id: 'a1', tipo: 'pdf', ordem: 0, caminhoOriginal: 'https://blob/a1.pdf', nomeArquivo: 'proposta.pdf' }],
+    })
+    ;(getUpload as jest.Mock).mockResolvedValue(Buffer.from('fake'))
+    ;(converterPdfParaHtml as jest.Mock).mockResolvedValue({ html: 'x', paginasImagem: [], paginasConvertidas: [], paginasComImagem: [] })
+
+    await POST(requisicao(), contexto)
+
+    expect(conferirTotais).toHaveBeenCalledTimes(1)
+  })
+
+  it('aponta número do PDF que não está no documento, com a página e a linha de origem', async () => {
+    ;(prisma.propostaComercial.findUnique as jest.Mock).mockResolvedValue({
+      id: 'p1',
+      conteudoMarkdown: '<p>Total: R$ 10,00</p>',
+      conferenciaTotais: null,
+      conferenciaTotaisEm: null,
+      arquivos: [{ id: 'a1', tipo: 'pdf', ordem: 0, caminhoOriginal: 'https://blob/a1.pdf', nomeArquivo: 'proposta.pdf' }],
+    })
+    ;(getUpload as jest.Mock).mockResolvedValue(Buffer.from('fake'))
+    ;(converterPdfParaHtml as jest.Mock).mockResolvedValue({
+      html: 'x',
+      paginasImagem: [],
+      paginasConvertidas: [
+        { pagina: 1, textoOriginal: 'Total: R$ 10,00', html: '' },
+        { pagina: 2, textoOriginal: 'Código 12.074.00005.00 quantidade 3', html: '' },
+      ],
+      paginasComImagem: [],
+    })
+
+    const corpo = await (await POST(requisicao(), contexto)).json()
+
+    expect(corpo.texto.numerosNoOriginal).toBe(3)
+    expect(corpo.texto.quantidadeNumerosPerdidos).toBe(2)
+    expect(corpo.texto.numerosPerdidos).toEqual([
+      { numero: '12.074.00005.00', origem: 'Página 2', pagina: 2, contexto: 'Código 12.074.00005.00 quantidade 3' },
+      { numero: '3', origem: 'Página 2', pagina: 2, contexto: 'Código 12.074.00005.00 quantidade 3' },
+    ])
   })
 
   it('refaz quando o documento salvo mudou desde a última conferência (cache não vale mais)', async () => {

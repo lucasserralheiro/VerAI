@@ -15,6 +15,7 @@ import {
 import { JanelaRevisao } from './janela-revisao'
 import { TituloSecao } from './titulo-secao'
 import { BlocoComparacao } from './painel-checagem-conversao'
+import { ConferenciaTexto } from './conferencia-texto'
 
 export interface CardConferenciaTotaisProps {
   propostaId: string
@@ -143,7 +144,8 @@ export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenc
     )
   }
 
-  const { totais, tabelas } = estado.resultado
+  const { totais, tabelas, texto } = estado.resultado
+  const conferenciaTexto = texto ? <ConferenciaTexto texto={texto} onVerPagina={onVerPagina} /> : null
   // Total de valores conferidos = os de tabela (dentro de `tabelas`, célula
   // a célula) + os de texto corrido (`totais`, fonte sem tabela detectada)
   // — as duas fontes juntas, nunca contam o mesmo valor duas vezes (ver
@@ -159,6 +161,7 @@ export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenc
         <p className="text-[15px] text-mid-grey">
           Nenhum total detectado automaticamente — confira o documento manualmente.
         </p>
+        {conferenciaTexto}
       </section>
     )
   }
@@ -188,6 +191,7 @@ export function CardConferenciaTotais({ propostaId, onVerPagina }: CardConferenc
           </>
         )}
       </button>
+      {conferenciaTexto}
 
       {aberta && selecionado && (
         <JanelaRevisao

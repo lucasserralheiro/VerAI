@@ -15,6 +15,7 @@ import {
   type TextoParaConferirTotal,
   type TotalConferido,
 } from '@/lib/conferirTotais'
+import { conferirTextoDoOriginal, type ConferenciaDeTexto } from '@/lib/extracao/regua/fidelidade'
 
 function hashDocumento(texto: string): string {
   return createHash('sha256').update(texto).digest('hex')
@@ -60,14 +61,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({
       totais: salva.totais,
       tabelas: salva.tabelas,
+      texto: salva.texto,
       checadoEm: proposta.conferenciaTotaisEm?.toISOString() ?? null,
     })
   }
 
   const fontes: TextoParaConferirTotal[] = []
+  let temPaginaDeOcr = false
   for (const arquivo of arquivosPdf) {
     const buffer = await getUpload(arquivo.caminhoOriginal)
     const resultado = await converterPdfParaHtml(buffer)
+    if (resultado.paginasImagem.length > 0) temPaginaDeOcr = true
     for (const pagina of resultado.paginasConvertidas) {
       fontes.push({
         origem: `Página ${pagina.pagina}`,
@@ -91,10 +95,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     totais.push(...conferirTotaisPlanilha(arquivo.nomeArquivo, candidatos, documentoAtual))
   }
 
+  // Todo número do original (não só valor) contra o documento atual, contando repetição — a régua da
+  // conversão rodando em cada proposta real. "A mais" só com fonte única e sem OCR: planilha, título de
+  // arquivo e texto do OCR põem número no documento que não está em `fontes`.
+  const texto = conferirTextoDoOriginal(fontes, documentoAtual, {
+    compararSobra: proposta.arquivos.length === 1 && arquivosPlanilha.length === 0 && !temPaginaDeOcr,
+  })
+
   const checadoEm = new Date()
   const paraSalvar: ConferenciaSalva = {
     totais,
     tabelas,
+    texto,
     arquivosRelevantes: idsRelevantes,
     documentoHash: hashDocumento(documentoAtual),
   }
@@ -108,7 +120,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
     .catch((erro) => console.error('conferência de totais: não foi possível salvar o resultado —', erro))
 
-  return NextResponse.json({ totais, tabelas, checadoEm: checadoEm.toISOString() })
+  return NextResponse.json({ totais, tabelas, texto, checadoEm: checadoEm.toISOString() })
 }
 
 interface ConferenciaSalva {
@@ -116,6 +128,8 @@ interface ConferenciaSalva {
   /** Tabela reconstruída (célula a célula) de cada fonte que tinha `<table>`
    *  no HTML — ver `extrairTabelasConferidas`. */
   tabelas: TabelaConferida[]
+  /** Números e palavras do original × documento (`conferirTextoDoOriginal`). */
+  texto: ConferenciaDeTexto
   /** Ids dos arquivos PDF + Word + planilha conferidos — se a proposta ganhar/perder
    *  algum, o cache não vale mais (ver `mesmoDocumento`). */
   arquivosRelevantes: string[]
@@ -132,6 +146,9 @@ function lerConferenciaSalva(valor: unknown): ConferenciaSalva | null {
   if (
     !Array.isArray(v.totais) ||
     !Array.isArray(v.tabelas) ||
+    // Salva antes de existir a conferência do texto: confere de novo uma vez.
+    !v.texto ||
+    typeof v.texto !== 'object' ||
     !Array.isArray(v.arquivosRelevantes) ||
     typeof v.documentoHash !== 'string'
   )
@@ -139,6 +156,7 @@ function lerConferenciaSalva(valor: unknown): ConferenciaSalva | null {
   return {
     totais: v.totais,
     tabelas: v.tabelas,
+    texto: v.texto,
     arquivosRelevantes: v.arquivosRelevantes.filter((x): x is string => typeof x === 'string'),
     documentoHash: v.documentoHash,
   }

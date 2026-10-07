@@ -12,6 +12,7 @@
     "start": "next start",
     "lint": "eslint",
     "diag:pdf": "tsx scripts/diagnostico-conversao.mts",
+    "regua:conversao": "tsx scripts/regua-conversao.ts",
     "test": "jest --passWithNoTests",
     "dev:db:up": "docker compose --env-file .env.development up -d",
     "dev:db:down": "docker compose --env-file .env.development down",

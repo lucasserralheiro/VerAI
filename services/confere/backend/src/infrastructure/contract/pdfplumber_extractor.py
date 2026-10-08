@@ -113,6 +113,28 @@ _FRASE_TOTAL_EM_PROSA = re.compile(
     r"Valor total dos Servi[çc]os.*?estimado em R\$\s*([\d.,]+)", re.S
 )
 
+# As outras formas de a proposta dizer o mesmo total em prosa. Medidas em
+# 08/10/2026 no corpus HSPM/SMDET (propostas comerciais de 2022 a 2026):
+#
+#   "O valor principal dos serviços, objeto desta proposta, é de R$ 963.333,48"
+#   "O Valor total dos Serviços, objeto desta proposta é de R$ 427.998,20"
+#   "O dimensionamento e o valor total dos serviços, objeto desta proposta, é de
+#    R$ 990.535,00"
+#
+# **A constante acima continua valendo primeiro e não mudou**: esta só é
+# consultada quando ela não achou nada, então nenhum documento que já fechava
+# passa a ler outro número. O que a protege de pegar o número errado é o mesmo
+# cruzamento de sempre — `_total_por_convergencia` só devolve valor se o `TOTAL`
+# do cronograma concordar.
+#
+# `.{0,80}?` e não `.*?`: entre "serviços" e "é de" só cabe "objeto desta
+# proposta" — a janela curta impede de ligar a frase a um "é de R$" de outro
+# parágrafo.
+_FRASE_TOTAL_EM_PROSA_VARIANTE = re.compile(
+    r"valor\s+(?:total|principal)\s+dos\s+servi[çc]os.{0,80}?\sé\s+de\s+R\$\s*([\d.,]+)",
+    re.S | re.I,
+)
+
 # `R-TOT-02` — dentro da seção "CRONOGRAMA FÍSICO-FINANCEIRO", a linha cujo
 # primeiro token é `TOTAL` (sem os dois-pontos de `_MARCA_TOTAL` — é uma marca
 # diferente, de uma tabela diferente). `(?m)` para casar por linha dentro do
@@ -626,7 +648,10 @@ class PdfPlumberContractExtractor:
         peça declara. Sem a frase de prosa para confirmar, o valor do
         cronograma sozinho mentiria sobre o total desta peça.
         """
-        prosa = _FRASE_TOTAL_EM_PROSA.search(re.sub(r"\s+", " ", texto))
+        texto_corrido = re.sub(r"\s+", " ", texto)
+        prosa = _FRASE_TOTAL_EM_PROSA.search(
+            texto_corrido
+        ) or _FRASE_TOTAL_EM_PROSA_VARIANTE.search(texto_corrido)
         if prosa is None:
             return None
         valor_prosa = para_decimal(prosa.group(1))

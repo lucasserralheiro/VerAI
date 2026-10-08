@@ -91,7 +91,7 @@ número do original contra o documento atual, com página e "Ver no PDF" — sem
 
 ## Integração do Confere
 
-O serviço **Confere** (Python/FastAPI separado, mantido pela PRODAM, deploy em
+O serviço **Confere** (Python/FastAPI separado, código do próprio usuário em `services/confere/backend`, deploy em
 `https://confere-backend.onrender.com` — plano free: ~23 s pra acordar e 70–135 s de geração,
 medidos em 24/09/2026) compara contrato × medição
 e gera relatório de comprovação (DOCX + XLSX). Dentro do VerAI ele vive em `/confere`
@@ -126,6 +126,15 @@ hoje:
   600 ms) e pergunta quando não acha (sugestões, busca, enviar do computador, trocar planilha); os
   documentos viram linhas de conferência; a janela de pastas tem Voltar, "em uso" e duplo clique. A
   regra da busca não mudou. Design `docs/superpowers/specs/2026-09-28-confere-levantamento-primeiro-design.md`.
+- **Só conferência** (08/10/2026): ninguém edita a entrada nem a saída do Confere no VerAI — não há edição de
+  valores, nem endpoint novo, nem marca no DOCX/XLSX; a tela de resultado (`ItensParaConferir`) só
+  reorganiza o que o Confere já devolve.
+- **O código do Confere é do usuário** (08/10/2026; revê a primeira versão da regra acima, que o tratava como
+  da PRODAM e intocável): `services/confere/backend` pode ser alterado nesta sessão, com teste. Primeira
+  alteração: a leitura do total declarado em prosa (`_FRASE_TOTAL_EM_PROSA_VARIANTE`, em
+  `pdfplumber_extractor.py`). O que a tela usa é o serviço no ar (`confere-backend.onrender.com`): mudança
+  no repositório só chega à tela depois que esse serviço for atualizado com o código novo. A sessão de IA
+  não faz esse deploy — avise o usuário quando o conserto depender dele.
 - **Geração sem estado, com histórico ao lado** — a aplicação portada continua sem estado: sobe os
   arquivos, gera, baixa DOCX/XLSX. As duas tabelas da primeira versão foram revertidas por migração
   (`prisma/migrations/20260921160000_remove_analise_medicao_contratual/`). O que existe hoje é um

@@ -8,6 +8,7 @@ import { getUpload } from '@/lib/storage'
 import { clienteIdsPermitidos } from '@/lib/visibilidade'
 
 import { avisoDeVigencia, escolherDocumentos, type LinhaDoHistorico } from './documentos-do-contrato'
+import { avisoDeOrgao } from './aviso-de-orgao'
 import { identidadeDoContrato } from './identidade'
 import { competenciaDaData, lerCabecalhoDoLevantamento, LevantamentoIlegivel } from './levantamento'
 import { localizarContrato, type ContratoParaBusca } from './localizar-contrato'
@@ -196,7 +197,9 @@ export async function identificarLevantamento(
       competenciaLida ?? competenciaAtual(hoje),
       competenciaLida !== null
     )
-    return { situacao: 'encontrado', leitura, documentos }
+    // Achou sozinho: se o órgão da planilha não é igual ao do contrato, a tela mostra os dois lado a lado.
+    const aviso = avisoDeOrgao(identidade, resultado.contrato)
+    return { situacao: 'encontrado', leitura, documentos, ...(aviso ? { avisoDeOrgao: aviso } : {}) }
   }
   if (resultado.tipo === 'ambiguo') {
     return { situacao: 'ambiguo', leitura, candidatos: (await resumir(carregados(resultado.candidatos))).sort(porNumero) }

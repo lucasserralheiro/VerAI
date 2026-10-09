@@ -18,6 +18,7 @@ const CARTOES = [
   { href: '/admin/clientes', titulo: 'Clientes', texto: 'Cadastra, mescla e exclui clientes.' },
   { href: '/admin/regras-notificacao', titulo: 'Regras de notificação', texto: 'Define quando e para quem o sistema avisa.' },
   { href: '/admin/assistente', titulo: 'Assistente de IA', texto: 'Acompanha o índice de documentos e o uso do assistente.' },
+  { href: '/admin/api', titulo: 'API e integrações', texto: 'Chaves de API dos sistemas que leem o VerAI, webhooks e as fontes de onde o VerAI recebe dados.' },
 ]
 
 export default function AdminPage() {

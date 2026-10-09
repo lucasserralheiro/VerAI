@@ -13,23 +13,49 @@ import { chamarConfere, type RespostaRelatorioConfere } from '@/lib/confere/clie
 import { competenciaDaData, lerCabecalhoDoLevantamento } from '@/lib/confere/levantamento'
 import { PREFIXO_DO_CADASTRO, type Competencia } from '@/lib/confere/tipos-cadastro'
 import { prisma } from '@/lib/prisma'
+import { configR2, putR2 } from '@/lib/r2'
 import { exigirUsuario } from '@/lib/relatorios-clientes/acesso'
 import { buildConfereExecucaoPath, putUpload } from '@/lib/storage'
 
 const TIPO_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
-/** Grava a execução no histórico (`/confere/historico`).
+/** Um PDF de entrada que vai para o histórico. */
+interface EntradaParaGuardar {
+  papel: 'contrato' | 'aditivo' | 'levantamento'
+  nome: string
+  bytes: Buffer
+}
+
+/** Grava no R2 e, se ele não estiver configurado ou recusar, no Blob. O Blob está
+ *  suspenso por cota (24/09/2026), e foi por isso que o histórico podia deixar de
+ *  gravar sem ninguém perceber: o R2 vai primeiro. */
+async function gravar(chaveR2: string, caminhoBlob: string, dados: Buffer, tipo: string): Promise<string> {
+  if (configR2()) {
+    try {
+      return await putR2(chaveR2, dados, tipo)
+    } catch (erro) {
+      console.error('[confere] R2 recusou a gravação do histórico, tentando o Blob —', erro)
+    }
+  }
+  return putUpload(caminhoBlob, dados, tipo)
+}
+
+/** Grava a execução no histórico (`/confere/historico`) e devolve se gravou.
  *
- *  **Best-effort, e de propósito**: o relatório já foi gerado e já está no
- *  corpo da resposta. Derrubar a entrega por uma falha de storage ou de banco
- *  cobraria de novo os ~25s de processamento por causa de um registro que é
- *  conveniência, não o produto. A falha vai pro log do servidor.
+ *  **A entrega não depende dele**: o relatório já foi gerado e está no corpo da
+ *  resposta, e derrubá-la por uma falha de storage ou de banco cobraria de novo os
+ *  ~25s de processamento. Mas a falha **não é silenciosa**: tenta duas vezes e
+ *  devolve `false`, que a tela mostra como aviso ("não ficou salvo no histórico —
+ *  baixe agora"). O que antes ia só para o log do servidor.
  *
- *  O `id` é gerado aqui, antes do `create`, porque o caminho no Blob depende
- *  dele e as duas colunas de caminho são obrigatórias — criar a linha vazia
- *  pra depois atualizar deixaria registro pela metade se o upload falhasse no
- *  meio.
+ *  O `id` é gerado aqui, antes do `create`, porque o caminho no storage depende
+ *  dele e as duas colunas de caminho são obrigatórias — criar a linha vazia pra
+ *  depois atualizar deixaria registro pela metade se o upload falhasse no meio.
+ *  Fica fora da repetição: a segunda tentativa sobrescreve os mesmos caminhos.
+ *
+ *  Os PDFs de entrada entram no mesmo registro (`arquivosEntrada`), cada um
+ *  independente: um que falhe não impede o histórico, só some da lista.
  *
  *  `vinculo` diz de que contrato e competência foi o relatório (desenho de
  *  25/09/2026 §7.4) — os dois podem faltar: envio sem contrato identificado,
@@ -38,51 +64,69 @@ const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 async function registrarNoHistorico(
   resposta: RespostaRelatorioConfere,
   nomes: { contrato: string; levantamento: string; aditivos: string[] },
-  vinculo: { contratoId: string | null; competencia: Competencia | null }
-): Promise<void> {
-  try {
-    const id = randomUUID()
-    const [caminhoDocx, caminhoXlsx] = await Promise.all([
-      putUpload(buildConfereExecucaoPath(id, 'docx'), Buffer.from(resposta.docx_base64, 'base64'), TIPO_DOCX),
-      putUpload(buildConfereExecucaoPath(id, 'xlsx'), Buffer.from(resposta.analise_xlsx_base64, 'base64'), TIPO_XLSX),
-    ])
+  vinculo: { contratoId: string | null; competencia: Competencia | null },
+  entradas: EntradaParaGuardar[]
+): Promise<boolean> {
+  const id = randomUUID()
+  for (let tentativa = 1; tentativa <= 2; tentativa++) {
+    try {
+      const [caminhoDocx, caminhoXlsx] = await Promise.all([
+        gravar(`confere-execucoes/${id}/relatorio.docx`, buildConfereExecucaoPath(id, 'docx'), Buffer.from(resposta.docx_base64, 'base64'), TIPO_DOCX),
+        gravar(`confere-execucoes/${id}/analise.xlsx`, buildConfereExecucaoPath(id, 'xlsx'), Buffer.from(resposta.analise_xlsx_base64, 'base64'), TIPO_XLSX),
+      ])
 
-    // Os dois base64 ficam **fora** do JSON: eles já são os arquivos que
-    // acabaram de subir pro Blob, e guardá-los de novo dobraria ~2MB por
-    // execução dentro de uma coluna que é lida inteira a cada abertura.
-    const { docx_base64: _docx, analise_xlsx_base64: _xlsx, ...resultado } = resposta
+      const guardadas = await Promise.all(
+        entradas.map(async (entrada, posicao) => {
+          try {
+            const ehPlanilha = entrada.papel === 'levantamento'
+            const nomeNoStorage = `entrada-${posicao}.${ehPlanilha ? 'xlsx' : 'pdf'}`
+            const caminho = await gravar(`confere-execucoes/${id}/${nomeNoStorage}`, `confere/${id}/${nomeNoStorage}`, entrada.bytes, ehPlanilha ? TIPO_XLSX : 'application/pdf')
+            return { papel: entrada.papel, nome: entrada.nome, caminho }
+          } catch (erro) {
+            console.error(`[confere] PDF de entrada "${entrada.nome}" não foi guardado no histórico —`, erro)
+            return null
+          }
+        })
+      )
 
-    await prisma.confereExecucao.create({
-      data: {
-        id,
-        nomeContrato: nomes.contrato,
-        nomeLevantamento: nomes.levantamento,
-        nomesAditivos: nomes.aditivos,
-        caminhoDocx,
-        caminhoXlsx,
-        contratoId: vinculo.contratoId,
-        competenciaAno: vinculo.competencia?.ano ?? null,
-        competenciaMes: vinculo.competencia?.mes ?? null,
-        // Veio de `response.json()` do Confere, então é JSON de verdade — o
-        // tipo do cliente (`[chave: string]: unknown`) só é largo demais pro
-        // `InputJsonValue` do Prisma. Mesmo cast das rotas de análise.
-        resultado: resultado as unknown as Prisma.InputJsonValue,
-      },
-    })
-  } catch (erro) {
-    // Mensagem acionável, e não um `console.error` cru. As duas causas de
-    // longe mais prováveis são de **configuração**, não de código, e as duas
-    // se manifestam do mesmo jeito: a geração funciona, o histórico fica
-    // vazio, e nada na tela explica por quê (a gravação é best-effort de
-    // propósito — ver o comentário acima).
-    const detalhe =
-      // `prisma.confereExecucao` é `undefined` enquanto o Prisma Client não
-      // for regerado com o model novo — o acesso estoura aqui dentro.
-      erro instanceof TypeError
-        ? 'o Prisma Client parece não conhecer o model ConfereExecucao — rode `npx prisma generate` e aplique a migração `20260921180000_add_confere_execucao`'
-        : 'verifique BLOB_READ_WRITE_TOKEN e se a tabela ConfereExecucao existe no banco'
-    console.error(`[confere] execução gerada mas NÃO registrada no histórico — ${detalhe}.`, erro)
+      // Os dois base64 ficam **fora** do JSON: eles já são os arquivos que
+      // acabaram de subir, e guardá-los de novo dobraria ~2MB por execução
+      // dentro de uma coluna que é lida inteira a cada abertura.
+      const { docx_base64: _docx, analise_xlsx_base64: _xlsx, ...resultado } = resposta
+
+      await prisma.confereExecucao.create({
+        data: {
+          id,
+          nomeContrato: nomes.contrato,
+          nomeLevantamento: nomes.levantamento,
+          nomesAditivos: nomes.aditivos,
+          caminhoDocx,
+          caminhoXlsx,
+          arquivosEntrada: guardadas.filter((g) => g !== null) as unknown as Prisma.InputJsonValue,
+          contratoId: vinculo.contratoId,
+          competenciaAno: vinculo.competencia?.ano ?? null,
+          competenciaMes: vinculo.competencia?.mes ?? null,
+          // Veio de `response.json()` do Confere, então é JSON de verdade — o
+          // tipo do cliente (`[chave: string]: unknown`) só é largo demais pro
+          // `InputJsonValue` do Prisma. Mesmo cast das rotas de análise.
+          resultado: resultado as unknown as Prisma.InputJsonValue,
+        },
+      })
+      return true
+    } catch (erro) {
+      if (tentativa < 2) continue
+      // Mensagem acionável, e não um `console.error` cru. As causas mais
+      // prováveis são de **configuração**, não de código.
+      const detalhe =
+        // `prisma.confereExecucao` é `undefined` enquanto o Prisma Client não
+        // for regerado com o model novo — o acesso estoura aqui dentro.
+        erro instanceof TypeError
+          ? 'o Prisma Client parece não conhecer o model ConfereExecucao — rode `npx prisma generate` e aplique as migrações `20260921180000_add_confere_execucao` e `20261008143500_confere_execucao_arquivos_entrada`'
+          : 'verifique as variáveis do R2 (e BLOB_READ_WRITE_TOKEN) e se a tabela ConfereExecucao tem a coluna arquivosEntrada'
+      console.error(`[confere] execução gerada mas NÃO registrada no histórico — ${detalhe}.`, erro)
+    }
   }
+  return false
 }
 
 // Teto do plano Hobby com Fluid compute, e também o padrão de quem não declara
@@ -208,16 +252,22 @@ export async function POST(request: NextRequest) {
     // encerra a invocação, e trabalho pendente depois dela pode ser cortado
     // no meio — o histórico sairia gravado às vezes. São ~2 uploads sobre uma
     // requisição que já levou ~25s.
-    await registrarNoHistorico(
+    const salvo = await registrarNoHistorico(
       resultado.resposta,
       {
         contrato: parametros.contrato.nome,
         levantamento: levantamento.name,
         aditivos: parametros.aditivos.map((arquivo) => arquivo.nome),
       },
-      { contratoId: contratoEscolhido?.id ?? null, competencia: await competenciaDoLevantamento(planilha.bytes) }
+      { contratoId: contratoEscolhido?.id ?? null, competencia: await competenciaDoLevantamento(planilha.bytes) },
+      [
+        { papel: 'contrato', nome: parametros.contrato.nome, bytes: parametros.contrato.bytes },
+        ...parametros.aditivos.map((aditivo) => ({ papel: 'aditivo' as const, nome: aditivo.nome, bytes: aditivo.bytes })),
+        { papel: 'levantamento' as const, nome: levantamento.name, bytes: planilha.bytes },
+      ]
     )
-    return NextResponse.json(resultado.resposta, { status: 200 })
+    // `historico_salvo` fica fora do que é guardado: é o aviso desta resposta.
+    return NextResponse.json({ ...resultado.resposta, historico_salvo: salvo }, { status: 200 })
   }
   if (resultado.tipo === 'bloqueado') {
     return NextResponse.json(resultado.resposta, { status: 422 })

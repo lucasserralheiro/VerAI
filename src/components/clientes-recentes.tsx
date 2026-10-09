@@ -7,7 +7,6 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const CHAVE = 'verai:clientes-recentes'
@@ -65,33 +64,27 @@ export function ClientesRecentes({ pathname, expandida }: { pathname: string; ex
   const aberto = clienteDaRota(pathname)
 
   return (
-    <div className="mt-2 flex flex-col gap-px">
-      <span className="flex items-center gap-1.5 px-2.5 pb-1 text-[11px] font-medium text-white/35">
-        <History className="size-3" strokeWidth={2.25} />
-        Recentes
-      </span>
+    <div className="mt-1 ml-[19px] flex flex-col gap-px border-l border-white/[0.10] pl-2.5">
+      <span className="px-3 pt-1 pb-0.5 text-[11px] font-medium text-white/50">Recentes</span>
       {recentes.map((c) => {
         const ativo = aberto === c.id
+        // A sigla é como a equipe chama o cliente; o nome inteiro vai no balão. Sem sigla, o nome.
+        const rotulo = c.sigla?.trim() || c.nome
         return (
           <Link
             key={c.id}
             href={`/clientes/${c.id}`}
             title={c.nome}
+            aria-label={c.sigla?.trim() ? `${c.sigla.trim()} · ${c.nome}` : c.nome}
             aria-current={ativo ? 'page' : undefined}
             className={cn(
-              'flex h-8 min-w-0 items-center gap-2 rounded-lg pr-2 pl-2 text-[12.5px] text-light-blue/80 transition-colors hover:bg-white/[0.06] hover:text-white',
-              ativo && 'bg-white/[0.08] text-white'
+              'relative flex h-8 min-w-0 items-center rounded-md pr-2 pl-3 text-[13.5px] text-light-blue/75 transition-colors',
+              'hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange/60',
+              ativo && 'bg-white/[0.06] font-semibold text-white'
             )}
           >
-            <span
-              className={cn(
-                'flex h-5 min-w-10 shrink-0 items-center justify-center rounded-md px-1 text-[9.5px] font-bold tracking-wide',
-                ativo ? 'bg-orange text-white' : 'bg-white/[0.08] text-white/70'
-              )}
-            >
-              {(c.sigla ?? c.nome.slice(0, 3)).slice(0, 6).toUpperCase()}
-            </span>
-            <span className="min-w-0 flex-1 truncate">{c.nome}</span>
+            {ativo && <span className="absolute top-1/2 -left-[13px] size-[7px] -translate-y-1/2 rounded-full bg-orange ring-[3px] ring-navy" aria-hidden />}
+            <span className="truncate">{rotulo}</span>
           </Link>
         )
       })}

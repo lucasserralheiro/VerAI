@@ -133,8 +133,12 @@ hoje:
   da PRODAM e intocável): `services/confere/backend` pode ser alterado nesta sessão, com teste. Primeira
   alteração: a leitura do total declarado em prosa (`_FRASE_TOTAL_EM_PROSA_VARIANTE`, em
   `pdfplumber_extractor.py`). O que a tela usa é o serviço no ar (`confere-backend.onrender.com`): mudança
-  no repositório só chega à tela depois que esse serviço for atualizado com o código novo. A sessão de IA
-  não faz esse deploy — avise o usuário quando o conserto depender dele.
+  no repositório só chega à tela depois que esse serviço for atualizado com o código novo. **Deploy é da
+  sessão de IA** (autorizado pelo usuário em 09/10/2026): o Render (conta `newlcs@live.com`, serviço
+  `confere-backend` em "Ungrouped Services") publica sozinho a cada push do `main` que mexe em
+  `services/confere/backend`; confira no painel que ficou Live e chame `/health`. O push vai para
+  `lucasserralheiro/VerAI` com a conta `gh` **lucasserralheiro** (a `lucascardoso_PRODAMSP` dá 403) e
+  publica também o VerAI na Vercel. Primeiro deploy por esse caminho: `749964b`, 09/10/2026.
 - **Geração sem estado, com histórico ao lado** — a aplicação portada continua sem estado: sobe os
   arquivos, gera, baixa DOCX/XLSX. As duas tabelas da primeira versão foram revertidas por migração
   (`prisma/migrations/20260921160000_remove_analise_medicao_contratual/`). O que existe hoje é um
@@ -174,6 +178,32 @@ Qualquer sessão que for mexer nisso lê os dois documentos acima antes de tocar
 são a fonte de verdade sobre o que já foi decidido e o que falta. Ao avançar o trabalho, atualize
 os dois (marque tarefa concluída, registre decisão nova) em vez de deixar o código divergir do que
 está escrito ali.
+
+## API de plataforma (outros sistemas leem o VerAI; o VerAI lê outros sistemas)
+
+Spec `docs/superpowers/specs/2026-10-08-api-plataforma-design.md` (igual no AIBertinho; substitui a ponte de 07/10).
+Nenhum código cita outro sistema pelo nome — o AIBertinho é só um aplicativo e uma fonte cadastrados.
+- **Quem lê o VerAI é um `ApiApp`** (tela `/admin/api`): chave `vrai_…` (só o SHA-256 fica no banco; aparece uma vez),
+  escopos por recurso (`contratos:ler`), webhooks com segredo HMAC. Porta: `src/lib/api/autenticar.ts` — 401 sem chave
+  válida, 403 sem escopo.
+- **Rotas públicas** `/api/v1` (descoberta), `/api/v1/<recurso>` (lista: `pagina`, `limite`≤1000, `cliente`, `gerencia`;
+  devolve `hash` do conjunto), `/api/v1/<recurso>/<id>`, `/api/v1/acoes/localizar-contratos`, `/api/v1/openapi.json`.
+  Envelope igual nos dois sistemas (`src/lib/api/resposta.ts`). Recursos e carregadores em `src/lib/integracao/feed.ts`
+  (`RECURSOS_DO_VERAI`); contrato **só** por `consolidarContratos()`.
+- **Webhooks automáticos**: `src/lib/prisma.ts` entrega cada SQL ao observador que `src/instrumentation.ts` liga só no
+  runtime Node (`observarSql`, `src/lib/integracao/aviso.ts` — **nunca importe o aviso no `prisma.ts`**: o middleware Edge
+  importa o prisma via `auth.ts` e o aviso puxa `node:crypto`); escrita
+  em tabela comercial vira `dispararWebhooks` depois da resposta (`src/lib/api/webhooks.ts`, assinatura
+  `X-Webhook-Assinatura: t=…,v1=HMAC(segredo,"t.corpo")`). O aviso só diz QUAIS recursos mudaram. **Model novo do domínio
+  comercial entra em `ENTIDADES_DA_TABELA`**; recurso novo = carregador + rótulo no `feed.ts`. O script do SharePoint usa o
+  próprio PrismaClient e chama `registrarMudanca` + `despacharAvisos()` no fim.
+- **Quem o VerAI lê é uma `FonteExterna`** (mesma tela, aba Fontes): URL + chave que o outro sistema emitiu. O espelho
+  (`src/lib/integracao/espelho.ts`) guarda cópia SOMENTE-LEITURA em `EspelhoRegistro` (`origem` = slug); webhook recebido em
+  `/api/v1/webhooks/<slug>` (assinatura conferida); passada de 15 min em `/api/clientes/painel` e cron diário
+  `/api/integracoes/cron`. 403 da fonte apaga a cópia daquele recurso. **Ninguém escreve na cópia além do `espelho.ts`.**
+  Leitura: `espelhoDoCliente(sigla)` / `espelhoDaGerencia(gerencia)`.
+- Chaves de casamento `siglaComparavel`/`chaveDaGerencia` (`src/lib/integracao/chaves.ts`): **cópia idêntica no AIBertinho,
+  mesmos testes** — mudou aqui, muda lá. Campo novo em `dados` pode entrar; renomear/remover = `/api/v2`.
 
 ## Reajuste por IPC-Fipe
 
@@ -216,8 +246,8 @@ cada pasta/cliente traz o seu. Números só de `GET /api/clientes/painel` → `c
 tela não soma dinheiro. Sem gerência cadastrada a tela cai direto na lista plana.
 
 **Áreas do cliente** (07/10/2026): a navegação dentro do cliente é **só a barra de abas da ficha** (fixa no topo
-ao rolar); o menu lateral não repete as abas — mostra "Clientes recentes" (`src/components/clientes-recentes.tsx`,
-localStorage, últimos 5, registrados pela ficha). As abas têm uma definição só, `ABAS_META`
+ao rolar); o menu lateral não repete as abas e **não lista "Clientes recentes"** (tirado em 09/10/2026 a pedido do
+usuário, por poluir; `src/components/clientes-recentes.tsx` segue no repo, sem uso no menu). As abas têm uma definição só, `ABAS_META`
 (`src/app/clientes/[id]/abas/abas-meta.ts`) + componente em `abas.tsx` + pré-carga em `page.tsx`. Lista geral e aba
 usam o MESMO componente com `clienteId` opcional (`ListaDemandas`, `ListaSolicitacoes`, `ControleFaturamento` em
 `src/components/relatorios-clientes/`; `/api/controle-faturamento?clienteId=`) — nunca uma tela por cliente copiada

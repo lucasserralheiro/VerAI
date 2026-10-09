@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verificarSessao, AUTH_COOKIE_NAME } from '@/lib/auth'
 
 const PUBLIC_PATHS = ['/login']
-const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/assistente/indexar/cron', '/api/reajuste/indice/cron']
+// `/api/v1/` é a API de plataforma (chave de aplicativo, src/lib/api/autenticar.ts) e os webhooks recebidos
+// (assinatura HMAC); `/api/integracoes/cron` é o cron (CRON_SECRET). A porta de cada um é a própria rota.
+const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/assistente/indexar/cron', '/api/reajuste/indice/cron', '/api/v1', '/api/integracoes/cron']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl

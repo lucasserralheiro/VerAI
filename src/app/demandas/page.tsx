@@ -5,7 +5,7 @@ import { ListaDemandas } from '@/components/relatorios-clientes/lista-demandas'
 
 export default function DemandasPage() {
   return (
-    <main className="mx-auto max-w-[110rem] space-y-6 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[96rem] space-y-6 px-6 py-8 lg:px-8">
       <div className="space-y-3">
         <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
           <span>Relatórios</span>

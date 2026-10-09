@@ -214,14 +214,13 @@ export function PastaCarteira({
               </span>
             )}
           </span>
-          <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-mid-grey">
-            <UserRound className="size-3.5 shrink-0" strokeWidth={2} />
-            {sem
-              ? 'Clientes ainda não distribuídos'
-              : carteira.gerentes.length > 0
-                ? `Gerente: ${carteira.gerentes.join(', ')}`
-                : 'Sem gerente definido'}
-          </span>
+          {/* Só a pasta "Sem carteira" explica o que é; as demais não mostram gerente. */}
+          {sem && (
+            <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-mid-grey">
+              <UserRound className="size-3.5 shrink-0" strokeWidth={2} />
+              Clientes ainda não distribuídos
+            </span>
+          )}
         </span>
       </div>
 

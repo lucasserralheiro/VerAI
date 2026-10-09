@@ -26,6 +26,17 @@ export interface VisualizadorPdfTrechoProps {
    *  a pessoa selecionou na página e devolve pra fora (ex.: preencher o
    *  "No PDF" da checagem quando a extração automática não achou nada). */
   onUsarSelecao?: (texto: string) => void
+  /** Em vez de abrir na `pagina`, procura no documento a primeira página que
+   *  contém o `destaque` e abre nela. Sem `destaque`, não faz nada. */
+  procurarPagina?: boolean
+  /** Chamado quando `procurarPagina` varreu o PDF inteiro sem achar o texto. */
+  onNaoEncontrado?: () => void
+  /** Avisa, a cada página desenhada, os códigos de serviço (NN.NNN.NNNNN.NN) que ela
+   *  traz, de cima para baixo — a ordem em que o leitor os vê. */
+  onCodigosDaPagina?: (codigos: string[]) => void
+  /** Mostra só o pedaço da página do trecho destacado — da linha do código até o
+   *  próximo código — em vez da página inteira. A pessoa pode alternar para a página. */
+  recorte?: boolean
 }
 
 /**
@@ -44,6 +55,10 @@ export function VisualizadorPdfTrecho({
   destaque,
   onAbrirLeitorCompleto,
   onUsarSelecao,
+  procurarPagina,
+  onNaoEncontrado,
+  onCodigosDaPagina,
+  recorte,
 }: VisualizadorPdfTrechoProps) {
   const rolagemRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -55,6 +70,17 @@ export function VisualizadorPdfTrecho({
   const [tamanho, setTamanho] = useState<{ w: number; h: number } | null>(null)
   const [destaques, setDestaques] = useState<Retangulo[]>([])
   const [temSelecao, setTemSelecao] = useState(false)
+  // Em `recorte`: a faixa vertical do item (px do canvas), dos títulos da tabela ao próximo código.
+  const [faixaPx, setFaixaPx] = useState<{ topo: number; fim: number; comCabecalho: boolean } | null>(null)
+  const [paginaInteira, setPaginaInteira] = useState(false)
+  // Em `recorte`: faixa horizontal que cobre só a tabela do item (px do canvas).
+  const [corte, setCorte] = useState<{ esq: number; larg: number } | null>(null)
+  // Enquanto procura a página, não desenha a primeira à toa.
+  const [procurando, setProcurando] = useState(!!procurarPagina && !!destaque)
+  const aoNaoEncontrar = useRef(onNaoEncontrado)
+  aoNaoEncontrar.current = onNaoEncontrado
+  const aoLerCodigos = useRef(onCodigosDaPagina)
+  aoLerCodigos.current = onCodigosDaPagina
 
   useEffect(() => {
     setPagina(paginaInicial)
@@ -87,11 +113,41 @@ export function VisualizadorPdfTrecho({
     }
   }, [url])
 
+  // Acha a primeira página que contém o destaque (só com `procurarPagina`).
+  useEffect(() => {
+    if (!documento || !procurarPagina || !destaque) return
+    let cancelado = false
+    ;(async () => {
+      const procurado = soLetrasENumeros(destaque)
+      for (let n = 1; n <= documento.numPages; n++) {
+        const pag = await documento.getPage(n)
+        const conteudo = await pag.getTextContent()
+        if (cancelado) return
+        const texto = (conteudo.items as unknown[])
+          .map((i) => (typeof i === 'object' && i !== null && 'str' in i ? soLetrasENumeros(String((i as ItemTexto).str)) : ''))
+          .join('')
+        if (texto.includes(procurado)) {
+          setPagina(n)
+          setProcurando(false)
+          return
+        }
+      }
+      if (cancelado) return
+      setProcurando(false)
+      aoNaoEncontrar.current?.()
+    })().catch(() => {
+      if (!cancelado) setProcurando(false)
+    })
+    return () => {
+      cancelado = true
+    }
+  }, [documento, procurarPagina, destaque])
+
   // Desenha a página e procura o trecho.
   useEffect(() => {
     const canvas = canvasRef.current
     const rolagem = rolagemRef.current
-    if (!documento || !canvas || !rolagem) return
+    if (!documento || !canvas || !rolagem || procurando) return
     let cancelado = false
     let tarefa: { cancel: () => void; promise: Promise<unknown> } | null = null
     let camadaTexto: { cancel: () => void } | null = null
@@ -101,8 +157,28 @@ export function VisualizadorPdfTrecho({
         const numero = Math.min(Math.max(pagina, 1), documento.numPages)
         const pag = await documento.getPage(numero)
         const base = pag.getViewport({ scale: 1 })
-        const larguraUtil = Math.max(rolagem.clientWidth - 32, 200)
-        const viewport = pag.getViewport({ scale: (larguraUtil / base.width) * zoom })
+        const larguraUtil = Math.max(rolagem.clientWidth - 16, 200)
+
+        // Em `recorte`, a página não é encolhida para caber inteira: o que importa é a
+        // tabela do item. Mede de lado a lado onde há texto nas linhas do item e dá o
+        // zoom que faz só esse pedaço ocupar a largura do painel — o texto fica legível.
+        let corteBase: { esq: number; larg: number } | null = null
+        if (recorte && !paginaInteira && destaque) {
+          const itens0 = ((await pag.getTextContent()).items as unknown[]).filter(
+            (i): i is ItemTexto => typeof i === 'object' && i !== null && 'str' in i && 'transform' in i
+          )
+          if (cancelado) return
+          const achados0 = localizarTrecho(destaque, itens0, base.transform, 1)
+          const faixa0 = faixaDoItem(itens0, achados0, base.transform, 1)
+          if (faixa0) {
+            const e = Math.max(faixa0.esq - 10, 0)
+            const d = Math.min(faixa0.dir + 10, base.width)
+            if (d - e > 40 && d - e < base.width * 0.9) corteBase = { esq: e, larg: d - e }
+          }
+        }
+        const escalaDaPagina = larguraUtil / base.width
+        const escalaDoCorte = corteBase ? Math.max(Math.min(larguraUtil / corteBase.larg, 3), escalaDaPagina) : escalaDaPagina
+        const viewport = pag.getViewport({ scale: escalaDoCorte * zoom })
         const dpr = window.devicePixelRatio || 1
         canvas.width = Math.floor(viewport.width * dpr)
         canvas.height = Math.floor(viewport.height * dpr)
@@ -123,6 +199,18 @@ export function VisualizadorPdfTrecho({
         const itens = (conteudo.items as unknown[]).filter(
           (i): i is ItemTexto => typeof i === 'object' && i !== null && 'str' in i && 'transform' in i
         )
+        if (aoLerCodigos.current) {
+          const comPosicao = itens
+            .flatMap((item) =>
+              Array.from(String(item.str).replace(/\s+/g, '').matchAll(/\d+\.\d{3}\.\d{5}\.\d{2}/g)).map((m) => ({
+                codigo: m[0],
+                y: item.transform[5],
+                x: item.transform[4],
+              }))
+            )
+            .sort((a, b) => b.y - a.y || a.x - b.x)
+          aoLerCodigos.current(Array.from(new Set(comPosicao.map((c) => c.codigo))))
+        }
         const achados = destaque ? localizarTrecho(destaque, itens, viewport.transform, viewport.scale) : []
         if (cancelado) return
 
@@ -142,6 +230,9 @@ export function VisualizadorPdfTrecho({
         if (cancelado) return
 
         setTamanho({ w: viewport.width, h: viewport.height })
+        setCorte(corteBase ? { esq: corteBase.esq * viewport.scale, larg: corteBase.larg * viewport.scale } : null)
+        const faixaDoDesenho = faixaDoItem(itens, achados, viewport.transform, viewport.scale)
+        setFaixaPx(faixaDoDesenho ? { topo: faixaDoDesenho.topo, fim: faixaDoDesenho.fim, comCabecalho: faixaDoDesenho.comCabecalho } : null)
         setDestaques(achados)
         setFase('pronto')
       } catch (erro) {
@@ -155,7 +246,7 @@ export function VisualizadorPdfTrecho({
       tarefa?.cancel()
       camadaTexto?.cancel()
     }
-  }, [documento, pagina, zoom, destaque])
+  }, [documento, pagina, zoom, destaque, procurando, recorte, paginaInteira])
 
   // Liga o botão "Usar texto selecionado" só quando a seleção atual está
   // dentro da própria camada de texto — não quando é de outra parte da tela.
@@ -183,9 +274,22 @@ export function VisualizadorPdfTrecho({
   useEffect(() => {
     const rolagem = rolagemRef.current
     if (!rolagem || destaques.length === 0) return
+    // Recortado, a faixa já começa no item: nada para rolar.
+    if (recorte && !paginaInteira) {
+      rolagem.scrollTo({ top: 0 })
+      return
+    }
     const topo = Math.min(...destaques.map((r) => r.y))
     rolagem.scrollTo({ top: Math.max(topo - 80, 0), behavior: 'smooth' })
-  }, [destaques])
+  }, [destaques, recorte, paginaInteira])
+
+  // A faixa do item: dos títulos da tabela (CÓDIGO, DESCRIÇÃO…) até o próximo código.
+  const faixa = (() => {
+    if (!recorte || paginaInteira || destaques.length === 0 || !tamanho || !faixaPx) return null
+    const fim = Math.min(faixaPx.fim, tamanho.h)
+    return { topo: faixaPx.topo, altura: Math.max(fim - faixaPx.topo, 40) }
+  })()
+  const recorteLateral = faixa && corte ? corte : null
 
   const total = documento?.numPages ?? null
   const naPaginaCitada = pagina === paginaInicial
@@ -232,6 +336,15 @@ export function VisualizadorPdfTrecho({
         )}
 
         <div className="flex items-center gap-1">
+          {recorte && destaques.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPaginaInteira((v) => !v)}
+              className="mr-1 rounded-md px-2 py-1 text-sm font-medium text-navy transition-colors hover:bg-navy/[0.06]"
+            >
+              {paginaInteira ? 'Ver só o item' : 'Ver página inteira'}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setZoom((z) => Math.max(ZOOM_MIN, +(z - 0.25).toFixed(2)))}
@@ -270,16 +383,26 @@ export function VisualizadorPdfTrecho({
             className="ml-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-navy transition-colors hover:bg-navy/[0.06]"
           >
             <ExternalLink className="size-3.5" strokeWidth={2.25} />
-            Leitor completo
+            {recorte ? <span className="sr-only">Leitor completo</span> : 'Leitor completo'}
           </button>
         </div>
       </div>
 
-      <div ref={rolagemRef} className="relative min-h-0 flex-1 overflow-auto p-4">
+      <div ref={rolagemRef} className="relative min-h-0 flex-1 overflow-auto p-2">
+        {faixa && faixaPx && !faixaPx.comCabecalho && (
+          <p className="mx-auto mb-2 max-w-xl rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm text-amber-900">
+            Os títulos das colunas desta tabela não aparecem nesta página do PDF. Volte uma página (seta à esquerda) ou use
+            “Ver página inteira” para ver o que cada coluna significa.
+          </p>
+        )}
         <div
-          className="relative mx-auto bg-white shadow-md"
-          style={tamanho ? { width: tamanho.w, height: tamanho.h } : undefined}
+          className="relative mx-auto overflow-hidden bg-white shadow-md"
+          style={tamanho ? { width: recorteLateral ? recorteLateral.larg : tamanho.w, height: faixa ? faixa.altura : tamanho.h } : undefined}
         >
+         <div
+           className="relative"
+           style={{ marginTop: faixa ? -faixa.topo : 0, marginLeft: recorteLateral ? -recorteLateral.esq : 0, width: tamanho?.w, height: tamanho?.h }}
+         >
           <canvas ref={canvasRef} className="block" />
           <div ref={camadaTextoRef} className="absolute inset-0 overflow-hidden" />
           {destaques.map((r, i) => (
@@ -290,6 +413,7 @@ export function VisualizadorPdfTrecho({
               style={{ left: r.x - 2, top: r.y - 1, width: r.w + 4, height: r.h + 2 }}
             />
           ))}
+         </div>
         </div>
 
         {fase === 'carregando' && (
@@ -382,6 +506,59 @@ function soLetrasENumeros(texto: string): string {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
+}
+
+const CODIGO_DE_SERVICO = /\d+\.\d{3}\.\d{5}\.\d{2}/
+
+/**
+ * A faixa vertical que explica um item da tabela: começa nos títulos das colunas
+ * (a palavra "CÓDIGO" mais próxima acima do item, até ~260 pt) — sem eles o número
+ * "73" não diz a que coluna pertence — e termina no código seguinte. Devolve também
+ * de onde a onde há texto nessas linhas (para dar zoom só na tabela). Tudo em px da
+ * página desenhada na `escala` dada.
+ */
+export function faixaDoItem(
+  itens: ItemTexto[],
+  achados: Retangulo[],
+  transformViewport: number[],
+  escala: number
+): { topo: number; fim: number; esq: number; dir: number; comCabecalho: boolean } | null {
+  if (achados.length === 0) return null
+  const topoDoItem = Math.min(...achados.map((r) => r.y))
+  const fundoDoItem = Math.max(...achados.map((r) => r.y + r.h))
+  const linhas = itens
+    .filter((item) => String(item.str).trim() !== '')
+    .map((item) => {
+      const m = multiplicar(transformViewport, item.transform)
+      const altura = Math.hypot(m[2], m[3]) || item.height * escala
+      return { texto: String(item.str), x: m[4], base: m[5], topo: m[5] - altura, largura: item.width * escala }
+    })
+
+  let proximo: number | null = null
+  let cabecalho: number | null = null
+  for (const linha of linhas) {
+    if (CODIGO_DE_SERVICO.test(linha.texto.replace(/\s+/g, '')) && linha.topo > fundoDoItem - 2) {
+      if (proximo === null || linha.topo < proximo) proximo = linha.topo
+    }
+    if (soLetrasENumeros(linha.texto) === 'codigo' && linha.base < topoDoItem) {
+      if (cabecalho === null || linha.topo > cabecalho) cabecalho = linha.topo
+    }
+  }
+
+  const comCabecalho = cabecalho !== null && topoDoItem - cabecalho <= 260 * escala
+  // 20 pt acima dos títulos: pega a barra com o nome da seção (ex.: "C3 - WIFI GERENCIADO").
+  const topo = Math.max(comCabecalho ? (cabecalho as number) - 20 * escala : topoDoItem - 10 * escala, 0)
+  let fim = proximo !== null ? proximo - 6 * escala : fundoDoItem + 30 * escala
+  fim = Math.min(Math.max(fim, fundoDoItem + 12 * escala), fundoDoItem + 200 * escala)
+
+  let esq = Math.min(...achados.map((r) => r.x))
+  let dir = Math.max(...achados.map((r) => r.x + r.w))
+  for (const linha of linhas) {
+    if (linha.base < topo || linha.base > fim) continue
+    esq = Math.min(esq, linha.x)
+    dir = Math.max(dir, linha.x + linha.largura)
+  }
+  return { topo, fim, esq, dir, comCabecalho }
 }
 
 /** Mesma conta do `Util.transform` do pdf.js: combina duas matrizes 2D. */

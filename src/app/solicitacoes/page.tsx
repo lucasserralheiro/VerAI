@@ -4,7 +4,7 @@ import { ListaSolicitacoes } from '@/components/relatorios-clientes/lista-solici
 
 export default function SolicitacoesPage() {
   return (
-    <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[96rem] px-6 py-8 lg:px-8">
       <ListaSolicitacoes />
     </main>
   )

@@ -576,8 +576,8 @@ model AcessoDocumento {
 // sem. Excluir o contrato solta a execução (SetNull), que continua com os nomes.
 model ConfereExecucao {
   id               String   @id
-  // Só o nome com que o arquivo foi submetido — o PDF e a planilha em si não
-  // são guardados em lugar nenhum.
+  // O nome com que o arquivo foi submetido. Os PDFs de entrada (contrato e aditivos) também
+  // são guardados — ver `arquivosEntrada`; a planilha do levantamento não.
   nomeContrato     String
   nomeLevantamento String
   // Lista de nomes, na ordem de aplicação (que é a ordem em que foram
@@ -592,6 +592,12 @@ model ConfereExecucao {
   // sempre, em vez de só rebaixar os arquivos. Opcional porque as execuções
   // gravadas antes deste campo não o têm.
   resultado        Json?
+  // Valores digitados na revisão antes de gerar: `{ porId, itens: [{ linha, codigo, contratada?, medida? }] }`.
+  // NULL quando a geração foi sem ajuste (ou anterior a este campo). O valor original de cada linha
+  // ajustada está em `resultado` (`ajuste` na linha).
+  // `[{ papel: 'contrato' | 'aditivo', nome, caminho }]` na ordem de aplicação — os PDFs de entrada,
+  // para o histórico abrir o item no contrato. `caminho` é o endereço no storage (`r2:<chave>`).
+  arquivosEntrada  Json     @default("[]")
   contratoId       String?
   contrato         Contrato? @relation(fields: [contratoId], references: [id], onDelete: SetNull)
   competenciaAno   Int?
@@ -1223,4 +1229,110 @@ model MovimentoCarteira {
   em             DateTime @default(now())
 
   @@index([clienteId])
+}
+
+// ---------------------------------------------------------------------------
+// Espelho de FONTES EXTERNAS (outros sistemas que expõem a mesma API de plataforma — o AIBertinho é uma)
+// — cópia SOMENTE-LEITURA, sobrescrita a cada sincronização. `origem` = `FonteExterna.slug`. Nada no VerAI
+// edita estas tabelas além de src/lib/integracao/espelho.ts. Spec
+// docs/superpowers/specs/2026-10-08-api-plataforma-design.md.
+// ---------------------------------------------------------------------------
+
+model EspelhoRegistro {
+  id            String   @id @default(cuid())
+  origem        String // slug da FonteExterna ("aibertinho")
+  entidade      String // "cx", "oportunidades", ...
+  idOrigem      String
+  // `siglaComparavel` do cliente e `chaveDaGerencia` ("GRC4") — o que junta com Cliente/Gerencia.
+  chaveCliente  String?
+  chaveGerencia String?
+  dados         Json
+  hash          String
+  atualizadoEm  DateTime @default(now())
+
+  @@unique([origem, entidade, idOrigem])
+  @@index([origem, entidade, chaveCliente])
+  @@index([origem, entidade, chaveGerencia])
+}
+
+model EspelhoEstado {
+  origem         String
+  entidade       String
+  hash           String?
+  total          Int       @default(0)
+  sincronizadoEm DateTime?
+  tentativaEm    DateTime?
+  erro           String?
+  // `false` = o outro lado desligou este tipo na tela de admin dele (a cópia fica vazia).
+  publicadaNaOrigem Boolean @default(true)
+
+  @@id([origem, entidade])
+}
+
+// ---------------------------------------------------------------------------
+// API de plataforma (spec docs/superpowers/specs/2026-10-08-api-plataforma-design.md). Qualquer sistema
+// que queira os dados do VerAI vira um ApiApp: chave própria (só o hash fica aqui), escopos por recurso
+// ("contratos:ler") e webhooks assinados. Cadastro em /admin/api.
+// ---------------------------------------------------------------------------
+
+model ApiApp {
+  id           String       @id @default(cuid())
+  nome         String
+  descricao    String?
+  ativo        Boolean      @default(true)
+  // "<recurso>:ler" — ver src/lib/api/recursos.ts
+  escopos      String[]
+  // Começo da chave, para reconhecer na tela ("vrai_3f9a1c…"); a chave inteira só aparece ao criar/girar.
+  chavePrefixo String
+  chaveHash    String       @unique
+  criadoEm     DateTime     @default(now())
+  criadoPor    String?
+  ultimoUsoEm  DateTime?
+  webhooks     ApiWebhook[]
+}
+
+model ApiWebhook {
+  id       String              @id @default(cuid())
+  appId    String
+  app      ApiApp              @relation(fields: [appId], references: [id], onDelete: Cascade)
+  url      String
+  // Recursos que disparam este webhook (só os que o app pode ler).
+  eventos  String[]
+  // Segredo do HMAC (X-Webhook-Assinatura). Fica em claro: é preciso para assinar.
+  segredo  String
+  ativo    Boolean             @default(true)
+  criadoEm DateTime            @default(now())
+  entregas ApiWebhookEntrega[]
+
+  @@index([appId])
+}
+
+model ApiWebhookEntrega {
+  id        String     @id @default(cuid())
+  webhookId String
+  webhook   ApiWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  recursos  String[]
+  status    Int?
+  erro      String?
+  duracaoMs Int?
+  criadoEm  DateTime   @default(now())
+
+  @@index([webhookId, criadoEm])
+}
+
+// Outro sistema de onde o VerAI RECEBE dados (mesma API de plataforma do lado de lá). O espelho guarda a
+// cópia em EspelhoRegistro com `origem = slug`.
+model FonteExterna {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  nome           String
+  url            String
+  // Chave que o OUTRO sistema emitiu para o VerAI (ele guarda só o hash; aqui precisa estar em claro).
+  chave          String
+  // Segredo do webhook que o outro sistema assina ao avisar o VerAI.
+  segredoWebhook String?
+  // Recursos que o VerAI quer receber dessa fonte.
+  recursos       String[]
+  ativa          Boolean  @default(true)
+  criadoEm       DateTime @default(now())
 }

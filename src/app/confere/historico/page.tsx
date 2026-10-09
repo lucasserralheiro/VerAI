@@ -54,7 +54,7 @@ export default function ConfereHistoricoPage() {
   }
 
   return (
-    <main id="conteudo" className="mx-auto w-full max-w-[110rem] flex-1 space-y-6 scroll-mt-4 px-6 py-8 lg:px-8">
+    <main id="conteudo" className="mx-auto w-full max-w-[96rem] flex-1 space-y-6 scroll-mt-4 px-6 py-8 lg:px-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
           <span className="text-xs font-semibold tracking-wide text-orange uppercase">ConfereAI</span>

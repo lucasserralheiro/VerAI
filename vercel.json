@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/assistente/indexar/cron", "schedule": "0 9 * * *" },
-    { "path": "/api/reajuste/indice/cron", "schedule": "0 13 * * *" }
+    { "path": "/api/reajuste/indice/cron", "schedule": "0 13 * * *" },
+    { "path": "/api/integracoes/cron", "schedule": "30 10 * * *" }
   ]
 }

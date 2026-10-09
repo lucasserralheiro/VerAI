@@ -35,6 +35,7 @@ import { textoDoPdf } from '../src/lib/importacao-sharepoint/pdf-texto'
 import { extrairCampos } from '../src/lib/importacao-sharepoint/texto'
 import { etapaDasDuplicatas } from '../src/lib/historico/duplicatas'
 import { etapaDosValores } from '../src/lib/valores-contratos/etapa'
+import { despacharAvisos, registrarMudanca } from '../src/lib/integracao/aviso'
 
 // .env.local completa o que faltar (ex.: BLOB_READ_WRITE_TOKEN) sem sobrescrever o que o dotenv -e já trouxe.
 config({ path: '.env.local' })
@@ -170,6 +171,14 @@ async function main() {
     // Valor, vigência e assinatura do histórico com prova (spec 2026-09-29-valor-vigencia-contratos §0), depois das
     // fichas e da biblioteca, que ela lê. Só em campo vazio; sem --aplicar simula. Não muda o código de saída.
     if (comValores) console.log(`\n${(await etapaDosValores(prisma, { aplicar })).join('\n')}`)
+
+    // Webhooks da API de plataforma (spec 2026-10-08-api-plataforma §5): este script usa o próprio PrismaClient,
+    // sem o aviso automático do src/lib/prisma.ts — avisa aqui, uma vez. Sem webhook cadastrado não sai nada;
+    // falha não muda o código de saída (quem consome tem a passada periódica).
+    if (aplicar) {
+      registrarMudanca(['clientes', 'gerencias', 'contratos', 'historico', 'faturamentos', 'alertas'])
+      await despacharAvisos()
+    }
 
     mkdirSync('logs', { recursive: true })
     writeFileSync('logs/sharepoint-sincronizacao.json', JSON.stringify({ quando: new Date(), aplicar, resultado: r }, null, 1))

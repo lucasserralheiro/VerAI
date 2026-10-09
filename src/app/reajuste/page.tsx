@@ -5,11 +5,12 @@
 // Tela cheia: à esquerda o que se escolhe (arquivo, período, resumo), à direita o arquivo como ele é.
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, Download, FileSpreadsheet, FileText, History, Loader2, Table2, UploadCloud, X } from 'lucide-react'
+import { Check, CheckCircle2, Download, FileSpreadsheet, FileText, History, Loader2, Table2, UploadCloud, X } from 'lucide-react'
 import { enviarParaR2 } from '@/lib/envio-r2-navegador'
 import { calcularPeriodo, fatorCompleto, periodoSugerido } from '@/lib/reajuste/calculo'
 import type { Leitura } from '@/lib/reajuste/tipos'
 import { BTN_OUTLINE, BTN_OUTLINE_SM, BTN_PRIMARY, BTN_PRIMARY_LG, LINK_NAVY } from '@/lib/ui'
+import { IlustracaoDePlanilha } from './ilustracao-planilha'
 import { Periodo, SemIndice } from './periodo'
 import { PreviaPlanilha, chaveDaColuna } from './previa-planilha'
 import { PreviaTexto } from './previa-texto'
@@ -26,12 +27,18 @@ const tamanho = (bytes: number) =>
 
 const ehPlanilha = (nome: string) => /\.(xlsx|csv)$/i.test(nome)
 
-function Cartao(props: { passo: number; titulo: string; children: React.ReactNode; acao?: React.ReactNode }) {
+function Cartao(props: { passo?: number; titulo: string; feito?: boolean; children: React.ReactNode; acao?: React.ReactNode }) {
   return (
     <section className="space-y-3 rounded-2xl border border-border-grey bg-white p-4 shadow-xs">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-navy">
-          <span className="flex size-5 items-center justify-center rounded-full bg-navy text-[11px] text-white">{props.passo}</span>
+        <h2 className="flex items-center gap-2 text-base font-semibold text-navy">
+          {props.passo !== undefined && (
+            <span
+              className={`flex size-6 items-center justify-center rounded-full text-xs text-white ${props.feito ? 'bg-green-ok' : 'bg-navy'}`}
+            >
+              {props.feito ? <Check className="size-3.5" strokeWidth={3} aria-label="Concluído" /> : props.passo}
+            </span>
+          )}
           {props.titulo}
         </h2>
         {props.acao}
@@ -165,6 +172,16 @@ export default function ReajustePage() {
     setGerado(corpo.id)
   }
 
+  const pendencias = [
+    etapa.tipo !== 'pronto' ? 'Escolher o arquivo' : null,
+    calculo?.ok !== true ? 'Escolher um período com índice publicado' : null,
+    etapa.tipo === 'pronto' && marcadas.size === 0
+      ? etapa.leitura.tipo === 'planilha'
+        ? 'Marcar ao menos uma coluna na pré-visualização'
+        : 'Marcar ao menos um valor na lista'
+      : null,
+  ].filter((x): x is string => x !== null)
+
   const podeGerar = etapa.tipo === 'pronto' && calculo?.ok === true && marcadas.size > 0 && !gerando && !gerado
 
   // Arrastar o arquivo pra qualquer lugar da tela.
@@ -236,7 +253,7 @@ export default function ReajustePage() {
       </header>
 
       {erro && (
-        <p className="flex items-start justify-between gap-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p role="alert" className="flex items-start justify-between gap-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
           {erro}
           <button type="button" aria-label="Fechar aviso" onClick={() => setErro(null)}>
             <X className="size-4" />
@@ -246,29 +263,17 @@ export default function ReajustePage() {
 
       <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
         <aside className="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pb-2">
-          <Cartao
-            passo={1}
-            titulo="Arquivo"
-            acao={
-              etapa.tipo === 'pronto' && (
-                <button type="button" className={BTN_OUTLINE_SM} onClick={() => campo.current?.click()}>
-                  Trocar
-                </button>
-              )
-            }
-          >
-            {etapa.tipo === 'vazio' ? (
-              <button
-                type="button"
-                onClick={() => campo.current?.click()}
-                className="flex w-full items-center gap-3 rounded-xl border border-dashed border-border-grey px-3 py-3 text-left text-sm text-mid-grey transition-colors hover:border-orange hover:bg-orange/[0.04]"
-              >
-                <UploadCloud className="size-5 shrink-0 text-orange" />
-                <span>
-                  <span className="font-medium text-navy">Escolher arquivo</span> ou arraste para a tela
-                </span>
-              </button>
-            ) : (
+          {etapa.tipo !== 'vazio' && (
+            <Cartao
+              titulo="Arquivo"
+              acao={
+                etapa.tipo === 'pronto' && (
+                  <button type="button" className={BTN_OUTLINE_SM} onClick={() => campo.current?.click()}>
+                    Trocar
+                  </button>
+                )
+              }
+            >
               <div className="flex items-center gap-3 rounded-xl bg-light-grey/70 px-3 py-2.5">
                 {ehPlanilha(etapa.arquivo.name) ? (
                   <FileSpreadsheet className="size-8 shrink-0 text-green-ok" strokeWidth={1.5} />
@@ -276,7 +281,7 @@ export default function ReajustePage() {
                   <FileText className="size-8 shrink-0 text-red-crit" strokeWidth={1.5} />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-navy" title={etapa.arquivo.name}>
+                  <p className="truncate text-base font-medium text-navy" title={etapa.arquivo.name}>
                     {etapa.arquivo.name}
                   </p>
                   <p className="text-xs text-mid-grey">
@@ -292,10 +297,10 @@ export default function ReajustePage() {
                   </button>
                 )}
               </div>
-            )}
-          </Cartao>
+            </Cartao>
+          )}
 
-          <Cartao passo={2} titulo="Período">
+          <Cartao passo={1} titulo="Período" feito={calculo?.ok === true}>
             {meses === null ? (
               <p className="flex items-center gap-2 text-sm text-mid-grey">
                 <Loader2 className="size-4 animate-spin" /> Carregando o índice…
@@ -317,13 +322,23 @@ export default function ReajustePage() {
             )}
           </Cartao>
 
-          <Cartao passo={3} titulo="Gerar">
+          <Cartao passo={2} titulo="Gerar" feito={gerado !== null}>
             {resumo ? (
-              <p className="text-sm text-navy">
+              <p className="text-base text-navy">
                 <strong>{resumo}</strong> a corrigir
               </p>
             ) : (
-              <p className="text-sm text-mid-grey">Escolha o arquivo e marque os valores na pré-visualização.</p>
+              <p className="text-base text-mid-grey">Escolha o arquivo e marque os valores na pré-visualização.</p>
+            )}
+            {!gerado && pendencias.length > 0 && !gerando && (
+              <ul className="space-y-1 text-sm text-mid-grey">
+                {pendencias.map((t) => (
+                  <li key={t} className="flex items-center gap-2">
+                    <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-orange" />
+                    Falta: {t.charAt(0).toLowerCase() + t.slice(1)}
+                  </li>
+                ))}
+              </ul>
             )}
             {etapa.tipo === 'pronto' && etapa.leitura.tipo === 'texto' && (
               <p className="text-xs text-mid-grey">
@@ -366,20 +381,46 @@ export default function ReajustePage() {
           className="flex min-h-[70vh] flex-col overflow-hidden rounded-2xl border border-border-grey bg-white shadow-xs lg:min-h-0"
         >
           {etapa.tipo === 'vazio' && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
-              <span className="flex size-12 items-center justify-center rounded-xl bg-orange/10 text-orange">
-                <UploadCloud className="size-6" />
-              </span>
-              <div className="space-y-1">
-                <p className="font-semibold text-navy">Nenhum arquivo ainda</p>
-                <p className="max-w-sm text-sm text-mid-grey">
-                  Arraste uma planilha (.xlsx, .csv), PDF ou Word (.docx) para esta tela — a prévia mostra os valores já
-                  corrigidos antes de gerar.
+            <div className="flex min-h-0 flex-1 p-4">
+              {/* O clique na área é conveniência de mouse; teclado e leitor de tela usam o botão. */}
+              {/* biome-ignore lint/a11y/useKeyWithClickEvents: o botão "Escolher arquivo" é o equivalente de teclado */}
+              <div
+                onClick={() => campo.current?.click()}
+                className={`flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+                  arrastando ? 'border-orange bg-orange/[0.06]' : 'border-navy/25 bg-white hover:border-orange hover:bg-light-grey/50'
+                }`}
+              >
+                <IlustracaoDePlanilha />
+                <h2 className="mt-5 text-xl font-semibold text-navy">
+                  {arrastando ? 'Solte o arquivo aqui' : 'Arraste o arquivo para corrigir aqui'}
+                </h2>
+                <p className="mt-1.5 max-w-md text-base text-mid-grey">
+                  Planilha, PDF ou Word. A prévia mostra os valores já corrigidos pelo IPC-Fipe antes de gerar.
+                </p>
+                <div className="mt-5 flex items-center justify-center gap-3 text-mid-grey" aria-hidden="true">
+                  <span className="h-px w-12 bg-border-grey" />
+                  <span className="text-sm">ou</span>
+                  <span className="h-px w-12 bg-border-grey" />
+                </div>
+                <button
+                  type="button"
+                  className={`${BTN_PRIMARY} mt-4`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    campo.current?.click()
+                  }}
+                >
+                  <UploadCloud className="size-4" /> Escolher arquivo
+                </button>
+                <p className="mt-4 flex flex-wrap items-center justify-center gap-1.5 text-sm text-mid-grey">
+                  Aceita
+                  {EXTENSOES.map((e) => (
+                    <span key={e} className="rounded border border-border-grey bg-light-grey px-1.5 py-0.5 font-mono text-xs text-navy">
+                      {e}
+                    </span>
+                  ))}
                 </p>
               </div>
-              <button type="button" className={BTN_PRIMARY} onClick={() => campo.current?.click()}>
-                <UploadCloud className="size-4" /> Escolher arquivo
-              </button>
             </div>
           )}
 
@@ -419,7 +460,7 @@ export default function ReajustePage() {
         </section>
       </div>
 
-      {arrastando && (
+      {arrastando && etapa.tipo !== 'vazio' && (
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-2xl border-2 border-dashed border-orange bg-white/90 text-lg font-semibold text-navy backdrop-blur-sm"

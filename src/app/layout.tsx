@@ -26,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="flex min-h-screen antialiased">
+      <body className="flex min-h-screen flex-col antialiased lg:flex-row">
         <NavBar />
         <div className="min-w-0 flex-1">{children}</div>
         <AssistenteFlutuante />

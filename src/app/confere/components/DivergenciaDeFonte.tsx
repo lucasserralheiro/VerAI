@@ -40,7 +40,7 @@ function Diferenca({ divergencia }: { divergencia: Divergencia }) {
 function Linha({ divergencia }: { divergencia: Divergencia }) {
 	return (
 		<tr className="border-b border-confere-line last:border-0">
-			<td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-confere-navy-600">
+			<td className="whitespace-nowrap px-3 py-1.5 font-mono text-sm text-confere-navy-600">
 				{divergencia.codigo}
 			</td>
 			<td className="px-3 py-1.5 text-confere-navy-800">
@@ -49,12 +49,12 @@ function Linha({ divergencia }: { divergencia: Divergencia }) {
 				    feita. Sem ela, o contratado vigente é um número que o leitor tem
 				    de aceitar. Só aparece onde houve delta. */}
 				{divergencia.na_proposta !== null && divergencia.no_aditivo !== null && (
-					<div className="pt-0.5 font-mono text-[11px] text-confere-navy-300">
+					<div className="pt-0.5 font-mono text-xs text-confere-navy-600">
 						proposta {divergencia.na_proposta} + aditivo {divergencia.no_aditivo}
 					</div>
 				)}
 			</td>
-			<td className="whitespace-nowrap px-3 py-1.5 text-xs text-confere-navy-300">
+			<td className="whitespace-nowrap px-3 py-1.5 text-sm text-confere-navy-600">
 				{divergencia.unidade}
 			</td>
 			<td className="whitespace-nowrap px-3 py-1.5 text-right font-mono tabular-nums text-confere-navy-800">
@@ -76,7 +76,7 @@ function Cabecalho({ comAditivo }: { comAditivo: boolean }) {
 		comAditivo ? "Diferença" : "Falta no contrato",
 	];
 	return (
-		<tr className="bg-neutral-50 text-[11px] font-semibold uppercase tracking-wide text-confere-navy-300">
+		<tr className="bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-confere-navy-600">
 			{colunas.map((coluna, indice) => (
 				<th
 					key={coluna}
@@ -134,7 +134,7 @@ export function DivergenciaDeFonte({ divergencias, onAnexarAditivo }: Props) {
 		: "Pode faltar um aditivo de contrato";
 
 	return (
-		<section className="mt-6" aria-labelledby="titulo-divergencia">
+		<section id="divergencia-de-fonte" className="mt-8 scroll-mt-4" aria-labelledby="titulo-divergencia">
 			{/* `R-ACE-02` — a cor é redundância. Quem carrega a gravidade é o título,
 			    a frase e o sinal da diferença; a tarja só reforça. O eixo é o da
 			    ESPEC 009, sem cor nova (`D-02`). */}
@@ -210,7 +210,7 @@ export function DivergenciaDeFonte({ divergencias, onAnexarAditivo }: Props) {
 					</table>
 				</div>
 
-				<p className="border-t border-confere-line px-4 py-3 text-xs text-confere-navy-300">
+				<p className="border-t border-confere-line px-4 py-3 text-sm text-confere-navy-600">
 					{comAditivo ? (
 						/* `R-FON-12` / `D-07` — o silêncio precisa ser dito. Sem esta frase,
 						   uma tabela de uma linha parece relatório incompleto: o leitor não

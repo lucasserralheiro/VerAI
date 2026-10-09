@@ -174,7 +174,8 @@ describe('POST /api/confere/reports', () => {
     )
 
     expect(resposta.status).toBe(200)
-    expect(await resposta.json()).toEqual(relatorio)
+    // `historico_salvo` é o aviso desta resposta: o histórico gravou (dublês acima).
+    expect(await resposta.json()).toEqual({ ...relatorio, historico_salvo: true })
   })
 
   it('devolve 422 com o corpo de bloqueio quando bloqueado', async () => {

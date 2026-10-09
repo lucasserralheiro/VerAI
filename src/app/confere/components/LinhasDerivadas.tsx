@@ -22,7 +22,7 @@ const COLUNAS = [
  */
 function Celula({ texto }: { texto: string }) {
 	return (
-		<td className="whitespace-nowrap px-3 py-1.5 text-center font-mono text-xs text-confere-navy-800">
+		<td className="whitespace-nowrap px-3 py-1.5 text-center font-mono text-sm text-confere-navy-800">
 			{texto}
 		</td>
 	);
@@ -33,10 +33,10 @@ function Linhas({ linhas }: { linhas: LinhaDerivada[] }) {
 		<>
 			{linhas.map((linha) => (
 				<tr key={`${linha.linha}-${linha.codigo}`} className="border-b border-confere-line last:border-0">
-					<td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-confere-navy-300">
+					<td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-confere-navy-600">
 						{linha.linha}
 					</td>
-					<td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-confere-navy-600">
+					<td className="whitespace-nowrap px-3 py-1.5 font-mono text-sm text-confere-navy-600">
 						{linha.codigo}
 					</td>
 					<td className="px-3 py-1.5 text-confere-navy-800">{linha.descricao}</td>
@@ -56,7 +56,7 @@ function Linhas({ linhas }: { linhas: LinhaDerivada[] }) {
 
 function Cabecalho() {
 	return (
-		<tr className="bg-neutral-50 text-[11px] font-semibold uppercase tracking-wide text-confere-navy-300">
+		<tr className="bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-confere-navy-600">
 			{COLUNAS.map((coluna, indice) => (
 				<th
 					key={coluna}
@@ -89,8 +89,8 @@ export function LinhasDerivadas({ linhas }: { linhas: LinhaDerivada[] }) {
 	if (linhas.length === 0) return null;
 
 	return (
-		<section className="mt-6" aria-labelledby="titulo-derivadas">
-			<h2 id="titulo-derivadas" className="text-lg font-semibold text-confere-navy-600">
+		<section id="derivadas" className="mt-8 scroll-mt-4" aria-labelledby="titulo-derivadas">
+			<h2 id="titulo-derivadas" className="text-lg font-semibold text-confere-navy-800">
 				Linhas que saíram como perfil ou pacote
 			</h2>
 
@@ -100,7 +100,7 @@ export function LinhasDerivadas({ linhas }: { linhas: LinhaDerivada[] }) {
 
 			    **Não pode conter a cadeia "relatório gerado"**: `getByText` casa por
 			    substring, e sete suítes esperam esse texto (ESPEC 015 §14.4). */}
-			<p className="mt-1 max-w-3xl text-sm text-confere-navy-300">
+			<p className="mt-1 max-w-3xl text-sm text-confere-navy-600">
 				Nestas linhas a planilha não trouxe um número na coluna{" "}
 				<strong className="font-semibold text-confere-navy-600">Quantidade Medida</strong>. O sistema
 				entendeu que são itens de perfil ou pacote e lançou 1 contratado e 1 medido.{" "}

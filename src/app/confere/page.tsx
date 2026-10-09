@@ -7,6 +7,7 @@ import { BuscaDoContratoModal } from "./components/BuscaDoContratoModal";
 import { ConfirmarLimpeza } from "./components/ConfirmarLimpeza";
 import { EntradaDoLevantamento } from "./components/EntradaDoLevantamento";
 import { FaixaDoContrato } from "./components/FaixaDoContrato";
+import type { FonteDoContrato } from "./components/ItemNoContrato";
 import { JanelaDePastas } from "./components/JanelaDePastas";
 import { ProgressoDaGeracao } from "./components/ProgressoDaGeracao";
 import { ResultadoPanel } from "./components/ResultadoPanel";
@@ -24,6 +25,7 @@ import {
 	type Estado,
 	type Identificacao,
 	type NomeDoCampo,
+	nomeDaPeca,
 	type Peca,
 } from "./lib/types";
 
@@ -95,6 +97,12 @@ export default function ConferePage() {
 	// Numera os pedidos de identificação: a resposta de uma planilha já trocada
 	// não pode preencher os campos da nova.
 	const pedidoDeIdentificacao = useRef(0);
+	// Numera as entradas do formulário: cada troca de arquivo, de contrato ou de aditivo
+	// avança o número. A geração leva ~30 s, e a pessoa pode trocar a planilha nesse
+	// meio-tempo — sem esta guarda, o relatório do par antigo chegava e aparecia ao lado
+	// da planilha nova (verificado na tela em 08/10/2026: relatório da FTM sobre a
+	// planilha da SMIT). Resposta de uma geração que ficou para trás é descartada.
+	const geracaoAtual = useRef(0);
 	// A janela "Pastas do cliente" e para qual campo ela escolhe (desenho de
 	// 25/09/2026, tarde, §3.5).
 	const [janela, setJanela] = useState<{ aberto: boolean; finalidade: "contrato" | "aditivos" }>({
@@ -129,6 +137,9 @@ export default function ConferePage() {
 	// substitui o resultado anterior na tela.
 	const [pergunta, setPergunta] = useState<Achado | undefined>(undefined);
 	const [confirmando, setConfirmando] = useState(false);
+	// Relatório pronto recolhe o formulário (`UploadForm.recolhido`); "Alterar
+	// documentos" o reabre sem descartar o resultado.
+	const [editando, setEditando] = useState(false);
 	// O Confere hiberna no plano free do Render: o primeiro envio depois de uma
 	// pausa paga ~1min de despertar **antes** dos ~25s de geração. Acordá-lo na
 	// primeira seleção de arquivo faz esse minuto correr enquanto a pessoa
@@ -182,6 +193,7 @@ export default function ConferePage() {
 	}, [chave]);
 
 	function confirmarLimpeza() {
+		geracaoAtual.current += 1;
 		descartar(estado);
 		setArquivos({});
 		setAditivos([]);
@@ -209,6 +221,7 @@ export default function ConferePage() {
 	}
 
 	function selecionar(campo: NomeDoCampo, arquivo: File | undefined) {
+		geracaoAtual.current += 1;
 		// **Antes do `setEstado`**, e a ordem importa mais do que parece: escrever
 		// depois também funcionaria — em React o `estado` desta closure ainda é o
 		// antigo — e funcionaria **por acidente**, com uma linha que parece errada
@@ -235,6 +248,7 @@ export default function ConferePage() {
 	/** Qualquer outra mudança nas entradas invalida o resultado anterior — a
 	 *  mesma sequência de `selecionar`, na mesma ordem (ver o comentário de lá). */
 	function entradaMudou() {
+		geracaoAtual.current += 1;
 		descartar(estado);
 		setEstado({ situacao: "inicial" });
 		setAviso("");
@@ -317,6 +331,7 @@ export default function ConferePage() {
 		if (busca.motivo === "trocar") return;
 		// Desistiu da planilha: ela sai, e com ela o que o cadastro tinha posto. O
 		// que veio do computador fica — e segura a tela no preenchimento à mão.
+		geracaoAtual.current += 1;
 		setArquivos((atual) => ({ ...atual, levantamento: undefined }));
 		setChaveLevantamento((n) => n + 1);
 		setIdentificacao({ situacao: "ociosa" });
@@ -397,6 +412,7 @@ export default function ConferePage() {
 		// `D-10` — a exigência continua sendo contrato e levantamento. Os aditivos
 		// são opcionais, e o piloto, que não tem nenhum, segue submissível.
 		if (!contrato || !levantamento) return;
+		const geracao = geracaoAtual.current;
 
 		// ESPEC 029 `R-IDT-10` — **o portão vem antes do trabalho.** São ~0,9 s
 		// contra os ~30 s da geração: perguntar depois custaria os 30 s para
@@ -413,6 +429,8 @@ export default function ConferePage() {
 				{ contrato: contrato.arquivo, levantamento } as Record<NomeDoCampo, File>,
 				aditivos.flatMap((peca) => (peca.tipo === "arquivo" ? [peca.arquivo] : [])),
 			);
+			// Os arquivos mudaram durante a pergunta: ela falava do par anterior.
+			if (geracao !== geracaoAtual.current) return;
 			if (conferencia && !conferencia.combinam && conferencia.achados[0]) {
 				setPergunta(conferencia.achados[0]);
 				return;
@@ -420,6 +438,7 @@ export default function ConferePage() {
 		}
 
 		setPergunta(undefined);
+		setEditando(false);
 		descartar(estado);
 		setAviso("");
 		setEstado({ situacao: "processando" });
@@ -427,6 +446,14 @@ export default function ConferePage() {
 			{ levantamento, contrato, aditivos, contratoId: documentos?.contrato.id ?? null },
 			identidadeConfirmada,
 		);
+
+		// Os arquivos mudaram enquanto o relatório era gerado: ele é do par antigo e
+		// não pode aparecer ao lado da planilha nova. As URLs de um `pronto` descartado
+		// são liberadas aqui (`R-LMP-11`).
+		if (geracao !== geracaoAtual.current) {
+			descartar(resultado);
+			return;
+		}
 
 		// ESPEC 029 `R-IDT-10` — o portão pode ter sido pulado: chamada direta à
 		// API não passa por ele, e a falha aberta da `R-IDT-12` o dispensa. Nesses
@@ -476,6 +503,18 @@ export default function ConferePage() {
 				: "Falta o contrato: procure nas pastas do cliente ou envie do computador."
 			: null;
 
+	// Os PDFs de entrada, na ordem em que o Confere os aplica: a proposta-base e
+	// depois os aditivos. Cada linha do resultado abre o item neles.
+	const fontesDoContrato: FonteDoContrato[] = [
+		...(contrato ? [{ peca: contrato, prefixo: "Contrato" }] : []),
+		...aditivos.map((peca, posicao) => ({ peca, prefixo: `Aditivo ${posicao + 1}` })),
+	].map(({ peca, prefixo }) => ({
+		rotulo: `${prefixo} · ${nomeDaPeca(peca)}`,
+		...(peca.tipo === "arquivo"
+			? { arquivo: peca.arquivo }
+			: { url: `/api/arquivos/${peca.documento.arquivoId}?modo=inline` }),
+	}));
+
 	// A fase da tela (desenho de 28/09/2026 §3): o início é só o levantamento;
 	// com o contrato achado, conferir; o que veio do computador, ou "Preencher à
 	// mão", segura o formulário inteiro.
@@ -486,6 +525,82 @@ export default function ConferePage() {
 		: manual || temDoComputador
 			? "manual"
 			: "inicio";
+
+	// Com o relatório pronto, o formulário dos documentos sai da página e vai para a
+	// janela "Documentos usados" do resumo: a página fica só com o resultado e as
+	// ações. Antes de gerar (e enquanto gera) ele continua no topo.
+	const documentosNaJanela = estado.situacao === "pronto";
+	const formulario = (
+		<>
+			{fase === "inicio" ? (
+				<EntradaDoLevantamento
+					key={`${chave}-${chaveLevantamento}`}
+					onEscolher={(arquivo) => selecionar("levantamento", arquivo)}
+					onPreencherAMao={() => setManual(true)}
+					refBotao={primeiroCampo}
+				/>
+			) : (
+				<UploadForm
+					levantamento={arquivos.levantamento}
+					contrato={contrato}
+					onSelecionar={selecionar}
+					aditivos={aditivos}
+					onSelecionarAditivos={selecionarAditivos}
+					onRemoverAditivo={removerAditivo}
+					semAditivos={documentos ? "Nenhum aditivo depois da proposta-base" : "Nenhum aditivo"}
+					onProcurarContrato={() => setJanela({ aberto: true, finalidade: "contrato" })}
+					onProcurarAditivos={() => setJanela({ aberto: true, finalidade: "aditivos" })}
+					dica={dica}
+					faixa={
+						<FaixaDoContrato
+							identificacao={identificacao}
+							documentos={documentos}
+							contratoDoComputador={arquivos.contrato !== undefined}
+							onBuscarContrato={buscarContrato}
+							onUsarDoCadastro={usarDoCadastro}
+						/>
+					}
+					onEnviar={() => void enviar()}
+					processando={estado.situacao === "processando"}
+					chave={chave}
+					chaveLevantamento={chaveLevantamento}
+					chaveContrato={chaveContrato}
+					chaveAditivos={chaveAditivos}
+					podeLimpar={podeLimpar}
+					onLimpar={() => setConfirmando(true)}
+					refLimpar={limpar}
+					refAditivos={campoDeAditivos}
+					recolhido={estado.situacao === "pronto" && !editando}
+					onEditar={() => setEditando(true)}
+					perguntaDeIdentidade={pergunta}
+					onGerarAssimMesmo={() => void enviar(true)}
+					onDescartarPergunta={() => setPergunta(undefined)}
+				/>
+			)}
+
+		</>
+	);
+
+	// Título e frase de apoio na mesma linha (quebram sozinhos em tela estreita).
+	// Com o relatório pronto, a página é só o resumo e as ações; os documentos
+	// usados e as seções do relatório abrem em janela (`ResultadoPanel`).
+	const cabecalho = documentosNaJanela ? (
+		<>
+			<h1 className="text-2xl font-bold text-confere-brand-navy">ConfereAI</h1>
+			<div className="mb-5" />
+		</>
+	) : (
+		<div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
+			<h1 className="text-2xl font-bold text-confere-brand-navy">ConfereAI</h1>
+			{/* A frase de apoio só no início (09/10/2026): com a planilha já escolhida, os
+			    passos são as próprias linhas de Documentos — repetir o tutorial era ruído. */}
+			{fase === "inicio" && (
+				<p className="max-w-4xl text-base text-confere-navy-600">
+					Escolha o levantamento — o contrato e os aditivos vêm do cadastro do cliente — e gere o relatório de comprovação.
+				</p>
+			)}
+		</div>
+	);
 
 	// A barra de aplicação da ESPEC 007 (logo + assinatura de marca + slot de
 	// contexto) foi removida: dentro do VerAI a marca já está na barra lateral,
@@ -499,59 +614,14 @@ export default function ConferePage() {
 			{/* `scroll-mt-4`: sem barra `sticky` o link de pulo não precisa mais de
 			    73 px de folga — só do respiro que impede o título de colar no topo
 			    da janela. */}
-			<main id="conteudo" className="mx-auto w-full max-w-[110rem] flex-1 scroll-mt-4 px-6 py-10 lg:px-8">
-				<h1 className="text-2xl font-bold text-confere-brand-navy">ConfereAI</h1>
-				{/* Texto do VerAI, não do Confere: diz por onde começar desde que a
-				    planilha passou a buscar o contrato no cadastro (desenho de
-				    25/09/2026 §4.1). */}
-				<p className="mt-2 mb-8 text-sm text-confere-navy-600">
-					Escolha o levantamento — o contrato e os aditivos vêm do cadastro do cliente — e
-					gere o relatório de comprovação.
-				</p>
-
-				{fase === "inicio" ? (
-					<EntradaDoLevantamento
-						key={`${chave}-${chaveLevantamento}`}
-						onEscolher={(arquivo) => selecionar("levantamento", arquivo)}
-						onPreencherAMao={() => setManual(true)}
-						refBotao={primeiroCampo}
-					/>
-				) : (
-					<UploadForm
-						levantamento={arquivos.levantamento}
-						contrato={contrato}
-						onSelecionar={selecionar}
-						aditivos={aditivos}
-						onSelecionarAditivos={selecionarAditivos}
-						onRemoverAditivo={removerAditivo}
-						semAditivos={documentos ? "Nenhum aditivo depois da proposta-base" : "Nenhum aditivo"}
-						onProcurarContrato={() => setJanela({ aberto: true, finalidade: "contrato" })}
-						onProcurarAditivos={() => setJanela({ aberto: true, finalidade: "aditivos" })}
-						dica={dica}
-						faixa={
-							<FaixaDoContrato
-								identificacao={identificacao}
-								documentos={documentos}
-								contratoDoComputador={arquivos.contrato !== undefined}
-								onBuscarContrato={buscarContrato}
-								onUsarDoCadastro={usarDoCadastro}
-							/>
-						}
-						onEnviar={() => void enviar()}
-						processando={estado.situacao === "processando"}
-						chave={chave}
-						chaveLevantamento={chaveLevantamento}
-						chaveContrato={chaveContrato}
-						chaveAditivos={chaveAditivos}
-						podeLimpar={podeLimpar}
-						onLimpar={() => setConfirmando(true)}
-						refLimpar={limpar}
-						refAditivos={campoDeAditivos}
-						perguntaDeIdentidade={pergunta}
-						onGerarAssimMesmo={() => void enviar(true)}
-						onDescartarPergunta={() => setPergunta(undefined)}
-					/>
-				)}
+			<main id="conteudo" className="mx-auto w-full max-w-[96rem] flex-1 scroll-mt-4 px-6 pb-4 pt-4 lg:px-8">
+				{/* No início o tutorial mora dentro da própria entrada; nas outras fases ele
+				    fica ao lado, começando no topo da página (junto do título), para não
+				    somar altura ao formulário. */}
+				<>
+					{cabecalho}
+					{!documentosNaJanela && formulario}
+				</>
 
 				{/* `R-LMP-10` / `D-06` — a volta a `inicial` **esvazia** o invólucro
 				    `aria-live` do `ResultadoPanel` (o `Conteudo` devolve `null`), e
@@ -573,9 +643,21 @@ export default function ConferePage() {
 
 				<ResultadoPanel
 					estado={estado}
+					documentosUsados={documentosNaJanela ? formulario : undefined}
+					fontesDoContrato={fontesDoContrato}
+					planilhaDoLevantamento={
+						arquivos.levantamento
+							? { rotulo: arquivos.levantamento.name, arquivo: arquivos.levantamento }
+							: undefined
+					}
 					onAnexarAditivo={() => {
-						campoDeAditivos.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-						campoDeAditivos.current?.focus();
+						// O formulário está recolhido com o relatório pronto: abre
+						// primeiro e só então leva o foco ao campo.
+						setEditando(true);
+						requestAnimationFrame(() => {
+							campoDeAditivos.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+							campoDeAditivos.current?.focus();
+						});
 					}}
 				/>
 			</main>

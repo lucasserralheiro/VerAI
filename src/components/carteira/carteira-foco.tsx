@@ -9,6 +9,7 @@
 // de UMA gerência só (`aplicarCarteiraPadrao`); senão fica "Todas".
 
 import { useEffect, useRef, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { Briefcase, Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -184,6 +185,8 @@ export function TrocaCarteiraMenu({ expandida, onExpandir }: { expandida: boolea
   const gerencias = useGerencias()
   const [aberto, setAberto] = useState(false)
   const raiz = useRef<HTMLDivElement>(null)
+  const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     if (!aberto) return
@@ -206,9 +209,14 @@ export function TrocaCarteiraMenu({ expandida, onExpandir }: { expandida: boolea
   const nome = nomeDaCarteira(valor, gerencias)
   const sigla = valor && valor !== SEM_CARTEIRA ? gerencias.find((g) => g.id === valor)?.sigla : null
 
+  /** Escolher é ir: grava o foco e abre a rota da carteira (`/clientes?carteira=<id|sem>`; "Todas" abre
+   *  o panorama das carteiras em `/clientes`). Já na lista de clientes não navega — ela acompanha o foco
+   *  sozinha e acerta a URL (`lista-clientes.tsx`), e um `push` aqui brigaria com isso. */
   function escolher(v: string | null) {
     definir(v)
     setAberto(false)
+    if (pathname === '/clientes') return
+    router.push(v ? `/clientes?carteira=${encodeURIComponent(v)}` : '/clientes')
   }
 
   const opcoes: Array<{ valor: string | null; nome: string; sigla?: string | null }> = [
@@ -231,17 +239,21 @@ export function TrocaCarteiraMenu({ expandida, onExpandir }: { expandida: boolea
         }}
         className={cn(
           'group flex w-full min-w-0 items-center gap-2.5 rounded-xl p-1.5 text-left ring-1 transition-colors',
-          valor ? 'bg-orange/[0.10] ring-orange/30 hover:bg-orange/[0.16]' : 'bg-white/[0.04] ring-white/10 hover:bg-white/[0.08]',
+          valor ? 'bg-light-blue/[0.12] ring-light-blue/40 hover:bg-light-blue/[0.18]' : 'bg-white/[0.04] ring-white/10 hover:bg-white/[0.08]',
           !expandida && 'justify-center p-1'
         )}
       >
         <span
           className={cn(
             'relative flex size-8 shrink-0 items-center justify-center rounded-lg',
-            valor ? 'bg-orange text-white' : 'bg-white/10 text-white/80'
+            valor ? 'bg-light-blue text-navy' : 'bg-white/10 text-white/80'
           )}
         >
-          <Briefcase className="size-4" strokeWidth={2} />
+          {sigla ? (
+            <span className="text-[10px] leading-none font-bold tracking-tight">{sigla.slice(0, 4)}</span>
+          ) : (
+            <Briefcase className="size-4" strokeWidth={2} />
+          )}
         </span>
         {expandida && (
           <>

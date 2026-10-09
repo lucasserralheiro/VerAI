@@ -115,7 +115,9 @@ describe('ListaClientes', () => {
       },
     })
     render(<ListaClientes />)
-    expect(await screen.findByText('Gerente: Ana')).toBeInTheDocument()
+    // A pasta não mostra mais o gerente (só a "Sem carteira" tem legenda); o nome da carteira basta.
+    expect(await screen.findByRole('link', { name: /GCR/ })).toBeInTheDocument()
+    expect(screen.queryByText('Gerente: Ana')).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Totais gerais' })).toHaveTextContent('Valor contratado')
     expect(screen.getByText('1 vence em 30d')).toBeInTheDocument()
   })

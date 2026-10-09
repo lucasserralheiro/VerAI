@@ -334,3 +334,38 @@ a ordem dos cartões não mudou e o histórico passou a gravar contrato e compet
 vínculo com Cliente nem competência") vale agora só para a **geração**, que continua sem estado.
 Desenho, decisões e números medidos: `docs/superpowers/specs/2026-09-25-confere-contrato-do-cadastro-design.md`;
 plano: `docs/superpowers/plans/2026-09-25-confere-contrato-do-cadastro.md`.
+
+## Adendo — resultado reformulado, só conferência (08/10/2026)
+
+A tela de resultado passou a ter uma seção só, "Itens para conferir" (uma tabela, duas visões: por gravidade e na ordem
+do documento; opção de mostrar os itens sem divergência, montados das quatro situações da própria resposta).
+
+Foi desenhada e depois **descartada** uma etapa de revisão com edição de quantidades (`/reports/previa`, campo `ajustes`,
+marca no XLSX/DOCX): o Confere é mantido pela PRODAM e não pode ser alterado por nós, e a regra é que ninguém edita a
+entrada nem a saída. O VerAI continua sem tocar no `services/confere/backend`, que fica como cópia de referência do que
+está no ar. Desenho do resultado: `docs/superpowers/specs/2026-10-08-confere-resultado-ux-design.md`.
+
+## Adendo — conferência do fluxo planilha → contrato → itens (08/10/2026)
+
+Varredura feita na tela (localhost) comparando o que o VerAI mostra com a planilha e os PDFs reais. Os valores de
+contratada e medida das execuções guardadas (FTM, CGM, PGM) bateram com o PDF e com a planilha; os defeitos estavam na
+**apresentação**, não nos números do Confere:
+
+- **QTDE e QTDE MEDIDA saíam "—" no trecho da planilha.** A coluna era achada pelo título, que muda de tabela para tabela
+  na mesma aba ("Quantidade Contratada" numa, "Quantidade**" noutra). Agora são as colunas D e E, as mesmas que o Confere
+  lê (`levantamento_reader.py`). `TrechoDaPlanilha.tsx`.
+- **Contrato escolhido por sigla parecida sem dizer o que a planilha escreveu.** Planilha `TC 17/SMTUR/2021` achava o
+  contrato `17/SMT/2021` (outro órgão) e a tela só mostrava o contrato. A regra de `localizarContrato` não mudou (é ela que
+  resolve FTMSP→FTM, SMCG→SMC); a resposta de `encontrado` ganhou o campo opcional `avisoDeOrgao`
+  (`src/lib/confere/aviso-de-orgao.ts`), e a faixa mostra "A planilha diz: …" e o aviso âmbar quando o órgão não é igual.
+  Planilha sem órgão em lugar nenhum (achada só por número e ano) também avisa. Contrato trocado à mão não leva o aviso.
+- **"Medido (planilha)" mostrava 0 onde a planilha tem outro número.** É o item zerado pela apuração descontada (ESPEC
+  031): o relatório usa 0, a planilha tem o valor no bloco cheio. O rótulo virou "Medido (no relatório)" e o modal
+  mostra, para os itens de `linhas_zeradas`, a linha, os dois blocos e o valor que a planilha tem. A ESPEC 031 v1.2 tirou
+  a lista de zeradas da tela; isto não a traz de volta, só explica o item quando ele é aberto.
+- **Relatório do par antigo aparecendo ao lado da planilha nova.** Trocar a planilha durante a geração (~30 s) deixava a
+  resposta velha entrar no estado. `page.tsx` numera as entradas (`geracaoAtual`) e descarta a resposta de uma geração que
+  ficou para trás.
+
+Não é defeito do VerAI, e fica registrado para a PRODAM: os itens `10.050.*` somem do relatório sem aviso —
+`docs/confere-familia-10050-fora-do-documento.md`.

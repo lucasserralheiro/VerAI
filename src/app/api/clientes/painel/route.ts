@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
+import { sincronizarFontesSeVelhas } from '@/lib/integracao/espelho'
 import { exigirUsuario } from '@/lib/relatorios-clientes/acesso'
 import { carregarPainelCarteiras } from '@/lib/relatorios-clientes/painel-carteiras'
 
@@ -7,5 +8,7 @@ import { carregarPainelCarteiras } from '@/lib/relatorios-clientes/painel-cartei
 export async function GET(request: NextRequest) {
   const autenticado = await exigirUsuario(request)
   if ('erro' in autenticado) return autenticado.erro
+  // Rede de segurança do espelho das fontes externas (API de plataforma): depois da resposta, no máximo a cada 15 min.
+  after(() => sincronizarFontesSeVelhas())
   return NextResponse.json(await carregarPainelCarteiras(autenticado.usuario))
 }

@@ -19,6 +19,9 @@ interface Execucao {
 	/** `null` nas execuções gravadas antes da migração `20260921190000`. */
 	resultado: ResultadoGuardado | null;
 	createdAt: string;
+	/** Os PDFs de entrada que dá para abrir. Vazio: as linhas não abrem o contrato. */
+	planilha?: { rotulo: string; url: string };
+	fontes?: { rotulo: string; url: string }[];
 }
 
 /**
@@ -72,7 +75,7 @@ export default function ExecucaoDoHistoricoPage({
 		: null;
 
 	return (
-		<main id="conteudo" className="mx-auto w-full max-w-[110rem] flex-1 scroll-mt-4 px-6 py-8 lg:px-8">
+		<main id="conteudo" className="mx-auto w-full max-w-[96rem] flex-1 scroll-mt-4 px-6 py-8 lg:px-8">
 
 			{/* Sem link de voltar: o caminho de volta é o "Histórico" do menu
 			    lateral, que fica destacado enquanto esta página está aberta. Um
@@ -90,32 +93,55 @@ export default function ExecucaoDoHistoricoPage({
 				<>
 					<div>
 						<span className="text-xs font-semibold tracking-wide text-orange uppercase">
-							ConfereAI
+							ConfereAI · Histórico
 						</span>
+						{/* O título diz **de que** conferência é a tela: contrato e competência.
+						    Antes era o nome do PDF (`PA-FTM-…v1.0 (1).pdf`), que não dizia nada
+						    a quem não o enviou, e contrato/competência reapareciam no cartão
+						    de resumo e de novo no cabeçalho da análise. */}
 						<h1 className="mt-1 text-2xl font-bold text-confere-brand-navy">
-							{execucao.nomeContrato}
+							{execucao.resultado ? (
+								<>
+									{execucao.resultado.contrato_referencia}
+									<span className="font-normal text-confere-navy-600">
+										{" · "}
+										{execucao.resultado.analise.competencia}
+									</span>
+								</>
+							) : (
+								execucao.nomeContrato
+							)}
 						</h1>
 						{/* Os arquivos que produziram este resultado. É a única coisa que
 						    o histórico sabe da entrada — os PDFs e a planilha não são
-						    guardados —, e é o que permite reproduzir a geração. */}
-						<dl className="mt-3 grid gap-x-8 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
-							<dt className="font-medium text-confere-navy-600">Levantamento</dt>
-							<dd className="text-confere-navy-300">{execucao.nomeLevantamento}</dd>
-							<dt className="font-medium text-confere-navy-600">Aditivos</dt>
-							<dd className="text-confere-navy-300">
+						    guardados —, e é o que permite reproduzir a geração. Valores em
+						    cor de texto de verdade (não o cinza claro de antes) e quebrando
+						    linha: nome de arquivo longo não pode estourar a tela. */}
+						<dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+							<dt className="font-semibold text-confere-navy-600">Contrato (PDF)</dt>
+							<dd className="break-words text-confere-navy-800">{execucao.nomeContrato}</dd>
+							<dt className="font-semibold text-confere-navy-600">Levantamento</dt>
+							<dd className="break-words text-confere-navy-800">{execucao.nomeLevantamento}</dd>
+							<dt className="font-semibold text-confere-navy-600">Aditivos</dt>
+							<dd className="break-words text-confere-navy-800">
 								{execucao.nomesAditivos.length === 0
 									? "nenhum"
 									: execucao.nomesAditivos.join(", ")}
 							</dd>
-							<dt className="font-medium text-confere-navy-600">Gerado em</dt>
-							<dd className="text-confere-navy-300">
+							<dt className="font-semibold text-confere-navy-600">Gerado em</dt>
+							<dd className="text-confere-navy-800">
 								{new Date(execucao.createdAt).toLocaleString("pt-BR")}
 							</dd>
 						</dl>
 					</div>
 
 					{estado ? (
-						<ResultadoPanel estado={estado} />
+						<ResultadoPanel
+							estado={estado}
+							semIdentificacao
+							fontesDoContrato={execucao.fontes}
+							planilhaDoLevantamento={execucao.planilha}
+						/>
 					) : (
 						// Execução anterior ao campo `resultado`. Os arquivos continuam
 						// lá, e é isso que a tela oferece — dizer o que falta e por quê

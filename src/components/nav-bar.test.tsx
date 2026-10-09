@@ -31,6 +31,21 @@ function mockFetch(role: 'admin' | 'usuario' | null, minhas: Vinculo[] = []) {
   }) as jest.Mock
 }
 
+// Tela larga abre a barra só de ícones (os nomes aparecem ao passar o mouse); estreita mostra a
+// gaveta com tudo nomeado. Os testes olham o menu aberto, então simulam a tela estreita.
+beforeAll(() => {
+  window.matchMedia = ((query: string) => ({
+    matches: query.includes('max-width'),
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia
+})
+
 // "Histórico" existe em dois grupos (ConfereAI e Proposta Comercial) — as
 // asserções olham o destino, não só o nome.
 function hrefsDoHistorico() {
@@ -47,7 +62,7 @@ describe('NavBar', () => {
 
   it('renderiza os links de topo para qualquer usuário', () => {
     render(<NavBar />)
-    expect(screen.getByRole('link', { name: 'Relatórios dos clientes' })).toHaveAttribute('href', '/clientes')
+    expect(screen.getByRole('link', { name: 'Relatórios dos clientes' })).toHaveAttribute('href', '/clientes?visao=todos')
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).toHaveAttribute('href', '/')
   })
 
@@ -81,13 +96,19 @@ describe('NavBar', () => {
 
   it('a marca no topo leva para /clientes, a porta de entrada', () => {
     render(<NavBar />)
-    expect(screen.getByRole('link', { name: /Ver\s*AI/ })).toHaveAttribute('href', '/clientes')
+    // Tela estreita: a marca está na barra de cima e na gaveta — as duas levam a /clientes.
+    const marcas = screen.getAllByRole('link', { name: /Ver\s*AI/ })
+    expect(marcas.length).toBeGreaterThan(0)
+    for (const marca of marcas) expect(marca).toHaveAttribute('href', '/clientes')
   })
 
-  it('separa o menu nas seções "Clientes", "Referências PRODAM" e "Ferramentas"', () => {
+  it('separa o menu nas seções "Referências" e "Ferramentas" — Clientes e Administração não levam título', () => {
     render(<NavBar />)
-    for (const secao of ['Clientes', 'Referências PRODAM', 'Ferramentas']) {
+    for (const secao of ['Referências', 'Ferramentas']) {
       expect(screen.getAllByText(secao).some((el) => !el.closest('a'))).toBe(true)
+    }
+    for (const semTitulo of ['Clientes', 'Sistema', 'Referências PRODAM']) {
+      expect(screen.queryAllByText(semTitulo).some((el) => !el.closest('a'))).toBe(false)
     }
     expect(screen.queryByText('Análise de Documentos')).not.toBeInTheDocument()
   })
@@ -155,7 +176,7 @@ describe('NavBar', () => {
       'false'
     )
     expect(screen.queryByRole('link', { name: 'Todos os documentos' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Relatórios dos clientes' })).toHaveAttribute('href', '/clientes')
+    expect(screen.getByRole('link', { name: 'Relatórios dos clientes' })).toHaveAttribute('href', '/clientes?visao=todos')
 
     fireEvent.click(screen.getByRole('button', { name: 'Expandir Relatórios dos clientes' }))
     expect(screen.getByRole('link', { name: 'Todos os documentos' })).toBeInTheDocument()
@@ -182,6 +203,7 @@ describe('NavBar', () => {
       ['Clientes', '/admin/clientes'],
       ['Regras de notificação', '/admin/regras-notificacao'],
       ['Assistente de IA', '/admin/assistente'],
+      ['API e integrações', '/admin/api'],
     ]
     const links = screen.getAllByRole('link')
     let anterior = links.indexOf(grupo)

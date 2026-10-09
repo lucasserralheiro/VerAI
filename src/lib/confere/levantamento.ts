@@ -105,7 +105,10 @@ function paraIso(data: string): string | null {
   return `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
 }
 
-export async function lerCabecalhoDoLevantamento(conteudo: ArrayBuffer | Uint8Array): Promise<CabecalhoDoLevantamento> {
+/** Abre o `.xlsx` e devolve o XML da aba `Levantamento` e o texto compartilhado. */
+async function abrirAbaDoLevantamento(
+  conteudo: ArrayBuffer | Uint8Array
+): Promise<{ folha: string; textos: string[] }> {
   let zip: JSZip
   try {
     zip = await JSZip.loadAsync(conteudo)
@@ -129,6 +132,11 @@ export async function lerCabecalhoDoLevantamento(conteudo: ArrayBuffer | Uint8Ar
 
   const compartilhados = (await zip.file('xl/sharedStrings.xml')?.async('string')) ?? ''
   const textos = (compartilhados.match(/<si(?:\s[^>]*)?>[\s\S]*?<\/si>|<si\s*\/>/g) ?? []).map(textoDosT)
+  return { folha, textos }
+}
+
+export async function lerCabecalhoDoLevantamento(conteudo: ArrayBuffer | Uint8Array): Promise<CabecalhoDoLevantamento> {
+  const { folha, textos } = await abrirAbaDoLevantamento(conteudo)
   const linhas = linhasDoCabecalho(folha, textos)
 
   let dataLevantamento: string | null = null
@@ -147,4 +155,35 @@ export function competenciaDaData(dataIso: string | null): Competencia | null {
   if (!dataIso) return null
   const [ano, mes] = dataIso.split('-').map(Number)
   return { ano, mes }
+}
+
+export interface LinhaDaAba {
+  /** Número da linha na aba, como o Excel mostra. */
+  linha: number
+  /** As primeiras colunas (A, B, C…), como texto. */
+  celulas: string[]
+}
+
+const COLUNAS_DA_TELA = 8
+
+/** A aba `Levantamento` inteira, linha a linha — é o que a tela de conferência mostra ao lado do
+ *  contrato (o trecho da planilha em que o item está). Linhas sem nada saem fora. */
+export async function lerLinhasDoLevantamento(conteudo: ArrayBuffer | Uint8Array): Promise<LinhaDaAba[]> {
+  const { folha, textos } = await abrirAbaDoLevantamento(conteudo)
+  const linhas: LinhaDaAba[] = []
+  let anterior = 0
+  for (const [bloco] of folha.matchAll(/<row\b[^>]*\/>|<row\b[^>]*>[\s\S]*?<\/row>/g)) {
+    const numero = Number(atributo(abertura(bloco), 'r') ?? anterior + 1)
+    anterior = numero
+    const celulas = Array<string>(COLUNAS_DA_TELA).fill('')
+    let colunaAnterior = -1
+    for (const [celula] of bloco.matchAll(/<c\b[^>]*\/>|<c\b[^>]*>[\s\S]*?<\/c>/g)) {
+      const referencia = atributo(abertura(celula), 'r')
+      const coluna = referencia ? indiceDaColuna(referencia) : colunaAnterior + 1
+      colunaAnterior = coluna
+      if (coluna >= 0 && coluna < COLUNAS_DA_TELA) celulas[coluna] = valorDaCelula(celula, textos)
+    }
+    if (celulas.some((celula) => celula !== '')) linhas.push({ linha: numero, celulas })
+  }
+  return linhas
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -14,12 +14,10 @@ import {
   BellRing,
   LogOut,
   ChevronDown,
-  PanelLeftClose,
-  PanelLeftOpen,
   ArrowLeftRight,
   ClipboardCopy,
   History,
-  Search,
+  FileCheck2,
   Truck,
   ClipboardList,
   Inbox,
@@ -30,11 +28,12 @@ import {
   CalendarDays,
   TrendingUp,
   Table2,
+  Menu,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ClientesRecentes } from './clientes-recentes'
-import { TrocaCarteiraMenu, aplicarCarteiraPadrao } from './carteira/carteira-foco'
+import { TrocaCarteiraMenu, aplicarCarteiraPadrao, definirCarteiraFoco } from './carteira/carteira-foco'
 
 // "Relatórios" é uma das soluções do VerAI (conjunto de soluções) — por isso
 // vive como um grupo próprio no menu, com "Relatórios dos clientes" como
@@ -46,9 +45,9 @@ import { TrocaCarteiraMenu, aplicarCarteiraPadrao } from './carteira/carteira-fo
 // §3.7): cópia do frontend próprio do Confere, sem vínculo com cliente — por
 // isso é um grupo próprio, não sub-item de outro. No menu ele é o TERCEIRO
 // grupo, depois de "Relatórios dos clientes" e "Proposta Comercial". Ícone
-// de lupa (Search) porque a ação central da tela é "conferir"/comparar
-// documentos — não tem relação com balança de justiça.
-const CONFERE_LINK = { href: '/confere', label: 'ConfereAI', icon: Search }
+// de documento com visto (FileCheck2): a ação central da tela é conferir
+// documentos. A lupa de antes lia como "buscar", e o menu já tem busca em outro lugar.
+const CONFERE_LINK = { href: '/confere', label: 'ConfereAI', icon: FileCheck2 }
 // Mesmo formato de grupo dos outros dois: o cabeçalho é a ferramenta em si
 // (onde se envia contrato e levantamento) e o sub-item é o registro do que já
 // passou por ela. A geração continua sem estado — o histórico guarda só o
@@ -64,6 +63,17 @@ const REAJUSTE_SUBLINKS = [
 ]
 
 const RELATORIOS_LINK = { href: '/clientes', label: 'Relatórios dos clientes', icon: Building2 }
+// "Relatórios dos clientes" leva a TODOS os clientes, sem carteira em foco, e recarrega a página — também
+// quando já se está em /clientes numa pasta (sem isso o clique não mudava nada na tela).
+const TODOS_OS_CLIENTES = '/clientes?visao=todos'
+/** Clique simples: zera o foco da carteira e recarrega em "Todos os clientes". Ctrl/Cmd/Shift/botão do
+ *  meio seguem o comportamento normal do link (nova aba ou janela). */
+function irParaTodosOsClientes(evento: React.MouseEvent<HTMLAnchorElement>) {
+  if (evento.button !== 0 || evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) return
+  evento.preventDefault()
+  definirCarteiraFoco(null)
+  window.location.assign(TODOS_OS_CLIENTES)
+}
 const RELATORIOS_SUBLINKS = [
   { href: '/fornecedores', label: 'Fornecedores', icon: Truck },
   { href: '/demandas', label: 'Demandas', icon: ClipboardList },
@@ -108,6 +118,7 @@ const ADMIN_SUBLINKS = [
   { href: '/admin/clientes', label: 'Clientes', icon: Users },
   { href: '/admin/regras-notificacao', label: 'Regras de notificação', icon: BellRing },
   { href: '/admin/assistente', label: 'Assistente de IA', icon: Sparkles },
+  { href: '/admin/api', label: 'API e integrações', icon: ArrowLeftRight },
 ]
 
 // Menu temporariamente simplificado: só "Relatórios" e "Proposta Comercial"
@@ -115,9 +126,6 @@ const ADMIN_SUBLINKS = [
 // reorganizado. Reverter = trocar para false (ou remover a flag e os `if`s
 // que a usam abaixo).
 const MENU_SIMPLIFICADO = true
-
-const NAV_EXPANDIDA_KEY = 'verai:nav-expandida'
-const LARGURA_MINIMA_EXPANDIDA = 640 // px — abaixo disso a barra sempre abre só com ícones
 
 interface DevStatus {
   enabled: boolean
@@ -133,11 +141,12 @@ function rotaAtiva(pathname: string, href: string) {
   return pathname === href || (href !== '/' && pathname.startsWith(`${href}/`))
 }
 
-function Secao({ titulo, expandida, children }: { titulo: string; expandida: boolean; children: ReactNode }) {
+/** Bloco do menu. Sem `titulo` não há rótulo nem divisor: grupo único não precisa de cabeçalho. */
+function Secao({ titulo, expandida, children }: { titulo?: string; expandida: boolean; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      {expandida ? (
-        <span className="px-2.5 pb-1 text-[10.5px] font-semibold tracking-[0.06em] text-white/35 uppercase">{titulo}</span>
+      {!titulo ? null : expandida ? (
+        <span className="px-2.5 pb-1 text-[11px] font-semibold tracking-[0.06em] text-white/55 uppercase">{titulo}</span>
       ) : (
         <span className="mx-auto mb-1 h-px w-6 bg-white/10" aria-hidden />
       )}
@@ -155,10 +164,12 @@ function LinkMenu({
   realce = ativo,
   expandida,
   badge,
+  onClick,
 }: {
   href: string
   label: string
   icon: LucideIcon
+  onClick?: React.MouseEventHandler<HTMLAnchorElement>
   /** A rota é exatamente este item. */
   ativo: boolean
   /** O item (ou um sub-item dele) é onde o usuário está. */
@@ -170,10 +181,11 @@ function LinkMenu({
     <Link
       aria-current={ativo ? 'page' : undefined}
       href={href}
+      onClick={onClick}
       aria-label={label}
       title={expandida ? undefined : label}
       className={cn(
-        'group relative flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] font-medium text-light-blue/90 transition-colors duration-150',
+        'group relative flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 text-[14px] font-medium text-light-blue/90 transition-colors duration-150',
         'hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange/60',
         realce && 'bg-white/[0.08] text-white',
         !expandida && 'justify-center px-0'
@@ -181,7 +193,7 @@ function LinkMenu({
     >
       {ativo && <span className="absolute inset-y-2 -left-3 w-[3px] rounded-r-full bg-orange" aria-hidden />}
       <span className="relative flex shrink-0">
-        <Icon className={cn('size-[18px]', realce ? 'text-orange' : 'text-light-blue/70 group-hover:text-white')} strokeWidth={1.9} />
+        <Icon className={cn('size-[18px]', realce ? 'text-white' : 'text-light-blue/70 group-hover:text-white')} strokeWidth={1.9} />
         {!!badge && !expandida && (
           <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-orange text-[0.6rem] font-bold text-white ring-2 ring-navy">
             {badge > 9 ? '9+' : badge}
@@ -206,7 +218,7 @@ function SubLink({ href, label, ativo }: { href: string; label: string; ativo: b
       href={href}
       aria-label={label}
       className={cn(
-        'relative flex h-8 items-center rounded-md pr-2 pl-3 text-[13px] text-light-blue/75 transition-colors',
+        'relative flex h-8 items-center rounded-md pr-2 pl-3 text-[13.5px] text-light-blue/75 transition-colors',
         'hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange/60',
         ativo && 'bg-white/[0.06] font-semibold text-white'
       )}
@@ -224,6 +236,8 @@ function GrupoMenu({
   onToggle,
   pathname,
   expandida,
+  destino,
+  onClickLink,
 }: {
   link: Item
   sublinks: Item[]
@@ -231,15 +245,19 @@ function GrupoMenu({
   onToggle: () => void
   pathname: string
   expandida: boolean
+  /** Para onde o cabeçalho do grupo leva, quando não é a própria rota dele (`link.href`). */
+  destino?: string
+  onClickLink?: React.MouseEventHandler<HTMLAnchorElement>
 }) {
   const filhoAtivo = sublinks.some((s) => rotaAtiva(pathname, s.href))
   const ativo = pathname === link.href
 
   return (
     <div className="flex flex-col">
-      <div className="relative flex items-center">
+      <div className="group/grupo relative flex items-center">
         <LinkMenu
-          href={link.href}
+          href={destino ?? link.href}
+          onClick={onClickLink}
           label={link.label}
           icon={link.icon}
           ativo={ativo}
@@ -252,7 +270,11 @@ function GrupoMenu({
             onClick={onToggle}
             aria-label={aberto ? `Recolher ${link.label}` : `Expandir ${link.label}`}
             aria-expanded={aberto}
-            className="absolute right-1 flex size-7 items-center justify-center rounded-md text-white/35 transition-colors hover:bg-white/[0.08] hover:text-white"
+            className={cn(
+              'absolute right-1 flex size-7 items-center justify-center rounded-md text-white/50 transition hover:bg-white/[0.08] hover:text-white focus-visible:opacity-100',
+              // Setinha em todo item era ruído: aparece ao passar o mouse, ao focar ou com o grupo aberto.
+              aberto ? 'opacity-100' : 'opacity-0 group-hover/grupo:opacity-100 group-focus-within/grupo:opacity-100'
+            )}
           >
             <ChevronDown className={cn('size-3.5 transition-transform duration-200', !aberto && '-rotate-90')} strokeWidth={2.25} />
           </button>
@@ -282,9 +304,13 @@ export function NavBar() {
   const [naoLidas, setNaoLidas] = useState(0)
   const [usuarioAtual, setUsuarioAtual] = useState<{ nome: string; role: string } | null>(null)
   const [devStatus, setDevStatus] = useState<DevStatus>({ enabled: false, impersonating: false, users: [] })
-  // Por padrão a barra já mostra ícone + nome — nada fica escondido atrás de hover.
-  // Recolher é uma ação explícita de quem quer mais espaço de tela.
-  const [expandida, setExpandida] = useState(true)
+  // Telas largas: rail de ícones (68px) que abre por cima do conteúdo ao passar o mouse ou focar
+  // (`pairando`). Telas estreitas (<1024px): barra superior + gaveta.
+  const [pairando, setPairando] = useState(false)
+  const [estreita, setEstreita] = useState(false)
+  const [gavetaAberta, setGavetaAberta] = useState(false)
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const expandida = estreita || pairando
   const [adminAberto, setAdminAberto] = useState(false)
   const [minhasGerencias, setMinhasGerencias] = useState<Array<{ papel: string }>>([])
   // Todos os grupos nascem recolhidos: o menu abre limpo e só o grupo da página
@@ -335,13 +361,26 @@ export function NavBar() {
   }, [pathname])
 
   useEffect(() => {
-    const salvo = localStorage.getItem(NAV_EXPANDIDA_KEY)
-    if (salvo !== null) {
-      setExpandida(salvo === 'true')
-    } else if (window.innerWidth < LARGURA_MINIMA_EXPANDIDA) {
-      setExpandida(false)
-    }
+    const consulta = window.matchMedia('(max-width: 1023px)')
+    const atualizar = () => setEstreita(consulta.matches)
+    atualizar()
+    consulta.addEventListener('change', atualizar)
+    return () => consulta.removeEventListener('change', atualizar)
   }, [])
+
+  // Trocou de página: fecha a gaveta (telas estreitas).
+  useEffect(() => {
+    setGavetaAberta(false)
+  }, [pathname])
+
+  useEffect(() => {
+    if (!gavetaAberta) return
+    function esc(e: KeyboardEvent) {
+      if (e.key === 'Escape') setGavetaAberta(false)
+    }
+    document.addEventListener('keydown', esc)
+    return () => document.removeEventListener('keydown', esc)
+  }, [gavetaAberta])
 
   // O grupo Administração abre quando a rota é /admin ou uma página dentro dele.
   useEffect(() => {
@@ -378,18 +417,17 @@ export function NavBar() {
     return null
   }
 
-  function alternarExpandida() {
-    const proximoEstado = !expandida
-    setExpandida(proximoEstado)
-    localStorage.setItem(NAV_EXPANDIDA_KEY, String(proximoEstado))
+  /** Abre/fecha a barra ao passar o mouse com um pequeno atraso: não pisca ao atravessar a tela. */
+  function agendarPairar(valor: boolean, atraso: number) {
+    if (temporizador.current) clearTimeout(temporizador.current)
+    temporizador.current = setTimeout(() => setPairando(valor), atraso)
   }
 
   /** Recolhida, clicar no chevron/grupo primeiro abre a barra; aberta, alterna o grupo. */
   function alternarGrupo(definir: Dispatch<SetStateAction<boolean>>) {
     return () => {
       if (!expandida) {
-        setExpandida(true)
-        localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
+        setPairando(true)
         definir(true)
         return
       }
@@ -398,8 +436,7 @@ export function NavBar() {
   }
 
   function expandir() {
-    setExpandida(true)
-    localStorage.setItem(NAV_EXPANDIDA_KEY, 'true')
+    setPairando(true)
   }
 
   async function handleLogout() {
@@ -428,15 +465,49 @@ export function NavBar() {
 
   const papel = usuarioAtual?.role === 'admin' ? 'Administrador' : souManager ? 'Manager' : 'Usuário'
 
+  const sobreposta = pairando
+
   return (
+    <>
+      {/* Telas estreitas: barra superior fina com hambúrguer; o menu abre em gaveta. */}
+      <header className="sticky top-0 z-40 flex h-12 shrink-0 items-center gap-3 bg-navy px-3 shadow-[0_1px_0_0_rgba(255,255,255,0.06)] lg:hidden">
+        <button
+          type="button"
+          onClick={() => setGavetaAberta(true)}
+          aria-label="Abrir menu"
+          aria-expanded={gavetaAberta}
+          className="flex size-9 items-center justify-center rounded-lg text-white/80 transition-colors hover:bg-white/[0.08] hover:text-white"
+        >
+          <Menu className="size-5" strokeWidth={1.9} />
+        </button>
+        <Link href="/clientes" className="text-[15px] font-bold tracking-tight text-white" aria-label="VerAI — início">
+          Ver<span className="text-orange">AI</span>
+        </Link>
+      </header>
+      {gavetaAberta && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setGavetaAberta(false)} aria-hidden />}
+
+      {/* Reserva o espaço da barra no layout: 68px (rail). A barra em si flutua por cima ao abrir. */}
+      <div className={cn('lg:sticky lg:top-0 lg:z-40 lg:h-screen lg:shrink-0 lg:transition-[width] lg:duration-200', 'lg:w-[68px]')}>
     <nav
       aria-label="Menu principal"
+      onMouseEnter={() => agendarPairar(true, 120)}
+      onMouseLeave={() => agendarPairar(false, 250)}
+      onFocusCapture={() => agendarPairar(true, 0)}
+      onBlurCapture={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) agendarPairar(false, 150)
+      }}
       className={cn(
-        'sticky top-0 flex h-screen shrink-0 flex-col bg-navy shadow-[1px_0_0_0_rgba(255,255,255,0.06)] transition-[width] duration-200',
-        expandida ? 'w-64' : 'w-[68px]'
+        'flex flex-col bg-navy shadow-[1px_0_0_0_rgba(255,255,255,0.06)] transition-[width,transform,box-shadow] duration-200',
+        // Gaveta (<1024px)
+        'fixed inset-y-0 left-0 z-50 w-64',
+        gavetaAberta ? 'translate-x-0' : '-translate-x-full',
+        // Rail (≥1024px)
+        'lg:absolute lg:z-40 lg:translate-x-0',
+        expandida ? 'lg:w-64' : 'lg:w-[68px]',
+        sobreposta && 'lg:shadow-[8px_0_24px_-6px_rgba(0,0,0,0.45)]'
       )}
     >
-      {/* Marca + recolher: o controle da barra fica no topo, onde o olho procura. */}
+      {/* Marca + fixar: o controle da barra fica no topo, onde o olho procura. */}
       <div className={cn('flex shrink-0 items-center gap-2 px-4 pt-4 pb-3', !expandida && 'flex-col px-0')}>
         <Link href="/clientes" className="flex min-w-0 flex-1 items-center gap-2.5" aria-label="VerAI — início">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange to-orange-dark text-sm font-bold text-white shadow-[0_2px_8px_rgba(240,124,45,0.4)]">
@@ -450,12 +521,11 @@ export function NavBar() {
         </Link>
         <button
           type="button"
-          onClick={alternarExpandida}
-          aria-label={expandida ? 'Recolher menu' : 'Expandir menu'}
-          title={expandida ? 'Recolher menu' : 'Expandir menu'}
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/[0.08] hover:text-white"
+          onClick={() => setGavetaAberta(false)}
+          aria-label="Fechar menu"
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-white/60 transition-colors hover:bg-white/[0.08] hover:text-white lg:hidden"
         >
-          {expandida ? <PanelLeftClose className="size-[18px]" strokeWidth={1.9} /> : <PanelLeftOpen className="size-[18px]" strokeWidth={1.9} />}
+          <X className="size-[18px]" strokeWidth={1.9} />
         </button>
       </div>
 
@@ -465,9 +535,11 @@ export function NavBar() {
       </div>
 
       <div className="nav-scroll flex flex-1 flex-col gap-5 overflow-x-hidden overflow-y-auto px-3 pt-1 pb-4">
-        <Secao titulo="Clientes" expandida={expandida}>
+        <Secao expandida={expandida}>
           <GrupoMenu
             link={RELATORIOS_LINK}
+            destino={TODOS_OS_CLIENTES}
+            onClickLink={irParaTodosOsClientes}
             sublinks={RELATORIOS_SUBLINKS}
             aberto={relatoriosAberto}
             onToggle={alternarGrupo(setRelatoriosAberto)}
@@ -483,10 +555,9 @@ export function NavBar() {
               expandida={expandida}
             />
           )}
-          <ClientesRecentes pathname={pathname} expandida={expandida} />
         </Secao>
 
-        <Secao titulo="Referências PRODAM" expandida={expandida}>
+        <Secao titulo="Referências" expandida={expandida}>
           {REFERENCIAS_LINKS.map((ref) => (
             <LinkMenu
               key={ref.href}
@@ -536,8 +607,9 @@ export function NavBar() {
           )}
         </Secao>
 
+        {/* Administração é de poucos e de uso raro: fica no fim da barra, separada, sem título. */}
         {ehAdmin && (
-          <Secao titulo="Sistema" expandida={expandida}>
+          <div className="mt-auto border-t border-white/[0.08] pt-3">
             <GrupoMenu
               link={ADMIN_LINK}
               sublinks={ADMIN_SUBLINKS}
@@ -546,7 +618,7 @@ export function NavBar() {
               pathname={pathname}
               expandida={expandida}
             />
-          </Secao>
+          </div>
         )}
       </div>
 
@@ -603,7 +675,8 @@ export function NavBar() {
           {expandida && (
             <span className="flex min-w-0 flex-1 flex-col leading-tight">
               <span className="truncate text-[13px] font-semibold text-white">{usuarioAtual?.nome ?? '…'}</span>
-              <span className="truncate text-[11px] text-white/45">{papel}</span>
+              {/* Nome e papel iguais ("Administrador" / "Administrador") não dizem nada a mais. */}
+              {papel !== usuarioAtual?.nome && <span className="truncate text-[11.5px] text-white/55">{papel}</span>}
             </span>
           )}
           <button
@@ -619,5 +692,7 @@ export function NavBar() {
         </div>
       </div>
     </nav>
+      </div>
+    </>
   )
 }

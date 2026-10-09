@@ -194,6 +194,9 @@ export interface RespostaRelatorio {
 	divergencias_de_fonte: DivergenciaDeFonte[];
 	docx_base64: string;
 	analise_xlsx_base64: string;
+	/** Só na resposta da geração: `false` quando o relatório não pôde ser gravado no
+	 *  histórico. A tela avisa para baixar os arquivos agora. */
+	historico_salvo?: boolean;
 }
 
 export type Estado =

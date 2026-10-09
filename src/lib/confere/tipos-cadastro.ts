@@ -85,7 +85,14 @@ export interface LeituraDoLevantamento {
 export type RespostaDaIdentificacao =
   | { situacao: 'ilegivel'; mensagem: string }
   | { situacao: 'sem-referencia'; leitura: LeituraDoLevantamento }
-  | { situacao: 'encontrado'; leitura: LeituraDoLevantamento; documentos: DocumentosDoContrato }
+  | {
+      situacao: 'encontrado'
+      leitura: LeituraDoLevantamento
+      documentos: DocumentosDoContrato
+      /** Só quando o contrato foi escolhido sozinho **sem o órgão ser igual** ao que a planilha disse (sigla
+       *  parecida, ou planilha sem órgão): o texto que a tela mostra para a pessoa conferir. */
+      avisoDeOrgao?: string
+    }
   | { situacao: 'ambiguo'; leitura: LeituraDoLevantamento; candidatos: ResumoDoContrato[] }
   | { situacao: 'nao-encontrado'; leitura: LeituraDoLevantamento; sugestoes: ResumoDoContrato[] }
 

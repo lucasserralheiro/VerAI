@@ -132,11 +132,11 @@ export default function LinksDoContratoPage({ params }: { params: Promise<{ cont
   )
 
   if (dados === 'erro') return <main className="px-6 py-8 text-sm text-orange-dark">Não foi possível carregar os links deste contrato.</main>
-  if (!dados) return <main className="mx-auto max-w-[110rem] px-6 py-8"><div className="h-96 animate-pulse rounded-2xl bg-light-grey" aria-busy="true" /></main>
+  if (!dados) return <main className="mx-auto max-w-[96rem] px-6 py-8"><div className="h-96 animate-pulse rounded-2xl bg-light-grey" aria-busy="true" /></main>
   const { contrato } = dados
 
   return (
-    <main className="mx-auto max-w-[110rem] space-y-6 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[96rem] space-y-6 px-6 py-8 lg:px-8">
       <div className="space-y-3">
         <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
           <span>Relatórios dos clientes</span>

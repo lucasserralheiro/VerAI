@@ -307,7 +307,7 @@ export default function ClienteCompetenciaPage({
 
   if (!parsed) {
     return (
-      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
+      <main className="mx-auto max-w-[96rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 rounded-xl bg-red-crit-light p-4 text-sm text-red-crit">
           <AlertCircle className="size-4 shrink-0" strokeWidth={2.25} />
           Competência inválida na URL (esperado AAAA-MM).
@@ -317,7 +317,7 @@ export default function ClienteCompetenciaPage({
   }
 
   return (
-    <main className="mx-auto max-w-[110rem] space-y-6 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[96rem] space-y-6 px-6 py-8 lg:px-8">
       {enviando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/50 p-4 backdrop-blur-sm">
           <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-2xl bg-white p-8 text-center shadow-xl">

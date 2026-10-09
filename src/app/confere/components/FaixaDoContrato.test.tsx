@@ -63,3 +63,38 @@ it("sem contrato achado: uma linha só, que reabre a busca", () => {
 	fireEvent.click(screen.getByRole("button", { name: "Buscar no cadastro" }));
 	expect(onBuscarContrato).toHaveBeenCalledTimes(1);
 });
+
+it("mostra o que a planilha diz e, escolhido sozinho com órgão diferente, avisa para conferir", () => {
+	renderizar({
+		identificacao: {
+			situacao: "encontrado",
+			leitura: { referencia: "TC 17/SMTUR/2021", competencia: { ano: 2026, mes: 7 } },
+			documentos: DOCUMENTOS,
+			avisoDeOrgao: "A planilha cita o órgão SMTUR, e o contrato do cadastro é de SMIT.",
+		},
+		documentos: DOCUMENTOS,
+	});
+	expect(screen.getByText("TC 17/SMTUR/2021")).toBeInTheDocument();
+	expect(screen.getByRole("note")).toHaveTextContent("Confira o órgão.");
+	expect(screen.getByRole("note")).toHaveTextContent("A planilha cita o órgão SMTUR");
+});
+
+it("contrato trocado à mão: a referência da planilha segue à vista, mas o aviso da escolha automática sai", () => {
+	const outro: DocumentosDoContrato = {
+		...DOCUMENTOS,
+		contrato: { ...DOCUMENTOS.contrato, id: "ct-outro", numeroTermo: "TC 17/SMTUR/2021" },
+	};
+	renderizar({
+		identificacao: {
+			situacao: "encontrado",
+			leitura: { referencia: "TC 17/SMTUR/2021", competencia: { ano: 2026, mes: 7 } },
+			documentos: DOCUMENTOS,
+			avisoDeOrgao: "A planilha cita o órgão SMTUR, e o contrato do cadastro é de SMIT.",
+		},
+		documentos: outro,
+	});
+	// O contrato escolhido é o mesmo que a planilha cita: a referência não se repete ao lado.
+	expect(screen.getByText("Contrato TC 17/SMTUR/2021")).toBeInTheDocument();
+	expect(screen.queryByText("A planilha diz:")).not.toBeInTheDocument();
+	expect(screen.queryByRole("note")).not.toBeInTheDocument();
+});

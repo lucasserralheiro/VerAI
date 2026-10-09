@@ -88,6 +88,26 @@ describe('identificarLevantamento', () => {
     expect(resposta.documentos.competencia).toEqual({ ano: 2026, mes: 7, lidaDaPlanilha: true })
     expect(resposta.documentos.base?.arquivoId).toBe('pa-smit-02')
     expect(prisma.historicoContrato.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { contratoId: 'ct-smit' } }))
+    // Órgão igual ao da planilha: nada a avisar.
+    expect(resposta.avisoDeOrgao).toBeUndefined()
+  })
+
+  it('contrato achado por sigla parecida (planilha SMIT, cadastro SMITUR): devolve o aviso para a tela mostrar os dois', async () => {
+    ;(prisma.contrato.findMany as jest.Mock).mockResolvedValue([
+      {
+        ...CONTRATO_SMIT,
+        id: 'ct-smitur',
+        numeroTermo: 'TC 52/SMITUR/2024',
+        chaveSharepoint: 'SMITUR|52 2024',
+        cliente: { nome: 'Secretaria Municipal de Turismo', siglaLegado: 'SMITUR' },
+      },
+    ])
+    const resposta = await identificarLevantamento(admin, LEVANTAMENTO_SMIT)
+    expect(resposta.situacao).toBe('encontrado')
+    if (resposta.situacao !== 'encontrado') return
+    expect(resposta.documentos.contrato.id).toBe('ct-smitur')
+    expect(resposta.avisoDeOrgao).toContain('SMIT')
+    expect(resposta.avisoDeOrgao).toContain('SMITUR')
   })
 
   it('procura entre todos os clientes, sem restrição de vínculo (leitura liberada)', async () => {

@@ -86,7 +86,7 @@ export default function CalendarioFaturamentoPage() {
   const tipos = [...new Set(datas.map((d) => d.tipo))]
 
   if (carga === 'erro') return <main className="px-6 py-8 text-sm text-orange-dark">Não foi possível carregar o calendário agora — tente de novo em instantes.</main>
-  if (!carga) return <main className="mx-auto max-w-[110rem] px-6 py-8"><div className="h-96 animate-pulse rounded-2xl bg-light-grey" aria-busy="true" /></main>
+  if (!carga) return <main className="mx-auto max-w-[96rem] px-6 py-8"><div className="h-96 animate-pulse rounded-2xl bg-light-grey" aria-busy="true" /></main>
 
   const anoVisto = carga.ano ?? hoje.getUTCFullYear()
   const primeiro = new Date(Date.UTC(anoVisto, mes - 1, 1))
@@ -96,7 +96,7 @@ export default function CalendarioFaturamentoPage() {
   const lista = datas.filter((d) => (filtro ? d.tipo === filtro : d.tipo !== 'FERIADO'))
 
   return (
-    <main className="mx-auto max-w-[110rem] space-y-6 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[96rem] space-y-6 px-6 py-8 lg:px-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-3">
           <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">

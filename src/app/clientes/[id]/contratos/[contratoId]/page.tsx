@@ -126,7 +126,7 @@ export default function ContratoDetalhePage({ params }: { params: Promise<{ id: 
 
   if (carregando) {
     return (
-      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
+      <main className="mx-auto max-w-[96rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 text-sm text-mid-grey">
           <Loader2 className="size-4 animate-spin" strokeWidth={2.25} />
           Carregando...
@@ -137,7 +137,7 @@ export default function ContratoDetalhePage({ params }: { params: Promise<{ id: 
 
   if (!contrato) {
     return (
-      <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
+      <main className="mx-auto max-w-[96rem] px-6 py-8 lg:px-8">
         <p className="flex items-center gap-2 rounded-xl bg-red-crit-light p-4 text-sm text-red-crit">
           <AlertCircle className="size-4 shrink-0" strokeWidth={2.25} />
           {erro ?? 'Contrato não encontrado.'}
@@ -149,7 +149,7 @@ export default function ContratoDetalhePage({ params }: { params: Promise<{ id: 
   const titulo = contrato.numeroTermo ?? '(sem número)'
 
   return (
-    <main className="mx-auto max-w-[110rem] space-y-8 px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[96rem] space-y-8 px-6 py-8 lg:px-8">
       <div className="space-y-3">
         <nav className="flex items-center gap-1.5 text-xs font-medium text-mid-grey">
           <span>Relatórios</span>

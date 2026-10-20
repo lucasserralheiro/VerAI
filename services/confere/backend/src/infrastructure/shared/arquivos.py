@@ -14,6 +14,10 @@ from typing import Any
 
 import openpyxl
 import pdfplumber
+from pdfminer.pdfdocument import PDFDocument
+from pdfminer.pdfpage import PDFPage
+from pdfminer.pdfparser import PDFParser
+from pdfminer.pdftypes import resolve1
 
 from domain.errors import ExtractionError
 
@@ -50,6 +54,59 @@ def abrir_pdf(caminho: Path, rotulo: str) -> Any:
         raise ExtractionError(
             f"não foi possível abrir o arquivo de {rotulo}: não é um PDF válido"
         ) from erro
+
+
+def pdf_sem_texto(caminho: Path) -> bool:
+    """O PDF não tem **nenhuma** fonte — o texto foi gravado como desenho? (20/10/2026)
+
+    O ``Microsoft: Print To PDF`` às vezes converte as letras em contorno: a
+    página mostra o texto, mas não há um caractere sequer para extrair. Foi o
+    caso do ``PC-HSPM-230207-13 v3.0`` (TC 094/2023 do HSPM): 12 páginas, 0
+    caracteres e ~40 mil traços. O ``pdfplumber`` analisava cada traço — 62 s e
+    275 MB aqui, ~10 min no Render free — para no fim não achar item nenhum.
+
+    A resposta sai do dicionário de recursos das páginas, sem analisar o
+    conteúdo: milissegundos. Página sem ``/Font`` própria pode desenhar texto
+    por um *Form XObject* com fontes, e por isso eles também são olhados. Só
+    responde *sim* quando nenhuma página, de nenhum jeito, declara fonte — PDF
+    com texto em alguma página segue o caminho de sempre.
+
+    Arquivo que nem abre como PDF responde ``False``: quem decide a mensagem
+    desse caso é ``abrir_pdf``.
+    """
+    try:
+        with caminho.open("rb") as arquivo:
+            documento = PDFDocument(PDFParser(arquivo))
+            for pagina in PDFPage.create_pages(documento):
+                if _declara_fonte(pagina.resources, profundidade=2):
+                    return False
+    except Exception:
+        return False
+    return True
+
+
+def _declara_fonte(recursos: Any, profundidade: int) -> bool:
+    recursos = resolve1(recursos) or {}
+    if not isinstance(recursos, dict):
+        return False
+    if resolve1(recursos.get("Font")):
+        return True
+    if profundidade <= 0:
+        return False
+    objetos = resolve1(recursos.get("XObject")) or {}
+    if not isinstance(objetos, dict):
+        return False
+    for referencia in objetos.values():
+        objeto = resolve1(referencia)
+        atributos = getattr(objeto, "attrs", None)
+        if not isinstance(atributos, dict):
+            continue
+        subtipo = resolve1(atributos.get("Subtype"))
+        if getattr(subtipo, "name", None) == "Form" and _declara_fonte(
+            atributos.get("Resources"), profundidade - 1
+        ):
+            return True
+    return False
 
 
 def aliviar_pagina(pagina: Any) -> None:

@@ -19,11 +19,13 @@ from application.use_cases.generate_measurement_report import (
 )
 from domain.entities.contract import Contract
 from domain.entities.validation_finding import ValidationReport
+from domain.errors import ExtractionError
 from domain.value_objects.block_label import RotuloDeBloco
 from infrastructure.annex.anexo_reader import AnexoReader
 from infrastructure.contract.pdfplumber_extractor import PdfPlumberContractExtractor
 from infrastructure.measurement.levantamento_reader import LevantamentoReader
 from infrastructure.report.docx_renderer import DocxRenderer
+from infrastructure.shared.arquivos import pdf_sem_texto
 from infrastructure.report.xlsx_analise_renderer import XlsxAnaliseRenderer
 from infrastructure.validations.annex_validations import (
     v_anx_01_nenhuma_aba_de_anexo_reconhecida,
@@ -150,6 +152,8 @@ class DIContainer:
         """
         avancar = ao_avancar or (lambda _fase: None)
         achados = ValidationReport()
+
+        _exigir_texto_nos_pdfs(entradas)
 
         extrator = self.extrator_de_contrato()
         avancar("Extraindo a tabela de itens do contrato")
@@ -415,6 +419,8 @@ def _conferir_identidade_das_fontes(
     """
     achados = ValidationReport()
 
+    _exigir_texto_nos_pdfs(entradas)
+
     extrator = container.extrator_de_contrato()
     proposta = extrator.identificar(entradas.contrato)
     medicao = container.leitor_de_medicao().identificar(entradas.levantamento)
@@ -469,3 +475,30 @@ def get_container() -> DIContainer:
     if _container is None:
         _container = DIContainer()
     return _container
+
+
+def _exigir_texto_nos_pdfs(entradas: Entradas) -> None:
+    """Recusa, em milissegundos, PDF cujo texto virou desenho (20/10/2026).
+
+    Sem isto a peça seguia para a extração, que analisava dezenas de milhares
+    de traços por minutos a fio — ~10 min no Render free com o contrato do HSPM
+    — e terminava sem itens. O PDF não tem texto a extrair; a única saída é
+    outro arquivo, e a mensagem diz qual e onde buscá-lo.
+    """
+    pecas = [(entradas.contrato, "do contrato", entradas.nome_do_contrato)] + [
+        (caminho, f"do {indice}º aditivo", "")
+        for indice, caminho in enumerate(entradas.aditivos, start=1)
+    ]
+    for caminho, papel, nome in pecas:
+        if pdf_sem_texto(caminho):
+            raise ExtractionError(mensagem_pdf_sem_texto(papel, nome))
+
+
+def mensagem_pdf_sem_texto(papel: str, nome: str = "") -> str:
+    arquivo = f"O PDF {papel} ({nome})" if nome else f"O PDF {papel}"
+    return (
+        f"{arquivo} não tem texto: as letras foram gravadas como desenho, o que acontece "
+        "quando o documento é impresso pelo \"Microsoft: Print To PDF\". O Confere não tem "
+        "o que ler nesse arquivo. Envie a mesma proposta baixada do SEI ou exportada do "
+        "Word como PDF (no leitor de PDF, deve ser possível selecionar e copiar o texto)."
+    )

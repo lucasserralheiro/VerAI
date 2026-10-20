@@ -175,6 +175,11 @@ hoje:
   (`aliviar_pagina`/`liberar_pagina`/`paginas_liberando`, `pode_ter_grade`), a geração roda num
   processo filho (`forkserver`, um por geração) e o log do Render mostra `geração concluída em N s:
   pico M MB` por envio. `tests/test_memoria.py` garante página analisada uma vez só e nada acumulado.
+  **Teto por fase** (20/10): fase parada mais de `TETO_DA_FASE_S` (240 s, env `CONFERE_TETO_DA_FASE_S`)
+  mata o filho e o job devolve 504 dizendo a etapa e o arquivo — a tela não fica 20 min na mesma frase.
+  **PDF sem texto** (20/10): proposta impressa pelo "Microsoft: Print To PDF" com as letras em contorno
+  (caso do PC do HSPM TC 094/2023) não tem o que extrair — `pdf_sem_texto` recusa em milissegundos, com
+  422 nomeando o arquivo, antes de qualquer análise de página.
 
 - **Sem faixa de marca própria** — a barra de aplicação do Confere (logo + "Confere o contratado. /
   Confere o utilizado.") e o rodapé institucional da Prodam foram removidos: dentro do VerAI a

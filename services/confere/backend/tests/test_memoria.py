@@ -20,6 +20,8 @@ E o caminho de quando, mesmo assim, faltar memória: o filho morre e a resposta
 
 from __future__ import annotations
 
+import threading
+import time
 from collections import Counter
 from concurrent.futures import Future
 from concurrent.futures.process import BrokenProcessPool
@@ -33,6 +35,7 @@ from fastapi.testclient import TestClient
 from api.main import app
 from api.routers import reports
 from infrastructure.contract.pdfplumber_extractor import PdfPlumberContractExtractor
+from infrastructure.di.container import Entradas
 
 FIXTURES = Path(__file__).parent / "fixtures"
 DOCUMENTOS = ["contrato.pdf", "contrato_pgm.pdf", "aditivo_pgm.pdf", "contrato_smul.pdf"]
@@ -142,3 +145,119 @@ def test_filho_morto_vira_503_com_mensagem_clara(monkeypatch: pytest.MonkeyPatch
     assert resposta.json()["detail"] == reports.MENSAGEM_GERACAO_INTERROMPIDA
     # O executor quebrado é descartado: a próxima geração sobe um filho novo.
     assert reports._executor is None
+
+
+# ── Teto por fase (20/10/2026) ────────────────────────────────────────────────
+#
+# O contrato do HSPM ficou 9 min em "Extraindo a tabela de itens do contrato"
+# e a tela só desistiria aos 20. Fase parada além do teto mata o filho e vira
+# 504 com a etapa e o arquivo na mensagem.
+
+
+class _ProcessoFalso:
+    def __init__(self) -> None:
+        self.morto = False
+
+    def kill(self) -> None:
+        self.morto = True
+
+
+class _ExecutorQueTrava:
+    """Filho vivo que escreve fases num ritmo dado e termina (ou nunca termina)."""
+
+    def __init__(self, fases: list[str], intervalo_s: float, termina: bool) -> None:
+        self._fases = fases
+        self._intervalo_s = intervalo_s
+        self._termina = termina
+        self.processo = _ProcessoFalso()
+        self._processes = {1: self.processo}
+
+    def submit(self, _funcao: Any, _entradas: Any, _destino: Any, arquivo_de_fase: Path) -> Future[Any]:
+        futuro: Future[Any] = Future()
+
+        def rodar() -> None:
+            for fase in self._fases:
+                reports.registrar_fase(arquivo_de_fase, fase)
+                time.sleep(self._intervalo_s)
+            if self._termina:
+                futuro.set_result(("saida", 1.0))
+
+        threading.Thread(target=rodar, daemon=True).start()
+        return futuro
+
+    def shutdown(self, *_: Any, **__: Any) -> None:
+        pass
+
+
+def _entradas(tmp_path: Path) -> Entradas:
+    return Entradas(
+        contrato=tmp_path / "contrato.pdf",
+        levantamento=tmp_path / "levantamento.xlsx",
+        nome_do_contrato="PC-HSPM-TESTE.pdf",
+    )
+
+
+def test_fase_parada_mata_o_filho_e_diz_a_etapa_e_o_arquivo(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    executor = _ExecutorQueTrava(
+        ["Extraindo a tabela de itens do contrato"], intervalo_s=0, termina=False
+    )
+    monkeypatch.setattr(reports, "_executor", executor)
+    monkeypatch.setattr(reports, "TETO_DA_FASE_S", 0.3)
+    monkeypatch.setattr(reports, "INTERVALO_DO_VIGIA_S", 0.05)
+
+    with pytest.raises(reports.GeracaoDemorada) as erro:
+        reports._processar_isolado(_entradas(tmp_path), tmp_path, tmp_path / "fase.txt")
+
+    assert "Extraindo a tabela de itens do contrato" in str(erro.value)
+    assert "PC-HSPM-TESTE.pdf" in str(erro.value)
+    assert executor.processo.morto
+    # O executor é descartado: a próxima geração sobe um filho novo.
+    assert reports._executor is None
+
+
+def test_fase_que_anda_nao_e_interrompida(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Geração inteira bem mais longa que o teto, mas cada fase abaixo dele.
+    fases = [f"Lendo o aditivo {i} de 6" for i in range(1, 7)]
+    executor = _ExecutorQueTrava(fases, intervalo_s=0.15, termina=True)
+    monkeypatch.setattr(reports, "_executor", executor)
+    monkeypatch.setattr(reports, "TETO_DA_FASE_S", 0.4)
+    monkeypatch.setattr(reports, "INTERVALO_DO_VIGIA_S", 0.05)
+
+    saida = reports._processar_isolado(_entradas(tmp_path), tmp_path, tmp_path / "fase.txt")
+
+    assert saida == "saida"
+    assert not executor.processo.morto
+
+
+def test_job_com_fase_parada_responde_504_com_a_mensagem(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def parada(entradas: Entradas, *_: Any, **__: Any) -> Any:
+        raise reports.GeracaoDemorada("a etapa passou do teto")
+
+    monkeypatch.setattr(reports, "_processar_isolado", parada)
+
+    with TestClient(app) as cliente, (FIXTURES / "contrato.pdf").open("rb") as contrato, (
+        FIXTURES / "levantamento.xlsx"
+    ).open("rb") as levantamento:
+        iniciado = cliente.post(
+            "/jobs",
+            files={
+                "contrato": ("contrato.pdf", contrato, "application/pdf"),
+                "levantamento": ("levantamento.xlsx", levantamento, "application/octet-stream"),
+            },
+        )
+        id_do_job = iniciado.json()["id"]
+        limite = time.monotonic() + 30
+        while cliente.get(f"/jobs/{id_do_job}").json()["situacao"] != "concluido":
+            assert time.monotonic() < limite
+            time.sleep(0.05)
+        resultado = cliente.get(f"/jobs/{id_do_job}/resultado")
+
+    reports._jobs.clear()
+    assert resultado.status_code == 504
+    assert resultado.json()["detail"] == "a etapa passou do teto"

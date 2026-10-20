@@ -20,9 +20,10 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import anyio
 import anyio.to_thread
@@ -338,11 +339,25 @@ def _processar_isolado(
     inicio = time.monotonic()
     registrar_fase(arquivo_de_fase, "Iniciando a geração")
     try:
-        saida, pico_mb = (
-            _obter_executor()
-            .submit(_processar_no_filho, entradas, destino, arquivo_de_fase)
-            .result()
+        futuro = _obter_executor().submit(
+            _processar_no_filho, entradas, destino, arquivo_de_fase
         )
+        saida, pico_mb = _esperar_vigiando(futuro, arquivo_de_fase)
+    except FaseParada as parada:
+        # O filho ainda está vivo, preso na fase: é preciso matá-lo, ou ele
+        # segura o `_UMA_POR_REPLICA` e a CPU para quem vier depois.
+        _matar_executor()
+        logger.error(
+            "geração interrompida: a fase '%s' passou de %.0f s — "
+            "contrato %.1f MB, levantamento %.1f MB, %d aditivo(s) %.1f MB",
+            parada.fase,
+            parada.segundos,
+            _tamanho_mb(entradas.contrato),
+            _tamanho_mb(entradas.levantamento),
+            len(entradas.aditivos),
+            sum(_tamanho_mb(a) for a in entradas.aditivos),
+        )
+        raise GeracaoDemorada(_mensagem_da_fase_parada(parada, entradas)) from parada
     except BrokenProcessPool as erro:
         _descartar_executor()
         logger.error(
@@ -370,6 +385,115 @@ def _processar_isolado(
 
 class GeracaoInterrompida(Exception):
     """O processo filho morreu no meio da geração — em geral, falta de memória."""
+
+
+# ── Teto por fase (20/10/2026) ────────────────────────────────────────────────
+#
+# Um contrato do HSPM (TC 094/2023) ficou 9 min em "Extraindo a tabela de itens
+# do contrato" e a tela só desistiria aos 20 min, sem dizer por quê. A geração
+# inteira de um contrato grande leva 70–135 s no Render free; uma fase só que
+# passa de alguns minutos não vai terminar em tempo útil, e enquanto isso o
+# filho ocupa a única vaga da réplica.
+#
+# O teto é **por fase**, e não da geração inteira: quem passa de uma fase para
+# outra está andando, e contrato com muitos aditivos tem fases a mais. A fase
+# anda pela data do `fase.txt` — o mesmo arquivo que a tela lê —, então o vigia
+# não precisa de canal novo com o filho.
+
+TETO_DA_FASE_S = float(os.environ.get("CONFERE_TETO_DA_FASE_S", "240"))
+"""Quanto uma fase pode ficar parada antes de a geração ser interrompida."""
+
+INTERVALO_DO_VIGIA_S = 2.0
+
+
+class FaseParada(Exception):
+    """Uma fase da geração passou de `TETO_DA_FASE_S` sem avançar."""
+
+    def __init__(self, fase: str, segundos: float) -> None:
+        super().__init__(f"fase '{fase}' parada há {segundos:.0f} s")
+        self.fase = fase
+        self.segundos = segundos
+
+
+class GeracaoDemorada(Exception):
+    """A geração foi interrompida por uma fase parada; a mensagem vai para a tela."""
+
+
+def _esperar_vigiando(futuro: Any, arquivo_de_fase: Path | None) -> Any:
+    """Espera o filho; levanta `FaseParada` se a fase em curso não andar.
+
+    Sem `arquivo_de_fase` (o `/reports` síncrono) não há fase a vigiar, e o
+    teto continua sendo o orçamento de tempo de quem chama.
+    """
+    if arquivo_de_fase is None:
+        return futuro.result()
+
+    while True:
+        try:
+            return futuro.result(timeout=INTERVALO_DO_VIGIA_S)
+        except FuturesTimeoutError:
+            pass
+        try:
+            parada_ha = time.time() - arquivo_de_fase.stat().st_mtime
+        except OSError:
+            continue
+        if parada_ha > TETO_DA_FASE_S:
+            fase = ""
+            try:
+                fase = arquivo_de_fase.read_text(encoding="utf-8")
+            except OSError:
+                pass
+            raise FaseParada(fase or "geração", parada_ha)
+
+
+def _matar_executor() -> None:
+    """Mata o filho (preso, mas vivo) e descarta o executor.
+
+    `shutdown` sozinho não basta: ele só impede tarefas novas, e o filho
+    continuaria consumindo CPU e memória até terminar a fase — que é justamente
+    o que não vai acontecer.
+    """
+    global _executor
+    with _executor_trava:
+        if _executor is None:
+            return
+        processos = getattr(_executor, "_processes", None) or {}
+        for processo in list(processos.values()):
+            try:
+                processo.kill()
+            except Exception:  # pragma: no cover - processo que já saiu
+                pass
+        _executor.shutdown(wait=False, cancel_futures=True)
+        _executor = None
+
+
+def _mensagem_da_fase_parada(parada: FaseParada, entradas: Entradas) -> str:
+    minutos = max(1, round(TETO_DA_FASE_S / 60))
+    inicio = (
+        f"A geração foi interrompida: a etapa “{parada.fase}” passou de "
+        f"{minutos} min sem terminar."
+    )
+    fase = parada.fase
+    if fase.startswith("Extraindo") or fase.startswith("Iniciando"):
+        nome = entradas.nome_do_contrato or "o PDF do contrato"
+        return (
+            f"{inicio} O Confere não conseguiu ler a tabela de itens de {nome} em tempo útil "
+            "— costuma acontecer com PDF muito longo ou com páginas cheias de desenho "
+            "(gráficos, cronogramas, imagens vetorizadas). Tente com o PDF da proposta sem "
+            "os anexos ou avise o suporte com o nome do arquivo."
+        )
+    if fase.startswith("Lendo o aditivo"):
+        return (
+            f"{inicio} O PDF desse aditivo é pesado demais para o Confere ler em tempo útil. "
+            "Tente com o aditivo sem os anexos ou avise o suporte com o nome do arquivo."
+        )
+    if fase.startswith("Lendo a planilha"):
+        nome = entradas.nome_do_levantamento or "a planilha de levantamento"
+        return (
+            f"{inicio} A leitura de {nome} não terminou. Confira se o arquivo é o "
+            "levantamento e avise o suporte com o nome dele."
+        )
+    return f"{inicio} Tente de novo; se persistir, avise o suporte com o nome dos arquivos."
 
 
 MENSAGEM_GERACAO_INTERROMPIDA = (
@@ -705,6 +829,8 @@ async def _executar_job(job: _Job, entradas: Entradas) -> None:
         job.status_http, job.corpo = _erro(
             status.HTTP_503_SERVICE_UNAVAILABLE, MENSAGEM_GERACAO_INTERROMPIDA
         )
+    except GeracaoDemorada as erro:
+        job.status_http, job.corpo = _erro(status.HTTP_504_GATEWAY_TIMEOUT, str(erro))
     except Exception:  # pragma: no cover - rede de segurança
         logger.exception("falha inesperada ao gerar o relatório (job %s)", job.id)
         job.status_http, job.corpo = _erro(

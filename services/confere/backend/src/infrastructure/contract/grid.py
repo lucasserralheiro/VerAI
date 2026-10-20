@@ -27,6 +27,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from infrastructure.shared.arquivos import aliviar_pagina, liberar_pagina
+
 from domain.entities.contract import DiagnosticoDaGrade
 
 # `R-GRD-01` — a tabela de itens tem sete colunas: código, descrição, unidade,
@@ -200,6 +202,11 @@ def analisar_geometria(pdf: Any) -> GeometriaDoContrato:
     por_conjunto: defaultdict[tuple[float, ...], set[int]] = defaultdict(set)
     paginas = com_borda = com_texto = maior = 0
 
+    # 19/10/2026 — memória. A página que tem faixa de tabela vai ser lida de
+    # novo (códigos, geometrias de itens, laço principal) e fica só **aliviada**:
+    # sem a árvore de layout, mas com os objetos, para não ser reanalisada três
+    # vezes. As demais só voltam no laço principal e são **liberadas** — sem isso
+    # o documento inteiro ficava em memória até o fim da extração.
     for numero, pagina in enumerate(pdf.pages, start=1):
         paginas += 1
         if pagina.rects or pagina.lines or pagina.curves:
@@ -217,13 +224,18 @@ def analisar_geometria(pdf: Any) -> GeometriaDoContrato:
             if len(divisorias) == DIVISORIAS_DA_TABELA:
                 por_conjunto[tuple(sorted(divisorias))].add(numero)
 
+        if any(numero in numeros for numeros in por_conjunto.values()):
+            aliviar_pagina(pagina)
+        else:
+            liberar_pagina(pagina)
+
     # A contagem de códigos só é paga para os conjuntos candidatos — poucas
     # páginas —, e não para o documento inteiro.
     candidatos = [
         _Candidato(
             divisorias=conjunto,
             paginas=tuple(sorted(numeros)),
-            codigos=sum(_codigos_na_pagina(pdf.pages[n - 1]) for n in sorted(numeros)),
+            codigos=sum(_codigos_e_libera(pdf, n) for n in sorted(numeros)),
         )
         for conjunto, numeros in por_conjunto.items()
     ]
@@ -823,3 +835,12 @@ def resolver_papel_das_colunas(pendentes: dict[int, list[str]]) -> dict[str, int
     if len(papeis) != 3:
         return None
     return papeis
+
+
+def _codigos_e_libera(pdf: Any, numero: int) -> int:
+    """Conta os códigos da página e alivia o layout dela em seguida."""
+    pagina = pdf.pages[numero - 1]
+    try:
+        return _codigos_na_pagina(pagina)
+    finally:
+        aliviar_pagina(pagina)

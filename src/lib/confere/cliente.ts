@@ -103,12 +103,23 @@ function esgotouTempo(erro: unknown): boolean {
   return erro instanceof DOMException && erro.name === 'TimeoutError'
 }
 
+/** Quando o Confere cai no meio da geração (o Render reinicia a instância — foi
+ *  o "Ran out of memory" de 19/10/2026), o que chega aqui é a conexão cortada ou
+ *  a página de erro do provedor (502/503/504, sem JSON). Nenhum dos dois diz
+ *  nada a quem está na tela; esta frase diz o que fazer. */
+export const MENSAGEM_CONFERE_INDISPONIVEL =
+  'O serviço do Confere reiniciou ou está indisponível no momento e a geração foi interrompida. ' +
+  'Aguarde cerca de 1 minuto e tente de novo.'
+
+const STATUS_DE_INDISPONIBILIDADE = new Set([502, 503, 504])
+
 function mensagemDeErro(corpo: unknown, status: number): string {
   if (corpo && typeof corpo === 'object') {
     const objeto = corpo as { detail?: unknown; detalhe?: unknown }
     if (typeof objeto.detail === 'string') return objeto.detail
     if (typeof objeto.detalhe === 'string') return objeto.detalhe
   }
+  if (STATUS_DE_INDISPONIBILIDADE.has(status)) return MENSAGEM_CONFERE_INDISPONIVEL
   return `Confere respondeu ${status} sem uma mensagem reconhecível`
 }
 
@@ -138,7 +149,9 @@ export async function chamarConfere(
     })
   } catch (erro) {
     if (esgotouTempo(erro)) return { tipo: 'tempo-esgotado' }
-    return { tipo: 'erro', mensagem: erro instanceof Error ? erro.message : String(erro) }
+    // `fetch failed` / `socket hang up` não servem para a tela; o detalhe fica no log.
+    console.error('[confere] falha de rede ao chamar o Confere —', erro)
+    return { tipo: 'erro', mensagem: MENSAGEM_CONFERE_INDISPONIVEL }
   }
 
   let corpo: unknown = null

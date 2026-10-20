@@ -125,9 +125,10 @@ describe('chamarConfere', () => {
     }
   })
 
-  it('falha de rede (fetch rejeita) vira tipo "erro"', async () => {
-    const { chamarConfere } = await import('./cliente')
+  it('falha de rede (fetch rejeita) vira tipo "erro" com a mensagem de indisponibilidade', async () => {
+    const { chamarConfere, MENSAGEM_CONFERE_INDISPONIVEL } = await import('./cliente')
     jest.spyOn(global, 'fetch').mockRejectedValue(new Error('fetch failed'))
+    jest.spyOn(console, 'error').mockImplementation(() => {})
 
     const resultado = await chamarConfere({
       contrato: { nome: 'c.pdf', bytes: Buffer.from('c') },
@@ -136,7 +137,36 @@ describe('chamarConfere', () => {
       identidadeConfirmada: false,
     })
 
-    expect(resultado.tipo).toBe('erro')
+    expect(resultado).toEqual({ tipo: 'erro', mensagem: MENSAGEM_CONFERE_INDISPONIVEL })
+  })
+
+  // 19/10/2026 — o Render matou a instância por falta de memória no meio da
+  // geração; a resposta foi a página de erro do provedor, sem JSON, e a tela
+  // mostrava "Confere respondeu 502 sem uma mensagem reconhecível".
+  it.each([502, 503, 504])('%i sem corpo JSON vira a mensagem de indisponibilidade', async (status) => {
+    const { chamarConfere, MENSAGEM_CONFERE_INDISPONIVEL } = await import('./cliente')
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      status,
+      json: async () => {
+        throw new SyntaxError('Unexpected token <')
+      },
+    } as unknown as Response)
+
+    const resultado = await chamarConfere(PARAMETROS)
+
+    expect(resultado).toEqual({ tipo: 'erro', mensagem: MENSAGEM_CONFERE_INDISPONIVEL })
+  })
+
+  it('503 com "detail" do próprio Confere mantém a mensagem dele', async () => {
+    const { chamarConfere } = await import('./cliente')
+    mockFetch(503, { detail: 'A geração foi interrompida porque os documentos exigiram mais memória' })
+
+    const resultado = await chamarConfere(PARAMETROS)
+
+    expect(resultado).toEqual({
+      tipo: 'erro',
+      mensagem: 'A geração foi interrompida porque os documentos exigiram mais memória',
+    })
   })
 
   const PARAMETROS = {

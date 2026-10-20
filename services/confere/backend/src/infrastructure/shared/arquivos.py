@@ -8,6 +8,7 @@ um 500 sem explicação. A fronteira com a biblioteca é o lugar de traduzir.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -49,3 +50,40 @@ def abrir_pdf(caminho: Path, rotulo: str) -> Any:
         raise ExtractionError(
             f"não foi possível abrir o arquivo de {rotulo}: não é um PDF válido"
         ) from erro
+
+
+def aliviar_pagina(pagina: Any) -> None:
+    """Descarta a árvore de layout da página e mantém os objetos já extraídos.
+
+    Para página que **ainda vai ser lida de novo**. O ``_layout`` é a árvore do
+    ``pdfminer`` (um objeto Python por caractere); os dicionários de ``objects``
+    (chars, rects, lines) já saíram dela e são tudo de que a leitura precisa.
+    Voltar à página não reanalisa nada.
+    """
+    pagina.flush_cache(["_layout"])
+    pagina.get_textmap.cache_clear()
+
+
+def liberar_pagina(pagina: Any) -> None:
+    """Descarta tudo o que a página guardou — para página que não será relida.
+
+    Se for relida, o ``pdfplumber`` reanalisa sob demanda (funciona, mas custa
+    o tempo da análise de novo).
+    """
+    pagina.close()
+
+
+def paginas_liberando(pdf: Any) -> Iterator[tuple[int, Any]]:
+    """Percorre as páginas liberando cada uma ao passar para a próxima.
+
+    O ``pdfplumber`` guarda em ``pdf.pages`` cada página lida com tudo o que foi
+    analisado — por volta de 1 KB por caractere. Sem liberar, o documento
+    inteiro fica vivo até o ``with`` fechar o PDF; com contrato, aditivos e
+    várias passadas, o pico passava de 500 MB e o Render matava a instância
+    (19/10/2026). Use na **última** passada por cada página.
+    """
+    for numero, pagina in enumerate(pdf.pages, start=1):
+        try:
+            yield numero, pagina
+        finally:
+            liberar_pagina(pagina)

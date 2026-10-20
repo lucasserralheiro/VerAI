@@ -9,7 +9,12 @@ from __future__ import annotations
 
 import base64
 import logging
+import multiprocessing
+import resource
 import tempfile
+import threading
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 from typing import Annotated
 
@@ -225,6 +230,113 @@ def _processar(
     return resultado, analise, documento.read_bytes(), planilha.read_bytes()
 
 
+# ── Geração isolada num processo filho (19/10/2026) ───────────────────────────
+#
+# A instância do Render tem 512 MB, e a geração de um contrato grande com
+# aditivos passava disso: o Render matava o serviço inteiro ("Ran out of
+# memory"), levando junto quem estava na conferência prévia.
+#
+# Liberar as páginas do PDF (`infrastructure/shared/arquivos.py`) baixou o pico,
+# mas não resolve uma coisa: o Python raramente devolve ao sistema a memória que
+# já pediu. Depois de um documento grande o processo continuava ocupando o pico,
+# e o próximo começava dali. No processo filho a memória volta **inteira** ao
+# fim de cada geração (`max_tasks_per_child=1`), e se um documento ainda assim
+# estourar, morre o filho — o servidor responde 503 com mensagem clara.
+#
+# `forkserver` e não `fork`: o servidor tem threads (a do `anyio`), e `fork` com
+# threads vivas é inseguro. O `forkserver` já sobe com os módulos carregados
+# (`set_forkserver_preload`), então cada filho nasce sem pagar os imports.
+#
+# Uma geração por vez continua garantida pelo `_UMA_POR_REPLICA`.
+_executor: ProcessPoolExecutor | None = None
+_executor_trava = threading.Lock()
+
+
+def _obter_executor() -> ProcessPoolExecutor:
+    global _executor
+    with _executor_trava:
+        if _executor is None:
+            contexto = multiprocessing.get_context("forkserver")
+            contexto.set_forkserver_preload(["api.routers.reports"])
+            _executor = ProcessPoolExecutor(
+                max_workers=1, mp_context=contexto, max_tasks_per_child=1
+            )
+        return _executor
+
+
+def _descartar_executor() -> None:
+    global _executor
+    with _executor_trava:
+        if _executor is not None:
+            _executor.shutdown(wait=False, cancel_futures=True)
+            _executor = None
+
+
+def _processar_no_filho(
+    entradas: Entradas, destino: Path
+) -> tuple[
+    tuple[ReportResult, AnaliseDaMedicao | None, bytes | None, bytes | None], float
+]:
+    """Roda no processo filho: `_processar` e o pico de memória que ele custou."""
+    saida = _processar(entradas, destino)
+    # `ru_maxrss` é em KB no Linux. É o pico **deste** processo — por isso
+    # medido aqui, e não no servidor, onde misturaria todas as gerações.
+    pico_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+    return saida, pico_mb
+
+
+def _tamanho_mb(caminho: Path) -> float:
+    try:
+        return caminho.stat().st_size / (1024 * 1024)
+    except OSError:
+        return 0.0
+
+
+def _processar_isolado(
+    entradas: Entradas, destino: Path
+) -> tuple[ReportResult, AnaliseDaMedicao | None, bytes | None, bytes | None]:
+    """Executa `_processar` no processo filho e registra o pico de memória.
+
+    O log diz **qual** entrada custou quanto — quando a instância cair de novo,
+    é por ele que se descobre o documento.
+    """
+    try:
+        saida, pico_mb = _obter_executor().submit(_processar_no_filho, entradas, destino).result()
+    except BrokenProcessPool as erro:
+        _descartar_executor()
+        logger.error(
+            "geração interrompida: o processo filho morreu (provável falta de memória) — "
+            "contrato %.1f MB, levantamento %.1f MB, %d aditivo(s) %.1f MB",
+            _tamanho_mb(entradas.contrato),
+            _tamanho_mb(entradas.levantamento),
+            len(entradas.aditivos),
+            sum(_tamanho_mb(a) for a in entradas.aditivos),
+        )
+        raise GeracaoInterrompida from erro
+
+    logger.info(
+        "geração concluída: pico %.0f MB — contrato %.1f MB, levantamento %.1f MB, "
+        "%d aditivo(s) %.1f MB",
+        pico_mb,
+        _tamanho_mb(entradas.contrato),
+        _tamanho_mb(entradas.levantamento),
+        len(entradas.aditivos),
+        sum(_tamanho_mb(a) for a in entradas.aditivos),
+    )
+    return saida
+
+
+class GeracaoInterrompida(Exception):
+    """O processo filho morreu no meio da geração — em geral, falta de memória."""
+
+
+MENSAGEM_GERACAO_INTERROMPIDA = (
+    "A geração foi interrompida porque os documentos exigiram mais memória do que o "
+    "serviço tem disponível. Tente de novo; se persistir, envie menos aditivos por vez "
+    "ou avise o suporte com o nome dos arquivos."
+)
+
+
 @router.post(
     "/reports/conferencia-previa",
     summary="Os arquivos são do mesmo contrato?",
@@ -351,12 +463,19 @@ async def gerar_relatorio(
             # Fora do event loop (`R-RSP-01`): o servidor continua atendendo
             # enquanto os ~30 s de CPU rodam numa thread. Não acelera a geração
             # — devolve o processo ao resto do mundo durante ela.
+            #
+            # 19/10/2026 — e num processo filho (`_processar_isolado`): a memória
+            # da geração volta inteira ao sistema quando ele termina.
             resultado, analise, conteudo, conteudo_da_analise = await anyio.to_thread.run_sync(
-                _processar, entradas, destino, limiter=_UMA_POR_REPLICA
+                _processar_isolado, entradas, destino, limiter=_UMA_POR_REPLICA
             )
         except ExtractionError as erro:
             # Falha de leitura conhecida: mensagem clara, nunca um documento errado.
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(erro)) from erro
+        except GeracaoInterrompida as erro:
+            raise HTTPException(
+                status.HTTP_503_SERVICE_UNAVAILABLE, MENSAGEM_GERACAO_INTERROMPIDA
+            ) from erro
         except Exception as erro:  # pragma: no cover - rede de segurança
             logger.exception("falha inesperada ao gerar o relatório")
             raise HTTPException(

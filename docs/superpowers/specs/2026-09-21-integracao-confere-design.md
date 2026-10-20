@@ -369,3 +369,41 @@ contratada e medida das execuções guardadas (FTM, CGM, PGM) bateram com o PDF 
 
 Não é defeito do VerAI, e fica registrado para a PRODAM: os itens `10.050.*` somem do relatório sem aviso —
 `docs/confere-familia-10050-fora-do-documento.md`.
+
+## Adendo — "Ran out of memory" no Render (19/10/2026)
+
+O painel do `confere-backend` mostrou várias quedas seguidas ("Instance failed: Ran out of memory
+(used over 512MB)"): a instância free tem 512 MB e a geração de contrato + aditivos passava disso.
+
+**Causa medida**: o `pdfplumber` guarda em `pdf.pages` cada página lida com tudo o que analisou (~1 KB
+por caractere — árvore de layout do `pdfminer` + dicionários de objetos), e o extrator percorre o PDF
+várias vezes sem soltar nada: 31 das 32 páginas do contrato ficavam em memória ao mesmo tempo. Nas
+fixtures (`contrato_pgm` + 2 aditivos + `contrato_smul` + `modelo` como aditivos), pico de **468 MB →
+244 MB**, tempo igual (25,7 s → 27,8 s).
+
+**O que mudou no backend** (`services/confere/backend`):
+- `infrastructure/shared/arquivos.py`: `aliviar_pagina` (solta só o layout, para página que será relida),
+  `liberar_pagina` e `paginas_liberando` (soltam tudo, na última passada). Liberar tudo em toda passada
+  também resolvia a memória (105 MB), mas reanalisava as páginas da tabela até 4 vezes e quase dobrava
+  o tempo — inaceitável com o Render free já passando de um minuto.
+- `analisar_geometria` alivia as páginas com faixa de tabela e libera as demais; o laço principal do
+  extrator libera cada página ao passar.
+- A busca do total por convergência (`D-04` da ESPEC 042) foi para **dentro** do `with`: estava depois
+  dele e lia páginas de um PDF já fechado — só funcionava porque tudo ficava em memória.
+- A geração roda num **processo filho** (`ProcessPoolExecutor` com `forkserver`, `max_tasks_per_child=1`,
+  em `api/routers/reports.py`): a memória volta inteira ao sistema ao fim de cada geração (o Python não
+  devolve sozinho), e se um documento ainda estourar morre o filho — resposta **503** com mensagem clara,
+  em vez de o serviço inteiro cair.
+- Log por geração: `geração concluída: pico N MB — contrato X MB, levantamento Y MB, k aditivo(s) Z MB`
+  (e o equivalente quando o filho morre) — é por ele que se acha o documento culpado da próxima vez.
+- `MALLOC_ARENA_MAX=2` no `Dockerfile`.
+- Teste `tests/test_memoria.py`: layout nunca retido entre páginas, objetos retidos em no máximo metade
+  das páginas, nenhuma página analisada mais de 2 vezes, filho morto → 503.
+
+**No VerAI** (`src/lib/confere/cliente.ts`): 502/503/504 sem `detail` e falha de rede viram
+`MENSAGEM_CONFERE_INDISPONIVEL` ("o serviço reiniciou… aguarde 1 minuto"), em vez de
+"Confere respondeu 502 sem uma mensagem reconhecível". O 503 do próprio Confere passa com o `detail` dele.
+
+Se voltar a estourar: ver o pico no log do Render. Próximo suspeito é a leitura dos anexos em modo
+completo do `openpyxl` (`abrir_planilha_com_estilos`). Só subir de plano se o pico medido de um documento
+real continuar perto de 512 MB.

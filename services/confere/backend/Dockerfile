@@ -33,6 +33,12 @@ COPY src/ ./src/
 # alteração de código invalidaria a camada de dependências.
 ENV PYTHONPATH=/app/src
 
+# 19/10/2026 — memória. A geração roda numa thread do `anyio` e num processo
+# filho, e o glibc cria uma arena de alocação por thread (até 8 × núcleos),
+# cada uma retendo memória já liberada. Com 512 MB no Render isso pesa; duas
+# arenas bastam para um serviço que gera um relatório por vez.
+ENV MALLOC_ARENA_MAX=2
+
 # Usuário sem privilégio. O serviço não escreve em disco: os uploads vivem em
 # diretório temporário e o PDF é devolvido em memória.
 RUN useradd --system --create-home --uid 1001 aplicacao \

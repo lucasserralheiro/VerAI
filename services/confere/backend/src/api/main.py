@@ -7,6 +7,7 @@ Sem banco, sem autenticação e sem multi-tenancy (ESPEC 001 §7.2).
 from __future__ import annotations
 
 import hmac
+import logging
 import os
 
 from fastapi import FastAPI, Request, status
@@ -15,6 +16,12 @@ from fastapi.responses import JSONResponse
 
 from api.routers import reports
 from api.schemas import Saude
+
+# Os logs da própria aplicação — em especial o pico de memória de cada geração
+# (`api/routers/reports.py`) — no stdout, que é o que o painel do Render mostra.
+# Sem isto só sairia WARNING para cima: o `uvicorn` configura os loggers dele, e
+# não a raiz.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
 
 app = FastAPI(
     title="Análise de Medição Contratual",

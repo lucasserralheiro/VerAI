@@ -28,7 +28,7 @@ from infrastructure.contract.grid import (
     palavras_fora_da_grade,
     resolver_papel_das_colunas,
 )
-from infrastructure.shared.arquivos import abrir_pdf
+from infrastructure.shared.arquivos import abrir_pdf, aliviar_pagina, liberar_pagina, paginas_liberando
 
 # Colunas da tabela, na ordem do documento.
 COL_CODIGO = 0
@@ -222,6 +222,7 @@ class PdfPlumberContractExtractor:
             # "nenhuma página é aberta de novo" — verdade sobre a página, e não
             # sobre o texto. Agora é verdade sobre os dois.
             texto_da_capa = pdf.pages[0].extract_text() or ""
+            aliviar_pagina(pdf.pages[0])
             proposta = self._proposta(texto_da_capa)
             cliente = self._cliente(texto_da_capa)
             # T-2086 / ESPEC 029 `R-IDT-02` — de que contrato esta peça é.
@@ -301,7 +302,7 @@ class PdfPlumberContractExtractor:
             paginas_contadas: set[int] = set()
             descartadas: list[tuple[int, int]] = []
 
-            for numero, pagina in enumerate(pdf.pages, start=1):
+            for numero, pagina in paginas_liberando(pdf):
                 for divisorias in geometrias:
                     grade = montar_grade(pagina, divisorias)
                     if grade is None:
@@ -434,6 +435,22 @@ class PdfPlumberContractExtractor:
                 blocos.append(BlocoDeItens(rotulo=None, itens=tuple(pendentes)))
                 itens.extend(pendentes)
 
+            # T-2644 / ESPEC 042 `D-04` — só quando a busca normal (`TOTAL:` +
+            # `BRL`) já percorreu o documento inteiro e não achou nada. Os
+            # documentos que já têm `total_declarado` não pagam esta leitura
+            # extra de página — ela só acontece no caminho que hoje bloqueia.
+            #
+            # 19/10/2026 — **dentro** do `with`. Estava depois dele e lia páginas
+            # de um PDF já fechado: funcionava só porque o `pdfplumber` mantinha
+            # todas as páginas analisadas em memória — justamente o que estourava
+            # a instância. Liberadas no laço acima, elas são reanalisadas aqui,
+            # e isso exige o arquivo aberto.
+            if total_declarado is None:
+                texto_do_documento = "\n".join(
+                    pagina.extract_text() or "" for _, pagina in paginas_liberando(pdf)
+                )
+                total_declarado = self._total_por_convergencia(texto_do_documento)
+
         # `R-CON-05` — o que o crivo aceitou e não teve onde encaixar viaja no
         # diagnóstico, que é por onde `V-CTR-01` e as suas irmãs já falam.
         if caudas_orfas:
@@ -453,16 +470,6 @@ class PdfPlumberContractExtractor:
             diagnostico = replace(
                 diagnostico, ordem_de_colunas_alternativa=tuple(trocas_de_papel)
             )
-
-        # T-2644 / ESPEC 042 `D-04` — só quando a busca normal (`TOTAL:` +
-        # `BRL`) já percorreu o documento inteiro e não achou nada. Os
-        # documentos que já têm `total_declarado` não pagam esta leitura
-        # extra de página — ela só acontece no caminho que hoje bloqueia.
-        if total_declarado is None:
-            texto_do_documento = "\n".join(
-                pagina.extract_text() or "" for pagina in pdf.pages
-            )
-            total_declarado = self._total_por_convergencia(texto_do_documento)
 
         return Contract(
             proposta=proposta,
@@ -495,6 +502,7 @@ class PdfPlumberContractExtractor:
         """
         with abrir_pdf(caminho, "contrato") as pdf:
             texto_da_capa = pdf.pages[0].extract_text() or ""
+            liberar_pagina(pdf.pages[0])
 
         return Contract(
             proposta=self._proposta(texto_da_capa),
@@ -530,10 +538,20 @@ class PdfPlumberContractExtractor:
             if any(
                 self._e_item_completo(celulas)
                 for numero in candidato.paginas
-                for celulas in self._linhas(pdf.pages[numero - 1], candidato.divisorias)
+                for celulas in self._linhas_e_libera(pdf, numero, candidato.divisorias)
             ):
                 escolhidas.append(candidato.divisorias)
         return escolhidas
+
+    @classmethod
+    def _linhas_e_libera(
+        cls, pdf: Any, numero: int, divisorias: tuple[float, ...]
+    ) -> list[list[str]]:
+        pagina = pdf.pages[numero - 1]
+        try:
+            return cls._linhas(pagina, divisorias)
+        finally:
+            aliviar_pagina(pagina)
 
     @staticmethod
     def _linhas(pagina: Any, divisorias: tuple[float, ...]) -> list[list[str]]:

@@ -78,7 +78,8 @@ conta do Confere, nunca valor ajustado.
 - **Tabela nova** `LeituraImagemPdf` (só tabela nova — o agendador roda o cliente Prisma desta
   pasta contra produção; coluna nova em model que ele usa quebraria a sincronização):
   `sha256` (chave — mesmo conteúdo, mesma leitura, em qualquer cliente), `situacao`
-  (`lido` | `falhou`), `caminhoLido` (`r2:leitura-imagem/<sha256>.pdf`), `paginas`, `motivo`
+  (`lido` | `falhou` | `com_texto` — este último lembra o arquivo que **não** é imagem, para a
+  passada seguinte não baixá-lo de novo), `caminhoLido` (`r2:leitura-imagem/<sha256>.pdf`), `paginas`, `motivo`
   (quando falhou), `lidoEm`, `tentarDepoisDe`. Sem FK: liga pelo `sha256` que `ArquivoCliente` e
   `ArquivoSharepoint` já têm.
 - **R2**: o PDF lido, ~50–150 KB por arquivo (estimativa; a régua mede) — ~10 MB para os 95.
@@ -105,7 +106,7 @@ pela própria migração (`MIGRACAO_DA_LEITURA_IMAGEM`), nunca muda o código de
   `lerPdfDeImagem` ali mesmo, com "Lendo o contrato, que é uma imagem… página 3 de 12", e envia o
   PDF lido. Fechar a aba cancela; nada fica pela metade. (Não grava em `LeituraImagemPdf` — o
   arquivo não é do cadastro.)
-- **Aviso**: a linha do documento na tela de conferência e o cartão "Relatório gerado" mostram
+- **Aviso**: a linha do documento na tela de conferência (`UploadForm`) mostra
   "Este contrato é uma imagem (foi impresso ou escaneado). O sistema leu o texto da imagem —
   confira os valores." O histórico (`ConfereExecucao.arquivosEntrada`, já JSON) ganha
   `lidoDeImagem: true` na entrada — sem migração.
@@ -113,8 +114,9 @@ pela própria migração (`MIGRACAO_DA_LEITURA_IMAGEM`), nunca muda o código de
   - imagem que não deu para ler: "Este contrato é uma imagem e o sistema não conseguiu ler o texto.
     Peça o arquivo do Word ou um PDF salvo pelo Word." (substitui a mensagem atual do `pdf_sem_texto`
     quando ele chegar ao usuário);
-  - lido, mas a conta não fechou: o bloqueio do Confere chega como hoje, e a tela acrescenta
-    "Este contrato é uma imagem — a leitura pode ter errado um valor."
+  - lido, mas a conta não fechou: o bloqueio do Confere chega como hoje, e a tela acrescenta aos
+    avisos (em `gerarRelatorio`, `src/app/confere/lib/api.ts`) "Este contrato é uma imagem — a
+    leitura pode ter errado um valor."
 
 ## 4. Fora da primeira versão
 

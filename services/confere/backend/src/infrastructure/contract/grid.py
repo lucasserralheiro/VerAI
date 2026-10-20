@@ -38,8 +38,8 @@ COLUNAS_DA_TABELA_DE_ITENS = 7
 DIVISORIAS_DA_TABELA = COLUNAS_DA_TABELA_DE_ITENS + 1
 
 # 20/10/2026 — quantos caracteres de páginas com tabela `analisar_geometria`
-# deixa analisados em memória para as passadas seguintes (~0,5 KB cada, só os
-# objetos). Cobre a tabela de itens inteira dos contratos da amostra — que assim
+# deixa analisados em memória para as passadas seguintes (~1 KB cada, só os
+# objetos — o mesmo que `paginas_liberando` mede). Cobre a tabela de itens inteira dos contratos da amostra — que assim
 # não é reanalisada — e limita o pico em documentos fora do comum.
 CARACTERES_RETIDOS_NA_GEOMETRIA = 60_000
 
@@ -247,9 +247,13 @@ def analisar_geometria(pdf: Any) -> GeometriaDoContrato:
             if len(divisorias) == DIVISORIAS_DA_TABELA:
                 por_conjunto[tuple(sorted(divisorias))].add(numero)
 
+        # Retida só a página em que a faixa da tabela **foi achada** — o critério
+        # do 19/10, que fechava o contrato de 4,1 MB em 271 MB. Reter toda página
+        # com oito divisórias (cronograma, quadro de anexo) somava até 60 mil
+        # caracteres a ~1 KB cada e estourou os 512 MB do Render (20/10/2026).
         caracteres = len(pagina.chars)
         if (
-            len(candidatas) >= DIVISORIAS_DA_TABELA
+            any(numero in numeros for numeros in por_conjunto.values())
             and retidos + caracteres <= CARACTERES_RETIDOS_NA_GEOMETRIA
         ):
             retidos += caracteres

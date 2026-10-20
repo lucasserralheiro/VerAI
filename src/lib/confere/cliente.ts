@@ -110,12 +110,14 @@ function esgotouTempo(erro: unknown): boolean {
 /** Quando o Confere cai no meio da geração (o Render reinicia a instância — foi
  *  o "Ran out of memory" de 19/10/2026), o que chega aqui é a conexão cortada ou
  *  a página de erro do provedor (502/503/504, sem JSON). Nenhum dos dois diz
- *  nada a quem está na tela; esta frase diz o que fazer. */
+ *  nada a quem está na tela; esta frase diz o que fazer. O 429 é da borda do
+ *  Render enquanto a instância volta (20/10/2026) — nem o Confere nem o VerAI
+ *  o devolvem. */
 export const MENSAGEM_CONFERE_INDISPONIVEL =
   'O serviço do Confere reiniciou ou está indisponível no momento e a geração foi interrompida. ' +
   'Aguarde cerca de 1 minuto e tente de novo.'
 
-const STATUS_DE_INDISPONIBILIDADE = new Set([502, 503, 504])
+const STATUS_DE_INDISPONIBILIDADE = new Set([429, 502, 503, 504])
 
 function mensagemDeErro(corpo: unknown, status: number): string {
   if (corpo && typeof corpo === 'object') {

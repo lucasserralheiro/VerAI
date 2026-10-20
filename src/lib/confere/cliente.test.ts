@@ -143,7 +143,7 @@ describe('chamarConfere', () => {
   // 19/10/2026 — o Render matou a instância por falta de memória no meio da
   // geração; a resposta foi a página de erro do provedor, sem JSON, e a tela
   // mostrava "Confere respondeu 502 sem uma mensagem reconhecível".
-  it.each([502, 503, 504])('%i sem corpo JSON vira a mensagem de indisponibilidade', async (status) => {
+  it.each([429, 502, 503, 504])('%i sem corpo JSON vira a mensagem de indisponibilidade', async (status) => {
     const { chamarConfere, MENSAGEM_CONFERE_INDISPONIVEL } = await import('./cliente')
     jest.spyOn(global, 'fetch').mockResolvedValue({
       status,

@@ -461,3 +461,13 @@ guarda as divisórias de cada página e o laço principal não reabre página se
 (`pode_ter_grade`); páginas com tabela ficam aliviadas até um teto
 (`CARACTERES_RETIDOS_NA_GEOMETRIA`). Nas fixtures, cada página é analisada uma vez (igual a antes da
 correção) e o pico do caso pesado ficou em 250 MB (era 468 MB antes da correção de memória).
+
+**Revisto no mesmo dia (20/10/2026, depois do deploy `ea87d25`)**: o primeiro envio real pelo
+`/jobs` (contrato de 4,1 MB + 1 aditivo, que a versão anterior fechava em 271 MB) estourou os 512 MB
+do Render, e durante o reinício a borda do Render respondeu **429** — que a tela mostrava como
+"sem uma mensagem reconhecível". Causa: o critério de retenção tinha passado de "página em que a
+faixa da tabela foi achada" para "página com oito divisórias ou mais" (cronogramas, quadros de
+anexo), e o teto de 60 mil caracteres supunha ~0,5 KB por caractere — é ~1 KB. Voltou o critério do
+19/10, com o teto por cima: a retenção nunca passa da versão que fechava em 271 MB; o ganho de
+tempo de `pode_ter_grade` continua. Na tela, 429 entra com 502/503/504 na mensagem de
+indisponibilidade (`STATUS_DE_INDISPONIBILIDADE`, `src/lib/confere/cliente.ts`).

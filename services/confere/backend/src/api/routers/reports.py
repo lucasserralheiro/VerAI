@@ -9,10 +9,16 @@ from __future__ import annotations
 
 import base64
 import logging
+import asyncio
 import multiprocessing
+import os
 import resource
+import shutil
 import tempfile
 import threading
+import time
+import uuid
+from dataclasses import dataclass, field
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
@@ -21,7 +27,7 @@ from typing import Annotated
 import anyio
 import anyio.to_thread
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from api.schemas import (
     Achado,
@@ -195,8 +201,30 @@ def _achado(origem: object) -> Achado:
     )
 
 
+ARQUIVO_DE_FASE = "fase.txt"
+
+
+def registrar_fase(arquivo: Path | None, fase: str) -> None:
+    """Escreve a fase em curso num arquivo da pasta do job (20/10/2026).
+
+    É o canal entre o processo filho, que conhece a fase, e o servidor, que
+    responde `GET /jobs/{id}`. Arquivo e não fila do `multiprocessing`: uma fila
+    exigiria um processo gerenciador a mais — memória que o plano free não tem —
+    e o arquivo sobrevive a qualquer coisa que aconteça com o filho. Troca
+    atômica (`os.replace`) para o leitor nunca ver o texto pela metade.
+    """
+    if arquivo is None:
+        return
+    try:
+        provisorio = arquivo.with_suffix(".tmp")
+        provisorio.write_text(fase, encoding="utf-8")
+        os.replace(provisorio, arquivo)
+    except OSError:  # pragma: no cover - informativo; a geração não depende disto
+        pass
+
+
 def _processar(
-    entradas: Entradas, destino: Path
+    entradas: Entradas, destino: Path, arquivo_de_fase: Path | None = None
 ) -> tuple[ReportResult, AnaliseDaMedicao | None, bytes | None, bytes | None]:
     """Todo o trabalho síncrono e pesado da geração, numa função só.
 
@@ -213,16 +241,23 @@ def _processar(
     é montada por quem chama, porque decidir status é do router, não daqui.
     """
     container = get_container()
-    resultado = container.gerar(entradas)
+    if arquivo_de_fase is None:
+        resultado = container.gerar(entradas)
+    else:
+        resultado = container.gerar(
+            entradas, ao_avancar=lambda fase: registrar_fase(arquivo_de_fase, fase)
+        )
 
     if resultado.bloqueado or resultado.relatorio is None:
         return resultado, None, None, None
 
+    registrar_fase(arquivo_de_fase, "Montando os anexos e gerando o DOCX")
     documento = container.renderizador().renderizar(resultado.relatorio, destino / NOME_DA_SAIDA)
     # ESPEC 009 `R-XLS-06` — a análise sai na **mesma passagem**. Ela é
     # derivação do relatório já pronto: nenhuma leitura de arquivo a mais,
     # nenhuma reconciliação repetida.
     analise = AnaliseDaMedicao.de_relatorio(resultado.relatorio)
+    registrar_fase(arquivo_de_fase, "Gerando a planilha de análise")
     planilha = container.renderizador_de_analise().renderizar(analise, destino / NOME_DA_ANALISE)
     # Lidos antes de a pasta temporária sumir. Devolver os bytes evita um
     # arquivo intermediário de nome previsível, que colidiria entre requisições
@@ -273,12 +308,12 @@ def _descartar_executor() -> None:
 
 
 def _processar_no_filho(
-    entradas: Entradas, destino: Path
+    entradas: Entradas, destino: Path, arquivo_de_fase: Path | None = None
 ) -> tuple[
     tuple[ReportResult, AnaliseDaMedicao | None, bytes | None, bytes | None], float
 ]:
     """Roda no processo filho: `_processar` e o pico de memória que ele custou."""
-    saida = _processar(entradas, destino)
+    saida = _processar(entradas, destino, arquivo_de_fase)
     # `ru_maxrss` é em KB no Linux. É o pico **deste** processo — por isso
     # medido aqui, e não no servidor, onde misturaria todas as gerações.
     pico_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
@@ -293,15 +328,21 @@ def _tamanho_mb(caminho: Path) -> float:
 
 
 def _processar_isolado(
-    entradas: Entradas, destino: Path
+    entradas: Entradas, destino: Path, arquivo_de_fase: Path | None = None
 ) -> tuple[ReportResult, AnaliseDaMedicao | None, bytes | None, bytes | None]:
-    """Executa `_processar` no processo filho e registra o pico de memória.
+    """Executa `_processar` no processo filho e registra pico de memória e duração.
 
     O log diz **qual** entrada custou quanto — quando a instância cair de novo,
     é por ele que se descobre o documento.
     """
+    inicio = time.monotonic()
+    registrar_fase(arquivo_de_fase, "Iniciando a geração")
     try:
-        saida, pico_mb = _obter_executor().submit(_processar_no_filho, entradas, destino).result()
+        saida, pico_mb = (
+            _obter_executor()
+            .submit(_processar_no_filho, entradas, destino, arquivo_de_fase)
+            .result()
+        )
     except BrokenProcessPool as erro:
         _descartar_executor()
         logger.error(
@@ -315,8 +356,9 @@ def _processar_isolado(
         raise GeracaoInterrompida from erro
 
     logger.info(
-        "geração concluída: pico %.0f MB — contrato %.1f MB, levantamento %.1f MB, "
+        "geração concluída em %.0f s: pico %.0f MB — contrato %.1f MB, levantamento %.1f MB, "
         "%d aditivo(s) %.1f MB",
+        time.monotonic() - inicio,
         pico_mb,
         _tamanho_mb(entradas.contrato),
         _tamanho_mb(entradas.levantamento),
@@ -432,31 +474,8 @@ async def gerar_relatorio(
     # persistido: a aplicação é sem estado (ESPEC 001 §7.2).
     with tempfile.TemporaryDirectory(prefix="analise-medicao-") as pasta:
         destino = Path(pasta)
-
-        entradas = Entradas(
-            contrato=await gravar(contrato, destino, "pdf", "contrato"),
-            # T-1909 / ESPEC 025 `R-DOC-06` — o nome com que o arquivo chegou.
-            # O caminho acima é posicional e continua sendo; este é o que a tela
-            # exibe quando a peça não tem identificação interna.
-            nome_do_contrato=contrato.filename or "",
-            levantamento=await gravar(levantamento, destino, "xlsx", "levantamento"),
-            # ESPEC 027 `R-LEV-09` — o mesmo, para o levantamento: `V-MED-01`
-            # precisa dizer qual arquivo enviar.
-            nome_do_levantamento=levantamento.filename or "",
-            # ESPEC 029 `R-IDT-10` — decide **a severidade do achado**, nunca a
-            # sua existência: confirmado, ele desce a aviso e permanece na lista.
-            identidade_confirmada=identidade_confirmada,
-            # Nome por posição: dois aditivos com o mesmo nome de arquivo
-            # sobrescreveriam um ao outro em disco, e o segundo entraria como
-            # cópia do primeiro — que `V-ADT-03` acusaria como peça repetida, mas
-            # depois de o dado já ter sido perdido.
-            aditivos=tuple(
-                [
-                    await gravar(arquivo, destino, "pdf", f"aditivo-{indice}")
-                    for indice, arquivo in enumerate(aditivos, start=1)
-                    if arquivo.filename
-                ]
-            ),
+        entradas = await _entradas_do_envio(
+            destino, contrato, levantamento, aditivos, identidade_confirmada
         )
 
         try:
@@ -466,7 +485,7 @@ async def gerar_relatorio(
             #
             # 19/10/2026 — e num processo filho (`_processar_isolado`): a memória
             # da geração volta inteira ao sistema quando ele termina.
-            resultado, analise, conteudo, conteudo_da_analise = await anyio.to_thread.run_sync(
+            saida = await anyio.to_thread.run_sync(
                 _processar_isolado, entradas, destino, limiter=_UMA_POR_REPLICA
             )
         except ExtractionError as erro:
@@ -482,30 +501,75 @@ async def gerar_relatorio(
                 status.HTTP_500_INTERNAL_SERVER_ERROR, "falha ao processar os arquivos"
             ) from erro
 
-        # As quatro condições andam juntas: `_processar` devolve os três últimos
-        # como `None` exatamente quando bloqueia. Verificar os quatro é o que
-        # deixa o `mypy` estreitar os tipos daqui para baixo, sem `assert`.
-        if (
-            resultado.bloqueado
-            or resultado.relatorio is None
-            or analise is None
-            or conteudo is None
-            or conteudo_da_analise is None
-        ):
-            confirmaveis = resultado.achados.confirmaveis
-            bloqueantes = resultado.achados.bloqueantes
-            corpo = RespostaBloqueada(
-                bloqueantes=[_achado(a) for a in bloqueantes],
-                avisos=[_achado(a) for a in resultado.achados.avisos],
-                # ESPEC 029 `R-IDT-10` — o que uma resposta destrava, separado do
-                # que exige outro arquivo.
-                confirmaveis=[_achado(a) for a in confirmaveis],
-                pode_prosseguir=bool(confirmaveis) and not bloqueantes,
-            )
-            return JSONResponse(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                content=corpo.model_dump(),
-            )
+    return _responder(*saida)
+
+
+async def _entradas_do_envio(
+    destino: Path,
+    contrato: UploadFile,
+    levantamento: UploadFile,
+    aditivos: list[UploadFile],
+    identidade_confirmada: bool,
+) -> Entradas:
+    """Grava os arquivos enviados em `destino` e monta as `Entradas` — `/reports` e `/jobs`."""
+    return Entradas(
+        contrato=await gravar(contrato, destino, "pdf", "contrato"),
+        # T-1909 / ESPEC 025 `R-DOC-06` — o nome com que o arquivo chegou.
+        # O caminho acima é posicional e continua sendo; este é o que a tela
+        # exibe quando a peça não tem identificação interna.
+        nome_do_contrato=contrato.filename or "",
+        levantamento=await gravar(levantamento, destino, "xlsx", "levantamento"),
+        # ESPEC 027 `R-LEV-09` — o mesmo, para o levantamento: `V-MED-01`
+        # precisa dizer qual arquivo enviar.
+        nome_do_levantamento=levantamento.filename or "",
+        # ESPEC 029 `R-IDT-10` — decide **a severidade do achado**, nunca a
+        # sua existência: confirmado, ele desce a aviso e permanece na lista.
+        identidade_confirmada=identidade_confirmada,
+        # Nome por posição: dois aditivos com o mesmo nome de arquivo
+        # sobrescreveriam um ao outro em disco, e o segundo entraria como
+        # cópia do primeiro — que `V-ADT-03` acusaria como peça repetida, mas
+        # depois de o dado já ter sido perdido.
+        aditivos=tuple(
+            [
+                await gravar(arquivo, destino, "pdf", f"aditivo-{indice}")
+                for indice, arquivo in enumerate(aditivos, start=1)
+                if arquivo.filename
+            ]
+        ),
+    )
+
+
+def _responder(
+    resultado: ReportResult,
+    analise: AnaliseDaMedicao | None,
+    conteudo: bytes | None,
+    conteudo_da_analise: bytes | None,
+) -> RespostaRelatorio | JSONResponse:
+    """A resposta HTTP da geração — a mesma para `/reports` e para o resultado de um job."""
+    # As quatro condições andam juntas: `_processar` devolve os três últimos
+    # como `None` exatamente quando bloqueia. Verificar os quatro é o que
+    # deixa o `mypy` estreitar os tipos daqui para baixo, sem `assert`.
+    if (
+        resultado.bloqueado
+        or resultado.relatorio is None
+        or analise is None
+        or conteudo is None
+        or conteudo_da_analise is None
+    ):
+        confirmaveis = resultado.achados.confirmaveis
+        bloqueantes = resultado.achados.bloqueantes
+        corpo = RespostaBloqueada(
+            bloqueantes=[_achado(a) for a in bloqueantes],
+            avisos=[_achado(a) for a in resultado.achados.avisos],
+            # ESPEC 029 `R-IDT-10` — o que uma resposta destrava, separado do
+            # que exige outro arquivo.
+            confirmaveis=[_achado(a) for a in confirmaveis],
+            pode_prosseguir=bool(confirmaveis) and not bloqueantes,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content=corpo.model_dump(),
+        )
 
     relatorio = resultado.relatorio
     return RespostaRelatorio(
@@ -534,3 +598,195 @@ async def gerar_relatorio(
         docx_base64=base64.b64encode(conteudo).decode("ascii"),
         analise_xlsx_base64=base64.b64encode(conteudo_da_analise).decode("ascii"),
     )
+
+
+# ── Geração assíncrona: `POST /jobs` (20/10/2026) ─────────────────────────────
+#
+# `/reports` amarra ~2–4 min de CPU (no plano free do Render) a uma requisição
+# HTTP, e o VerAI espera atrás de uma função da Vercel que morre aos 300 s: todo
+# contrato maior virava 504. Aqui a requisição só **entrega** os arquivos e
+# volta na hora com um `id`; a geração segue em segundo plano, e quem chama
+# consulta `GET /jobs/{id}` (situação, fase, posição na fila) até poder buscar
+# `GET /jobs/{id}/resultado` — que devolve **exatamente** o que `/reports`
+# devolveria (200 com o relatório, 422 bloqueado, 503 sem memória...).
+#
+# Os jobs vivem **na memória deste processo**: o serviço continua sem banco
+# (ESPEC 001 §7.2). Reiniciou (deploy, queda), o job some — e `GET` responde 404
+# com mensagem que diz isso, para a tela pedir um novo envio em vez de esperar
+# para sempre. O resultado fica guardado por `RETENCAO_DO_RESULTADO_S` depois
+# de pronto, para a consulta poder repetir (rede que caiu no meio, duas abas).
+#
+# `/reports` continua existindo e igual: é o caminho de quem chama direto, da
+# suíte e do VerAI enquanto ele não migra.
+
+RETENCAO_DO_RESULTADO_S = 20 * 60
+"""Quanto o resultado fica guardado depois de pronto."""
+
+MAXIMO_DE_JOBS = 20
+"""Teto de jobs na memória (na fila + guardados). Acima disso `POST /jobs` recusa
+com 503 — no plano free, vinte envios pendentes já é sinal de coisa errada."""
+
+MENSAGEM_JOB_NAO_ENCONTRADO = (
+    "Esta geração não está mais no Confere — o serviço pode ter reiniciado, ou o "
+    "resultado expirou. Envie os arquivos de novo."
+)
+
+
+@dataclass
+class _Job:
+    id: str
+    pasta: Path
+    criado_em: float = field(default_factory=time.monotonic)
+    iniciado_em: float | None = None
+    concluido_em: float | None = None
+    status_http: int | None = None
+    corpo: bytes | None = None
+
+    @property
+    def arquivo_de_fase(self) -> Path:
+        return self.pasta / ARQUIVO_DE_FASE
+
+    def fase(self) -> str | None:
+        try:
+            return self.arquivo_de_fase.read_text(encoding="utf-8") or None
+        except OSError:
+            return None
+
+
+_jobs: dict[str, _Job] = {}
+
+
+def _limpar_jobs_vencidos() -> None:
+    agora = time.monotonic()
+    for chave, job in list(_jobs.items()):
+        if job.concluido_em is not None and agora - job.concluido_em > RETENCAO_DO_RESULTADO_S:
+            del _jobs[chave]
+
+
+def _situacao(job: _Job) -> str:
+    if job.concluido_em is not None:
+        return "concluido"
+    # Quem marca o início é o filho, ao escrever a primeira fase — antes disso o
+    # job está esperando o `_UMA_POR_REPLICA`.
+    if job.iniciado_em is not None and job.arquivo_de_fase.exists():
+        return "processando"
+    return "na_fila"
+
+
+def _posicao_na_fila(job: _Job) -> int:
+    """Quantos envios estão na frente deste — 0 quando já é a vez dele."""
+    return sum(
+        1
+        for outro in _jobs.values()
+        if outro is not job and outro.concluido_em is None and outro.criado_em < job.criado_em
+    )
+
+
+def _serializar(resposta: RespostaRelatorio | JSONResponse) -> tuple[int, bytes]:
+    if isinstance(resposta, JSONResponse):
+        return resposta.status_code, bytes(resposta.body)
+    return status.HTTP_200_OK, resposta.model_dump_json().encode("utf-8")
+
+
+def _erro(status_http: int, mensagem: str) -> tuple[int, bytes]:
+    return status_http, JSONResponse({"detail": mensagem}).body
+
+
+async def _executar_job(job: _Job, entradas: Entradas) -> None:
+    try:
+        job.iniciado_em = time.monotonic()
+        saida = await anyio.to_thread.run_sync(
+            _processar_isolado, entradas, job.pasta, job.arquivo_de_fase, limiter=_UMA_POR_REPLICA
+        )
+        job.status_http, job.corpo = _serializar(_responder(*saida))
+    except ExtractionError as erro:
+        job.status_http, job.corpo = _erro(status.HTTP_422_UNPROCESSABLE_CONTENT, str(erro))
+    except GeracaoInterrompida:
+        job.status_http, job.corpo = _erro(
+            status.HTTP_503_SERVICE_UNAVAILABLE, MENSAGEM_GERACAO_INTERROMPIDA
+        )
+    except Exception:  # pragma: no cover - rede de segurança
+        logger.exception("falha inesperada ao gerar o relatório (job %s)", job.id)
+        job.status_http, job.corpo = _erro(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, "falha ao processar os arquivos"
+        )
+    finally:
+        job.concluido_em = time.monotonic()
+        # Os arquivos de entrada não ficam: só o resultado, e só por um tempo.
+        shutil.rmtree(job.pasta, ignore_errors=True)
+
+
+# As tarefas em andamento precisam de referência forte: o `asyncio` só guarda
+# referência fraca, e uma tarefa sem dono pode ser coletada no meio.
+_tarefas: set[asyncio.Task[None]] = set()
+
+
+@router.post(
+    "/jobs",
+    summary="Inicia a geração em segundo plano e devolve o id para consulta",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def iniciar_job(
+    contrato: Annotated[UploadFile, File(description="Proposta comercial em PDF")],
+    levantamento: Annotated[UploadFile, File(description="Planilha de medição em XLSX")],
+    aditivos: Annotated[
+        list[UploadFile],
+        File(description="Aditivos da proposta, em PDF — zero ou mais"),
+    ] = [],  # noqa: B006 — FastAPI resolve o padrão por requisição, não o compartilha
+    identidade_confirmada: Annotated[bool, Form()] = False,
+) -> dict[str, object]:
+    _limpar_jobs_vencidos()
+    if len(_jobs) >= MAXIMO_DE_JOBS:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "O Confere está com envios demais na fila. Espere alguns minutos e tente de novo.",
+        )
+
+    pasta = Path(tempfile.mkdtemp(prefix="analise-medicao-job-"))
+    try:
+        entradas = await _entradas_do_envio(
+            pasta, contrato, levantamento, aditivos, identidade_confirmada
+        )
+    except BaseException:
+        shutil.rmtree(pasta, ignore_errors=True)
+        raise
+
+    job = _Job(id=uuid.uuid4().hex, pasta=pasta)
+    _jobs[job.id] = job
+    tarefa = asyncio.create_task(_executar_job(job, entradas))
+    _tarefas.add(tarefa)
+    tarefa.add_done_callback(_tarefas.discard)
+    return {"id": job.id, "situacao": _situacao(job), "posicao": _posicao_na_fila(job)}
+
+
+def _job_ou_404(id_do_job: str) -> _Job:
+    _limpar_jobs_vencidos()
+    job = _jobs.get(id_do_job)
+    if job is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, MENSAGEM_JOB_NAO_ENCONTRADO)
+    return job
+
+
+@router.get("/jobs/{id_do_job}", summary="Situação de uma geração em segundo plano")
+async def situacao_do_job(id_do_job: str) -> dict[str, object]:
+    job = _job_ou_404(id_do_job)
+    situacao = _situacao(job)
+    inicio = job.iniciado_em if situacao == "processando" else job.criado_em
+    return {
+        "id": job.id,
+        "situacao": situacao,
+        "fase": job.fase() if situacao == "processando" else None,
+        "posicao": _posicao_na_fila(job) if situacao == "na_fila" else 0,
+        "segundos": round(time.monotonic() - (inicio or job.criado_em)),
+    }
+
+
+@router.get(
+    "/jobs/{id_do_job}/resultado",
+    summary="O resultado de uma geração concluída — o mesmo que `/reports` devolveria",
+)
+async def resultado_do_job(id_do_job: str) -> Response:
+    job = _job_ou_404(id_do_job)
+    if job.concluido_em is None or job.status_http is None or job.corpo is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A geração ainda não terminou.")
+    return Response(content=job.corpo, status_code=job.status_http, media_type="application/json")

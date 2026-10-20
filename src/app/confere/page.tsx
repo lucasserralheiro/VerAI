@@ -17,6 +17,7 @@ import {
 	conferirIdentidade,
 	documentosDoContrato,
 	gerarRelatorio,
+	type ProgressoDoServidor,
 	identificarLevantamento,
 } from "./lib/api";
 import {
@@ -158,6 +159,8 @@ export default function ConferePage() {
 		// painel de progresso conta o despertar como etapa.
 		void aquecerServico().then(({ dormindo }) => setServicoDormindo(dormindo));
 	}
+	// O que a última consulta da geração assíncrona disse (fase, fila).
+	const [progressoDoServidor, setProgressoDoServidor] = useState<ProgressoDoServidor | null>(null);
 	const [aviso, setAviso] = useState("");
 	// `R-LMP-04` — zerar `arquivos` não zera o `<input type="file">`: o elemento
 	// guarda a seleção anterior em `input.value`, e a tela passaria a dizer uma
@@ -441,10 +444,16 @@ export default function ConferePage() {
 		setEditando(false);
 		descartar(estado);
 		setAviso("");
+		setProgressoDoServidor(null);
 		setEstado({ situacao: "processando" });
 		const resultado = await gerarRelatorio(
 			{ levantamento, contrato, aditivos, contratoId: documentos?.contrato.id ?? null },
 			identidadeConfirmada,
+			(progresso) => {
+				// Consulta que chegou depois de a pessoa trocar os arquivos não é
+				// desta geração.
+				if (geracao === geracaoAtual.current) setProgressoDoServidor(progresso);
+			},
 		);
 
 		// Os arquivos mudaram enquanto o relatório era gerado: ele é do par antigo e
@@ -671,6 +680,7 @@ export default function ConferePage() {
 				aberto={estado.situacao === "processando"}
 				temAditivos={aditivos.length > 0}
 				servicoDormindo={servicoDormindo}
+				doServidor={progressoDoServidor}
 			/>
 
 			{/* Fora do `<form>` do `UploadForm` — para que o `<form method="dialog">`

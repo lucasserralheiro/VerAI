@@ -211,6 +211,85 @@ export async function listarClientes(): Promise<ClienteDaLista[]> {
 	}
 }
 
+/** O que a consulta de uma geração em andamento devolve (20/10/2026). */
+export interface ProgressoDoServidor {
+	situacao: "na_fila" | "processando";
+	/** A fase em curso, em texto para a tela — `null` enquanto na fila. */
+	fase: string | null;
+	/** Quantos envios estão na frente — 0 quando já é a vez deste. */
+	posicao: number;
+}
+
+/** Intervalo entre consultas. Curto o bastante para a fase não ficar velha na
+ *  tela, longo o bastante para não gastar invocação à toa (cada consulta é uma
+ *  chamada à função da Vercel e outra ao Confere). */
+const INTERVALO_DA_CONSULTA_MS = 3_000;
+
+/** Teto da espera inteira, com fila. No Render free a geração leva minutos;
+ *  passar disto é sinal de coisa errada, não de contrato grande. */
+const TETO_DA_GERACAO_ASSINCRONA_MS = 20 * 60_000;
+
+/** Consultas seguidas que falham por rede antes de desistir — uma falha só é
+ *  só uma falha (o Wi-Fi piscou, a função da Vercel esfriou). */
+const FALHAS_TOLERADAS = 5;
+
+function intervaloDaConsulta(): number {
+	const injetado = (globalThis as { __CONFERE_INTERVALO_MS__?: number })
+		.__CONFERE_INTERVALO_MS__;
+	return typeof injetado === "number" && injetado >= 0 ? injetado : INTERVALO_DA_CONSULTA_MS;
+}
+
+const esperar = (ms: number) => new Promise((resolver) => setTimeout(resolver, ms));
+
+/** Acompanha a geração assíncrona até a resposta final — que tem a mesma forma
+ *  da resposta síncrona (200, 422, erro com `detail`), para o resto de
+ *  `gerarRelatorio` não precisar saber por qual caminho ela veio. */
+async function acompanharGeracao(
+	bilhete: string,
+	aoAvancar?: (progresso: ProgressoDoServidor) => void,
+): Promise<Response | Estado> {
+	const limite = Date.now() + TETO_DA_GERACAO_ASSINCRONA_MS;
+	let falhas = 0;
+	while (Date.now() < limite) {
+		await esperar(intervaloDaConsulta());
+		let resposta: Response;
+		try {
+			resposta = await fetch(
+				`${API_BASE_URL}/reports/${encodeURIComponent(bilhete)}`,
+				{ cache: "no-store" },
+			);
+		} catch {
+			if (++falhas >= FALHAS_TOLERADAS) {
+				return {
+					situacao: "erro",
+					mensagem:
+						"A conexão com o servidor caiu enquanto o relatório era gerado. Confira sua internet e tente de novo.",
+				};
+			}
+			continue;
+		}
+
+		if (resposta.status === 202) {
+			falhas = 0;
+			const progresso = (await resposta.json().catch(() => null)) as ProgressoDoServidor | null;
+			if (progresso) aoAvancar?.(progresso);
+			continue;
+		}
+		// Falha de **uma** consulta (o Confere não respondeu agora) não é falha
+		// da geração: tenta de novo, até o limite de falhas.
+		if (resposta.status === 503) {
+			const corpo = (await resposta.clone().json().catch(() => null)) as { transitorio?: boolean } | null;
+			if (corpo?.transitorio && ++falhas < FALHAS_TOLERADAS) continue;
+		}
+		return resposta;
+	}
+	return {
+		situacao: "erro",
+		mensagem:
+			"A geração passou de 20 minutos sem terminar e a tela parou de esperar. Tente de novo em instantes.",
+	};
+}
+
 export interface EntradaDaGeracao {
 	levantamento: File;
 	contrato: Peca;
@@ -228,8 +307,13 @@ export interface EntradaDaGeracao {
 export async function gerarRelatorio(
 	entrada: EntradaDaGeracao,
 	identidadeConfirmada = false,
+	aoAvancar?: (progresso: ProgressoDoServidor) => void,
 ): Promise<Estado> {
 	const corpo = new FormData();
+	// 20/10/2026 — pede a geração assíncrona: o proxy responde 202 com um
+	// bilhete e esta função consulta até o resultado ficar pronto. Proxy ou
+	// Confere sem suporte respondem pelo caminho síncrono, e tudo segue igual.
+	corpo.append("assincrono", "1");
 	// Proposta do cadastro vai por id: o servidor baixa do R2, e o corpo da
 	// requisição fica só com a planilha — longe do limite de 4,5 MB da Vercel.
 	if (entrada.contrato.tipo === "arquivo") {
@@ -294,6 +378,16 @@ export async function gerarRelatorio(
 		clearTimeout(cronometro);
 	}
 
+	if (resposta.status === 202) {
+		const { execucao } = (await resposta.json().catch(() => ({}))) as { execucao?: string };
+		if (!execucao) {
+			return { situacao: "erro", mensagem: "O servidor aceitou o envio, mas não disse como acompanhá-lo. Tente de novo." };
+		}
+		const final = await acompanharGeracao(execucao, aoAvancar);
+		if (!(final instanceof Response)) return final;
+		resposta = final;
+	}
+
 	if (resposta.ok) {
 		const relatorio: RespostaRelatorio = await resposta.json();
 		return {
@@ -331,6 +425,9 @@ export async function gerarRelatorio(
  *  respondem com um. Veio da plataforma que hospeda o VerAI, com corpo em
  *  texto, e o status é tudo o que há para explicar o que houve. */
 function mensagemDaPlataforma(status: number): string {
+	if (status === 410) {
+		return "O Confere reiniciou e perdeu esta geração. Envie os arquivos de novo.";
+	}
 	if (status === 504) {
 		return "O servidor interrompeu a geração por tempo (HTTP 504). O Confere pode continuar processando este envio por alguns minutos — espere um pouco antes de tentar de novo.";
 	}

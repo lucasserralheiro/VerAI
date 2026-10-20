@@ -1,9 +1,13 @@
 /**
  * Cliente HTTP do Confere (serviço externo, Python/FastAPI — ver
- * docs/superpowers/specs/2026-09-21-integracao-confere-design.md). Chamada
- * síncrona, sem fila/polling: espera a resposta — medido em 24/09/2026 no
- * Render free, 69 s no piloto e 134 s num contrato com aditivo, mais ~23 s
- * quando o serviço hiberna.
+ * docs/superpowers/specs/2026-09-21-integracao-confere-design.md).
+ *
+ * Dois caminhos. **Assíncrono** (20/10/2026, o que a tela usa): `iniciarNoConfere`
+ * entrega os arquivos e recebe um id, `consultarNoConfere` acompanha e
+ * `resultadoDoConfere` busca o relatório — nenhuma chamada passa de segundos, e o
+ * limite de 300 s da função da Vercel deixa de cortar a geração (no Render free
+ * ela leva minutos). **Síncrono** (`chamarConfere`, `POST /reports`): espera a
+ * resposta inteira; fica para quando o Confere no ar ainda não tem `/jobs`.
  *
  * `POST /reports` do Confere devolve três formas, pelo status HTTP:
  *  - 200: sucesso, corpo é `RespostaRelatorio` (grid + os dois arquivos em base64).
@@ -123,18 +127,22 @@ function mensagemDeErro(corpo: unknown, status: number): string {
   return `Confere respondeu ${status} sem uma mensagem reconhecível`
 }
 
-export async function chamarConfere(
-  parametros: ParametrosChamarConfere,
-  { tempoLimiteMs = TEMPO_LIMITE_PADRAO_MS }: OpcoesChamarConfere = {}
-): Promise<ResultadoChamarConfere> {
+function configuracao(): { baseUrl: string; headers: Record<string, string> } {
   const baseUrl = process.env.CONFERE_SERVICE_URL
   if (!baseUrl) {
     throw new Error('CONFERE_SERVICE_URL não está configurado')
   }
-
   const headers: Record<string, string> = {}
   const segredo = process.env.CONFERE_SHARED_SECRET
   if (segredo) headers['X-Confere-Secret'] = segredo
+  return { baseUrl, headers }
+}
+
+export async function chamarConfere(
+  parametros: ParametrosChamarConfere,
+  { tempoLimiteMs = TEMPO_LIMITE_PADRAO_MS }: OpcoesChamarConfere = {}
+): Promise<ResultadoChamarConfere> {
+  const { baseUrl, headers } = configuracao()
 
   // O mesmo sinal cobre o envio e a leitura do corpo, que no sucesso são ~5 MB.
   const sinal = AbortSignal.timeout(tempoLimiteMs)
@@ -154,6 +162,12 @@ export async function chamarConfere(
     return { tipo: 'erro', mensagem: MENSAGEM_CONFERE_INDISPONIVEL }
   }
 
+  return interpretarResultado(resposta)
+}
+
+/** 200 relatório / 422 bloqueado / o resto erro — a mesma leitura para
+ *  `/reports` e para `/jobs/{id}/resultado`, que devolve exatamente o mesmo. */
+async function interpretarResultado(resposta: Response): Promise<ResultadoChamarConfere> {
   let corpo: unknown = null
   try {
     corpo = await resposta.json()
@@ -175,4 +189,105 @@ export async function chamarConfere(
   }
 
   return { tipo: 'erro', mensagem: mensagemDeErro(corpo, resposta.status) }
+}
+
+// ── Geração assíncrona (`/jobs`, 20/10/2026) ─────────────────────────────────
+
+/** Cada chamada é curta; o teto só protege contra conexão pendurada. O envio
+ *  leva os PDFs, e o serviço pode estar acordando (~23 s no free). */
+const TEMPO_DO_ENVIO_MS = 90_000
+const TEMPO_DA_CONSULTA_MS = 20_000
+const TEMPO_DO_RESULTADO_MS = 60_000
+
+export type InicioNoConfere =
+  | { tipo: 'iniciado'; id: string }
+  // O Confere no ar é anterior a `/jobs` (deploy pendente): quem chama volta ao
+  // caminho síncrono em vez de falhar.
+  | { tipo: 'sem-suporte' }
+  | { tipo: 'erro'; mensagem: string }
+
+export async function iniciarNoConfere(parametros: ParametrosChamarConfere): Promise<InicioNoConfere> {
+  const { baseUrl, headers } = configuracao()
+  let resposta: Response
+  try {
+    resposta = await fetch(`${baseUrl}/jobs`, {
+      method: 'POST',
+      headers,
+      body: montarFormData(parametros),
+      signal: AbortSignal.timeout(TEMPO_DO_ENVIO_MS),
+    })
+  } catch (erro) {
+    console.error('[confere] falha de rede ao iniciar a geração —', erro)
+    return { tipo: 'erro', mensagem: MENSAGEM_CONFERE_INDISPONIVEL }
+  }
+  if (resposta.status === 404 || resposta.status === 405) return { tipo: 'sem-suporte' }
+  const corpo: unknown = await resposta.json().catch(() => null)
+  const id = (corpo as { id?: unknown } | null)?.id
+  if (resposta.status === 202 && typeof id === 'string' && id !== '') return { tipo: 'iniciado', id }
+  return { tipo: 'erro', mensagem: mensagemDeErro(corpo, resposta.status) }
+}
+
+export interface AndamentoNoConfere {
+  situacao: 'na_fila' | 'processando'
+  fase: string | null
+  posicao: number
+  segundos: number
+}
+
+export type ConsultaNoConfere =
+  | ({ tipo: 'andamento' } & AndamentoNoConfere)
+  | { tipo: 'pronto' }
+  // O job não existe mais: o serviço reiniciou ou o resultado expirou.
+  | { tipo: 'perdido'; mensagem: string }
+  | { tipo: 'erro'; mensagem: string }
+
+export async function consultarNoConfere(id: string): Promise<ConsultaNoConfere> {
+  const { baseUrl, headers } = configuracao()
+  let resposta: Response
+  try {
+    resposta = await fetch(`${baseUrl}/jobs/${encodeURIComponent(id)}`, {
+      headers,
+      cache: 'no-store',
+      signal: AbortSignal.timeout(TEMPO_DA_CONSULTA_MS),
+    })
+  } catch (erro) {
+    console.error('[confere] falha de rede ao consultar a geração —', erro)
+    return { tipo: 'erro', mensagem: MENSAGEM_CONFERE_INDISPONIVEL }
+  }
+  const corpo = (await resposta.json().catch(() => null)) as {
+    situacao?: string
+    fase?: unknown
+    posicao?: unknown
+    segundos?: unknown
+  } | null
+  if (resposta.status === 404) return { tipo: 'perdido', mensagem: mensagemDeErro(corpo, 404) }
+  if (resposta.status !== 200 || !corpo) return { tipo: 'erro', mensagem: mensagemDeErro(corpo, resposta.status) }
+  if (corpo.situacao === 'concluido') return { tipo: 'pronto' }
+  if (corpo.situacao === 'na_fila' || corpo.situacao === 'processando') {
+    return {
+      tipo: 'andamento',
+      situacao: corpo.situacao,
+      fase: typeof corpo.fase === 'string' ? corpo.fase : null,
+      posicao: typeof corpo.posicao === 'number' ? corpo.posicao : 0,
+      segundos: typeof corpo.segundos === 'number' ? corpo.segundos : 0,
+    }
+  }
+  return { tipo: 'erro', mensagem: `Confere respondeu uma situação desconhecida (${String(corpo.situacao)})` }
+}
+
+export async function resultadoDoConfere(id: string): Promise<ResultadoChamarConfere> {
+  const { baseUrl, headers } = configuracao()
+  let resposta: Response
+  try {
+    resposta = await fetch(`${baseUrl}/jobs/${encodeURIComponent(id)}/resultado`, {
+      headers,
+      cache: 'no-store',
+      signal: AbortSignal.timeout(TEMPO_DO_RESULTADO_MS),
+    })
+  } catch (erro) {
+    if (esgotouTempo(erro)) return { tipo: 'tempo-esgotado' }
+    console.error('[confere] falha de rede ao buscar o resultado —', erro)
+    return { tipo: 'erro', mensagem: MENSAGEM_CONFERE_INDISPONIVEL }
+  }
+  return interpretarResultado(resposta)
 }

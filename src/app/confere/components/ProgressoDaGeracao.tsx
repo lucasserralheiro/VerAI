@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import type { ProgressoDoServidor } from "../lib/api";
+
 /**
  * O que a tela mostra durante os ~25s de geração.
  *
@@ -29,6 +31,12 @@ import { useEffect, useRef, useState } from "react";
  *     grande em suspeita de travamento. O texto passa a descrever o trabalho
  *     que de fato continua acontecendo, sem repetir uma estimativa que já se
  *     provou curta e sem prometer uma nova.
+ *
+ * **Com a geração assíncrona (20/10/2026) há progresso de verdade.** O servidor
+ * informa a fase em curso e a posição na fila (`doServidor`), e aí a lista
+ * marca a etapa que o servidor disse — não a que o relógio estimou — e o título
+ * repete o texto dele ("Lendo o aditivo 2 de 4"). Sem essa informação (caminho
+ * síncrono, ou antes da primeira consulta), vale a estimativa por tempo de sempre.
  *
  * **Por que modal.** Inline, o painel dividia a tela com um formulário que não
  * aceita mais nada (os campos ficam `disabled` durante o processamento) — e
@@ -73,6 +81,22 @@ function etapas(temAditivos: boolean, dormindo: boolean): Etapa[] {
 	];
 }
 
+/** Em que linha da lista cai a fase que o servidor informou. As fases vêm de
+ *  `container.gerar` e `_processar` no Confere; prefixo e não texto exato, para
+ *  "Lendo o aditivo 2 de 4" cair na linha dos aditivos. `-1` quando não reconhece
+ *  — aí vale a estimativa por tempo. */
+function indiceDaFase(lista: Etapa[], fase: string): number {
+	const linha = (comeco: string) => lista.findIndex((etapa) => etapa.rotulo.startsWith(comeco));
+	if (fase.startsWith("Iniciando")) return linha("Extraindo");
+	if (fase.startsWith("Extraindo")) return linha("Extraindo");
+	if (fase.startsWith("Lendo o aditivo")) return linha("Aplicando");
+	if (fase.startsWith("Lendo a planilha")) return linha("Lendo a planilha");
+	if (fase.startsWith("Comparando")) return linha("Comparando");
+	if (fase.startsWith("Lendo os anexos") || fase.startsWith("Montando os anexos")) return linha("Montando os anexos");
+	if (fase.startsWith("Gerando")) return linha("Gerando");
+	return -1;
+}
+
 /** A barra para aqui e espera a resposta (regra 1). */
 const TETO_DA_BARRA = 0.92;
 
@@ -104,10 +128,13 @@ export function ProgressoDaGeracao({
 	aberto,
 	temAditivos,
 	servicoDormindo,
+	doServidor = null,
 }: {
 	aberto: boolean;
 	temAditivos: boolean;
 	servicoDormindo: boolean;
+	/** O que a última consulta da geração assíncrona disse. */
+	doServidor?: ProgressoDoServidor | null;
 }) {
 	const dialogo = useRef<HTMLDialogElement>(null);
 	const titulo = useRef<HTMLParagraphElement>(null);
@@ -168,8 +195,28 @@ export function ProgressoDaGeracao({
 		}
 	}
 
-	const passouDoEsperado = decorrido > total;
-	const fracao = Math.min(decorrido / total, 1) * TETO_DA_BARRA;
+	// O servidor respondeu: a lista mostra o que ele disse, não o que o relógio
+	// estimou. Na fila, a vez ainda não chegou — o despertar, se houve, já passou.
+	let tituloDoServidor: string | null = null;
+	if (doServidor) {
+		const primeiraDoTrabalho = lista.findIndex((etapa) => etapa !== ETAPA_DESPERTAR);
+		if (doServidor.situacao === "na_fila") {
+			indiceAtual = primeiraDoTrabalho;
+			tituloDoServidor =
+				doServidor.posicao > 0
+					? `Aguardando a vez — ${doServidor.posicao} ${doServidor.posicao === 1 ? "envio" : "envios"} na frente`
+					: "Aguardando a vez";
+		} else if (doServidor.fase) {
+			const indice = indiceDaFase(lista, doServidor.fase);
+			if (indice >= 0) indiceAtual = indice;
+			tituloDoServidor = doServidor.fase;
+		}
+	}
+
+	const passouDoEsperado = !tituloDoServidor && decorrido > total;
+	const fracaoPeloTempo = Math.min(decorrido / total, 1);
+	const fracaoPelaEtapa = doServidor ? indiceAtual / lista.length : 0;
+	const fracao = Math.max(fracaoPeloTempo, fracaoPelaEtapa) * TETO_DA_BARRA;
 	const minutos = Math.floor(decorrido / 60);
 	const segundos = Math.floor(decorrido % 60);
 	const cronometro =
@@ -198,9 +245,10 @@ export function ProgressoDaGeracao({
 					role="status"
 					className="text-base font-semibold text-confere-navy-600 outline-none"
 				>
-					{passouDoEsperado
-						? "Conferindo item a item para não deixar nada passar"
-						: lista[indiceAtual].rotulo}
+					{tituloDoServidor ??
+						(passouDoEsperado
+							? "Conferindo item a item para não deixar nada passar"
+							: lista[indiceAtual].rotulo)}
 				</p>
 				{/* `tabular-nums` para o cronômetro não dançar a cada segundo. */}
 				<span className="shrink-0 text-xs tabular-nums text-confere-navy-300">

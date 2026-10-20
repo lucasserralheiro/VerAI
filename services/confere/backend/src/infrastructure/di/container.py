@@ -135,19 +135,32 @@ class DIContainer:
 
     # ── Fluxo completo ────────────────────────────────────────────────────────
 
-    def gerar(self, entradas: Entradas) -> ReportResult:
+    def gerar(
+        self, entradas: Entradas, ao_avancar: Callable[[str], None] | None = None
+    ) -> ReportResult:
         """Lê as três fontes, valida e monta o relatório em memória.
 
         A ordem importa: as validações bloqueantes das fontes rodam **antes** da
         reconciliação, para que um contrato mal extraído nunca chegue a produzir
         linhas.
+
+        ``ao_avancar`` (20/10/2026) recebe a fase em curso, em texto para a tela —
+        é o que a geração assíncrona (`POST /jobs`) mostra enquanto espera. Só
+        informa: nada aqui depende de quem escuta.
         """
+        avancar = ao_avancar or (lambda _fase: None)
         achados = ValidationReport()
 
         extrator = self.extrator_de_contrato()
+        avancar("Extraindo a tabela de itens do contrato")
         proposta = extrator.extrair(entradas.contrato)
-        aditivos = [extrator.extrair(caminho) for caminho in entradas.aditivos]
+        aditivos: list[Contract] = []
+        for indice, caminho in enumerate(entradas.aditivos, start=1):
+            avancar(f"Lendo o aditivo {indice} de {len(entradas.aditivos)}")
+            aditivos.append(extrator.extrair(caminho))
+        avancar("Lendo a planilha de levantamento")
         medicao = self.leitor_de_medicao().ler(entradas.levantamento)
+        avancar("Comparando o contratado com o medido")
 
         # ESPEC 019 §8 — as peças são conferidas **uma a uma, antes** de
         # consolidar, e os achados saem agrupados por peça: quem submeteu quatro
@@ -327,6 +340,8 @@ class DIContainer:
         # Os anexos são lidos **por último e só se o relatório vai existir**.
         # São 25 mil células e cerca de 20 s; pagá-los para depois devolver 422
         # seria fazer o usuário esperar por uma resposta que já estava decidida.
+        if not achados.bloqueado:
+            avancar("Lendo os anexos de detalhamento da planilha")
         anexos = [] if achados.bloqueado else self.leitor_de_anexos().ler(entradas.levantamento)
         # T-2306 / ESPEC 036 `V-ANX-01` — o sinal que a omissão da página tirou
         # do documento.

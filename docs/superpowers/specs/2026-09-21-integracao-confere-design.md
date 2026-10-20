@@ -86,6 +86,11 @@ Hobby, não é preciso Pro só por causa da duração. A rota que chama o Confer
 **Correção (24/09/2026):** o raciocínio acima se contradiz — se o padrão já é 300 s, declarar 120
 *reduz* o prazo. Foi a causa do 504 de produção. Ver o adendo "o 504 de 24/09/2026" no fim.
 
+**Revista (20/10/2026): a tela agora usa geração assíncrona.** No Render free a geração de um
+contrato maior passou dos 300 s da função e todo envio desses terminava em 504 ("O Confere não
+terminou dentro do tempo máximo…"). Ver o adendo "geração assíncrona" no fim. O caminho síncrono
+continua existindo (`/reports`) como reserva.
+
 ### 3.5 Segurança: segredo compartilhado, com uma pequena adição ao Confere
 
 Como o Confere fica publicamente alcançável (Render não tem IP fixo de saída do lado do VerAI para
@@ -407,3 +412,52 @@ fixtures (`contrato_pgm` + 2 aditivos + `contrato_smul` + `modelo` como aditivos
 Se voltar a estourar: ver o pico no log do Render. Próximo suspeito é a leitura dos anexos em modo
 completo do `openpyxl` (`abrir_planilha_com_estilos`). Só subir de plano se o pico medido de um documento
 real continuar perto de 512 MB.
+
+## Adendo — geração assíncrona (20/10/2026)
+
+Decisão do usuário: **manter o Confere no plano free do Render** e resolver o 504 na arquitetura.
+Revê o §3.4 ("chamada síncrona, sem fila/polling").
+
+**Por quê.** Com a correção de memória de 19/10 o serviço parou de cair, mas a geração continuou
+presa a três prazos em cadeia (função da Vercel 300 s → proxy 270 s → navegador 310 s). O free tem
+pouca CPU: 70–135 s medidos em 24/09 para casos médios, e contrato com aditivos passa do limite.
+Otimizar só empurra o limite; a geração precisava sair do caminho da requisição.
+
+**Confere** (`api/routers/reports.py`):
+- `POST /jobs` (mesmo multipart de `/reports`) → **202** `{id, situacao, posicao}` na hora.
+- `GET /jobs/{id}` → `{situacao: na_fila|processando|concluido, fase, posicao, segundos}`.
+  A fase vem do processo filho por um arquivo na pasta do job (`registrar_fase`; `container.gerar`
+  ganhou `ao_avancar`): "Extraindo a tabela de itens do contrato", "Lendo o aditivo 2 de 4", "Lendo
+  a planilha de levantamento", "Comparando…", "Lendo os anexos…", "Montando os anexos e gerando o
+  DOCX", "Gerando a planilha de análise".
+- `GET /jobs/{id}/resultado` → **exatamente** o que `/reports` devolveria (200/422/503…); 409 antes
+  da hora.
+- Jobs **na memória do processo** (o serviço segue sem banco). Reiniciou → 404 com
+  `MENSAGEM_JOB_NAO_ENCONTRADO`. Resultado guardado 20 min (`RETENCAO_DO_RESULTADO_S`), teto de 20
+  jobs (`MAXIMO_DE_JOBS`). Uma geração por vez continua (`_UMA_POR_REPLICA`); os outros esperam na fila.
+- Teste `tests/test_jobs.py`.
+
+**VerAI**:
+- A tela manda `assincrono=1`. O proxy (`api/confere/reports/route.ts`) chama `iniciarNoConfere`,
+  guarda as entradas no storage **já no envio** (sob o id da futura `ConfereExecucao`) e devolve
+  **202** `{execucao: <bilhete>}`. Sem `assincrono=1`, ou Confere sem `/jobs` (404/405), segue
+  síncrono como antes.
+- O **bilhete** (`src/lib/confere/execucao-assincrona.ts`) é JSON assinado com HMAC
+  (`CONFERE_SHARED_SECRET`, senão `JWT_SECRET`): id do job, id da execução, usuário, contrato,
+  competência, nomes e caminhos das entradas. Sem tabela nova e sem migração; envio e consulta podem
+  cair em instâncias diferentes da função. Validade 2 h; só serve para quem enviou.
+- A tela consulta `GET /api/confere/reports/<bilhete>` a cada 3 s (`acompanharGeracao` em
+  `src/app/confere/lib/api.ts`): 202 = andamento (a fase vai para o `ProgressoDaGeracao`, que passa
+  a mostrar a etapa real e a posição na fila); 200/422/erro = resposta final, tratada como antes;
+  410 = o Confere perdeu o job, pede novo envio; 503 `transitorio` = tenta de novo (até 5 falhas
+  seguidas). Teto da espera inteira: 20 min.
+- O **histórico é gravado na consulta** que encontra o resultado pronto (`registrarNoHistorico`,
+  agora em `src/lib/confere/historico.ts`, com o id do bilhete e sem duplicar a linha).
+- Limite conhecido: se a pessoa fechar a aba antes do fim, a geração termina no Confere mas ninguém
+  consulta — o histórico não é gravado. As entradas já guardadas ficam órfãs no storage.
+
+**Junto**: a releitura de páginas que a correção de memória tinha criado saiu. `analisar_geometria`
+guarda as divisórias de cada página e o laço principal não reabre página sem grade possível
+(`pode_ter_grade`); páginas com tabela ficam aliviadas até um teto
+(`CARACTERES_RETIDOS_NA_GEOMETRIA`). Nas fixtures, cada página é analisada uma vez (igual a antes da
+correção) e o pico do caso pesado ficou em 250 MB (era 468 MB antes da correção de memória).

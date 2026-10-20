@@ -26,6 +26,7 @@ from infrastructure.contract.grid import (
     ler_celulas,
     montar_grade,
     palavras_fora_da_grade,
+    pode_ter_grade,
     resolver_papel_das_colunas,
 )
 from infrastructure.shared.arquivos import abrir_pdf, aliviar_pagina, liberar_pagina, paginas_liberando
@@ -302,8 +303,17 @@ class PdfPlumberContractExtractor:
             paginas_contadas: set[int] = set()
             descartadas: list[tuple[int, int]] = []
 
+            # 20/10/2026 — a página em que nenhuma geometria cabe não é reaberta:
+            # `pode_ter_grade` responde pelas divisórias que `analisar_geometria`
+            # já guardou, e `montar_grade` devolveria `None` para ela de qualquer
+            # jeito. Sem isto, cada página sem tabela era analisada duas vezes.
+            candidatas_por_pagina = geometria.candidatas_por_pagina
             for numero, pagina in paginas_liberando(pdf):
                 for divisorias in geometrias:
+                    if numero <= len(candidatas_por_pagina) and not pode_ter_grade(
+                        candidatas_por_pagina[numero - 1], divisorias
+                    ):
+                        continue
                     grade = montar_grade(pagina, divisorias)
                     if grade is None:
                         continue

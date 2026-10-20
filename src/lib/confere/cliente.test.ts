@@ -223,4 +223,51 @@ describe('chamarConfere', () => {
       })
     ).rejects.toThrow(/CONFERE_SERVICE_URL/)
   })
+
+  // 20/10/2026 — geração assíncrona (`/jobs`).
+  describe('jobs', () => {
+    it('iniciarNoConfere: 202 com id vira "iniciado"; Confere sem /jobs vira "sem-suporte"', async () => {
+      const { iniciarNoConfere } = await import('./cliente')
+      const espiao = mockFetch(202, { id: 'job-1', situacao: 'na_fila', posicao: 0 })
+      await expect(iniciarNoConfere(PARAMETROS)).resolves.toEqual({ tipo: 'iniciado', id: 'job-1' })
+      expect(espiao.mock.calls[0][0]).toBe('https://confere.exemplo/jobs')
+
+      mockFetch(404, { detail: 'Not Found' })
+      await expect(iniciarNoConfere(PARAMETROS)).resolves.toEqual({ tipo: 'sem-suporte' })
+    })
+
+    it('consultarNoConfere: andamento, pronto e perdido', async () => {
+      const { consultarNoConfere } = await import('./cliente')
+      mockFetch(200, { id: 'j', situacao: 'processando', fase: 'Lendo a planilha de levantamento', posicao: 0, segundos: 12 })
+      await expect(consultarNoConfere('j')).resolves.toEqual({
+        tipo: 'andamento',
+        situacao: 'processando',
+        fase: 'Lendo a planilha de levantamento',
+        posicao: 0,
+        segundos: 12,
+      })
+
+      mockFetch(200, { id: 'j', situacao: 'concluido' })
+      await expect(consultarNoConfere('j')).resolves.toEqual({ tipo: 'pronto' })
+
+      mockFetch(404, { detail: 'o serviço pode ter reiniciado' })
+      await expect(consultarNoConfere('j')).resolves.toEqual({
+        tipo: 'perdido',
+        mensagem: 'o serviço pode ter reiniciado',
+      })
+    })
+
+    it('resultadoDoConfere: lê igual ao /reports (200 relatório, 422 bloqueado)', async () => {
+      const { resultadoDoConfere } = await import('./cliente')
+      mockFetch(200, { docx_base64: 'AA==', analise_xlsx_base64: 'BB==' })
+      await expect(resultadoDoConfere('j')).resolves.toEqual({
+        tipo: 'concluido',
+        resposta: { docx_base64: 'AA==', analise_xlsx_base64: 'BB==' },
+      })
+
+      const bloqueio = { bloqueantes: [], avisos: [], confirmaveis: [], pode_prosseguir: false }
+      mockFetch(422, bloqueio)
+      await expect(resultadoDoConfere('j')).resolves.toEqual({ tipo: 'bloqueado', resposta: bloqueio })
+    })
+  })
 })

@@ -37,6 +37,12 @@ from domain.entities.contract import DiagnosticoDaGrade
 COLUNAS_DA_TABELA_DE_ITENS = 7
 DIVISORIAS_DA_TABELA = COLUNAS_DA_TABELA_DE_ITENS + 1
 
+# 20/10/2026 — quantos caracteres de páginas com tabela `analisar_geometria`
+# deixa analisados em memória para as passadas seguintes (~0,5 KB cada, só os
+# objetos). Cobre a tabela de itens inteira dos contratos da amostra — que assim
+# não é reanalisada — e limita o pico em documentos fora do comum.
+CARACTERES_RETIDOS_NA_GEOMETRIA = 60_000
+
 # `R-GRD-09` — a geometria do contrato-piloto. **Não é mais o seletor da
 # tabela**: até a ESPEC 017 ela era comparada contra cada página, e um contrato
 # com a margem 17 pt à direita não era lido de forma alguma. Hoje serve de
@@ -185,6 +191,11 @@ class GeometriaDoContrato:
     # páginas onde as faixas daquela geometria realmente estão. Testá-lo no
     # documento inteiro custaria uma releitura por candidata.
     candidatos: tuple[_Candidato, ...] = ()
+    # 20/10/2026 — as divisórias verticais cruas de cada página (índice = página
+    # − 1), apuradas nesta mesma passada. É o que deixa o laço principal do
+    # extrator saber, **sem reabrir a página**, que nenhuma geometria cabe nela
+    # (`pode_ter_grade`): `_fronteiras_verticais` só olha estas candidatas.
+    candidatas_por_pagina: tuple[tuple[float, ...], ...] = ()
 
 
 def analisar_geometria(pdf: Any) -> GeometriaDoContrato:
@@ -202,11 +213,21 @@ def analisar_geometria(pdf: Any) -> GeometriaDoContrato:
     por_conjunto: defaultdict[tuple[float, ...], set[int]] = defaultdict(set)
     paginas = com_borda = com_texto = maior = 0
 
-    # 19/10/2026 — memória. A página que tem faixa de tabela vai ser lida de
-    # novo (códigos, geometrias de itens, laço principal) e fica só **aliviada**:
-    # sem a árvore de layout, mas com os objetos, para não ser reanalisada três
-    # vezes. As demais só voltam no laço principal e são **liberadas** — sem isso
-    # o documento inteiro ficava em memória até o fim da extração.
+    candidatas_por_pagina: list[tuple[float, ...]] = []
+    retidos = 0
+
+    # 19–20/10/2026 — memória e tempo. Só pode ter grade de tabela a página com
+    # pelo menos oito divisórias verticais (`pode_ter_grade`): essa vai ser lida
+    # de novo (códigos, geometrias de itens, laço principal) e fica **aliviada**
+    # — sem a árvore de layout, com os objetos —, para não ser reanalisada. As
+    # demais nunca voltam a ser abertas e são **liberadas**. Antes, o documento
+    # inteiro ficava em memória até o fim da extração (o "Ran out of memory" do
+    # Render); e liberar também as de tabela as reanalisava, o que custava tempo.
+    #
+    # O que fica retido tem teto (`CARACTERES_RETIDOS_NA_GEOMETRIA`): documento
+    # com tabela em tudo quanto é página voltaria a guardar o documento inteiro.
+    # Passado o teto, a página é liberada e reanalisada quando o laço principal
+    # chegar nela — mais tempo naquele documento, memória limitada em todos.
     for numero, pagina in enumerate(pdf.pages, start=1):
         paginas += 1
         if pagina.rects or pagina.lines or pagina.curves:
@@ -217,14 +238,21 @@ def analisar_geometria(pdf: Any) -> GeometriaDoContrato:
         # O diagnóstico continua contando por **página** (`R-GRD-07`): é o número
         # que diz a quem dá suporte que o documento tem tabela demais na folha —
         # foi ele que apontou as 15 divisórias da página 7 do aditivo.
-        maior = max(maior, len(_candidatas_verticais(pagina)))
+        candidatas = tuple(_candidatas_verticais(pagina))
+        candidatas_por_pagina.append(candidatas)
+        maior = max(maior, len(candidatas))
 
         # A descoberta, essa passou a ser por **faixa** (`R-ADT-08`).
         for divisorias in _faixas_verticais(pagina).values():
             if len(divisorias) == DIVISORIAS_DA_TABELA:
                 por_conjunto[tuple(sorted(divisorias))].add(numero)
 
-        if any(numero in numeros for numeros in por_conjunto.values()):
+        caracteres = len(pagina.chars)
+        if (
+            len(candidatas) >= DIVISORIAS_DA_TABELA
+            and retidos + caracteres <= CARACTERES_RETIDOS_NA_GEOMETRIA
+        ):
+            retidos += caracteres
             aliviar_pagina(pagina)
         else:
             liberar_pagina(pagina)
@@ -264,6 +292,7 @@ def analisar_geometria(pdf: Any) -> GeometriaDoContrato:
         candidatos=tuple(
             sorted(candidatos, key=lambda c: (-c.codigos, -c.vao, c.divisorias))
         ),
+        candidatas_por_pagina=tuple(candidatas_por_pagina),
     )
 
 
@@ -289,7 +318,7 @@ def derivar_gabarito(pdf: Any) -> tuple[float, ...] | None:
     return analisar_geometria(pdf).gabarito
 
 
-def _mais_proxima(candidatas: list[float], coluna: float) -> float | None:
+def _mais_proxima(candidatas: Sequence[float], coluna: float) -> float | None:
     """A candidata mais próxima desta coluna, ou ``None`` se nenhuma estiver perto.
 
     Função à parte, e não um ``lambda`` no laço: com ``coluna`` como parâmetro
@@ -314,7 +343,21 @@ def _fronteiras_verticais(pagina: Any, gabarito: tuple[float, ...]) -> list[floa
     Devolve vazio quando alguma coluna fica sem candidata: uma grade parcial não
     significa nada.
     """
-    candidatas = _candidatas_verticais(pagina)
+    return _fronteiras_entre(_candidatas_verticais(pagina), gabarito)
+
+
+def pode_ter_grade(candidatas: Sequence[float], gabarito: tuple[float, ...]) -> bool:
+    """A página destas divisórias pode ter a grade deste gabarito? (20/10/2026)
+
+    É a mesma pergunta que ``montar_grade`` faz primeiro — e responde ``None``
+    quando falha —, feita sobre as candidatas guardadas por
+    ``analisar_geometria``. Responder *não* aqui é garantir que ``montar_grade``
+    devolveria ``None``, sem reabrir a página.
+    """
+    return bool(_fronteiras_entre(candidatas, gabarito))
+
+
+def _fronteiras_entre(candidatas: Sequence[float], gabarito: tuple[float, ...]) -> list[float]:
     escolhidas: list[float] = []
     for coluna in gabarito:
         escolhida = _mais_proxima(candidatas, coluna)

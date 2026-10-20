@@ -160,10 +160,21 @@ hoje:
   histórico, no caminho de sucesso e só nele. Contrato e aditivos podem vir **por id do cadastro**
   (`contrato_arquivo_id`, `aditivos=cadastro:<id>`): a rota confere o acesso e baixa o PDF do R2 —
   `urlBlob` nunca vai ao navegador, e o corpo da requisição fica só com a planilha.
-- **Orçamento de tempo em cadeia** — `maxDuration = 300` (teto do Hobby com Fluid, e já o padrão);
-  o Confere recebe o que sobra menos 30 s e o estouro vira 504 **com `detail`**; o navegador espera
-  310 s, mais que o proxy. **Não baixe esses números sem medir o Confere antes**: com 120 a Vercel
-  matava a função no meio da geração (o 504 de 24/09/2026 — adendo no design doc).
+- **Geração assíncrona** (20/10/2026 — o Confere fica no Render free por decisão do usuário): a tela
+  manda `assincrono=1`, o proxy entrega ao `POST /jobs` do Confere e devolve **202** com um
+  **bilhete** assinado (`src/lib/confere/execucao-assincrona.ts`); a tela consulta
+  `GET /api/confere/reports/<bilhete>` a cada 3 s e mostra a fase real; o histórico é gravado nessa
+  consulta (`src/lib/confere/historico.ts`). Jobs vivem na memória do Confere: reiniciou, 410 e
+  novo envio. Adendo "geração assíncrona" no design doc.
+- **Orçamento de tempo em cadeia** (caminho síncrono, que segue de reserva) — `maxDuration = 300`
+  (teto do Hobby com Fluid, e já o padrão); o Confere recebe o que sobra menos 30 s e o estouro
+  vira 504 **com `detail`**; o navegador espera 310 s, mais que o proxy. **Não baixe esses números
+  sem medir o Confere antes**: com 120 a Vercel matava a função no meio da geração (o 504 de
+  24/09/2026 — adendo no design doc).
+- **Memória do Confere** (19–20/10/2026): o Render free tem 512 MB. A leitura do PDF solta cada página
+  (`aliviar_pagina`/`liberar_pagina`/`paginas_liberando`, `pode_ter_grade`), a geração roda num
+  processo filho (`forkserver`, um por geração) e o log do Render mostra `geração concluída em N s:
+  pico M MB` por envio. `tests/test_memoria.py` garante página analisada uma vez só e nada acumulado.
 
 - **Sem faixa de marca própria** — a barra de aplicação do Confere (logo + "Confere o contratado. /
   Confere o utilizado.") e o rodapé institucional da Prodam foram removidos: dentro do VerAI a

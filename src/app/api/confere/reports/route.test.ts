@@ -1,7 +1,7 @@
 /** @jest-environment node */
 import { NextRequest } from 'next/server'
 
-jest.mock('@/lib/confere/cliente', () => ({ chamarConfere: jest.fn() }))
+jest.mock('@/lib/confere/cliente', () => ({ chamarConfere: jest.fn(), iniciarNoConfere: jest.fn() }))
 
 // O caminho de sucesso registra a execução no histórico (`ConfereExecucao`).
 // É best-effort e não muda o que a rota devolve — o que estes testes medem —,
@@ -11,7 +11,7 @@ jest.mock('@/lib/storage', () => ({
   putUpload: jest.fn(async () => 'https://blob.local/arquivo'),
 }))
 jest.mock('@/lib/prisma', () => ({
-  prisma: { confereExecucao: { create: jest.fn(async () => ({})) } },
+  prisma: { confereExecucao: { create: jest.fn(async () => ({})), findUnique: jest.fn(async () => null) } },
 }))
 jest.mock('@/lib/auth', () => ({ ...jest.requireActual('@/lib/auth'), getAuthUser: jest.fn() }))
 // Contrato e aditivos podem vir do cadastro por id (desenho de 25/09/2026 §7.2): o que o
@@ -27,7 +27,9 @@ import path from 'node:path'
 
 import { getAuthUser } from '@/lib/auth'
 import { ArquivoDoCadastroRecusado, carregarArquivosDoCadastro, contratoDoUsuario } from '@/lib/confere/cadastro'
-import { chamarConfere } from '@/lib/confere/cliente'
+import { chamarConfere, iniciarNoConfere } from '@/lib/confere/cliente'
+import { lerBilhete } from '@/lib/confere/execucao-assincrona'
+import { putUpload } from '@/lib/storage'
 import { prisma } from '@/lib/prisma'
 import { POST, maxDuration } from './route'
 
@@ -231,5 +233,63 @@ describe('POST /api/confere/reports', () => {
     const corpo = await resposta.json()
     expect(corpo.detail).toEqual(expect.any(String))
     expect(corpo.detail).not.toBe('')
+  })
+
+  // 20/10/2026 — geração assíncrona: o 504 de "não terminou dentro do tempo
+  // máximo" vinha de amarrar minutos de CPU do Render free a uma função de 300 s.
+  describe('geração assíncrona (assincrono=1)', () => {
+    const OLD_ENV = process.env
+    beforeEach(() => {
+      process.env = { ...OLD_ENV, CONFERE_SHARED_SECRET: 'segredo-de-teste' }
+    })
+    afterAll(() => {
+      process.env = OLD_ENV
+    })
+
+    it('entrega ao Confere, guarda as entradas e devolve 202 com o bilhete — sem esperar a geração', async () => {
+      ;(iniciarNoConfere as jest.Mock).mockResolvedValue({ tipo: 'iniciado', id: 'job-1' })
+
+      const resposta = await POST(
+        requisicao({
+          contrato: arquivo('c.pdf'),
+          levantamento: arquivo('l.xlsx'),
+          aditivos: [arquivo('a1.pdf')],
+          contrato_id: 'ct-1',
+          assincrono: '1',
+        })
+      )
+
+      expect(resposta.status).toBe(202)
+      expect(chamarConfere).not.toHaveBeenCalled()
+      expect(putUpload).toHaveBeenCalledTimes(3)
+      const { execucao } = await resposta.json()
+      const lido = lerBilhete(execucao, 'u1')
+      expect(lido).toEqual(
+        expect.objectContaining({
+          job: 'job-1',
+          contratoId: 'ct-1',
+          nomes: { contrato: 'c.pdf', levantamento: 'l.xlsx', aditivos: ['a1.pdf'] },
+        })
+      )
+      expect(lido?.entradas.map((e) => e.papel)).toEqual(['contrato', 'aditivo', 'levantamento'])
+    })
+
+    it('Confere ainda sem /jobs: cai no caminho síncrono', async () => {
+      ;(iniciarNoConfere as jest.Mock).mockResolvedValue({ tipo: 'sem-suporte' })
+      ;(chamarConfere as jest.Mock).mockResolvedValue({ tipo: 'erro', mensagem: 'irrelevante' })
+
+      await POST(requisicao({ contrato: arquivo('c.pdf'), levantamento: arquivo('l.xlsx'), assincrono: '1' }))
+
+      expect(chamarConfere).toHaveBeenCalled()
+    })
+
+    it('sem o pedido da tela, continua síncrono — tela antiga em cache não recebe 202', async () => {
+      ;(chamarConfere as jest.Mock).mockResolvedValue({ tipo: 'erro', mensagem: 'irrelevante' })
+
+      await POST(requisicao({ contrato: arquivo('c.pdf'), levantamento: arquivo('l.xlsx') }))
+
+      expect(iniciarNoConfere).not.toHaveBeenCalled()
+      expect(chamarConfere).toHaveBeenCalled()
+    })
   })
 })

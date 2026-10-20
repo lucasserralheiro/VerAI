@@ -10,9 +10,9 @@ aditivos): pico de 468 MB antes, 244 MB depois.
 mediria a máquina e a versão do Python; o que estes testes afirmam é a causa:
 
 - a análise de uma página não fica em memória enquanto as outras são lidas;
-- nenhuma página é analisada mais de duas vezes. Liberar tudo a cada passada
-  também resolveria a memória, mas reanalisava as páginas da tabela até quatro
-  vezes e quase dobrava o tempo — que no Render já passa de um minuto.
+- nenhuma página é analisada mais de uma vez. Liberar tudo a cada passada
+  também resolveria a memória, mas reanalisava as páginas — e no Render free,
+  onde a CPU é o gargalo, o tempo a mais virou 504 no VerAI (20/10/2026).
 
 E o caminho de quando, mesmo assim, faltar memória: o filho morre e a resposta
 é um 503 que diz o que aconteceu, não um 500 genérico nem o serviço fora do ar.
@@ -93,16 +93,23 @@ def test_a_arvore_de_layout_nao_se_acumula_entre_paginas(
 
 
 @pytest.mark.parametrize("documento", DOCUMENTOS)
-def test_nenhuma_pagina_e_analisada_mais_de_duas_vezes(
+def test_cada_pagina_e_analisada_uma_vez_so(
     monkeypatch: pytest.MonkeyPatch, documento: str
 ) -> None:
+    """Liberar memória não pode custar tempo: no plano free a CPU é o gargalo.
+
+    A primeira versão da correção (19/10) liberava toda página sem tabela e a
+    reanalisava no laço principal — até 60% mais lento, e a geração passou a
+    estourar os 300 s do VerAI. A página sem grade possível não é mais reaberta
+    (`pode_ter_grade`), e a com tabela fica aliviada até o fim.
+    """
     contagem = _contar_analises(monkeypatch)
 
     PdfPlumberContractExtractor().extrair(FIXTURES / documento)
 
     assert contagem, "a extração não analisou nenhuma página"
-    excesso = {pagina: vezes for pagina, vezes in contagem.items() if vezes > 2}
-    assert excesso == {}, f"páginas reanalisadas além do necessário: {excesso}"
+    excesso = {pagina: vezes for pagina, vezes in contagem.items() if vezes > 1}
+    assert excesso == {}, f"páginas reanalisadas: {excesso}"
 
 
 class _ExecutorQueMorre:

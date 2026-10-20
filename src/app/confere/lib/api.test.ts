@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { type EntradaDaGeracao, gerarRelatorio, identificarLevantamento } from "./api";
+import { type EntradaDaGeracao, gerarRelatorio, identificarLevantamento, type ProgressoDoServidor } from "./api";
 
 // Contrato e levantamento do computador — o caminho de sempre.
 const ENTRADA: EntradaDaGeracao = {
@@ -137,6 +137,64 @@ describe("gerarRelatorio — propostas do cadastro", () => {
 		expect(aditivos[0]).toBe("cadastro:pa-05");
 		expect((aditivos[1] as File).name).toBe("manual.pdf");
 		expect(corpo.get("contrato_id")).toBe("ct-pgm");
+	});
+});
+
+// 20/10/2026 — geração assíncrona: o proxy responde 202 com um bilhete e a tela
+// consulta até o resultado. Era o fim do 504 "não terminou dentro do tempo".
+describe("gerarRelatorio — geração assíncrona", () => {
+	beforeEach(() => {
+		(globalThis as { __CONFERE_INTERVALO_MS__?: number }).__CONFERE_INTERVALO_MS__ = 0;
+	});
+	afterEach(() => {
+		delete (globalThis as { __CONFERE_INTERVALO_MS__?: number }).__CONFERE_INTERVALO_MS__;
+		(URL as unknown as { createObjectURL?: unknown }).createObjectURL = undefined;
+	});
+
+	it("pede o modo assíncrono, acompanha as fases e entrega o relatório", async () => {
+		(URL as unknown as { createObjectURL: () => string }).createObjectURL = () => "blob:x";
+		const respostas = [
+			Response.json({ execucao: "bilhete-1" }, { status: 202 }),
+			Response.json({ situacao: "na_fila", fase: null, posicao: 1, segundos: 2 }, { status: 202 }),
+			Response.json({ situacao: "processando", fase: "Lendo o aditivo 1 de 2", posicao: 0, segundos: 9 }, { status: 202 }),
+			Response.json({ docx_base64: "AA==", analise_xlsx_base64: "BB==", titulo: "T" }, { status: 200 }),
+		];
+		const espiao = jest.spyOn(global, "fetch").mockImplementation(async () => respostas.shift()!);
+		const fases: ProgressoDoServidor[] = [];
+
+		const estado = await gerarRelatorio(ENTRADA, false, (progresso) => fases.push(progresso));
+
+		expect((espiao.mock.calls[0][1]?.body as FormData).get("assincrono")).toBe("1");
+		expect(String(espiao.mock.calls[1][0])).toBe("/api/confere/reports/bilhete-1");
+		expect(fases.map((f) => f.fase ?? `fila ${f.posicao}`)).toEqual(["fila 1", "Lendo o aditivo 1 de 2"]);
+		expect(estado.situacao).toBe("pronto");
+	});
+
+	it("Confere reiniciado no meio (410): pede novo envio, não espera para sempre", async () => {
+		const respostas = [
+			Response.json({ execucao: "b" }, { status: 202 }),
+			Response.json({ detail: "não está mais no Confere" }, { status: 410 }),
+		];
+		jest.spyOn(global, "fetch").mockImplementation(async () => respostas.shift()!);
+
+		await expect(gerarRelatorio(ENTRADA)).resolves.toEqual({
+			situacao: "erro",
+			mensagem: "não está mais no Confere",
+		});
+	});
+
+	it("uma consulta que falha por rede não derruba a geração", async () => {
+		(URL as unknown as { createObjectURL: () => string }).createObjectURL = () => "blob:x";
+		let chamada = 0;
+		jest.spyOn(global, "fetch").mockImplementation(async () => {
+			chamada += 1;
+			if (chamada === 1) return Response.json({ execucao: "b" }, { status: 202 });
+			if (chamada === 2) throw new TypeError("rede");
+			if (chamada === 3) return Response.json({ detail: "x", transitorio: true }, { status: 503 });
+			return Response.json({ docx_base64: "AA==", analise_xlsx_base64: "BB==" }, { status: 200 });
+		});
+
+		await expect(gerarRelatorio(ENTRADA)).resolves.toEqual(expect.objectContaining({ situacao: "pronto" }));
 	});
 });
 

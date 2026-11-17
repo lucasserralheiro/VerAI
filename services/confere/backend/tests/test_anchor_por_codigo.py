@@ -134,7 +134,11 @@ EXIBIDOS_DO_PGM = BLOCO_FINAL_DO_PGM - ZERADOS_DO_PGM
 #
 # `14.025.00011.00` — o modelo imprime duas linhas de `1 / 1`, desdobradas por
 # qualificador; a `D-01` consolida numa. É o custo declarado da decisão.
-DIVERGENCIAS_DECLARADAS = {"11.027.00001.00", "14.025.00011.00"}
+#
+# `14.048.00008.00` — 17/11/2026: o modelo grafa `1 / 1` (Perfil D contratado,
+# Perfil C medido, revisão da ESPEC 021 `R-REL-08`); a aplicação grafa `4 / 3`,
+# a posição de cada letra na faixa. O modelo não foi refeito.
+DIVERGENCIAS_DECLARADAS = {"11.027.00001.00", "14.025.00011.00", "14.048.00008.00"}
 
 
 def _gerar(contrato: Path, levantamento: Path, destino: Path) -> Any:

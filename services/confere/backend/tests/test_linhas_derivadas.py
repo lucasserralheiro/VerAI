@@ -5,7 +5,7 @@ perfil ou pacote e sai do documento com 1 contratado e 1 medido (`R-REL-08`).
 Até a ESPEC 021 o único registro disso era uma frase — `V-REC-02` —, e o texto
 da célula morria dentro dela.
 
-Este módulo guarda o **oráculo** dessa exibição: as nove células dos dois pares
+Este módulo guarda o **oráculo** dessa exibição: as oito células dos dois pares
 reais, transcritas das planilhas. É a única verdade externa desta entrega, e é
 por isso que ela não pode ser regenerada a partir do código.
 """
@@ -33,7 +33,7 @@ from infrastructure.measurement.levantamento_reader import LevantamentoReader
 #
 # `contratada` e `medida` guardam o que a célula **mostra a quem abre o arquivo**.
 # Quatro delas são numéricas no XLSX (`2` e três `1`), e o leitor as entrega como
-# texto pt-BR pela `_texto()`; para estas nove, o que se lê na tela do Excel e o
+# texto pt-BR pela `_texto()`; para estas oito, o que se lê na tela do Excel e o
 # que o leitor devolve coincidem. Ver a emenda de `R-PER-02` na ESPEC 021 §14.1.
 
 
@@ -48,14 +48,21 @@ class CelulaDerivada:
     medida: str
 
 
+# 17/11/2026 — a planilha ainda traz esta célula como não numérica (o leitor
+# não mudou), mas a derivação deixou de tratá-la como `1/1`: letra contratada
+# e letra medida diferentes agora divergem de verdade — ver
+# `test_reconciliation.py::test_letras_de_perfil_diferentes_geram_divergencia_real`.
+# Por isso ela entra em `CELULAS_NAO_NUMERICAS_DO_LEITOR` (portão P0, nível do
+# leitor) e sai de `PILOTO`/`ORACULO` (nível da derivação, `.derivadas`).
+_PERFIL_D_CONTRATADO_C_MEDIDO = CelulaDerivada(
+    linha=88,
+    codigo="14.048.00008.00",
+    descricao="BANCO DE DADOS - SQL SERVER - PERFIL IV(D) - DE 200GB ATÉ 500GB",
+    contratada="D",
+    medida="C",
+)
+
 PILOTO: tuple[CelulaDerivada, ...] = (
-    CelulaDerivada(
-        linha=88,
-        codigo="14.048.00008.00",
-        descricao="BANCO DE DADOS - SQL SERVER - PERFIL IV(D) - DE 200GB ATÉ 500GB",
-        contratada="D",
-        medida="C",
-    ),
     CelulaDerivada(
         linha=89,
         codigo="14.046.00010.00",
@@ -122,6 +129,14 @@ PGM: tuple[CelulaDerivada, ...] = (
 
 ORACULO = {"piloto": PILOTO, "pgm": PGM}
 
+# Portão P0 (T-1501) compara o **leitor**, que não mudou: ainda inclui a
+# célula do `14.048.00008.00`, só a derivação (`ORACULO`/`.derivadas`) é que
+# passou a excluí-la.
+CELULAS_NAO_NUMERICAS_DO_LEITOR = {
+    "piloto": (_PERFIL_D_CONTRATADO_C_MEDIDO, *PILOTO),
+    "pgm": PGM,
+}
+
 
 # ── T-1501 · a transcrição casa o que o leitor lê `[portão P0]` ───────────────
 
@@ -130,7 +145,7 @@ ORACULO = {"piloto": PILOTO, "pgm": PGM}
 def test_t1501_o_oraculo_casa_o_que_o_leitor_le(
     par: str, caminho_levantamento: Path, caminho_levantamento_pgm: Path
 ) -> None:
-    """Portão `P0` — as nove células, contra o leitor e nada mais.
+    """Portão `P0` — as oito células, contra o leitor e nada mais.
 
     Sem relatório, sem container, sem API: se esta asserção reprovar, o defeito
     está entre a planilha e o `LevantamentoReader`, e não adianta procurá-lo em
@@ -160,7 +175,7 @@ def test_t1501_o_oraculo_casa_o_que_o_leitor_le(
         if item.medida is None
     )
 
-    assert lidas == ORACULO[par]
+    assert lidas == CELULAS_NAO_NUMERICAS_DO_LEITOR[par]
 
 
 # ── Fixtures dos dois pares ───────────────────────────────────────────────────
@@ -241,19 +256,21 @@ def test_t1503_a_descricao_e_a_da_aba_e_nao_a_do_contrato(
 ) -> None:
     """`R-PER-03` / `D-01` — as duas fontes divergem, e aqui vale a da planilha.
 
-    O caso que decide é o `14.048.00008.00` do piloto: a descrição contratual
-    **termina na palavra `PERFIL`**, cortada antes da letra, e é justamente a do
-    único item cuja letra contratada difere da medida (ESPEC 021 §2.4).
+    O caso que decidia era o `14.048.00008.00` do piloto: a descrição
+    contratual **termina na palavra `PERFIL`**, cortada antes da letra. Ele
+    saiu de `.derivadas` em 17/11/2026 (letra contratada ≠ letra medida
+    diverge de verdade — `LinhaDerivada` não guarda mais este código), e a
+    demonstração passou a valer só para o PGM: `self._descricao` é a mesma
+    chamada nos dois lados de `.derivadas`, e nada nela mudou.
 
     A asserção é de **sufixo**. Conferir o prefixo passaria com a fonte errada:
     as duas começam parecido.
     """
-    por_codigo = {d.codigo: d.descricao for d in resultados[par].derivadas}
+    if par != "pgm":
+        pytest.skip("a demonstração do piloto saiu de `.derivadas` em 17/11/2026")
 
-    if par == "piloto":
-        assert por_codigo["14.048.00008.00"].endswith("PERFIL IV(D) - DE 200GB ATÉ 500GB")
-    else:
-        assert por_codigo["14.048.00009.00"].endswith("PERFIL VI(F) - DE 1.000GB ATÉ 3.000GB")
+    por_codigo = {d.codigo: d.descricao for d in resultados[par].derivadas}
+    assert por_codigo["14.048.00009.00"].endswith("PERFIL VI(F) - DE 1.000GB ATÉ 3.000GB")
 
 
 @pytest.mark.parametrize("par", sorted(ORACULO))
@@ -323,7 +340,7 @@ def test_t1505_nenhuma_linha_um_e_um_fica_fora_da_tabela(
 #
 # **A única captura da saída do código sancionada neste módulo.** A regra que
 # governa o resto — nada de asserção escrita a partir do que o programa produziu
-# — vale para o conteúdo **novo**, as nove células. Esta âncora não afirma que o
+# — vale para o conteúdo **novo**, as oito células. Esta âncora não afirma que o
 # documento está certo: afirma que ele **não se moveu**. O `.docx` de hoje já é
 # entregue ao órgão, e a E2 abre justamente o arquivo que o monta (`R-PER-11`).
 #

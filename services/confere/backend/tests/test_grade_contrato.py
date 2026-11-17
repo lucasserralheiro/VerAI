@@ -124,6 +124,7 @@ class _PaginaFalsa:
         self.rects = [
             {"x0": x, "width": 0.7, "height": 60.0, "top": 100.0} for x in xs
         ]
+        self.curves: list[dict[str, float]] = []
 
 
 def test_t1106_duas_candidatas_para_a_mesma_coluna_resolvem_para_uma() -> None:
@@ -369,3 +370,53 @@ def test_t1302_a_descoberta_por_faixa_nao_move_o_gabarito_das_propostas(
     """
     assert derivar_gabarito(pdf_do_piloto) == COLUNAS_DA_TABELA
     assert derivar_gabarito(pdf_do_pgm) == GABARITO_DO_PGM
+
+
+# ── 17/11/2026 · A borda que cai em `curves`, não em `rects` ──────────────────
+#
+# Medido no `PA-SPCine-211118-152`: o gerador desenha a célula como um polígono
+# de 5 pontos com um canto 0,5 pt fora do eixo — pdfplumber só classifica em
+# `rects` um retângulo com os quatro cantos exatamente alinhados, e esse traço
+# cai em `curves`. A página tinha borda (`pagina.rects or .lines or .curves`
+# já via isso) e texto, mas `_candidatas_verticais`/`_fronteiras_horizontais`
+# só liam `rects`: zero divisória, `V-ADT-01`.
+#
+# `curves` do pdfplumber expõe a mesma caixa (`x0`, `width`, `top`, `height`)
+# que `rects` — por isso basta somar as duas listas, com o mesmo filtro de
+# espessura/comprimento de sempre (nenhuma tolerância nova).
+
+
+class _PaginaFalsaDeCurvas:
+    """Como `_PaginaFalsa`, mas o traço vem em `curves`, não em `rects`."""
+
+    def __init__(self, verticais_x: list[float], horizontais_y: list[float]) -> None:
+        self.rects: list[dict[str, float]] = []
+        self.curves = [
+            {"x0": x, "width": 0.525, "height": 60.0, "top": 100.0}
+            for x in verticais_x
+        ] + [
+            {"x0": 0.0, "width": 500.0, "height": 0.525, "top": y} for y in horizontais_y
+        ]
+
+
+def test_divisoria_desenhada_como_curva_e_achada() -> None:
+    """A divisória vertical em `curves` entra na candidata, igual a `rects`."""
+    pagina = _PaginaFalsaDeCurvas(verticais_x=list(COLUNAS_DA_TABELA), horizontais_y=[])
+
+    assert _fronteiras_verticais(pagina, COLUNAS_DA_TABELA) == list(COLUNAS_DA_TABELA)
+
+
+def test_borda_horizontal_desenhada_como_curva_e_achada() -> None:
+    from infrastructure.contract.grid import _fronteiras_horizontais
+
+    pagina = _PaginaFalsaDeCurvas(verticais_x=[], horizontais_y=[200.0, 300.0])
+
+    assert _fronteiras_horizontais(pagina) == [200.0, 300.0]
+
+
+def test_curva_curta_nao_vira_divisoria() -> None:
+    """O mesmo crivo de comprimento vale para `curves` — não é um filtro novo."""
+    curta = _PaginaFalsaDeCurvas(verticais_x=[], horizontais_y=[])
+    curta.curves = [{"x0": 10.0, "width": 0.5, "height": 3.0, "top": 100.0}]
+
+    assert _candidatas_verticais(curta) == []

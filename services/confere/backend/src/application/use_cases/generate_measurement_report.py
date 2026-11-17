@@ -11,6 +11,7 @@ Orquestra pelos ports; não conhece PDF, XLSX nem framework.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -34,6 +35,25 @@ TITULO_PADRAO = "LEVANTAMENTO - COMPROVAÇÃO {contrato} - CATÁLOGO DE SERVIÇO
 
 # Itens de perfil ou pacote entram sempre como 1 e 1 (ESPEC 001 R-REC-04).
 UNIDADE = Decimal("1")
+
+# 17/11/2026 — o que a célula de medida mostra quando o código não foi medido:
+# `para_decimal` devolve `None` tanto para isto quanto para `PACOTE`/`Perfil A`,
+# e os dois precisam de tratamento diferente (`R-REL-08` abaixo).
+_SEM_MEDICAO = {"", "-"}
+
+# 17/11/2026 — a letra do perfil, sozinha na célula (`D`, `C` — nunca `PACOTE`
+# nem um número). A ordem alfabética É a ordem das faixas (A < B < C < …): vem
+# do que a planilha escreveu, nenhuma tabela de preço é consultada.
+_LETRA_DE_PERFIL = re.compile(r"^[A-Z]$")
+
+
+def _letra_de_perfil(texto: str) -> str | None:
+    limpo = texto.strip().upper()
+    return limpo if _LETRA_DE_PERFIL.fullmatch(limpo) else None
+
+
+def _ordem_do_perfil(letra: str) -> Decimal:
+    return Decimal(ord(letra) - ord("A") + 1)
 
 # `R-REL-06` / `D-02` — o que a aba `Levantamento` traz e a comprovação não
 # cobra: horas de especialista/analista e consultoria de BI são faturadas por
@@ -199,6 +219,49 @@ class GenerateMeasurementReport:
                 )
             )
             return emitida
+
+        # 17/11/2026 — medida em `-` (ou vazia) é ausência de medição, não
+        # perfil medido: o código não distinguia as duas, e um item contratado
+        # num perfil/motor de banco e medido noutro (código de catálogo
+        # diferente) saía `1 / 1` como se tivesse sido medido (achado no
+        # `PA-SPCine-211118-152`). A contratada ainda pode ser texto de perfil
+        # (letra) — daí `UNIDADE` quando não é número —, mas a medida fica 0 e
+        # a linha diverge de verdade, como qualquer item não medido.
+        if item.medida is None and item.medida_texto.strip() in _SEM_MEDICAO:
+            contratada_num = medicao.contratada_para(codigo)
+            contratada_declarada = item.contratada_texto.strip() not in _SEM_MEDICAO
+            if contratada_num is None and contratada_declarada:
+                contratada_num = UNIDADE
+            return ReportLine(
+                codigo=ServiceCode(codigo),
+                descricao=self._descricao(item, contrato),
+                unidade=self._unidade(item, contrato),
+                contratada=Quantity(contratada_num if contratada_num is not None else Decimal(0)),
+                medida=Quantity(Decimal(0)),
+                contratada_declarada=contratada_num is not None,
+            )
+
+        # 17/11/2026 — letra de perfil contratada e medida **diferentes** não
+        # são "o mesmo perfil, perfil ou pacote, sai 1/1": é o contratado numa
+        # faixa e medido noutra, de verdade. Até aqui a ESPEC 021 escolhia
+        # sair 1/1 mesmo com `contratada_texto`/`medida_texto` discordando, e
+        # só contava o caso à parte (`perfis_ou_pacotes`) — revisado por
+        # decisão do usuário: a letra vira a posição da faixa (`A`=1, `B`=2…)
+        # e a linha diverge como qualquer outra, no documento.
+        contratada_letra = _letra_de_perfil(item.contratada_texto)
+        medida_letra = _letra_de_perfil(item.medida_texto)
+        if (
+            contratada_letra is not None
+            and medida_letra is not None
+            and contratada_letra != medida_letra
+        ):
+            return ReportLine(
+                codigo=ServiceCode(codigo),
+                descricao=self._descricao(item, contrato),
+                unidade=self._unidade(item, contrato),
+                contratada=Quantity(_ordem_do_perfil(contratada_letra)),
+                medida=Quantity(_ordem_do_perfil(medida_letra)),
+            )
 
         # `R-REL-08` — medida não numérica é perfil ou pacote, e sai `1 / 1`.
         # A marcação deixou de ser dado de catálogo e passou a ser leitura da

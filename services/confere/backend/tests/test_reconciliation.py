@@ -15,12 +15,17 @@ from pathlib import Path
 import pytest
 from conftest import FontesCaras, _ContainerComFontesEmCache
 
-from application.use_cases.generate_measurement_report import ReportResult
+from application.use_cases.generate_measurement_report import (
+    GenerateMeasurementReport,
+    ReportResult,
+)
 from domain.entities.contract import Contract
 from domain.entities.contract_item import ContractItem
 from domain.entities.measurement import Measurement
+from domain.entities.measurement_item import MeasurementItem
 from domain.entities.report import ReportLine
 from domain.entities.validation_finding import ValidationReport
+from domain.value_objects.classification import Classificacao
 from domain.value_objects.service_code import ServiceCode
 from infrastructure.di.container import DIContainer, Entradas
 from infrastructure.validations.contract_validations import (
@@ -159,7 +164,7 @@ def test_o_bloco_final_traz_os_quatro_codigos_que_so_a_aba_conhece(
 
 @pytest.mark.parametrize(
     "codigo",
-    ["14.048.00008.00", "14.046.00010.00", "14.070.00002.00", "14.025.00011.00"],
+    ["14.046.00010.00", "14.070.00002.00", "14.025.00011.00"],
 )
 def test_perfil_e_pacote_saem_como_um_e_um(resultado: ReportResult, codigo: str) -> None:
     """A marcação deixou de vir do catálogo e passou a ser leitura da aba.
@@ -167,6 +172,10 @@ def test_perfil_e_pacote_saem_como_um_e_um(resultado: ReportResult, codigo: str)
     Medida não numérica é perfil ou pacote. A correspondência é exata no piloto,
     nos dois sentidos, e alcança no PGM cinco códigos que o catálogo do SMIT
     desconhecia (ESPEC 018 §2.6).
+
+    `14.048.00008.00` saiu da lista em 17/11/2026: letra contratada e letra
+    medida diferentes (`D` × `C`) não é mais "o mesmo perfil" — ver
+    `test_letras_de_perfil_diferentes_geram_divergencia_real`.
     """
     linha = _linha(resultado, codigo)
     assert linha is not None
@@ -175,11 +184,65 @@ def test_perfil_e_pacote_saem_como_um_e_um(resultado: ReportResult, codigo: str)
     assert linha.medida.valor == Decimal("1")
 
 
+def test_letras_de_perfil_diferentes_geram_divergencia_real(resultado: ReportResult) -> None:
+    """17/11/2026 — `Perfil D` contratado e `Perfil C` medido não é mais `1/1`.
+
+    Revisa a decisão da ESPEC 021 (`R-REL-08`): até aqui, duas letras de perfil
+    diferentes na mesma linha saíam como se fossem conformes — a divergência
+    real só sobrevivia numa contagem à parte (`perfis_ou_pacotes`), nunca no
+    relatório. A ordem alfabética é a ordem real das faixas (A < B < C < …),
+    lida da própria planilha — nenhuma tabela de preço é consultada.
+    """
+    linha = _linha(resultado, "14.048.00008.00")
+    assert linha is not None
+    assert not linha.perfil_ou_pacote
+    # D é a 4ª letra, C a 3ª: contratado acima do medido.
+    assert linha.contratada.valor == Decimal("4")
+    assert linha.medida.valor == Decimal("3")
+    assert linha.tem_divergencia
+    assert linha.classificacao is Classificacao.DIVERGENTE
+
+
 def test_item_com_medida_numerica_nao_vira_perfil(resultado: ReportResult) -> None:
     """A derivação não engoliu o caso comum."""
     linha = _linha(resultado, "12.055.00002.00")
     assert linha is not None
     assert not linha.perfil_ou_pacote
+
+
+def test_medida_traco_nao_vira_perfil_medido() -> None:
+    """17/11/2026 — `-` na medida é ausência, não "perfil medido" (`R-REL-08`).
+
+    Achado no `PA-SPCine-211118-152`: um código de plataforma de banco de
+    dados contratado num perfil (letra, não número) e com a medida em `-` —
+    porque o uso real caiu noutro motor de banco, com outro código de catálogo
+    — saía `1 / 1` igual a um item de fato medido. `para_decimal("-")` e
+    `para_decimal("Perfil A")` devolvem o mesmo `None`, e o código não
+    distinguia as duas origens: a primeira é *não medido*, a segunda é
+    *medido, só não é número*.
+    """
+    contrato = Contract(proposta="PA-TESTE-1")
+    medicao = Measurement(
+        itens=[
+            MeasurementItem(
+                codigo=ServiceCode("14.048.00010.00"),
+                descricao="PLATAFORMA DE BANCO DE DADOS - SQL SERVER - PERFIL A",
+                bloco_titulo="E1.2 - PLATAFORMA DE BANCO DE DADOS",
+                medida_texto="-",
+                contratada_texto="A",
+                linha=10,
+            )
+        ]
+    )
+
+    resultado = GenerateMeasurementReport().executar(contrato, medicao, ValidationReport())
+
+    assert resultado.relatorio is not None
+    (linha,) = resultado.relatorio.todas_as_linhas
+    assert not linha.perfil_ou_pacote
+    assert linha.contratada.valor == Decimal("1")
+    assert linha.medida.valor == Decimal("0")
+    assert linha.classificacao is Classificacao.MAIOR_RELEVANCIA
 
 
 def test_plataforma_de_bi_rende_uma_linha(resultado: ReportResult) -> None:

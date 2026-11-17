@@ -133,6 +133,19 @@ DIVERGENCIAS_DECLARADAS = (
         ),
         insumo="I-02",
     ),
+    # ── 17/11/2026 ──────────────────────────────────────────────────────────
+    DivergenciaDeclarada(
+        codigo="14.048.00008.00",
+        especie=Especie.CATEGORIA,
+        motivo=(
+            "Perfil D contratado, Perfil C medido: até aqui a ESPEC 021 "
+            "(R-REL-08) escolhia sair 1/1 mesmo com as letras discordando, e o "
+            "gabarito reflete essa escolha (sem divergência). Revisão por "
+            "decisão do usuário: a letra vira a posição da faixa e a linha "
+            "diverge de verdade — o gabarito não foi refeito"
+        ),
+        insumo="I-07",
+    ),
     *(
         DivergenciaDeclarada(
             codigo=codigo,

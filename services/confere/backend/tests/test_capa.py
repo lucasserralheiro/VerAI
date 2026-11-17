@@ -92,10 +92,14 @@ from infrastructure.report.modelo import (
 # nenhum: 16.006 antes e depois, 75 códigos antes e depois. Só o `sha256` se
 # move, e ele acusa exatamente duas trocas — as duas descrições que a quebra de
 # página cortava.
+# 17/11/2026 — `CORPO_DO_PILOTO_TEXTOS` e `CORPO_DO_PILOTO_CODIGOS` não mudam:
+# só o `sha256` se move, porque `14.048.00008.00` deixou de renderizar `1 / 1`
+# e passou a renderizar `4 / 3` (Perfil D × Perfil C divergindo de verdade —
+# `test_reconciliation.py::test_letras_de_perfil_diferentes_geram_divergencia_real`).
 CORPO_DO_PILOTO_TEXTOS = 16_006
 CORPO_DO_PILOTO_CODIGOS = 75  # 54 linhas do relatório + 21 nas tabelas de anexo
 CORPO_DO_PILOTO_SHA256 = (
-    "aaafd0a4b1c4182489bc5133d62398caa822a4ce89f69b603128134d80ef1c94"
+    "99566d461ce779e92865a037cd601c737d052a189a1e356a7b7fdb61a0571378"
 )
 
 # ── Leitura do pacote ─────────────────────────────────────────────────────────

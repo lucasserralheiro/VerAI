@@ -49,7 +49,12 @@ REFERENCIA = FIXTURES / "analise_referencia.xlsx"
 
 # As duas divergências declaradas da T-505 — as linhas que o âncora não compara
 # por valor, porque a diferença é conhecida e tem dono.
-FORA_DA_COMPARACAO = {"11.027.00001.00", "14.049.00054.00"}
+# 17/11/2026 — `14.048.00008.00`: Perfil D contratado, Perfil C medido. O
+# gabarito o traz em "Sem Divergência" como `1/1` (convenção da ESPEC 021
+# `R-REL-08`, hoje revisada); a aplicação passou a tratar letras diferentes
+# como divergência real, e ele saiu de lá para "Divergente" — ver
+# `test_reconciliation.py::test_letras_de_perfil_diferentes_geram_divergencia_real`.
+FORA_DA_COMPARACAO = {"11.027.00001.00", "14.049.00054.00", "14.048.00008.00"}
 
 # ESPEC 018 `D-04` — nada é omitido do documento, e por isso a análise passou a
 # ver três códigos que o gabarito do GRC não tem: a aba `Levantamento` os traz
@@ -357,11 +362,13 @@ def test_t519_a_aba_sem_divergencia_tem_as_colunas_do_gabarito(arquivo: Path) ->
 def test_t519_o_arquivo_nao_diz_nada_sobre_perfil_ou_pacote(arquivo: Path) -> None:
     """A contrapartida da decisão, escrita para quem for reabrir o assunto.
 
-    Cinco das dezenove linhas conformes entram como `1/1` por construção
-    (`R-REC-04`), e uma delas é `14.048.00008.00` — contratado no perfil **D**,
-    medido no perfil **C**. Ela agora está na aba `Sem Divergência` **sem
-    nenhuma ressalva no arquivo**: quem conferir pelo XLSX sozinho não tem como
-    saber que aquele `1 = 1` é convenção.
+    Quatro das dezenove linhas conformes entram como `1/1` por construção
+    (`R-REC-04`) — nenhuma delas é código de perfil com letras discordantes:
+    `14.048.00008.00` (Perfil D contratado, Perfil C medido) saiu da aba `Sem
+    Divergência` em 17/11/2026, porque passou a divergir de verdade. A
+    convenção que este teste guardava (`1 = 1` sem ressalva no arquivo) só
+    valia enquanto letras diferentes ainda contavam como "o mesmo perfil" —
+    ver `test_reconciliation.py::test_letras_de_perfil_diferentes_geram_divergencia_real`.
 
     Foi decisão consciente (ESPEC 009 §14) e este teste é o seu registro. Se um
     dia a marca voltar, é este teste que cai — e cai dizendo por quê.
@@ -369,9 +376,7 @@ def test_t519_o_arquivo_nao_diz_nada_sobre_perfil_ou_pacote(arquivo: Path) -> No
     linhas = _linhas_da_aba(arquivo, "Sem Divergência")
     perfil_d = [linha for linha in linhas if str(linha[0]) == "14.048.00008.00"]
 
-    assert len(perfil_d) == 1
-    assert len(perfil_d[0]) == 4
-    assert perfil_d[0][2] == perfil_d[0][3] == 1
+    assert perfil_d == []
 
 
 def test_t519_a_aba_de_criticos_sai_sem_dado_e_com_cabecalho(arquivo: Path) -> None:
@@ -397,11 +402,13 @@ def test_o_resumo_traz_as_quatro_situacoes_e_o_total(arquivo: Path) -> None:
 
     quadro = {planilha[f"A{linha}"].value: planilha[f"B{linha}"].value for linha in range(7, 12)}
     # ESPEC 031 — 1 → 0 e 21 → 22: o `14.049.00054.00` deixou de ser crítico.
+    # 17/11/2026 — 16 → 17 e 22 → 21: `14.048.00008.00` saiu de "sem
+    # divergência" para "divergente" (letras de perfil diferentes).
     assert quadro == {
         "Item crítico": 0,
         "Divergente de maior relevância": 20,
-        "Divergente": 16,
-        "Sem divergência": 22,
+        "Divergente": 17,
+        "Sem divergência": 21,
         "Total de itens analisados": 58,
     }
     # `R-RES-02` — o total é a soma das quatro, e isso fica visível na planilha.

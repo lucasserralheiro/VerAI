@@ -526,5 +526,7 @@ def test_t1340_o_piloto_sem_aditivo_nao_se_move(
     # T-1526 / ESPEC 021 — as quatro linhas `1 / 1` do piloto deixaram de ser
     # quatro frases e passaram a ser quatro registros. O piloto fica **sem
     # nenhum aviso**, e é a contagem de derivadas que prova que o caminho rodou.
+    # 17/11/2026 — 4 → 3: `14.048.00008.00` (Perfil D × Perfil C) saiu de
+    # `.derivadas` — não é mais `1/1`, diverge de verdade.
     assert resultado.achados.avisos == []
-    assert len(resultado.derivadas) == 4
+    assert len(resultado.derivadas) == 3

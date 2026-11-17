@@ -57,11 +57,15 @@ REFERENCIA = FIXTURES / "analise_referencia.xlsx"
 CONTAGEM_ESPERADA = {
     Classificacao.CRITICO: 0,
     Classificacao.MAIOR_RELEVANCIA: 20,
-    Classificacao.DIVERGENTE: 16,
+    # 17/11/2026 — 16 → 17: `14.048.00008.00` (Perfil D contratado, Perfil C
+    # medido) deixou de sair `1/1` (revisão da ESPEC 021 `R-REL-08`, decisão do
+    # usuário) e passou a divergir de verdade.
+    Classificacao.DIVERGENTE: 17,
     # ESPEC 018 — eram 19. Entram os três zerados que só a aba conhece (`D-04`)
     # e sai o desdobramento por qualificador do `14.025.00011.00` (`D-01`).
     # ESPEC 031 — 21 → 22 com o `14.049.00054.00`, que deixou de ser crítico.
-    Classificacao.SEM_DIVERGENCIA: 22,
+    # 17/11/2026 — 22 → 21: `14.048.00008.00` saiu daqui, para *divergente*.
+    Classificacao.SEM_DIVERGENCIA: 21,
 }
 
 # O gabarito, que não conhece o item sem previsão contratual.
@@ -164,7 +168,7 @@ def test_t514_as_duas_divergencias_sao_das_especies_declaradas(analise: AnaliseD
 
 
 def test_a_contagem_do_piloto(analise: AnaliseDaMedicao) -> None:
-    """0 / 20 / 16 / 22, somando 58. Era 1 / 20 / 16 / 21 antes da ESPEC 031."""
+    """0 / 20 / 17 / 21, somando 58. Era 0 / 20 / 16 / 22 antes de 17/11/2026."""
     contagem = {s.classificacao: s.quantidade for s in analise.situacoes}
 
     assert contagem == CONTAGEM_ESPERADA
@@ -196,30 +200,34 @@ def test_os_36_divergentes_da_espec_002_sao_as_duas_categorias_do_meio(
         Classificacao.DIVERGENTE
     ).quantidade
 
-    # `do_meio` **não muda**: o `14.049.00054.00` nunca esteve nas duas categorias
-    # do meio — era crítico —, e foi para *sem divergência*. O que muda é o total:
-    # ele divergia por `0 ≠ 2`, e com `0 = 0` deixa de divergir (ESPEC 031).
+    # A partição de `R-ANA-01` a `R-ANA-04` continua cabendo inteira nas duas
+    # categorias do meio — só o total mudou, duas vezes:
     #
-    # Os dois números passam a ser **iguais**, e é consequência de o piloto não ter
-    # mais crítico nenhum: a partição de `R-ANA-01` a `R-ANA-04` sobre as 36
-    # divergências agora cabe inteira nas duas categorias do meio.
-    assert do_meio == 36
-    assert relatorio.total_divergencias == 36
+    # ESPEC 031: ele divergia por `0 ≠ 2`, e com `0 = 0` deixa de divergir
+    # (`14.049.00054.00`, crítico → sem divergência). 37 → 36.
+    #
+    # 17/11/2026: `14.048.00008.00` (Perfil D contratado, Perfil C medido)
+    # deixou de sair `1/1` e passou a divergir de verdade (revisão da ESPEC 021
+    # `R-REL-08`, decisão do usuário) — sem divergência → divergente. 36 → 37.
+    assert do_meio == 37
+    assert relatorio.total_divergencias == 37
 
 
-def test_os_quatro_perfis_estao_em_sem_divergencia(analise: AnaliseDaMedicao) -> None:
-    """`R-ANA-08` sobre o piloto: 4 das 21 linhas conformes nunca poderiam divergir.
+def test_os_tres_perfis_estao_em_sem_divergencia(analise: AnaliseDaMedicao) -> None:
+    """`R-ANA-08` sobre o piloto: 3 das 21 linhas conformes nunca poderiam divergir.
 
-    Eram cinco: o `14.025.00011.00` contava duas vezes, desdobrado por
-    qualificador. `D-01` o consolida numa linha por código.
+    Eram cinco antes da ESPEC 018 (o `14.025.00011.00` contava duas vezes,
+    desdobrado por qualificador — `D-01` o consolida numa linha por código) e
+    quatro até 17/11/2026: `14.048.00008.00` (Perfil D contratado, Perfil C
+    medido) saiu daqui — não é mais `1/1`, é divergência de verdade (revisão
+    da ESPEC 021 `R-REL-08`, decisão do usuário).
     """
     conformes = analise.situacao(Classificacao.SEM_DIVERGENCIA)
 
-    assert conformes.perfis_ou_pacotes == 4
+    assert conformes.perfis_ou_pacotes == 3
     assert {
         str(item.linha.codigo) for item in conformes.itens if item.linha.perfil_ou_pacote
     } == {
-        "14.048.00008.00",
         "14.046.00010.00",
         "14.025.00011.00",
         "14.070.00002.00",

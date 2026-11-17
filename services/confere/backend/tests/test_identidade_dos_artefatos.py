@@ -175,8 +175,10 @@ PACOTE_DO_PILOTO: dict[str, str] = {
         "ebcd4fe3721967888a2ab86936d48f274f6ed0b80575a6f8e20bc5e7bcb55069",
     # Reancorada pela ESPEC 028 — 2026-08-19; ver o cabeçalho deste arquivo.
     # Era `30b67025…` (sem o `*`, sem a 028) e `84c4aadc…` (com o `*`, sem a 028).
-    # Única entrada do pacote que se move nas duas mudanças.
-    "word/document.xml": "53e23d39011a6ea7efe8a41f39b86e0e06e0a28e38018e1eaf1d0afd1196d855",
+    # Reancorada de novo em 17/11/2026: `14.048.00008.00` deixou de renderizar
+    # `1 / 1` e passou a renderizar `4 / 3` (Perfil D × Perfil C divergindo de
+    # verdade). Era `53e23d39…`.
+    "word/document.xml": "54f234fe17cbe09dedf1bec8a50ea858d390d96156b3baf3554a92f8dfe40400",
     "word/endnotes.xml": "cac57b424a2081ae557dd8b7e2d80ded86478c85c1dbf3487963bd3a79be29d1",
     "word/fontTable.xml": "c1ce9842227644570984cbe4e63d0f62c5469dcd753491130a0dac5fa9073fad",
     "word/fonts/font1.odttf": "b69bcd027f894269cd29064d042ef2903df4bffc77c66613f96188086a9b2129",
@@ -298,11 +300,14 @@ ANALISE_DO_PILOTO: dict[str, str] = {
     "xl/styles.xml": "440d6b29c7ae7c6327942c611f4905711dd8f0a3670236bb86e3a167fb5b608f",
     "xl/theme/theme1.xml": "d15e8ebf78ef7b9720839d7ae8fdc81a7df5bc24706d8e137df61a5683c358d9",
     "xl/workbook.xml": "041d3848955d17a815f7030e5a22720f18a47761c74ae6ec11c728cf5b2216dd",
-    "xl/worksheets/sheet1.xml": "5c96b9acd411af608eb064ba8d1268867a189ac76942a2e8cd92a9f5e8eda720",
+    # 17/11/2026 — sheet1 (Resumo), sheet4 e sheet5 (Divergente/Sem Divergência)
+    # se movem: `14.048.00008.00` saiu de "Sem Divergência" `1/1` para
+    # "Divergente" `4/3` (Perfil D × Perfil C divergindo de verdade).
+    "xl/worksheets/sheet1.xml": "e38407d19cb34a46fbdef171deeb7b7c87bf0f60a70012336aa1af1e40ce3f0d",
     "xl/worksheets/sheet2.xml": "5cc1ff9a3eb0480180b637062339c0a5a48c562929f08a5d3c5b3ef038ca5ce2",
     "xl/worksheets/sheet3.xml": "5b303a7c289be6cd8d0176f1d79b624a920dbaea5a2625ae19282549e4dee4d9",
-    "xl/worksheets/sheet4.xml": "be2b5bd9db52b21e513749d1e795419d7ebb243ecf9f1dd6c2edb31e3d290b33",
-    "xl/worksheets/sheet5.xml": "2af424d141b8e6b342b94cb3c4fcb0a29df950d3686600123bbf24f9d3726226",
+    "xl/worksheets/sheet4.xml": "258f7d0780e78068d50b079ca63a7b6ecc50da27cb271f35694d1a0386ccc9f7",
+    "xl/worksheets/sheet5.xml": "e426631b49eb6256a93595f0d6edea161f82d4e173812a50ee836d0079536e98",
 }
 
 ANALISE_DO_PGM: dict[str, str] = {

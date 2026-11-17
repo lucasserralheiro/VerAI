@@ -76,11 +76,30 @@ class Grade:
         return len(self.verticais) - 1
 
 
+def _tracos(pagina: Any) -> list[Any]:
+    """20/11/2026 — os traços que podem ser divisória: `rects` e `curves`.
+
+    `pdfplumber` só classifica em ``rects`` um retângulo com os quatro cantos
+    exatamente alinhados aos eixos. O `PA-SPCine-211118-152` desenha a borda da
+    célula como um polígono de 5 pontos com um canto ~0,5 pt fora do eixo, e
+    esse traço cai em ``curves`` — mas com a mesma caixa (``x0``, ``width``,
+    ``top``, ``height``) que um `rect`. A página tinha borda e texto
+    (`com_borda_desenhada` já olha ``rects or lines or curves``) e, mesmo
+    assim, zero divisória: a geometria só olhava ``rects``. `V-ADT-01`.
+
+    ``getattr`` porque a página de teste (``_PaginaFalsa`` e companhia, por
+    toda a suíte) é um objeto mínimo sem ``curves`` — e ausência de ``curves``
+    numa página de verdade do pdfplumber nunca ocorre: a página real sempre
+    tem o atributo, mesmo vazio.
+    """
+    return [*pagina.rects, *getattr(pagina, "curves", ())]
+
+
 def _fronteiras_horizontais(pagina: Any) -> list[float]:
     return sorted(
         {
             round(r["top"], 1)
-            for r in pagina.rects
+            for r in _tracos(pagina)
             if r["height"] < ESPESSURA_MAXIMA_DO_TRACO
             and r["width"] > COMPRIMENTO_MINIMO_HORIZONTAL
         }
@@ -101,7 +120,7 @@ def _candidatas_verticais(pagina: Any) -> list[float]:
     return sorted(
         {
             round(r["x0"], 1)
-            for r in pagina.rects
+            for r in _tracos(pagina)
             if r["width"] < ESPESSURA_MAXIMA_DO_TRACO
             and r["height"] > COMPRIMENTO_MINIMO_VERTICAL
         }
@@ -127,7 +146,7 @@ def _faixas_verticais(pagina: Any) -> dict[tuple[float, float], set[float]]:
     página.
     """
     faixas: defaultdict[tuple[float, float], set[float]] = defaultdict(set)
-    for r in pagina.rects:
+    for r in _tracos(pagina):
         if (
             r["width"] < ESPESSURA_MAXIMA_DO_TRACO
             and r["height"] > COMPRIMENTO_MINIMO_VERTICAL

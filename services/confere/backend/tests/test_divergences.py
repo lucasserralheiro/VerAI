@@ -139,19 +139,24 @@ def resultado(gerar_piloto: Callable[..., ReportResult]) -> ReportResult:
 
 
 def test_36_divergencias(resultado: ReportResult) -> None:
-    """36 → 37 na ESPEC 018, e de volta a 36 na ESPEC 031.
+    """36 → 37 na ESPEC 018, de volta a 36 na ESPEC 031, e 37 de novo em 17/11/2026.
 
-    A trigésima sétima era o `14.049.00054.00`: contratada 0, medida 2, que a
-    `R-REC-01` mantinha fora do documento e a `D-04` trouxe para o bloco final.
+    A trigésima sétima da ESPEC 018 era o `14.049.00054.00`: contratada 0,
+    medida 2, que a `R-REC-01` mantinha fora do documento e a `D-04` trouxe
+    para o bloco final.
 
     **Aquele `2` era artefato de leitura.** A apuração descontada de `E1.1` não
     lista o código, e a `R-APU-03` lê essa ausência como zero. Com `0 = 0` ele
     deixa de divergir, e o grid volta às 36 de antes — por outro caminho, e
     sobre o mesmo conjunto menos um.
+
+    **A 37ª de hoje é outra:** `14.048.00008.00` — contratado Perfil D, medido
+    Perfil C — deixou de sair `1/1` (revisão da ESPEC 021 `R-REL-08`, decisão
+    do usuário em 17/11/2026) e passou a divergir de verdade.
     """
     assert resultado.relatorio is not None
-    assert resultado.relatorio.total_divergencias == 36
-    assert len(resultado.relatorio.apenas_divergencias()) == 36
+    assert resultado.relatorio.total_divergencias == 37
+    assert len(resultado.relatorio.apenas_divergencias()) == 37
 
 
 def test_o_documento_continua_com_58_linhas(resultado: ReportResult) -> None:
@@ -205,12 +210,12 @@ def test_itens_sem_previsao_ficam_fora_do_pdf(resultado: ReportResult) -> None:
 
 
 def test_perfil_e_pacote_sao_marcados(resultado: ReportResult) -> None:
+    """`14.048.00008.00` saiu da lista em 17/11/2026 — letras diferentes, diverge."""
     assert resultado.relatorio is not None
     marcados = {
         str(linha.codigo) for linha in resultado.relatorio.linhas if linha.perfil_ou_pacote
     }
     assert marcados == {
-        "14.048.00008.00",
         "14.046.00010.00",
         "14.070.00002.00",
         "14.025.00011.00",

@@ -319,6 +319,18 @@ const CARREGADORES: Record<string, (hoje: Date) => Promise<RegistroDoFeed[]>> = 
       dados: { ...s, abertura: diaIso(dataAbertura), final: diaIso(dataFinal) },
     }))
   },
+
+  async tabelaPrecos() {
+    const tabela = await prisma.tabelaPrecos.findFirst({ orderBy: { ordem: 'desc' }, select: { id: true } })
+    if (!tabela) return []
+    const itens = await prisma.itemTabelaPrecos.findMany({ where: { tabelaId: tabela.id }, orderBy: { posicao: 'asc' } })
+    return itens.map((i) => ({
+      id: i.id,
+      chaveCliente: null,
+      chaveGerencia: null,
+      dados: { codigo: i.codigo, descricao: i.descricao, grupo: i.grupo, secoes: i.secoes, unidade: i.unidade },
+    }))
+  },
 }
 
 /** Catálogo público: o que cada recurso é. A tela /admin/api e o /api/v1/openapi.json saem daqui. */
@@ -331,6 +343,7 @@ export const RECURSOS_DO_VERAI: Record<string, { rotulo: string; descricao: stri
   alertas: { rotulo: 'Alertas', descricao: 'Vencimentos, saldo, faturamento parado e achados da auditoria.' },
   demandas: { rotulo: 'Demandas', descricao: 'Demandas/documentos dos clientes, com os trâmites.' },
   solicitacoes: { rotulo: 'Solicitações', descricao: 'Chamados de TI (RDM/Solicitação) dos clientes.' },
+  tabelaPrecos: { rotulo: 'Tabela de preços', descricao: 'Catálogo de serviços da PRODAM: código, descrição, grupo e preço da versão vigente.' },
 }
 
 export const RECURSOS = Object.keys(CARREGADORES)

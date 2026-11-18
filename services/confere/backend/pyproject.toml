@@ -31,6 +31,10 @@ dependencies = [
     # biblioteca padrão expande entidades, e uma planilha maliciosa pode trazer
     # expansão recursiva — o clássico "billion laughs".
     "defusedxml>=0.7.1",
+    # Cliente do catálogo de preços do VerAI (`infrastructure/catalogo/verai_cliente.py`),
+    # importado no topo por `container.py` — sem isso em produção (`uv sync --no-dev`)
+    # o import falha no boot e o serviço inteiro não sobe, não só o catálogo.
+    "httpx>=0.28.1",
 ]
 
 [build-system]
@@ -54,7 +58,6 @@ dev = [
     "ruff>=0.8.0",
     "mypy>=1.13.0",
     "bandit>=1.8.0",
-    "httpx>=0.28.1",
 ]
 
 [tool.ruff]

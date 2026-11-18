@@ -29,6 +29,7 @@ from infrastructure.contract.grid import (
     pode_ter_grade,
     resolver_papel_das_colunas,
 )
+from infrastructure.contract.header_grid import ler_linhas_sem_grade
 from infrastructure.shared.arquivos import abrir_pdf, aliviar_pagina, liberar_pagina, paginas_liberando
 
 # Colunas da tabela, na ordem do documento.
@@ -144,6 +145,26 @@ _FRASE_TOTAL_EM_PROSA_VARIANTE = re.compile(
 _LINHA_TOTAL_DO_CRONOGRAMA = re.compile(r"(?m)^TOTAL\b.*$")
 _VALOR_MONETARIO = re.compile(r"[\d.]+,\d{2}")
 
+# 18/11/2026 — a `TOTAL:` (a marca de sempre, `_MARCA_TOTAL`) quando a linha
+# cai numa página sem nenhuma geometria de item: a seção "E - DATA CENTER" do
+# `PC-SP REGULA-260526-821` fecha com `TOTAL: BRL\n1.184.353,44` no topo da
+# página 6, e a página só tem essa linha solta mais o Cronograma
+# Físico-Financeiro abaixo — nenhuma tabela de item casa ali, então
+# `_total_declarado` (que só lê célula de grade) nunca a vê. `re.S` porque
+# `BRL` e o valor quebram linha, como na frase de prosa da ESPEC 042.
+_TOTAL_ORFAO = re.compile(r"TOTAL:\s*(?:BRL\s*)?([\d.]+,\d{2})", re.S)
+
+
+def _total_orfao_do_texto(texto: str) -> Decimal | None:
+    """O valor da `TOTAL:` que a página não tinha grade pra guardar.
+
+    Análogo, pro total, do que `cauda_da_pagina` já faz pra descrição cortada
+    entre páginas: resgata da **página inteira**, em texto corrido, o que a
+    leitura por célula não alcança porque não há tabela ali.
+    """
+    achado = _TOTAL_ORFAO.search(texto)
+    return para_decimal(achado.group(1)) if achado else None
+
 # T-2239 / ESPEC 034 `R-CAP-11` — o vocabulário que abre o sintagma do órgão.
 #
 # **Lista fechada, e é decisão** (`D-04`). Só `Secretaria` e `Procuradoria` têm
@@ -239,13 +260,30 @@ class PdfPlumberContractExtractor:
             geometria = analisar_geometria(pdf)
             diagnostico = self._identificar(texto_da_capa, geometria.diagnostico)
             if geometria.gabarito is None:
+                # 17/11/2026 — sem nenhum candidato de grade, último recurso
+                # antes de desistir: `header_grid.py` (16 de 469 PC/PA do
+                # corpus caem aqui — a tabela de itens real não tem borda).
+                sem_grade = self._extrair_sem_grade(pdf)
+                if sem_grade is None:
+                    return Contract(
+                        proposta=proposta,
+                        cliente=cliente,
+                        diagnostico=diagnostico,
+                        # **Aqui também, e não só no retorno de baixo**
+                        # (ESPEC 029 §2.8). Este é o caminho da peça que já
+                        # falhou na extração, e é sobre ela que a tela vai
+                        # ter de dizer alguma coisa.
+                        identidade=identidade,
+                        processo=processo,
+                    )
+                itens_sg, texto_sg = sem_grade
                 return Contract(
                     proposta=proposta,
                     cliente=cliente,
+                    total_declarado=self._total_por_convergencia(texto_sg),
+                    itens=itens_sg,
                     diagnostico=diagnostico,
-                    # **Aqui também, e não só no retorno de baixo** (ESPEC 029
-                    # §2.8). Este é o caminho da peça que já falhou na extração,
-                    # e é sobre ela que a tela vai ter de dizer alguma coisa.
+                    blocos=(BlocoDeItens(rotulo=None, itens=tuple(itens_sg)),),
                     identidade=identidade,
                     processo=processo,
                 )
@@ -309,6 +347,11 @@ class PdfPlumberContractExtractor:
             # jeito. Sem isto, cada página sem tabela era analisada duas vezes.
             candidatas_por_pagina = geometria.candidatas_por_pagina
             for numero, pagina in paginas_liberando(pdf):
+                # 18/11/2026 — se nenhuma `divisorias` casar nesta página, ela
+                # nunca entra em `ler_celulas`: uma `TOTAL:` solta aqui (sem
+                # tabela de item nenhuma) nunca seria vista. Ver
+                # `_total_orfao_do_texto` e o bloco depois deste laço interno.
+                grade_na_pagina = False
                 for divisorias in geometrias:
                     if numero <= len(candidatas_por_pagina) and not pode_ter_grade(
                         candidatas_por_pagina[numero - 1], divisorias
@@ -317,6 +360,7 @@ class PdfPlumberContractExtractor:
                     grade = montar_grade(pagina, divisorias)
                     if grade is None:
                         continue
+                    grade_na_pagina = True
 
                     # `R-CON-03` — a cauda **desta** página pertence à última
                     # linha da **anterior**: a linha atravessou a quebra, e o
@@ -439,11 +483,48 @@ class PdfPlumberContractExtractor:
                             self._montar_item(celulas, codigo, numero, papel_ativo[divisorias])
                         )
 
+                # 18/11/2026 / `R-ADT` — a `TOTAL:` órfã: a página não casou
+                # nenhuma geometria de item (`grade_na_pagina` segue `False`),
+                # então nenhuma célula desta página foi vista acima — inclusive
+                # a `TOTAL:` que fecharia o bloco pendente, se ela estiver aqui
+                # solta em texto corrido (achado no `PC-SP REGULA-260526-821`,
+                # seção "E - DATA CENTER", topo da página 6).
+                if not grade_na_pagina and pendentes:
+                    texto_da_pagina = pagina.extract_text() or ""
+                    valor = _total_orfao_do_texto(texto_da_pagina)
+                    if valor is not None and (numero, valor) not in totais_vistos:
+                        totais_vistos.add((numero, valor))
+                        total_declarado = (total_declarado or Decimal(0)) + valor
+                        blocos.append(
+                            BlocoDeItens(
+                                rotulo=self._rotulo([texto_da_pagina]),
+                                itens=tuple(pendentes),
+                                total_declarado=valor,
+                            )
+                        )
+                        itens.extend(pendentes)
+                        pendentes = []
+
             # Itens sem `TOTAL:` que os feche. Vale a tabela que a peça mostra: o
             # bloco sai sem rótulo, e `V-CTR-03` já bloqueia se faltou total.
             if pendentes:
                 blocos.append(BlocoDeItens(rotulo=None, itens=tuple(pendentes)))
                 itens.extend(pendentes)
+
+            # 17/11/2026 — último recurso: a grade achou candidato (por isso
+            # não caiu no retorno antecipado de cima), mas nenhum item
+            # completo — a geometria era de outra tabela, como o cronograma
+            # físico-financeiro no `PA-SPCine-211118-152` (oito divisórias,
+            # zero item). A tabela de itens real, nesses casos, não tem
+            # borda nenhuma; `header_grid.py` lê pelo texto do cabeçalho, e
+            # só é tentado aqui, depois da leitura normal já ter falhado.
+            if not itens:
+                sem_grade = self._extrair_sem_grade(pdf)
+                if sem_grade is not None:
+                    itens, texto_sem_grade = sem_grade
+                    blocos = [BlocoDeItens(rotulo=None, itens=tuple(itens))]
+                    if total_declarado is None:
+                        total_declarado = self._total_por_convergencia(texto_sem_grade)
 
             # T-2644 / ESPEC 042 `D-04` — só quando a busca normal (`TOTAL:` +
             # `BRL`) já percorreu o documento inteiro e não achou nada. Os
@@ -522,6 +603,32 @@ class PdfPlumberContractExtractor:
         )
 
     # ── Auxiliares ────────────────────────────────────────────────────────────
+
+    def _extrair_sem_grade(self, pdf: Any) -> tuple[list[ContractItem], str] | None:
+        """17/11/2026 — a tabela de itens sem grade desenhada (`header_grid.py`).
+
+        Último recurso: só chamado por `extrair`, nos dois pontos em que a
+        leitura normal (grade) já falhou — sem gabarito nenhum, ou gabarito
+        de outra tabela, zero item completo. `None` sem achar cabeçalho de
+        tabela de itens em página nenhuma. Devolve também o texto do
+        documento, já lido no mesmo laço: `extrair` o usa para
+        `_total_por_convergencia` sem reabrir página nenhuma.
+
+        Levanta `ExtractionError` por `_montar_item`, como a leitura normal —
+        a mesma garantia (`item sem preço/quantidade/total não gera linha
+        silenciosa`) vale aqui, sem duplicá-la.
+        """
+        itens: list[ContractItem] = []
+        textos: list[str] = []
+        for numero, pagina in paginas_liberando(pdf):
+            textos.append(pagina.extract_text() or "")
+            for celulas in ler_linhas_sem_grade(pagina):
+                codigo = _limpar(celulas[COL_CODIGO])
+                if _CODIGO_EXATO.match(codigo):
+                    itens.append(self._montar_item(celulas, codigo, numero, PAPEL_CANONICO))
+        if not itens:
+            return None
+        return itens, "\n".join(textos)
 
     def _geometrias_de_itens(
         self, pdf: Any, geometria: Any

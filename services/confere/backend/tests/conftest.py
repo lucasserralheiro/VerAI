@@ -143,6 +143,20 @@ def caminho_aditivo_cgm() -> Path:
 
 
 @pytest.fixture(scope="session")
+def caminho_contrato_spregula() -> Path:
+    """18/11/2026 — o `PC-SP REGULA-260526-821`, TC 07/SPREGULA/2026.
+
+    Duas seções de preço ("A - SISTEMAS DE INFORMAÇÃO" e "E - DATA CENTER"), e
+    a `TOTAL:` da segunda fecha no topo da página 6, fora de qualquer grade de
+    item — a página 6 só tem essa linha solta e depois o Cronograma
+    Físico-Financeiro. Sem o resgate da `TOTAL:` órfã, `total_declarado` parava
+    nos `55.020,00` da seção A e `V-CTR-03` bloqueava com `soma_dos_totais` em
+    `1.239.373,44` — itens certos, total incompleto.
+    """
+    return FIXTURES / "contrato_spregula.pdf"
+
+
+@pytest.fixture(scope="session")
 def caminho_levantamento() -> Path:
     return FIXTURES / "levantamento.xlsx"
 

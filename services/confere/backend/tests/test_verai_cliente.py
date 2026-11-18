@@ -32,12 +32,18 @@ def _configurado(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("VERAI_API_KEY", "vrai_teste")
 
 
-def test_sem_configuracao_devolve_vazio(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sem_configuracao_devolve_vazio(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
     monkeypatch.delenv("VERAI_BASE_URL", raising=False)
     monkeypatch.delenv("VERAI_API_KEY", raising=False)
     catalogo = CatalogoVerAI()
 
-    assert catalogo.obter() == {}
+    with caplog.at_level("WARNING"):
+        assert catalogo.obter() == {}
+
+    assert "VERAI_BASE_URL" in caplog.text
+    assert "VERAI_API_KEY" in caplog.text
 
 
 def test_busca_e_concatena_paginas() -> None:
@@ -95,14 +101,17 @@ def test_ttl_expirado_busca_de_novo() -> None:
     assert chamadas == 2
 
 
-def test_erro_http_sem_cache_anterior_devolve_vazio() -> None:
+def test_erro_http_sem_cache_anterior_devolve_vazio(caplog: pytest.LogCaptureFixture) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500)
 
     cliente = httpx.Client(transport=httpx.MockTransport(handler))
     catalogo = CatalogoVerAI()
 
-    assert catalogo.obter(cliente=cliente) == {}
+    with caplog.at_level("WARNING"):
+        assert catalogo.obter(cliente=cliente) == {}
+
+    assert "falha ao buscar o catálogo" in caplog.text
 
 
 def test_erro_http_mantem_cache_anterior() -> None:

@@ -4,15 +4,24 @@ Spec docs/superpowers/specs/2026-11-18-confere-catalogo-precos-design.md §3-4. 
 geração do relatório: configuração ausente, timeout, erro HTTP — tudo cai em cache vazio (ou no
 que já havia), e quem usa (`infrastructure/validations/catalog_validations.py`) trata `{}` como
 "catálogo indisponível", não como "catálogo sem item nenhum".
+
+O TTL de `obter()` é real e testado, mas só protege quem reusa a mesma instância de
+`CatalogoVerAI` para mais de uma geração. Em produção cada geração roda num processo novo do
+`ProcessPoolExecutor` (`src/api/routers/reports.py`, `_processar_isolado`): a instância nasce e
+morre dentro da mesma chamada, então, na prática, cada geração faz exatamente uma busca ao VerAI
+— o cache nunca chega a ser reaproveitado entre gerações reais.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from dataclasses import dataclass
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 TTL_PADRAO_S = 600.0
 TIMEOUT_PADRAO_S = 3.0
@@ -44,6 +53,9 @@ class CatalogoVerAI:
         base_url = os.getenv("VERAI_BASE_URL")
         chave = os.getenv("VERAI_API_KEY")
         if not base_url or not chave:
+            logger.warning(
+                "VERAI_BASE_URL/VERAI_API_KEY não configurados — validação de catálogo não vai rodar"
+            )
             return self._cache
 
         proprio = cliente is None
@@ -51,8 +63,10 @@ class CatalogoVerAI:
         try:
             self._cache = self._buscar_tudo(http, base_url.rstrip("/"), chave)
             self._cache_em = momento
-        except (httpx.HTTPError, KeyError, ValueError, TypeError):
-            pass
+        except (httpx.HTTPError, KeyError, ValueError, TypeError) as erro:
+            logger.warning(
+                "falha ao buscar o catálogo do VerAI, mantendo o cache anterior: %s", erro
+            )
         finally:
             if proprio:
                 http.close()

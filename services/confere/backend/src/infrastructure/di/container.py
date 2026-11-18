@@ -59,6 +59,10 @@ from infrastructure.validations.measurement_validations import (
 from infrastructure.validations.reconciliation_validations import (
     v_rec_01_divergencia_de_quantidade_contratada,
 )
+from infrastructure.catalogo.verai_cliente import CatalogoVerAI
+from infrastructure.validations.catalog_validations import (
+    v_cat_01_codigo_fora_do_catalogo_ou_perfil_incoerente,
+)
 
 
 @dataclass(frozen=True)
@@ -114,6 +118,9 @@ class DIContainer:
 
     def leitor_de_anexos(self) -> AnexoReader:
         return self._obter("anexos", AnexoReader)
+
+    def catalogo_verai(self) -> CatalogoVerAI:
+        return self._obter("catalogo_verai", CatalogoVerAI)
 
     def renderizador(self) -> DocxRenderer:
         return self._obter("renderer", DocxRenderer)
@@ -329,6 +336,9 @@ class DIContainer:
             # e a `V-CTR-05` volta com eles.
             if not _sob_pergunta_de_identidade(achados):
                 v_ctr_05_codigo_contratado_ausente_da_aba(contrato, medicao, achados)
+            v_cat_01_codigo_fora_do_catalogo_ou_perfil_incoerente(
+                medicao, achados, self.catalogo_verai().obter()
+            )
         # T-1615 / ESPEC 022 `R-QTD-06` — sem `explicados`. O contrato que chega
         # aqui é o consolidado **com** os deltas, e a validação volta a comparar:
         # cala quando os números batem, acusa quando não batem. A `D-08` da ESPEC

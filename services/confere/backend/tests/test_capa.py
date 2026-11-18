@@ -96,10 +96,13 @@ from infrastructure.report.modelo import (
 # só o `sha256` se move, porque `14.048.00008.00` deixou de renderizar `1 / 1`
 # e passou a renderizar `4 / 3` (Perfil D × Perfil C divergindo de verdade —
 # `test_reconciliation.py::test_letras_de_perfil_diferentes_geram_divergencia_real`).
+# 18/11/2026 — de novo só o `sha256`: linha de perfil passou a grafar a letra
+# (`D`/`C`/`B`), não a posição nem o `1/1` (`Quantity.rotulo`) — quatro células,
+# `14.048.00008.00` e `14.046.00010.00`.
 CORPO_DO_PILOTO_TEXTOS = 16_006
 CORPO_DO_PILOTO_CODIGOS = 75  # 54 linhas do relatório + 21 nas tabelas de anexo
 CORPO_DO_PILOTO_SHA256 = (
-    "99566d461ce779e92865a037cd601c737d052a189a1e356a7b7fdb61a0571378"
+    "3a88899ca8f10578326fd4fd343456e0d2e116843efbe8fff55fb08b48efdd50"
 )
 
 # ── Leitura do pacote ─────────────────────────────────────────────────────────

@@ -136,6 +136,15 @@ def test_soma_preserva_o_formato() -> None:
     assert total.formato is NumberFormat.SIMPLES
 
 
+def test_rotulo_substitui_o_numero_na_formatacao() -> None:
+    """18/11/2026 — a letra do perfil (`D`, `A`…) é o que o relatório mostra;
+
+    `valor` continua carregando a posição alfabética, usada só para decidir
+    divergência (ESPEC 021 revisão de 17/11) — a formatação nunca a expõe.
+    """
+    assert Quantity(Decimal("4"), rotulo="D").formatar() == "D"
+
+
 # ── T-10 · Entidades de entrada ───────────────────────────────────────────────
 
 

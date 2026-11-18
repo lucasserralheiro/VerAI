@@ -182,6 +182,12 @@ def test_perfil_e_pacote_saem_como_um_e_um(resultado: ReportResult, codigo: str)
     assert linha.perfil_ou_pacote
     assert linha.contratada.valor == Decimal("1")
     assert linha.medida.valor == Decimal("1")
+    # 18/11/2026 — só há letra para mostrar quando os dois lados são a MESMA
+    # letra (`14.046.00010.00`, `B`/`B`): número e `PACOTE` não têm letra, e o
+    # `1/1` continua numérico.
+    letra_comum = "B" if codigo == "14.046.00010.00" else None
+    assert linha.contratada.rotulo == letra_comum
+    assert linha.medida.rotulo == letra_comum
 
 
 def test_letras_de_perfil_diferentes_geram_divergencia_real(resultado: ReportResult) -> None:
@@ -192,6 +198,9 @@ def test_letras_de_perfil_diferentes_geram_divergencia_real(resultado: ReportRes
     real só sobrevivia numa contagem à parte (`perfis_ou_pacotes`), nunca no
     relatório. A ordem alfabética é a ordem real das faixas (A < B < C < …),
     lida da própria planilha — nenhuma tabela de preço é consultada.
+
+    18/11/2026 — `valor` continua sendo a posição (decide a divergência); o que
+    o relatório mostra é a letra (`rotulo`), não o `4`/`3`.
     """
     linha = _linha(resultado, "14.048.00008.00")
     assert linha is not None
@@ -199,6 +208,11 @@ def test_letras_de_perfil_diferentes_geram_divergencia_real(resultado: ReportRes
     # D é a 4ª letra, C a 3ª: contratado acima do medido.
     assert linha.contratada.valor == Decimal("4")
     assert linha.medida.valor == Decimal("3")
+    assert linha.contratada.rotulo == "D"
+    assert linha.medida.rotulo == "C"
+    assert linha.contratada.formatar() == "D"
+    assert linha.medida.formatar() == "C"
+    assert linha.saldo.formatar() == "—"
     assert linha.tem_divergencia
     assert linha.classificacao is Classificacao.DIVERGENTE
 
@@ -242,6 +256,9 @@ def test_medida_traco_nao_vira_perfil_medido() -> None:
     assert not linha.perfil_ou_pacote
     assert linha.contratada.valor == Decimal("1")
     assert linha.medida.valor == Decimal("0")
+    # 18/11/2026 — a letra contratada ("A") sobrevive à conversão pra UNIDADE.
+    assert linha.contratada.rotulo == "A"
+    assert linha.contratada.formatar() == "A"
     assert linha.classificacao is Classificacao.MAIOR_RELEVANCIA
 
 

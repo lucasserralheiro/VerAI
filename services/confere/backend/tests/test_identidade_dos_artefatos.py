@@ -178,7 +178,9 @@ PACOTE_DO_PILOTO: dict[str, str] = {
     # Reancorada de novo em 17/11/2026: `14.048.00008.00` deixou de renderizar
     # `1 / 1` e passou a renderizar `4 / 3` (Perfil D × Perfil C divergindo de
     # verdade). Era `53e23d39…`.
-    "word/document.xml": "54f234fe17cbe09dedf1bec8a50ea858d390d96156b3baf3554a92f8dfe40400",
+    # Reancorada de novo em 18/11/2026: linha de perfil passou a grafar a letra
+    # (`D`/`C`/`B`), não a posição nem `1/1` (`Quantity.rotulo`). Era `54f234fe…`.
+    "word/document.xml": "b26f44c064397f3af5119211306f466cabae0e7346341aa24e5b9653ee4ca203",
     "word/endnotes.xml": "cac57b424a2081ae557dd8b7e2d80ded86478c85c1dbf3487963bd3a79be29d1",
     "word/fontTable.xml": "c1ce9842227644570984cbe4e63d0f62c5469dcd753491130a0dac5fa9073fad",
     "word/fonts/font1.odttf": "b69bcd027f894269cd29064d042ef2903df4bffc77c66613f96188086a9b2129",
@@ -265,7 +267,10 @@ PACOTE_DO_PGM: dict[str, str] = {
     # O piloto não se move nesta espec: as 19 âncoras foram medidas nele, e
     # resolvem exatamente na `linha_cabecalho` que já estava em `anexos.json`
     # (`R-CAB-06`). Um movimento lá seria índice certo que deixou de estar.
-    "word/document.xml": "6dd36e33ddfbd3cea754066c6d1007ca6917981b880a6a0104e48d5e351adb0c",
+    #
+    # Reancorada em 18/11/2026: linha de perfil passou a grafar a letra
+    # (`A`/`F`), não `1/1` (`Quantity.rotulo`). Era `6dd36e33…`.
+    "word/document.xml": "5736e55bf2af64472beb23116128cbdddda496488f5b47ea52930c5502bd4cdf",
     "word/endnotes.xml": "cac57b424a2081ae557dd8b7e2d80ded86478c85c1dbf3487963bd3a79be29d1",
     "word/fontTable.xml": "c1ce9842227644570984cbe4e63d0f62c5469dcd753491130a0dac5fa9073fad",
     "word/fonts/font1.odttf": "b69bcd027f894269cd29064d042ef2903df4bffc77c66613f96188086a9b2129",

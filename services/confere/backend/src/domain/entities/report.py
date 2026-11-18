@@ -53,7 +53,18 @@ class ReportLine:
 
         Negativo quando o medido supera o contratado (`R-DIV-09`): é consumo
         acima do contratado, e o sinal precisa sobreviver até a tela.
+
+        18/11/2026 — linha de perfil (`contratada`/`medida` com `rotulo`) não
+        tem saldo em unidades: a subtração de posições alfabéticas (`D` − `C`)
+        não é uma quantidade que falta. A célula mostra `—`, como qualquer
+        outro "não se aplica" do relatório.
         """
+        if self.contratada.rotulo is not None or self.medida.rotulo is not None:
+            return Quantity(
+                self.contratada.valor - self.medida.valor,
+                self.contratada.formato,
+                rotulo="—",
+            )
         return Quantity(
             self.contratada.valor - self.medida.valor,
             self.contratada.formato,

@@ -149,6 +149,10 @@ def divergencias_de_grafia(arquivo: Path, analise: AnaliseDaMedicao) -> list[Div
     Nunca um booleano: diferença sem nome não orienta correção — é a mesma
     exigência da T-504 do PLANO 009.
     """
+    # 18/11/2026 — linha de perfil (`rotulo` na quantidade) sai de propósito: a
+    # planilha mantém o número, somável (`R-NUM-01`); o `.docx` mostra a letra
+    # (`D`, não `4`). As duas grafias divergem por decisão, e este comparador
+    # mede outra coisa — a célula que *deveria* bater e não bate.
     esperado = {
         str(item.linha.codigo): {
             "Contratado": item.linha.contratada.formatar(),
@@ -157,6 +161,7 @@ def divergencias_de_grafia(arquivo: Path, analise: AnaliseDaMedicao) -> list[Div
         }
         for situacao in analise.situacoes
         for item in situacao.itens
+        if item.linha.contratada.rotulo is None and item.linha.medida.rotulo is None
     }
 
     achadas: list[Divergencia] = []
@@ -180,9 +185,14 @@ def divergencias_de_grafia(arquivo: Path, analise: AnaliseDaMedicao) -> list[Div
                     if not isinstance(celula.value, int | float | Decimal):
                         continue
 
+                    campos = esperado.get(str(codigo_do_item))
+                    if campos is None:
+                        # Linha de perfil, excluída acima — nada a comparar.
+                        continue
+
                     grandeza = _grandeza(titulo)
                     obtido = texto_exibido(Decimal(str(celula.value)), celula.number_format)
-                    devido = esperado[str(codigo_do_item)][grandeza]
+                    devido = campos[grandeza]
                     if obtido != devido:
                         achadas.append(
                             Divergencia(str(codigo_do_item), grandeza, devido, obtido)

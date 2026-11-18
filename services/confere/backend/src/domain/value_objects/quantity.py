@@ -67,6 +67,11 @@ class Quantity:
 
     valor: Decimal
     formato: NumberFormat = NumberFormat.MILHAR
+    # 18/11/2026 — a letra do perfil (`A`, `D`…), quando a quantidade vem de uma
+    # célula de perfil ou pacote (ESPEC 021 `R-REL-08`). `valor` continua sendo a
+    # posição alfabética (`A`=1, `B`=2…), usada para decidir divergência — é
+    # `rotulo` quem decide o que a célula do relatório mostra.
+    rotulo: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.valor, Decimal):
@@ -94,6 +99,8 @@ class Quantity:
         Parte fracionária vira duas casas com vírgula; parte inteira recebe
         ponto de milhar apenas no formato ``MILHAR``.
         """
+        if self.rotulo is not None:
+            return self.rotulo
         quantizado = self.valor.quantize(Decimal("0.01"))
         inteiro, _, decimal = f"{abs(quantizado):.2f}".partition(".")
 

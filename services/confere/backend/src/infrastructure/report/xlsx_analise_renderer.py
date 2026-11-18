@@ -241,6 +241,11 @@ class XlsxAnaliseRenderer:
             # `Decimal` direto: `openpyxl` o aceita nativamente. Passar por
             # `float` traria erro binário para um número que instrui faturamento
             # — é a mesma recusa que `Quantity` faz no construtor.
+            #
+            # 18/11/2026 — linha de perfil (`rotulo` presente) continua número
+            # aqui, mesmo mostrando a letra no `.docx` e na tela: `R-NUM-01`
+            # exige que toda quantidade desta planilha seja somável, e `D`
+            # como texto quebraria a primeira soma.
             celula = planilha.cell(row=linha, column=3 + deslocamento, value=quantidade.valor)
             celula.number_format = _formato_de(quantidade)
 

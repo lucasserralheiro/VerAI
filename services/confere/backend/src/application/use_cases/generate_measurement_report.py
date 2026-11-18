@@ -230,13 +230,20 @@ class GenerateMeasurementReport:
         if item.medida is None and item.medida_texto.strip() in _SEM_MEDICAO:
             contratada_num = medicao.contratada_para(codigo)
             contratada_declarada = item.contratada_texto.strip() not in _SEM_MEDICAO
+            # 18/11/2026 — a letra sobrevive à conversão pra `UNIDADE`: é ela
+            # que o relatório mostra, não a posição que substitui o texto.
+            contratada_rotulo = None
             if contratada_num is None and contratada_declarada:
+                contratada_rotulo = _letra_de_perfil(item.contratada_texto)
                 contratada_num = UNIDADE
             return ReportLine(
                 codigo=ServiceCode(codigo),
                 descricao=self._descricao(item, contrato),
                 unidade=self._unidade(item, contrato),
-                contratada=Quantity(contratada_num if contratada_num is not None else Decimal(0)),
+                contratada=Quantity(
+                    contratada_num if contratada_num is not None else Decimal(0),
+                    rotulo=contratada_rotulo,
+                ),
                 medida=Quantity(Decimal(0)),
                 contratada_declarada=contratada_num is not None,
             )
@@ -259,8 +266,8 @@ class GenerateMeasurementReport:
                 codigo=ServiceCode(codigo),
                 descricao=self._descricao(item, contrato),
                 unidade=self._unidade(item, contrato),
-                contratada=Quantity(_ordem_do_perfil(contratada_letra)),
-                medida=Quantity(_ordem_do_perfil(medida_letra)),
+                contratada=Quantity(_ordem_do_perfil(contratada_letra), rotulo=contratada_letra),
+                medida=Quantity(_ordem_do_perfil(medida_letra), rotulo=medida_letra),
             )
 
         # `R-REL-08` — medida não numérica é perfil ou pacote, e sai `1 / 1`.
@@ -268,12 +275,17 @@ class GenerateMeasurementReport:
         # aba: a correspondência é exata no piloto, nos dois sentidos, e alcança
         # no PGM cinco códigos que o catálogo do SMIT desconhecia.
         if item.medida is None:
+            # 18/11/2026 — a mesma letra dos dois lados (`A` contratado, `A`
+            # medido) também é a letra que o relatório mostra, não `1/1`. Sem
+            # letra comum (`PACOTE`, ou só um lado é letra) o `1/1` de sempre
+            # continua, porque não há o que mostrar em vez dele.
+            rotulo_comum = contratada_letra if contratada_letra == medida_letra else None
             emitida = ReportLine(
                 codigo=ServiceCode(codigo),
                 descricao=self._descricao(item, contrato),
                 unidade=self._unidade(item, contrato),
-                contratada=Quantity(UNIDADE),
-                medida=Quantity(UNIDADE),
+                contratada=Quantity(UNIDADE, rotulo=rotulo_comum),
+                medida=Quantity(UNIDADE, rotulo=rotulo_comum),
                 perfil_ou_pacote=True,
             )
             # T-1509 / ESPEC 021 — o registro que torna a inferência visível.

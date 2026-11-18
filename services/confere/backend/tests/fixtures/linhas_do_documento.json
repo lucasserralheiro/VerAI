@@ -193,15 +193,15 @@
    "14.046.00010.00",
    "PLATAFORMA DE BANCO DE DADOS - MYSQL - PERFIL B - Base de dados acima de 10GB até 100GB",
    "PLATAFORMA/ MÊS",
-   "1",
-   "1"
+   "B",
+   "B"
   ],
   [
    "14.048.00008.00",
    "PLATAFORMA DE BANCO DE DADOS - SQL SERVER - PERFIL D - Base de dados acima de 200GB até 500GB",
    "PLATAFORMA/ MÊS",
-   "4",
-   "3"
+   "D",
+   "C"
   ],
   [
    "14.049.00005.00",
@@ -587,15 +587,15 @@
    "14.046.00008.00",
    "PLATAFORMA DE BANCO DE DADOS - POSTGRESQL - PERFIL A - Base de dados até 10GB",
    "PLATAFORMA/ MÊS",
-   "1",
-   "1"
+   "A",
+   "A"
   ],
   [
    "14.048.00009.00",
    "PLATAFORMA DE BANCO DE DADOS - SQL SERVER - PERFIL F - Base de dados acima de 1.000GB até 3.000GB",
    "PLATAFORMA/ MÊS",
-   "1",
-   "1"
+   "F",
+   "F"
   ],
   [
    "14.048.00027.00",
